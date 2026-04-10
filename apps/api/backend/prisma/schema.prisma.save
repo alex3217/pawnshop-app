@@ -1,0 +1,169 @@
+// File: apps/api/backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  CONSUMER
+  ADMIN
+}
+
+enum ItemStatus {
+  AVAILABLE
+  PENDING
+  SOLD
+}
+
+enum AuctionStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELED
+}
+
+enum SettlementStatus {
+  PENDING
+  CHARGED
+  FAILED
+}
+
+model User {
+  id             String       @id @default(cuid())
+  name           String
+  email          String       @unique
+  password       String
+  role           Role         @default(CONSUMER)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  shops          PawnShop[]
+  Bid            Bid[]
+  wonSettlements Settlement[] @relation("SettlementWinner")
+
+  @@index([role, isActive])
+}
+
+model PawnShop {
+  id          String    @id @default(cuid())
+  name        String
+  address     String?
+  phone       String?
+  description String?
+  hours       String?
+  ownerId     String
+  isDeleted   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner       User      @relation(fields: [ownerId], references: [id])
+  items       Item[]
+  auctions    Auction[]
+
+  @@index([ownerId, isDeleted])
+  @@index([isDeleted, createdAt])
+}
+
+model Item {
+  id          String     @id @default(cuid())
+  pawnShopId  String
+  title       String
+  description String?
+  price       Decimal    @db.Decimal(10, 2)
+  images      String[]   @db.Text
+  category    String?
+  condition   String?
+  status      ItemStatus @default(AVAILABLE)
+  isDeleted   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  shop        PawnShop   @relation(fields: [pawnShopId], references: [id])
+  auction     Auction?
+  inquiries   Inquiry[]
+
+  @@index([pawnShopId, status, isDeleted])
+  @@index([category, status, isDeleted])
+  @@index([createdAt])
+}
+
+model Inquiry {
+  id            String   @id @default(cuid())
+  itemId        String
+  consumerEmail String
+  message       String
+  createdAt     DateTime @default(now())
+
+  item          Item     @relation(fields: [itemId], references: [id])
+
+  @@index([itemId, createdAt])
+  @@index([consumerEmail])
+}
+
+model Auction {
+  id                 String        @id @default(cuid())
+  itemId             String        @unique
+  shopId             String
+  status             AuctionStatus @default(SCHEDULED)
+  startingPrice      Decimal       @db.Decimal(10, 2)
+  minIncrement       Decimal       @db.Decimal(10, 2)
+  reservePrice       Decimal?      @db.Decimal(10, 2)
+  buyItNowPrice      Decimal?      @db.Decimal(10, 2)
+  startsAt           DateTime
+  endsAt             DateTime
+  antiSnipeWindowSec Int           @default(120)
+  extendedEndsAt     DateTime?
+  currentPrice       Decimal       @db.Decimal(10, 2)
+  version            Int           @default(0)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  item               Item          @relation(fields: [itemId], references: [id])
+  shop               PawnShop      @relation(fields: [shopId], references: [id])
+  bids               Bid[]
+  settlement         Settlement?
+
+  @@index([status, startsAt])
+  @@index([status, endsAt])
+  @@index([shopId, status])
+  @@index([createdAt])
+}
+
+model Bid {
+  id        String   @id @default(cuid())
+  auctionId String
+  userId    String
+  amount    Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  auction   Auction  @relation(fields: [auctionId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([auctionId, amount])
+  @@index([auctionId, createdAt])
+  @@index([userId, auctionId])
+}
+
+model Settlement {
+  id                  String           @id @default(cuid())
+  auctionId           String           @unique
+  winnerUserId        String
+  finalPrice          Decimal          @db.Decimal(10, 2)
+  status              SettlementStatus @default(PENDING)
+  stripePaymentIntent String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  auction             Auction          @relation(fields: [auctionId], references: [id])
+  winner              User             @relation("SettlementWinner", fields: [winnerUserId], references: [id])
+
+  @@index([winnerUserId, status])
+  @@index([createdAt])
+}
