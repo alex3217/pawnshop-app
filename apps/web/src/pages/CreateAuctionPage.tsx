@@ -72,7 +72,7 @@ function parsePositiveNumber(value: string, fieldName: string) {
 function extractApiError(payload: unknown) {
   if (!payload || typeof payload !== "object") return "";
   const maybe = payload as { error?: unknown; message?: unknown };
-  return String(maybe.error || maybe.message || "");
+  return String(maybe.error || maybe.message || "").trim();
 }
 
 async function safeJson<T = unknown>(response: Response): Promise<T | null> {
@@ -167,14 +167,14 @@ export default function CreateAuctionPage() {
           );
         }
 
-        const itemRows = normalizeItems(itemsJson);
-        const auctionRows = normalizeAuctionRows(auctionsJson);
+        const nextItems = normalizeItems(itemsJson);
+        const nextAuctions = normalizeAuctionRows(auctionsJson);
 
         if (cancelled) return;
 
-        setItems(itemRows);
+        setItems(nextItems);
         setExistingAuctionItemIds(
-          auctionRows
+          nextAuctions
             .filter((auction) => Boolean(auction.itemId))
             .map((auction) => auction.itemId)
         );
@@ -288,7 +288,8 @@ export default function CreateAuctionPage() {
     }
   }
 
-  const submitDisabled = saving || loading || availableItems.length === 0 || !itemId;
+  const submitDisabled =
+    saving || loading || availableItems.length === 0 || !itemId;
 
   return (
     <div className="page-stack">
