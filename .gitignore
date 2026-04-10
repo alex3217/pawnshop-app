@@ -48,3 +48,14 @@ node_modules/
 
 # misc accidental files
 {
+
+# cleanup tracked junk
+apps/api/backend/prisma/schema.prisma.save
+apps/mobile/....
+pawnshop-backend/
+backend/
+frontend/
+diagnostics/
+infra/
+src/
+vite.config.js
