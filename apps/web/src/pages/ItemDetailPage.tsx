@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getMarketplaceItems, type Item } from "../services/items";
+import { addToWatchlist } from "../services/watchlist";
 
 export default function ItemDetailPage() {
   const navigate = useNavigate();
@@ -9,6 +10,8 @@ export default function ItemDetailPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [watchlistMessage, setWatchlistMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +51,21 @@ export default function ItemDetailPage() {
 
   const item = useMemo(() => items.find((entry) => entry.id === id) || null, [items, id]);
 
+  async function handleSaveItem() {
+    if (!item?.id || saving) return;
+
+    try {
+      setSaving(true);
+      setWatchlistMessage(null);
+      await addToWatchlist(item.id);
+      setWatchlistMessage("Item saved to watchlist.");
+    } catch (err) {
+      setWatchlistMessage(err instanceof Error ? err.message : "Failed to save item.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) return <div style={styles.card}>Loading item...</div>;
   if (error) return <div style={styles.error}>{error}</div>;
   if (!item) return <div style={styles.card}>Item not found.</div>;
@@ -76,6 +94,8 @@ export default function ItemDetailPage() {
           <div style={styles.shopMeta}>{item.shop?.phone || "No phone listed"}</div>
         </div>
 
+        {watchlistMessage ? <div style={styles.notice}>{watchlistMessage}</div> : null}
+
         <div style={styles.actions}>
           <button
             type="button"
@@ -83,6 +103,14 @@ export default function ItemDetailPage() {
             onClick={() => navigate("/offers", { state: { itemId: item.id } })}
           >
             Make Offer
+          </button>
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onClick={handleSaveItem}
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save Item"}
           </button>
           <Link to="/marketplace" style={styles.secondaryLink}>
             Back to Marketplace
@@ -150,6 +178,20 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 800,
+  },
+  secondaryButton: {
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#eef2ff",
+    background: "#121935",
+    padding: "10px 14px",
+    borderRadius: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  notice: {
+    color: "#c7f9d3",
+    fontWeight: 700,
+    marginTop: 8,
   },
   secondaryLink: {
     color: "#c7d2fe",

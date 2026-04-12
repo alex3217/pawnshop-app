@@ -13,6 +13,7 @@ import inquiryRoutes from "./routes/inquiries.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import auctionRoutes from "./routes/auctions.routes.js";
 import bidsRoutes from "./routes/bids.routes.js";
+import watchlistRoutes from "./routes/watchlist.routes.js";
 import sellerPlansRoutes from "./routes/sellerPlans.routes.js";
 import stripeRoutes from "./routes/stripe.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
@@ -159,6 +160,7 @@ export function createApp() {
   mountApi(app, "/admin", adminRoutes);
   mountApi(app, "/auctions", auctionRoutes);
   mountApi(app, "/bids", bidsRoutes);
+  mountApi(app, "/watchlist", watchlistRoutes);
   mountApi(app, "/offers", offersRoutes);
   mountApi(app, "/stripe", stripeRoutes);
 

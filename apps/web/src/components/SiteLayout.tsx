@@ -40,9 +40,14 @@ export default function SiteLayout() {
             </NavLink>
 
             {showMyBids ? (
-              <NavLink to="/my-bids" className={navLinkClass}>
-                My Bids
-              </NavLink>
+              <>
+                <NavLink to="/my-bids" className={navLinkClass}>
+                  My Bids
+                </NavLink>
+                <NavLink to="/watchlist" className={navLinkClass}>
+                  Watchlist
+                </NavLink>
+              </>
             ) : null}
 
             {!role ? (
@@ -150,9 +155,14 @@ export default function SiteLayout() {
             </Link>
 
             {showMyBids ? (
-              <Link className="footer-link" to="/my-bids">
-                My Bids
-              </Link>
+              <>
+                <Link className="footer-link" to="/my-bids">
+                  My Bids
+                </Link>
+                <Link className="footer-link" to="/watchlist">
+                  Watchlist
+                </Link>
+              </>
             ) : null}
 
             {!role ? (

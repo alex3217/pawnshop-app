@@ -60,16 +60,17 @@ enum BillingInterval {
 }
 
 model User {
-  buyerOffers Offer[]  @relation("OfferBuyer")
-  ownerOffers Offer[]  @relation("OfferOwner")
-  id          String   @id @default(cuid())
-  name        String
-  email       String   @unique
-  password    String
-  role        Role     @default(CONSUMER)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  watchlistEntries Watchlist[] @relation("UserWatchlist")
+  buyerOffers      Offer[]     @relation("OfferBuyer")
+  ownerOffers      Offer[]     @relation("OfferOwner")
+  id               String      @id @default(cuid())
+  name             String
+  email            String      @unique
+  password         String
+  role             Role        @default(CONSUMER)
+  isActive         Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   shops             PawnShop[]
   Bid               Bid[]
@@ -143,20 +144,21 @@ model PawnShop {
 }
 
 model Item {
-  offers      Offer[]
-  id          String     @id @default(cuid())
-  pawnShopId  String
-  title       String
-  description String?
-  price       Decimal    @db.Decimal(10, 2)
-  currency    String     @default("USD")
-  images      String[]   @db.Text
-  category    String?
-  condition   String?
-  status      ItemStatus @default(AVAILABLE)
-  isDeleted   Boolean    @default(false)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  watchlistEntries Watchlist[] @relation("ItemWatchlist")
+  offers           Offer[]
+  id               String      @id @default(cuid())
+  pawnShopId       String
+  title            String
+  description      String?
+  price            Decimal     @db.Decimal(10, 2)
+  currency         String      @default("USD")
+  images           String[]    @db.Text
+  category         String?
+  condition        String?
+  status           ItemStatus  @default(AVAILABLE)
+  isDeleted        Boolean     @default(false)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   shop      PawnShop  @relation(fields: [pawnShopId], references: [id])
   auction   Auction?
@@ -272,4 +274,18 @@ model Offer {
   @@index([buyerId, createdAt])
   @@index([ownerId, createdAt])
   @@index([itemId, status])
+}
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String
+  itemId    String
+  createdAt DateTime @default(now())
+
+  user User @relation("UserWatchlist", fields: [userId], references: [id], onDelete: Cascade)
+  item Item @relation("ItemWatchlist", fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId])
+  @@index([userId, createdAt])
+  @@index([itemId])
 }
