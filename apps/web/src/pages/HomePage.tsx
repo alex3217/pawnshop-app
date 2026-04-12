@@ -23,7 +23,11 @@ export default function HomePage() {
           </p>
 
           <div className="hero-actions">
-            <Link to="/auctions" className="btn btn-primary">
+            <Link to="/marketplace" className="btn btn-primary">
+              Browse Marketplace
+            </Link>
+
+            <Link to="/auctions" className="btn btn-secondary">
               Browse Auctions
             </Link>
 
@@ -74,14 +78,14 @@ export default function HomePage() {
         <div className="page-card">
           <div className="section-title">For Buyers</div>
           <p className="section-subtitle">
-            Search inventory, join live auctions, and contact shops directly.
+            Browse inventory across pawnshop stores, view item details, and join live auctions.
           </p>
 
           <div className="stack">
             <div className="list-card">
-              <strong>Browse active auctions</strong>
+              <strong>Browse marketplace inventory</strong>
               <span className="muted">
-                View current prices, timing, and item details in one place.
+                Search items across pawnshop stores and compare inventory in one place.
               </span>
             </div>
 

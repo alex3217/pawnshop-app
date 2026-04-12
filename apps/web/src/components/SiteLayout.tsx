@@ -31,6 +31,10 @@ export default function SiteLayout() {
               Home
             </NavLink>
 
+            <NavLink to="/marketplace" className={navLinkClass}>
+              Marketplace
+            </NavLink>
+
             <NavLink to="/auctions" className={navLinkClass}>
               Auctions
             </NavLink>
@@ -61,6 +65,10 @@ export default function SiteLayout() {
 
                 <NavLink to="/owner/auctions" className={navLinkClass}>
                   My Auctions
+                </NavLink>
+
+                <NavLink to="/owner/inventory" className={navLinkClass}>
+                  Inventory
                 </NavLink>
 
                 <NavLink to="/owner/subscription" className={navLinkClass}>
@@ -133,6 +141,10 @@ export default function SiteLayout() {
               Home
             </Link>
 
+            <Link className="footer-link" to="/marketplace">
+              Marketplace
+            </Link>
+
             <Link className="footer-link" to="/auctions">
               Auctions
             </Link>
@@ -161,6 +173,9 @@ export default function SiteLayout() {
                 </Link>
                 <Link className="footer-link" to="/owner/auctions">
                   My Auctions
+                </Link>
+                <Link className="footer-link" to="/owner/inventory">
+                  Inventory
                 </Link>
               </>
             ) : null}
