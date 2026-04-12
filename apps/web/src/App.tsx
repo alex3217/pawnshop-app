@@ -18,6 +18,7 @@ import LoginPage from "./pages/LoginPage";
 import MarketplacePage from "./pages/MarketplacePage";
 import MyBidsPage from "./pages/MyBidsPage";
 import OwnerAuctionsPage from "./pages/OwnerAuctionsPage";
+import OffersPage from "./pages/OffersPage";
 import OwnerDashboardPage from "./pages/OwnerDashboardPage";
 import OwnerInventoryPage from "./pages/OwnerInventoryPage";
 import OwnerSubscriptionPage from "./pages/OwnerSubscriptionPage";
@@ -42,6 +43,7 @@ export default function App() {
           {/* Buyer / authenticated */}
           <Route element={<RequireRole allowed={["CONSUMER", "ADMIN"]} />}>
             <Route path="/my-bids" element={<MyBidsPage />} />
+            <Route path="/offers" element={<OffersPage />} />
             <Route path="/bids" element={<Navigate to="/my-bids" replace />} />
           </Route>
 

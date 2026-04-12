@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { getMarketplaceItems, type Item } from "../services/items";
 
 export default function ItemDetailPage() {
+  const navigate = useNavigate();
   const { id = "" } = useParams();
 
   const [items, setItems] = useState<Item[]>([]);
@@ -76,6 +77,13 @@ export default function ItemDetailPage() {
         </div>
 
         <div style={styles.actions}>
+          <button
+            type="button"
+            style={styles.primaryButton}
+            onClick={() => navigate("/offers", { state: { itemId: item.id } })}
+          >
+            Make Offer
+          </button>
           <Link to="/marketplace" style={styles.secondaryLink}>
             Back to Marketplace
           </Link>
@@ -125,6 +133,15 @@ const styles: Record<string, React.CSSProperties> = {
   shopName: { fontSize: 20, fontWeight: 800 },
   shopMeta: { color: "#c7d2fe", marginTop: 6 },
   actions: { display: "flex", gap: 12, flexWrap: "wrap", marginTop: 24 },
+  primaryButton: {
+    border: "none",
+    color: "#08111f",
+    background: "#6ea8fe",
+    padding: "10px 14px",
+    borderRadius: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
   primaryLink: {
     textDecoration: "none",
     border: "none",
