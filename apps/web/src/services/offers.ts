@@ -7,10 +7,13 @@ export type Offer = {
   buyerId: string;
   ownerId: string;
   amount: string | number;
+  counterAmount?: string | number | null;
   message?: string | null;
+  counterMessage?: string | null;
   status: string;
   createdAt?: string;
   updatedAt?: string;
+  respondedAt?: string | null;
   item?: {
     id: string;
     title: string;
@@ -85,7 +88,6 @@ export async function createOffer(input: {
   return data as Offer;
 }
 
-
 export async function getOwnerOffers(): Promise<Offer[]> {
   const res = await fetch(joinUrl(API_BASE, "/offers/owner"), {
     headers: getAuthHeaders(),
@@ -134,6 +136,71 @@ export async function rejectOffer(offerId: string): Promise<Offer> {
 
   if (!res.ok) {
     throw new Error(extractError(data, `Failed to reject offer (${res.status})`));
+  }
+
+  return data as Offer;
+}
+
+export async function counterOffer(input: {
+  offerId: string;
+  counterAmount: number;
+  counterMessage?: string;
+}): Promise<Offer> {
+  const res = await fetch(joinUrl(API_BASE, `/offers/${input.offerId}/counter`), {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      counterAmount: input.counterAmount,
+      counterMessage: input.counterMessage,
+    }),
+  });
+
+  const data = await parseJson(res);
+
+  if (!res.ok) {
+    throw new Error(extractError(data, `Failed to counter offer (${res.status})`));
+  }
+
+  return data as Offer;
+}
+
+export async function acceptCounterOffer(offerId: string): Promise<Offer> {
+  const res = await fetch(joinUrl(API_BASE, `/offers/${offerId}/accept-counter`), {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    credentials: "same-origin",
+  });
+
+  const data = await parseJson(res);
+
+  if (!res.ok) {
+    throw new Error(extractError(data, `Failed to accept counteroffer (${res.status})`));
+  }
+
+  return data as Offer;
+}
+
+export async function declineCounterOffer(offerId: string): Promise<Offer> {
+  const res = await fetch(joinUrl(API_BASE, `/offers/${offerId}/decline-counter`), {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    credentials: "same-origin",
+  });
+
+  const data = await parseJson(res);
+
+  if (!res.ok) {
+    throw new Error(extractError(data, `Failed to decline counteroffer (${res.status})`));
   }
 
   return data as Offer;

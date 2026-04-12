@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { getAuthRole } from "../services/auth";
 import {
+  acceptCounterOffer,
   acceptOffer,
+  counterOffer,
+  declineCounterOffer,
   getMyOffers,
   getOwnerOffers,
   rejectOffer,
@@ -59,6 +62,62 @@ export default function OffersPage() {
     }
   }
 
+  async function handleCounter(offer: Offer) {
+    const nextAmountRaw = window.prompt(
+      "Enter counteroffer amount",
+      String(offer.amount ?? "")
+    );
+    if (nextAmountRaw == null) return;
+
+    const nextAmount = Number(nextAmountRaw);
+    if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
+      setError("Counteroffer amount must be a valid number.");
+      return;
+    }
+
+    const nextMessage =
+      window.prompt("Optional counteroffer message", offer.counterMessage || offer.message || "") ||
+      "";
+
+    try {
+      setActioningId(offer.id);
+      await counterOffer({
+        offerId: offer.id,
+        counterAmount: nextAmount,
+        counterMessage: nextMessage,
+      });
+      await loadOffers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to counter offer.");
+    } finally {
+      setActioningId(null);
+    }
+  }
+
+  async function handleAcceptCounter(id: string) {
+    try {
+      setActioningId(id);
+      await acceptCounterOffer(id);
+      await loadOffers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to accept counteroffer.");
+    } finally {
+      setActioningId(null);
+    }
+  }
+
+  async function handleDeclineCounter(id: string) {
+    try {
+      setActioningId(id);
+      await declineCounterOffer(id);
+      await loadOffers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to decline counteroffer.");
+    } finally {
+      setActioningId(null);
+    }
+  }
+
   return (
     <div style={styles.page}>
       <h2 style={styles.title}>{isOwnerView ? "Incoming Offers" : "My Offers"}</h2>
@@ -79,6 +138,16 @@ export default function OffersPage() {
             <div style={styles.meta}>Shop: {offer.item?.shop?.name || "Unknown Shop"}</div>
             <div style={styles.amount}>Offer: ${Number(offer.amount || 0).toFixed(2)}</div>
             <div style={styles.meta}>Status: {offer.status}</div>
+
+            {offer.counterAmount ? (
+              <div style={styles.counterBox}>
+                Counter: ${Number(offer.counterAmount || 0).toFixed(2)}
+                {offer.counterMessage ? (
+                  <div style={styles.counterMessage}>{offer.counterMessage}</div>
+                ) : null}
+              </div>
+            ) : null}
+
             {offer.message ? <p style={styles.message}>{offer.message}</p> : null}
 
             {isOwnerView && offer.status === "PENDING" ? (
@@ -98,6 +167,35 @@ export default function OffersPage() {
                   style={styles.rejectButton}
                 >
                   {actioningId === offer.id ? "Working..." : "Reject"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCounter(offer)}
+                  disabled={actioningId === offer.id}
+                  style={styles.counterButton}
+                >
+                  {actioningId === offer.id ? "Working..." : "Counter"}
+                </button>
+              </div>
+            ) : null}
+
+            {!isOwnerView && offer.status === "COUNTERED" ? (
+              <div style={styles.actions}>
+                <button
+                  type="button"
+                  onClick={() => handleAcceptCounter(offer.id)}
+                  disabled={actioningId === offer.id}
+                  style={styles.acceptButton}
+                >
+                  {actioningId === offer.id ? "Working..." : "Accept Counter"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeclineCounter(offer.id)}
+                  disabled={actioningId === offer.id}
+                  style={styles.rejectButton}
+                >
+                  {actioningId === offer.id ? "Working..." : "Decline Counter"}
                 </button>
               </div>
             ) : null}
@@ -128,7 +226,7 @@ const styles: Record<string, React.CSSProperties> = {
   meta: { color: "#a7b0d8", marginTop: 6 },
   message: { color: "#d7def7", lineHeight: 1.5, marginTop: 10 },
   error: { color: "#ff9ead", fontWeight: 700 },
-  actions: { display: "flex", gap: 12, marginTop: 14 },
+  actions: { display: "flex", gap: 12, marginTop: 14, flexWrap: "wrap" },
   acceptButton: {
     border: "none",
     borderRadius: 12,
@@ -146,5 +244,28 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#08111f",
     fontWeight: 800,
     cursor: "pointer",
+  },
+  counterButton: {
+    border: "none",
+    borderRadius: 12,
+    padding: "10px 14px",
+    background: "#ffd98a",
+    color: "#08111f",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  counterBox: {
+    marginTop: 10,
+    padding: "10px 12px",
+    borderRadius: 12,
+    background: "rgba(255, 217, 138, 0.14)",
+    color: "#ffe6ab",
+    border: "1px solid rgba(255, 217, 138, 0.24)",
+    fontWeight: 700,
+  },
+  counterMessage: {
+    marginTop: 6,
+    color: "#f6f1dd",
+    fontWeight: 500,
   },
 };

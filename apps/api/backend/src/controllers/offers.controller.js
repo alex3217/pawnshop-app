@@ -37,6 +37,62 @@ function normalizeAmount(value) {
   return num;
 }
 
+function offerInclude() {
+  return {
+    item: {
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        pawnShopId: true,
+        shop: { select: SAFE_SHOP_SELECT },
+      },
+    },
+  };
+}
+
+async function getOwnerOfferOrThrow(offerId, ownerId) {
+  const offer = await prisma.offer.findUnique({
+    where: { id: offerId },
+    include: offerInclude(),
+  });
+
+  if (!offer) {
+    const err = new Error("Offer not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (offer.ownerId !== ownerId) {
+    const err = new Error("Forbidden");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  return offer;
+}
+
+async function getBuyerOfferOrThrow(offerId, buyerId) {
+  const offer = await prisma.offer.findUnique({
+    where: { id: offerId },
+    include: offerInclude(),
+  });
+
+  if (!offer) {
+    const err = new Error("Offer not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (offer.buyerId !== buyerId) {
+    const err = new Error("Forbidden");
+    err.statusCode = 403;
+    throw err;
+  }
+
+  return offer;
+}
+
 export async function listOffersForBuyer(req, res) {
   try {
     const buyerId = req?.user?.sub;
@@ -47,17 +103,7 @@ export async function listOffersForBuyer(req, res) {
     const offers = await prisma.offer.findMany({
       where: { buyerId },
       orderBy: { createdAt: "desc" },
-      include: {
-        item: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            pawnShopId: true,
-            shop: { select: SAFE_SHOP_SELECT },
-          },
-        },
-      },
+      include: offerInclude(),
     });
 
     return res.json(offers);
@@ -109,17 +155,7 @@ export async function createOffer(req, res) {
         message,
         status: "PENDING",
       },
-      include: {
-        item: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            pawnShopId: true,
-            shop: { select: SAFE_SHOP_SELECT },
-          },
-        },
-      },
+      include: offerInclude(),
     });
 
     return res.status(201).json(offer);
@@ -138,55 +174,13 @@ export async function listOffersForOwner(req, res) {
     const offers = await prisma.offer.findMany({
       where: { ownerId },
       orderBy: { createdAt: "desc" },
-      include: {
-        item: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            pawnShopId: true,
-            shop: { select: SAFE_SHOP_SELECT },
-          },
-        },
-      },
+      include: offerInclude(),
     });
 
     return res.json(offers);
   } catch (error) {
     return sendError(res, error, "Failed to load owner offers");
   }
-}
-
-
-async function getOwnerOfferOrThrow(offerId, ownerId) {
-  const offer = await prisma.offer.findUnique({
-    where: { id: offerId },
-    include: {
-      item: {
-        select: {
-          id: true,
-          title: true,
-          price: true,
-          pawnShopId: true,
-          shop: { select: SAFE_SHOP_SELECT },
-        },
-      },
-    },
-  });
-
-  if (!offer) {
-    const err = new Error("Offer not found");
-    err.statusCode = 404;
-    throw err;
-  }
-
-  if (offer.ownerId !== ownerId) {
-    const err = new Error("Forbidden");
-    err.statusCode = 403;
-    throw err;
-  }
-
-  return offer;
 }
 
 export async function acceptOffer(req, res) {
@@ -201,22 +195,19 @@ export async function acceptOffer(req, res) {
       return res.status(400).json({ success: false, error: "Offer id is required" });
     }
 
-    await getOwnerOfferOrThrow(offerId, ownerId);
+    const offer = await getOwnerOfferOrThrow(offerId, ownerId);
+
+    if (offer.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        error: "Only pending offers can be accepted",
+      });
+    }
 
     const updated = await prisma.offer.update({
       where: { id: offerId },
-      data: { status: "ACCEPTED" },
-      include: {
-        item: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            pawnShopId: true,
-            shop: { select: SAFE_SHOP_SELECT },
-          },
-        },
-      },
+      data: { status: "ACCEPTED", respondedAt: new Date() },
+      include: offerInclude(),
     });
 
     return res.json(updated);
@@ -237,26 +228,141 @@ export async function rejectOffer(req, res) {
       return res.status(400).json({ success: false, error: "Offer id is required" });
     }
 
-    await getOwnerOfferOrThrow(offerId, ownerId);
+    const offer = await getOwnerOfferOrThrow(offerId, ownerId);
+
+    if (offer.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        error: "Only pending offers can be rejected",
+      });
+    }
 
     const updated = await prisma.offer.update({
       where: { id: offerId },
-      data: { status: "REJECTED" },
-      include: {
-        item: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            pawnShopId: true,
-            shop: { select: SAFE_SHOP_SELECT },
-          },
-        },
-      },
+      data: { status: "REJECTED", respondedAt: new Date() },
+      include: offerInclude(),
     });
 
     return res.json(updated);
   } catch (error) {
     return sendError(res, error, "Failed to reject offer");
+  }
+}
+
+export async function counterOffer(req, res) {
+  try {
+    const ownerId = req?.user?.sub;
+    if (!ownerId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const offerId = normalizeString(req.params?.id);
+    const counterAmount = normalizeAmount(req.body?.counterAmount);
+    const counterMessage = normalizeString(req.body?.counterMessage);
+
+    if (!offerId || !counterAmount) {
+      return res.status(400).json({
+        success: false,
+        error: "Offer id and counterAmount are required",
+      });
+    }
+
+    const offer = await getOwnerOfferOrThrow(offerId, ownerId);
+
+    if (offer.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        error: "Only pending offers can be countered",
+      });
+    }
+
+    const updated = await prisma.offer.update({
+      where: { id: offerId },
+      data: {
+        status: "COUNTERED",
+        counterAmount,
+        counterMessage,
+        respondedAt: new Date(),
+      },
+      include: offerInclude(),
+    });
+
+    return res.json(updated);
+  } catch (error) {
+    return sendError(res, error, "Failed to counter offer");
+  }
+}
+
+export async function acceptCounterOffer(req, res) {
+  try {
+    const buyerId = req?.user?.sub;
+    if (!buyerId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const offerId = normalizeString(req.params?.id);
+    if (!offerId) {
+      return res.status(400).json({ success: false, error: "Offer id is required" });
+    }
+
+    const offer = await getBuyerOfferOrThrow(offerId, buyerId);
+
+    if (offer.status !== "COUNTERED") {
+      return res.status(400).json({
+        success: false,
+        error: "Only countered offers can be accepted by the buyer",
+      });
+    }
+
+    const updated = await prisma.offer.update({
+      where: { id: offerId },
+      data: {
+        status: "ACCEPTED",
+        amount: offer.counterAmount ?? offer.amount,
+        message: offer.counterMessage ?? offer.message,
+        respondedAt: new Date(),
+      },
+      include: offerInclude(),
+    });
+
+    return res.json(updated);
+  } catch (error) {
+    return sendError(res, error, "Failed to accept counteroffer");
+  }
+}
+
+export async function declineCounterOffer(req, res) {
+  try {
+    const buyerId = req?.user?.sub;
+    if (!buyerId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const offerId = normalizeString(req.params?.id);
+    if (!offerId) {
+      return res.status(400).json({ success: false, error: "Offer id is required" });
+    }
+
+    const offer = await getBuyerOfferOrThrow(offerId, buyerId);
+
+    if (offer.status !== "COUNTERED") {
+      return res.status(400).json({
+        success: false,
+        error: "Only countered offers can be declined by the buyer",
+      });
+    }
+
+    const updated = await prisma.offer.update({
+      where: { id: offerId },
+      data: {
+        status: "CANCELED",
+        respondedAt: new Date(),
+      },
+      include: offerInclude(),
+    });
+
+    return res.json(updated);
+  } catch (error) {
+    return sendError(res, error, "Failed to decline counteroffer");
   }
 }

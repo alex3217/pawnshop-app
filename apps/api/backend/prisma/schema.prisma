@@ -258,15 +258,18 @@ enum OfferStatus {
 }
 
 model Offer {
-  id        String      @id @default(cuid())
-  itemId    String
-  buyerId   String
-  ownerId   String
-  amount    Decimal     @db.Decimal(10, 2)
-  message   String?
-  status    OfferStatus @default(PENDING)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id             String      @id @default(cuid())
+  itemId         String
+  buyerId        String
+  ownerId        String
+  amount         Decimal     @db.Decimal(10, 2)
+  message        String?
+  counterAmount  Decimal?    @db.Decimal(10, 2)
+  counterMessage String?
+  respondedAt    DateTime?
+  status         OfferStatus @default(PENDING)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   item  Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
   buyer User @relation("OfferBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
