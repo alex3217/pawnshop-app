@@ -14,11 +14,14 @@ import CreateShopPage from "./pages/CreateShopPage";
 import CreateItemPage from "./pages/CreateItemPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import MarketplacePage from "./pages/MarketplacePage";
 import MyBidsPage from "./pages/MyBidsPage";
 import OwnerAuctionsPage from "./pages/OwnerAuctionsPage";
 import OwnerDashboardPage from "./pages/OwnerDashboardPage";
+import OwnerInventoryPage from "./pages/OwnerInventoryPage";
 import OwnerSubscriptionPage from "./pages/OwnerSubscriptionPage";
 import RegisterPage from "./pages/RegisterPage";
+import ShopDetailPage from "./pages/ShopDetailPage";
 
 export default function App() {
   return (
@@ -31,6 +34,8 @@ export default function App() {
           <Route path="/auctions/:id" element={<AuctionDetailPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/marketplace" element={<MarketplacePage />} />
+          <Route path="/shops/:id" element={<ShopDetailPage />} />
 
           {/* Buyer / authenticated */}
           <Route element={<RequireRole allowed={["CONSUMER", "ADMIN"]} />}>
@@ -49,6 +54,7 @@ export default function App() {
             <Route path="/owner/auctions" element={<OwnerAuctionsPage />} />
             <Route path="/owner/auctions/new" element={<CreateAuctionPage />} />
             <Route path="/owner/items/new" element={<CreateItemPage />} />
+            <Route path="/owner/inventory" element={<OwnerInventoryPage />} />
             <Route
               path="/owner/subscription"
               element={<OwnerSubscriptionPage />}
