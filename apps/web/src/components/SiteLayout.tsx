@@ -15,7 +15,7 @@ export default function SiteLayout() {
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `nav-link${isActive ? " active" : ""}`;
 
-  const showMyBids = role === "CONSUMER" || role === "ADMIN";
+  const showBuyerLinks = role === "CONSUMER" || role === "ADMIN";
 
   return (
     <div className="app-shell">
@@ -39,15 +39,13 @@ export default function SiteLayout() {
               Auctions
             </NavLink>
 
-            {showMyBids ? (
+            {showBuyerLinks ? (
               <>
                 <NavLink to="/my-bids" className={navLinkClass}>
                   My Bids
                 </NavLink>
-cd ~/Dev/pawnshop-app
 
-curl -I http://127.0.0.1:5176
-curl -sS http://127.0.0.1:6002/api/health | jq .                <NavLink to="/watchlist" className={navLinkClass}>
+                <NavLink to="/watchlist" className={navLinkClass}>
                   Watchlist
                 </NavLink>
               </>
@@ -118,7 +116,11 @@ curl -sS http://127.0.0.1:6002/api/health | jq .                <NavLink to="/wa
             )}
 
             {role ? (
-              <button type="button" className="btn btn-secondary" onClick={onLogout}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onLogout}
+              >
                 Logout
               </button>
             ) : null}
@@ -140,7 +142,8 @@ curl -sS http://127.0.0.1:6002/api/health | jq .                <NavLink to="/wa
               <span>PawnShop Marketplace</span>
             </div>
             <div className="footer-copy">
-              Browse inventory, manage listings, run auctions, and manage subscription plans.
+              Browse inventory, manage listings, run auctions, and manage
+              subscription plans.
             </div>
           </div>
 
@@ -157,11 +160,12 @@ curl -sS http://127.0.0.1:6002/api/health | jq .                <NavLink to="/wa
               Auctions
             </Link>
 
-            {showMyBids ? (
+            {showBuyerLinks ? (
               <>
                 <Link className="footer-link" to="/my-bids">
                   My Bids
                 </Link>
+
                 <Link className="footer-link" to="/watchlist">
                   Watchlist
                 </Link>
@@ -173,6 +177,7 @@ curl -sS http://127.0.0.1:6002/api/health | jq .                <NavLink to="/wa
                 <Link className="footer-link" to="/login">
                   Login
                 </Link>
+
                 <Link className="footer-link" to="/register">
                   Register
                 </Link>
@@ -184,9 +189,11 @@ curl -sS http://127.0.0.1:6002/api/health | jq .                <NavLink to="/wa
                 <Link className="footer-link" to="/owner">
                   Owner Dashboard
                 </Link>
+
                 <Link className="footer-link" to="/owner/auctions">
                   My Auctions
                 </Link>
+
                 <Link className="footer-link" to="/owner/inventory">
                   Inventory
                 </Link>
