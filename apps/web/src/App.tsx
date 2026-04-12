@@ -13,6 +13,7 @@ import CreateAuctionPage from "./pages/CreateAuctionPage";
 import CreateShopPage from "./pages/CreateShopPage";
 import CreateItemPage from "./pages/CreateItemPage";
 import HomePage from "./pages/HomePage";
+import ItemDetailPage from "./pages/ItemDetailPage";
 import LoginPage from "./pages/LoginPage";
 import MarketplacePage from "./pages/MarketplacePage";
 import MyBidsPage from "./pages/MyBidsPage";
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/marketplace" element={<MarketplacePage />} />
           <Route path="/shops/:id" element={<ShopDetailPage />} />
+          <Route path="/items/:id" element={<ItemDetailPage />} />
 
           {/* Buyer / authenticated */}
           <Route element={<RequireRole allowed={["CONSUMER", "ADMIN"]} />}>

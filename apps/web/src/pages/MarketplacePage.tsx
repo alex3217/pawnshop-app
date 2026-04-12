@@ -99,6 +99,9 @@ export default function MarketplacePage() {
             ) : null}
 
             <div style={styles.actions}>
+              <Link to={`/items/${item.id}`} style={styles.primaryLink}>
+                View Item
+              </Link>
               <Link to={`/shops/${item.pawnShopId}`} style={styles.secondaryLink}>
                 View Shop
               </Link>
@@ -184,6 +187,15 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     gap: 12,
     marginTop: 16,
+  },
+  primaryLink: {
+    textDecoration: "none",
+    border: "none",
+    color: "#08111f",
+    background: "#6ea8fe",
+    padding: "10px 14px",
+    borderRadius: 12,
+    fontWeight: 800,
   },
   secondaryLink: {
     color: "#c7d2fe",
