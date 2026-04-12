@@ -84,3 +84,57 @@ export async function createOffer(input: {
 
   return data as Offer;
 }
+
+
+export async function getOwnerOffers(): Promise<Offer[]> {
+  const res = await fetch(joinUrl(API_BASE, "/offers/owner"), {
+    headers: getAuthHeaders(),
+    credentials: "same-origin",
+  });
+
+  const data = await parseJson(res);
+
+  if (!res.ok) {
+    throw new Error(extractError(data, `Failed to load owner offers (${res.status})`));
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+export async function acceptOffer(offerId: string): Promise<Offer> {
+  const res = await fetch(joinUrl(API_BASE, `/offers/${offerId}/accept`), {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    credentials: "same-origin",
+  });
+
+  const data = await parseJson(res);
+
+  if (!res.ok) {
+    throw new Error(extractError(data, `Failed to accept offer (${res.status})`));
+  }
+
+  return data as Offer;
+}
+
+export async function rejectOffer(offerId: string): Promise<Offer> {
+  const res = await fetch(joinUrl(API_BASE, `/offers/${offerId}/reject`), {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    credentials: "same-origin",
+  });
+
+  const data = await parseJson(res);
+
+  if (!res.ok) {
+    throw new Error(extractError(data, `Failed to reject offer (${res.status})`));
+  }
+
+  return data as Offer;
+}

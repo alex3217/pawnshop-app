@@ -1,50 +1,75 @@
 import { useEffect, useState } from "react";
-import { getMyOffers, type Offer } from "../services/offers";
+import { getAuthRole } from "../services/auth";
+import {
+  acceptOffer,
+  getMyOffers,
+  getOwnerOffers,
+  rejectOffer,
+  type Offer,
+} from "../services/offers";
 
 export default function OffersPage() {
+  const role = getAuthRole();
+  const isOwnerView = role === "OWNER" || role === "ADMIN";
+
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actioningId, setActioningId] = useState<string | null>(null);
+
+  async function loadOffers() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const nextOffers = isOwnerView ? await getOwnerOffers() : await getMyOffers();
+      setOffers(nextOffers);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load offers.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
+    void loadOffers();
+  }, [isOwnerView]);
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const nextOffers = await getMyOffers();
-        if (!cancelled) {
-          setOffers(nextOffers);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load offers.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+  async function handleAccept(id: string) {
+    try {
+      setActioningId(id);
+      await acceptOffer(id);
+      await loadOffers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to accept offer.");
+    } finally {
+      setActioningId(null);
     }
+  }
 
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  async function handleReject(id: string) {
+    try {
+      setActioningId(id);
+      await rejectOffer(id);
+      await loadOffers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reject offer.");
+    } finally {
+      setActioningId(null);
+    }
+  }
 
   return (
     <div style={styles.page}>
-      <h2 style={styles.title}>My Offers</h2>
+      <h2 style={styles.title}>{isOwnerView ? "Incoming Offers" : "My Offers"}</h2>
 
       {loading ? <div style={styles.card}>Loading offers...</div> : null}
       {error ? <div style={styles.error}>{error}</div> : null}
 
       {!loading && !error && offers.length === 0 ? (
-        <div style={styles.card}>You have not submitted any offers yet.</div>
+        <div style={styles.card}>
+          {isOwnerView ? "No incoming offers yet." : "You have not submitted any offers yet."}
+        </div>
       ) : null}
 
       <div style={styles.grid}>
@@ -55,6 +80,27 @@ export default function OffersPage() {
             <div style={styles.amount}>Offer: ${Number(offer.amount || 0).toFixed(2)}</div>
             <div style={styles.meta}>Status: {offer.status}</div>
             {offer.message ? <p style={styles.message}>{offer.message}</p> : null}
+
+            {isOwnerView && offer.status === "PENDING" ? (
+              <div style={styles.actions}>
+                <button
+                  type="button"
+                  onClick={() => handleAccept(offer.id)}
+                  disabled={actioningId === offer.id}
+                  style={styles.acceptButton}
+                >
+                  {actioningId === offer.id ? "Working..." : "Accept"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReject(offer.id)}
+                  disabled={actioningId === offer.id}
+                  style={styles.rejectButton}
+                >
+                  {actioningId === offer.id ? "Working..." : "Reject"}
+                </button>
+              </div>
+            ) : null}
           </article>
         ))}
       </div>
@@ -82,4 +128,23 @@ const styles: Record<string, React.CSSProperties> = {
   meta: { color: "#a7b0d8", marginTop: 6 },
   message: { color: "#d7def7", lineHeight: 1.5, marginTop: 10 },
   error: { color: "#ff9ead", fontWeight: 700 },
+  actions: { display: "flex", gap: 12, marginTop: 14 },
+  acceptButton: {
+    border: "none",
+    borderRadius: 12,
+    padding: "10px 14px",
+    background: "#7ef0b3",
+    color: "#08111f",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  rejectButton: {
+    border: "none",
+    borderRadius: 12,
+    padding: "10px 14px",
+    background: "#ff9ead",
+    color: "#08111f",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
 };
