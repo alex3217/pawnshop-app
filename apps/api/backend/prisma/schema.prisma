@@ -60,17 +60,18 @@ enum BillingInterval {
 }
 
 model User {
-  watchlistEntries Watchlist[] @relation("UserWatchlist")
-  buyerOffers      Offer[]     @relation("OfferBuyer")
-  ownerOffers      Offer[]     @relation("OfferOwner")
-  id               String      @id @default(cuid())
+  savedSearches    SavedSearch[] @relation("UserSavedSearches")
+  watchlistEntries Watchlist[]   @relation("UserWatchlist")
+  buyerOffers      Offer[]       @relation("OfferBuyer")
+  ownerOffers      Offer[]       @relation("OfferOwner")
+  id               String        @id @default(cuid())
   name             String
-  email            String      @unique
+  email            String        @unique
   password         String
-  role             Role        @default(CONSUMER)
-  isActive         Boolean     @default(true)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  role             Role          @default(CONSUMER)
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   shops             PawnShop[]
   Bid               Bid[]
@@ -288,4 +289,15 @@ model Watchlist {
   @@unique([userId, itemId])
   @@index([userId, createdAt])
   @@index([itemId])
+}
+
+model SavedSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  query     String
+  createdAt DateTime @default(now())
+
+  user User @relation("UserSavedSearches", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

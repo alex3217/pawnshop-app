@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMarketplaceItems, type Item } from "../services/items";
+import { addSavedSearch } from "../services/savedSearches";
 
 export default function MarketplacePage() {
   const [items, setItems] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,6 +40,21 @@ export default function MarketplacePage() {
     };
   }, []);
 
+  async function handleSaveSearch() {
+    const nextQuery = query.trim();
+    if (!nextQuery) {
+      setSaveMessage("Enter a search before saving it.");
+      return;
+    }
+
+    try {
+      await addSavedSearch(nextQuery);
+      setSaveMessage("Search saved.");
+    } catch (err) {
+      setSaveMessage(err instanceof Error ? err.message : "Failed to save search.");
+    }
+  }
+
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
@@ -67,14 +84,20 @@ export default function MarketplacePage() {
           </p>
         </div>
 
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search items, shops, categories..."
-          style={styles.search}
-        />
+        <div style={styles.searchGroup}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search items, shops, categories..."
+            style={styles.search}
+          />
+          <button type="button" style={styles.saveButton} onClick={handleSaveSearch}>
+            Save Search
+          </button>
+        </div>
       </div>
 
+      {saveMessage ? <div style={styles.notice}>{saveMessage}</div> : null}
       {loading ? <div style={styles.card}>Loading marketplace...</div> : null}
       {error ? <div style={styles.error}>{error}</div> : null}
 
@@ -134,6 +157,25 @@ const styles: Record<string, React.CSSProperties> = {
   subtitle: {
     marginTop: 8,
     color: "#a7b0d8",
+  },
+  searchGroup: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  saveButton: {
+    border: "none",
+    color: "#08111f",
+    background: "#7ef0b3",
+    padding: "12px 14px",
+    borderRadius: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  notice: {
+    color: "#c7f9d3",
+    fontWeight: 700,
   },
   search: {
     minWidth: 320,

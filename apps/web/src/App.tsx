@@ -23,6 +23,7 @@ import OwnerDashboardPage from "./pages/OwnerDashboardPage";
 import OwnerInventoryPage from "./pages/OwnerInventoryPage";
 import OwnerSubscriptionPage from "./pages/OwnerSubscriptionPage";
 import RegisterPage from "./pages/RegisterPage";
+import SavedSearchesPage from "./pages/SavedSearchesPage";
 import WatchlistPage from "./pages/WatchlistPage";
 import ShopDetailPage from "./pages/ShopDetailPage";
 
@@ -45,6 +46,7 @@ export default function App() {
           <Route element={<RequireRole allowed={["CONSUMER", "ADMIN"]} />}>
             <Route path="/my-bids" element={<MyBidsPage />} />
             <Route path="/watchlist" element={<WatchlistPage />} />
+            <Route path="/saved-searches" element={<SavedSearchesPage />} />
             <Route path="/offers" element={<OffersPage />} />
             <Route path="/bids" element={<Navigate to="/my-bids" replace />} />
           </Route>

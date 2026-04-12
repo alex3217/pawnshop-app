@@ -48,6 +48,9 @@ export default function SiteLayout() {
                 <NavLink to="/watchlist" className={navLinkClass}>
                   Watchlist
                 </NavLink>
+                <NavLink to="/saved-searches" className={navLinkClass}>
+                  Saved Searches
+                </NavLink>
               </>
             ) : null}
 
@@ -168,6 +171,9 @@ export default function SiteLayout() {
 
                 <Link className="footer-link" to="/watchlist">
                   Watchlist
+                </Link>
+                <Link className="footer-link" to="/saved-searches">
+                  Saved Searches
                 </Link>
               </>
             ) : null}
