@@ -10,6 +10,7 @@ import AdminUsersPage from "./pages/AdminUsersPage";
 import AuctionDetailPage from "./pages/AuctionDetailPage";
 import AuctionsPage from "./pages/AuctionsPage";
 import CreateAuctionPage from "./pages/CreateAuctionPage";
+import CreateShopPage from "./pages/CreateShopPage";
 import CreateItemPage from "./pages/CreateItemPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
@@ -40,6 +41,7 @@ export default function App() {
           {/* Owner */}
           <Route element={<RequireRole allowed={["OWNER", "ADMIN"]} />}>
             <Route path="/owner" element={<OwnerDashboardPage />} />
+            <Route path="/owner/shops/new" element={<CreateShopPage />} />
             <Route
               path="/owner/dashboard"
               element={<Navigate to="/owner" replace />}

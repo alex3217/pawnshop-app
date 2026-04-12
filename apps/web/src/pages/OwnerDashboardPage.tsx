@@ -7,7 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { API_BASE } from "../config";
 import { getAuthHeaders, getAuthToken } from "../services/auth";
 
@@ -300,6 +300,7 @@ function getItemStatusTone(status: string): CSSProperties {
 }
 
 export default function OwnerDashboardPage() {
+  const navigate = useNavigate();
   const [shops, setShops] = useState<Shop[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [selectedShopId, setSelectedShopId] = useState("");
@@ -341,8 +342,11 @@ export default function OwnerDashboardPage() {
         return;
       }
 
-      if (silent) setRefreshing(true);
-      else setEntitlementsLoading(true);
+      if (silent) {
+        setRefreshing(true);
+      } else {
+        setEntitlementsLoading(true);
+      }
 
       setEntitlementsError(null);
 
@@ -387,8 +391,11 @@ export default function OwnerDashboardPage() {
 
   const loadDashboard = useCallback(
     async (signal?: AbortSignal, silent = false) => {
-      if (silent) setRefreshing(true);
-      else setPageLoading(true);
+      if (silent) {
+        setRefreshing(true);
+      } else {
+        setPageLoading(true);
+      }
 
       setPageError(null);
       setEntitlementsError(null);
@@ -514,6 +521,13 @@ export default function OwnerDashboardPage() {
     url.searchParams.delete("shopId");
     window.history.replaceState({}, "", url.toString());
   }, [loadEntitlements, selectedShopId]);
+
+  useEffect(() => {
+    if (pageLoading) return;
+    if (shops.length === 0) {
+      navigate("/owner/shops/new", { replace: true });
+    }
+  }, [pageLoading, shops.length, navigate]);
 
   const planSummary = useMemo(() => {
     if (!entitlements) return null;
