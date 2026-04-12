@@ -60,14 +60,16 @@ enum BillingInterval {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(CONSUMER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  buyerOffers Offer[]  @relation("OfferBuyer")
+  ownerOffers Offer[]  @relation("OfferOwner")
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  password    String
+  role        Role     @default(CONSUMER)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   shops             PawnShop[]
   Bid               Bid[]
@@ -141,6 +143,7 @@ model PawnShop {
 }
 
 model Item {
+  offers      Offer[]
   id          String     @id @default(cuid())
   pawnShopId  String
   title       String
@@ -241,4 +244,32 @@ model Settlement {
   @@index([winnerUserId, status])
   @@index([status, createdAt])
   @@index([createdAt])
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COUNTERED
+  CANCELED
+}
+
+model Offer {
+  id        String      @id @default(cuid())
+  itemId    String
+  buyerId   String
+  ownerId   String
+  amount    Decimal     @db.Decimal(10, 2)
+  message   String?
+  status    OfferStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  item  Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  buyer User @relation("OfferBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  owner User @relation("OfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([buyerId, createdAt])
+  @@index([ownerId, createdAt])
+  @@index([itemId, status])
 }

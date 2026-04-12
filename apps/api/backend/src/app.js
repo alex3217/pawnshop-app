@@ -7,6 +7,7 @@ import morgan from "morgan";
 
 import authRoutes from "./routes/auth.routes.js";
 import shopRoutes from "./routes/shops.routes.js";
+import offersRoutes from "./routes/offers.routes.js";
 import itemRoutes from "./routes/items.routes.js";
 import inquiryRoutes from "./routes/inquiries.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
@@ -158,6 +159,7 @@ export function createApp() {
   mountApi(app, "/admin", adminRoutes);
   mountApi(app, "/auctions", auctionRoutes);
   mountApi(app, "/bids", bidsRoutes);
+  mountApi(app, "/offers", offersRoutes);
   mountApi(app, "/stripe", stripeRoutes);
 
   /**
