@@ -44,7 +44,10 @@ export default function SiteLayout() {
                 <NavLink to="/my-bids" className={navLinkClass}>
                   My Bids
                 </NavLink>
-                <NavLink to="/watchlist" className={navLinkClass}>
+cd ~/Dev/pawnshop-app
+
+curl -I http://127.0.0.1:5176
+curl -sS http://127.0.0.1:6002/api/health | jq .                <NavLink to="/watchlist" className={navLinkClass}>
                   Watchlist
                 </NavLink>
               </>
