@@ -1,0 +1,10 @@
+Project: PawnShop app
+Dev backend port: 6002
+What currently works:
+- 
+What is broken:
+- 
+Main goal:
+- 
+Top blockers:
+- 
