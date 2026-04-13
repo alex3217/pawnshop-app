@@ -72,6 +72,10 @@ export default function SiteLayout() {
                   Owner Dashboard
                 </NavLink>
 
+                <NavLink to="/owner/shops/new" className={navLinkClass}>
+                  Create Shop
+                </NavLink>
+
                 <NavLink to="/owner/auctions" className={navLinkClass}>
                   My Auctions
                 </NavLink>
@@ -200,6 +204,10 @@ export default function SiteLayout() {
               <>
                 <Link className="footer-link" to="/owner">
                   Owner Dashboard
+                </Link>
+
+                <Link className="footer-link" to="/owner/shops/new">
+                  Create Shop
                 </Link>
 
                 <Link className="footer-link" to="/owner/auctions">
