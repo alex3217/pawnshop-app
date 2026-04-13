@@ -87,6 +87,9 @@ export default function SiteLayout() {
                 <NavLink to="/owner/items/new" className={navLinkClass}>
                   Create Item
                 </NavLink>
+                <NavLink to="/owner/scan-console" className={navLinkClass}>
+                  Scan Intake
+                </NavLink>
                 <NavLink to="/owner/bulk-upload" className={navLinkClass}>
                   Bulk Upload
                 </NavLink>

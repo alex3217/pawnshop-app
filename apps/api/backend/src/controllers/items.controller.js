@@ -502,3 +502,124 @@ export async function deleteItem(req, res) {
     return handleControllerError(res, err, "Failed to delete item");
   }
 }
+
+export async function scanItem(req, res) {
+  try {
+    const rawBody = req.body || {};
+    const shopId = resolveShopId(rawBody);
+    const code = normalizeString(rawBody.code);
+
+    if (!shopId || !code) {
+      return res.status(400).json({
+        error: "shopId and code are required",
+      });
+    }
+
+    const shop = await prisma.pawnShop.findUnique({
+      where: { id: shopId },
+      select: {
+        id: true,
+        ownerId: true,
+        ...(await buildPawnShopSelect(["isDeleted"])),
+      },
+    });
+
+    if (!shop || shop.isDeleted) {
+      return res.status(404).json({ error: "Shop not found" });
+    }
+
+    if (req.user.role !== "ADMIN" && shop.ownerId !== req.user.sub) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const itemColumns = await getTableColumns("Item");
+    const lookupWhere = await buildItemWhere({
+      ...(itemColumns.has("pawnShopId") ? { pawnShopId: shopId } : {}),
+      ...(itemColumns.has("title")
+        ? { title: { contains: code, mode: "insensitive" } }
+        : {}),
+    });
+
+    const existing = await prisma.item.findFirst({
+      where: lookupWhere,
+      select: await buildItemSelect({ includeShop: true }),
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (existing) {
+      return res.json({
+        data: {
+          item: existing,
+          source: "existing-item-match",
+          code,
+        },
+      });
+    }
+
+    const normalizedCode = String(code).trim().toUpperCase();
+
+    let payload = {
+      pawnShopId: shopId,
+      title: `Scanned Item ${normalizedCode}`,
+      description: `Created from scan code ${normalizedCode}`,
+      price: "100",
+      category: "Electronics",
+      condition: "Good",
+      source: "scan-console",
+      code: normalizedCode,
+    };
+
+    if (/UPC|BARCODE|EAN/.test(normalizedCode)) {
+      payload = {
+        ...payload,
+        title: `Scanned Barcode ${normalizedCode}`,
+        description: `Barcode lookup result for ${normalizedCode}`,
+      };
+    }
+
+    return res.json({
+      data: payload,
+    });
+  } catch (err) {
+    return handleControllerError(res, err, "Failed to resolve scan");
+  }
+}
+
+export async function sellItem(req, res) {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      return res.status(400).json({ error: "Missing item id" });
+    }
+
+    const item = await prisma.item.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        isDeleted: true,
+        shop: { select: { ownerId: true } },
+      },
+    });
+
+    if (!item || item.isDeleted) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    if (req.user.role !== "ADMIN" && item.shop?.ownerId !== req.user.sub) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const updated = await prisma.item.update({
+      where: { id },
+      data: { status: "SOLD" },
+      select: await buildItemSelect({ includeShop: true }),
+    });
+
+    return res.json({
+      success: true,
+      item: updated,
+    });
+  } catch (err) {
+    return handleControllerError(res, err, "Failed to mark item sold");
+  }
+}

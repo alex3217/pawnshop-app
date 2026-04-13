@@ -24,6 +24,7 @@ import OwnerDashboardPage from "./pages/OwnerDashboardPage";
 import OwnerInventoryPage from "./pages/OwnerInventoryPage";
 import OwnerSubscriptionPage from "./pages/OwnerSubscriptionPage";
 import RegisterPage from "./pages/RegisterPage";
+import ScanConsolePage from "./pages/ScanConsolePage";
 import SavedSearchesPage from "./pages/SavedSearchesPage";
 import WatchlistPage from "./pages/WatchlistPage";
 import ShopDetailPage from "./pages/ShopDetailPage";
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="/owner/auctions" element={<OwnerAuctionsPage />} />
             <Route path="/owner/auctions/new" element={<CreateAuctionPage />} />
             <Route path="/owner/items/new" element={<CreateItemPage />} />
+            <Route path="/owner/scan-console" element={<ScanConsolePage />} />
             <Route path="/owner/bulk-upload" element={<BulkUploadPage />} />
             <Route path="/owner/inventory" element={<OwnerInventoryPage />} />
             <Route
