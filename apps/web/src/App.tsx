@@ -10,6 +10,7 @@ import AdminUsersPage from "./pages/AdminUsersPage";
 import AuctionDetailPage from "./pages/AuctionDetailPage";
 import AuctionsPage from "./pages/AuctionsPage";
 import CreateAuctionPage from "./pages/CreateAuctionPage";
+import BulkUploadPage from "./pages/BulkUploadPage";
 import CreateShopPage from "./pages/CreateShopPage";
 import CreateItemPage from "./pages/CreateItemPage";
 import HomePage from "./pages/HomePage";
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="/owner/auctions" element={<OwnerAuctionsPage />} />
             <Route path="/owner/auctions/new" element={<CreateAuctionPage />} />
             <Route path="/owner/items/new" element={<CreateItemPage />} />
+            <Route path="/owner/bulk-upload" element={<BulkUploadPage />} />
             <Route path="/owner/inventory" element={<OwnerInventoryPage />} />
             <Route
               path="/owner/subscription"

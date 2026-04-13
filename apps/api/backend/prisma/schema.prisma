@@ -60,18 +60,19 @@ enum BillingInterval {
 }
 
 model User {
-  savedSearches    SavedSearch[] @relation("UserSavedSearches")
-  watchlistEntries Watchlist[]   @relation("UserWatchlist")
-  buyerOffers      Offer[]       @relation("OfferBuyer")
-  ownerOffers      Offer[]       @relation("OfferOwner")
-  id               String        @id @default(cuid())
-  name             String
-  email            String        @unique
-  password         String
-  role             Role          @default(CONSUMER)
-  isActive         Boolean       @default(true)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  inventoryImportJobs InventoryImportJob[] @relation("UserInventoryImportJobs")
+  savedSearches       SavedSearch[]        @relation("UserSavedSearches")
+  watchlistEntries    Watchlist[]          @relation("UserWatchlist")
+  buyerOffers         Offer[]              @relation("OfferBuyer")
+  ownerOffers         Offer[]              @relation("OfferOwner")
+  id                  String               @id @default(cuid())
+  name                String
+  email               String               @unique
+  password            String
+  role                Role                 @default(CONSUMER)
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   shops             PawnShop[]
   Bid               Bid[]
@@ -110,16 +111,17 @@ model BuyerSubscription {
 }
 
 model PawnShop {
-  id          String   @id @default(cuid())
-  name        String
-  address     String?
-  phone       String?
-  description String?
-  hours       String?
-  ownerId     String
-  isDeleted   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  inventoryImportJobs InventoryImportJob[] @relation("ShopInventoryImportJobs")
+  id                  String               @id @default(cuid())
+  name                String
+  address             String?
+  phone               String?
+  description         String?
+  hours               String?
+  ownerId             String
+  isDeleted           Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   owner    User      @relation(fields: [ownerId], references: [id])
   items    Item[]
@@ -303,4 +305,30 @@ model SavedSearch {
   user User @relation("UserSavedSearches", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+enum InventoryImportStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model InventoryImportJob {
+  id           String                @id @default(cuid())
+  userId       String
+  shopId       String
+  filename     String
+  status       InventoryImportStatus @default(PENDING)
+  totalRows    Int                   @default(0)
+  successCount Int                   @default(0)
+  failedCount  Int                   @default(0)
+  errorsJson   Json?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  user User     @relation("UserInventoryImportJobs", fields: [userId], references: [id], onDelete: Cascade)
+  shop PawnShop @relation("ShopInventoryImportJobs", fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([shopId, createdAt])
 }

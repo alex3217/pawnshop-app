@@ -87,6 +87,9 @@ export default function SiteLayout() {
                 <NavLink to="/owner/items/new" className={navLinkClass}>
                   Create Item
                 </NavLink>
+                <NavLink to="/owner/bulk-upload" className={navLinkClass}>
+                  Bulk Upload
+                </NavLink>
 
                 <NavLink to="/owner/auctions/new" className={navLinkClass}>
                   Create Auction
@@ -202,6 +205,9 @@ export default function SiteLayout() {
 
                 <Link className="footer-link" to="/owner/inventory">
                   Inventory
+                </Link>
+                <Link className="footer-link" to="/owner/bulk-upload">
+                  Bulk Upload
                 </Link>
               </>
             ) : null}

@@ -14,6 +14,7 @@ import adminRoutes from "./routes/admin.routes.js";
 import auctionRoutes from "./routes/auctions.routes.js";
 import bidsRoutes from "./routes/bids.routes.js";
 import watchlistRoutes from "./routes/watchlist.routes.js";
+import inventoryBulkRoutes from "./routes/inventoryBulk.routes.js";
 import savedSearchesRoutes from "./routes/savedSearches.routes.js";
 import sellerPlansRoutes from "./routes/sellerPlans.routes.js";
 import stripeRoutes from "./routes/stripe.routes.js";
@@ -157,6 +158,7 @@ export function createApp() {
   mountApi(app, "/auth", authRoutes);
   mountApi(app, "/shops", shopRoutes);
   mountApi(app, "/items", itemRoutes);
+  mountApi(app, "/inventory-bulk", inventoryBulkRoutes);
   mountApi(app, "/inquiries", inquiryRoutes);
   mountApi(app, "/admin", adminRoutes);
   mountApi(app, "/auctions", auctionRoutes);
