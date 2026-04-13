@@ -61,6 +61,7 @@ export default function HomeScreen() {
   const goToRegister = () => router.push("/register" as never);
   const goToAuctions = () => router.push("/auctions" as never);
   const goToShops = () => router.push("/shops" as never);
+  const goToScanIntake = () => router.push("/scan-intake" as never);
 
   return (
     <ScrollView
@@ -97,6 +98,11 @@ export default function HomeScreen() {
         <ActionButton
           label="Browse Shops"
           onPress={goToShops}
+        />
+
+        <ActionButton
+          label="Scan Intake"
+          onPress={goToScanIntake}
         />
       </View>
 
