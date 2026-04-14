@@ -28,7 +28,7 @@ export type Item = {
   createdAt?: string;
   updatedAt?: string;
   isDeleted?: boolean;
-  shop?: ItemShop;
+  shop?: ItemShop | null;
 };
 
 type PagedItemsResponse = {
@@ -37,6 +37,8 @@ type PagedItemsResponse = {
   total?: number;
   rows?: Item[];
   items?: Item[];
+  error?: string;
+  message?: string;
 };
 
 function joinUrl(base: string, path: string) {
@@ -58,10 +60,23 @@ async function parseJson<T = Record<string, unknown>>(res: Response): Promise<T>
 
 function extractError(data: unknown, fallback: string) {
   if (!data || typeof data !== "object") return fallback;
+
   const record = data as Record<string, unknown>;
   if (typeof record.error === "string" && record.error.trim()) return record.error;
   if (typeof record.message === "string" && record.message.trim()) return record.message;
+
   return fallback;
+}
+
+function normalizeItems(data: PagedItemsResponse | Item[] | Record<string, unknown>): Item[] {
+  if (Array.isArray(data)) return data as Item[];
+  if (Array.isArray((data as PagedItemsResponse).rows)) {
+    return (data as PagedItemsResponse).rows as Item[];
+  }
+  if (Array.isArray((data as PagedItemsResponse).items)) {
+    return (data as PagedItemsResponse).items as Item[];
+  }
+  return [];
 }
 
 export async function getMarketplaceItems(): Promise<Item[]> {
@@ -75,10 +90,26 @@ export async function getMarketplaceItems(): Promise<Item[]> {
     throw new Error(extractError(data, `Failed to load marketplace items (${res.status})`));
   }
 
-  if (Array.isArray(data)) return data;
-  if (Array.isArray((data as PagedItemsResponse).rows)) return (data as PagedItemsResponse).rows as Item[];
-  if (Array.isArray((data as PagedItemsResponse).items)) return (data as PagedItemsResponse).items as Item[];
-  return [];
+  return normalizeItems(data);
+}
+
+export async function getItemById(id: string): Promise<Item> {
+  const trimmedId = String(id || "").trim();
+  if (!trimmedId) {
+    throw new Error("Missing item id.");
+  }
+
+  const res = await fetch(joinUrl(API_BASE, `/items/${trimmedId}`), {
+    credentials: "same-origin",
+  });
+
+  const data = await parseJson<Item | Record<string, unknown>>(res);
+
+  if (!res.ok) {
+    throw new Error(extractError(data, `Failed to load item (${res.status})`));
+  }
+
+  return data as Item;
 }
 
 export async function getMyItems(): Promise<Item[]> {
@@ -93,8 +124,5 @@ export async function getMyItems(): Promise<Item[]> {
     throw new Error(extractError(data, `Failed to load my items (${res.status})`));
   }
 
-  if (Array.isArray(data)) return data;
-  if (Array.isArray((data as PagedItemsResponse).rows)) return (data as PagedItemsResponse).rows as Item[];
-  if (Array.isArray((data as PagedItemsResponse).items)) return (data as PagedItemsResponse).items as Item[];
-  return [];
+  return normalizeItems(data);
 }
