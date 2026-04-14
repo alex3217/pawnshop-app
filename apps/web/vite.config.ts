@@ -1,26 +1,31 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+const API_TARGET = "http://127.0.0.1:6002";
 
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: "127.0.0.1",
     port: 5176,
     strictPort: true,
     proxy: {
-      // REST API
-      '/api': {
-        target: 'http://localhost:6002',
+      "/api": {
+        target: API_TARGET,
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, ''),
       },
-      // Socket.IO (websocket + polling)
-      '/socket.io': {
-        target: 'http://localhost:6002',
+      "/socket.io": {
+        target: API_TARGET,
         ws: true,
         changeOrigin: true,
         secure: false,
       },
     },
   },
-})
+  preview: {
+    host: "127.0.0.1",
+    port: 4176,
+    strictPort: true,
+  },
+});
