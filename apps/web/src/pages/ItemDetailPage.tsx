@@ -1,13 +1,52 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { getMarketplaceItems, type Item } from "../services/items";
+import { useEffect, useState, type CSSProperties } from "react";
+import { Link, useParams } from "react-router-dom";
 import { addToWatchlist } from "../services/watchlist";
+import { getItemById, type Item } from "../services/items";
+
+function formatPrice(value: string | number) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return String(value);
+  return `$${num.toFixed(2)}`;
+}
+
+function getItemStatusTone(status: string): CSSProperties {
+  const normalized = String(status || "").toUpperCase();
+
+  if (["AVAILABLE", "ACTIVE"].includes(normalized)) {
+    return {
+      color: "#7ef0b3",
+      background: "rgba(46, 204, 113, 0.12)",
+      border: "1px solid rgba(46, 204, 113, 0.24)",
+    };
+  }
+
+  if (["PENDING"].includes(normalized)) {
+    return {
+      color: "#ffd98a",
+      background: "rgba(255, 193, 7, 0.12)",
+      border: "1px solid rgba(255, 193, 7, 0.24)",
+    };
+  }
+
+  if (["SOLD", "INACTIVE", "REMOVED"].includes(normalized)) {
+    return {
+      color: "#ffb2bc",
+      background: "rgba(255, 128, 143, 0.10)",
+      border: "1px solid rgba(255, 128, 143, 0.18)",
+    };
+  }
+
+  return {
+    color: "#c7d2fe",
+    background: "rgba(199, 210, 254, 0.10)",
+    border: "1px solid rgba(199, 210, 254, 0.18)",
+  };
+}
 
 export default function ItemDetailPage() {
-  const navigate = useNavigate();
   const { id = "" } = useParams();
 
-  const [items, setItems] = useState<Item[]>([]);
+  const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [watchlistMessage, setWatchlistMessage] = useState<string | null>(null);
@@ -27,9 +66,9 @@ export default function ItemDetailPage() {
       setError(null);
 
       try {
-        const nextItems = await getMarketplaceItems();
+        const nextItem = await getItemById(id);
         if (!cancelled) {
-          setItems(nextItems);
+          setItem(nextItem);
         }
       } catch (err) {
         if (!cancelled) {
@@ -49,8 +88,6 @@ export default function ItemDetailPage() {
     };
   }, [id]);
 
-  const item = useMemo(() => items.find((entry) => entry.id === id) || null, [items, id]);
-
   async function handleSaveItem() {
     if (!item?.id || saving) return;
 
@@ -60,7 +97,9 @@ export default function ItemDetailPage() {
       await addToWatchlist(item.id);
       setWatchlistMessage("Item saved to watchlist.");
     } catch (err) {
-      setWatchlistMessage(err instanceof Error ? err.message : "Failed to save item.");
+      setWatchlistMessage(
+        err instanceof Error ? err.message : "Failed to save item."
+      );
     } finally {
       setSaving(false);
     }
@@ -75,12 +114,16 @@ export default function ItemDetailPage() {
       <section style={styles.card}>
         <div style={styles.kicker}>{item.shop?.name || "Unknown Shop"}</div>
         <h2 style={styles.title}>{item.title}</h2>
-        <div style={styles.price}>${Number(item.price || 0).toFixed(2)}</div>
+        <div style={styles.price}>{formatPrice(item.price)}</div>
 
         <div style={styles.metaRow}>
-          <span style={styles.metaPill}>{item.status}</span>
+          <span style={{ ...styles.metaPill, ...getItemStatusTone(item.status) }}>
+            {item.status}
+          </span>
           <span style={styles.metaPill}>{item.category || "Uncategorized"}</span>
-          <span style={styles.metaPill}>{item.condition || "Condition not listed"}</span>
+          <span style={styles.metaPill}>
+            {item.condition || "Condition not listed"}
+          </span>
         </div>
 
         <p style={styles.description}>
@@ -100,20 +143,14 @@ export default function ItemDetailPage() {
           <button
             type="button"
             style={styles.primaryButton}
-            onClick={() => navigate("/offers", { state: { itemId: item.id } })}
-          >
-            Make Offer
-          </button>
-          <button
-            type="button"
-            style={styles.secondaryButton}
             onClick={handleSaveItem}
             disabled={saving}
           >
             {saving ? "Saving..." : "Save Item"}
           </button>
-          <Link to="/marketplace" style={styles.secondaryLink}>
-            Back to Marketplace
+
+          <Link to="/auctions" style={styles.secondaryLink}>
+            Back to Auctions
           </Link>
 
           {item.pawnShopId ? (
@@ -127,7 +164,7 @@ export default function ItemDetailPage() {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: { display: "grid", gap: 20, color: "#eef2ff" },
   card: {
     background: "#121935",
@@ -178,15 +215,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 800,
-  },
-  secondaryButton: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#eef2ff",
-    background: "#121935",
-    padding: "10px 14px",
-    borderRadius: 12,
-    fontWeight: 700,
-    cursor: "pointer",
   },
   notice: {
     color: "#c7f9d3",
