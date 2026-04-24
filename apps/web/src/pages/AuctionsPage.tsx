@@ -1,6 +1,6 @@
 // File: apps/web/src/pages/AuctionsPage.tsx
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { API_BASE } from "../config";
 
@@ -10,25 +10,33 @@ type AuctionRow = {
   id: string;
   itemId: string;
   shopId: string;
-  status: string;
-  startingPrice: string;
-  minIncrement: string;
-  reservePrice?: string | null;
-  buyItNowPrice?: string | null;
-  startsAt: string;
-  endsAt: string;
-  extendedEndsAt?: string | null;
-  currentPrice: string;
-  version?: number;
-  createdAt?: string;
-  updatedAt?: string;
+  status: "LIVE" | "ENDED" | "CANCELED" | string;
+  startingPrice: string | number | null;
+  minIncrement: string | number | null;
+  reservePrice: string | number | null;
+  buyItNowPrice: string | number | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  extendedEndsAt: string | null;
+  currentPrice: string | number | null;
+  version: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
   item?: {
-    id?: string;
-    title?: string | null;
+    id: string;
+    title: string;
+    description?: string | null;
+    price?: string | number | null;
+    currency?: string | null;
+    category?: string | null;
+    condition?: string | null;
+    status?: string | null;
   } | null;
   shop?: {
-    id?: string;
-    name?: string | null;
+    id: string;
+    name: string;
+    address?: string | null;
+    phone?: string | null;
   } | null;
 };
 
@@ -38,42 +46,50 @@ type AuctionsResponse =
       limit?: number;
       total?: number;
       rows?: AuctionRow[];
-      error?: string;
-      message?: string;
+      auctions?: AuctionRow[];
+      items?: AuctionRow[];
     }
-  | AuctionRow[];
+  | AuctionRow[]
+  | null;
 
-const FILTERS: AuctionStatusFilter[] = ["LIVE", "ENDED", "CANCELED", "ALL"];
-
-function extractApiError(payload: unknown) {
-  if (!payload || typeof payload !== "object") return "";
-  const maybe = payload as { error?: unknown; message?: unknown };
-  return String(maybe.error || maybe.message || "");
+async function safeJson<T>(res: Response): Promise<T | null> {
+  const text = await res.text();
+  return text ? (JSON.parse(text) as T) : null;
 }
 
-async function safeJson<T = unknown>(response: Response): Promise<T | null> {
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeAuctionRows(payload: AuctionsResponse | null): AuctionRow[] {
+function normalizeAuctionRows(payload: AuctionsResponse): AuctionRow[] {
+  if (!payload) return [];
   if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== "object") return [];
+
   if (Array.isArray(payload.rows)) return payload.rows;
+  if (Array.isArray(payload.auctions)) return payload.auctions;
+  if (Array.isArray(payload.items)) return payload.items;
+
   return [];
 }
 
-function normalizeStatusFilter(value: string | null): AuctionStatusFilter {
-  const raw = String(value || "LIVE").trim().toUpperCase();
-  return FILTERS.includes(raw as AuctionStatusFilter)
-    ? (raw as AuctionStatusFilter)
-    : "LIVE";
+function toMoney(value: string | number | null | undefined): string {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "0.00";
+  return num.toFixed(2);
 }
 
-function buildAuctionsUrl(status: AuctionStatusFilter) {
+function toDateTime(value: string | null | undefined): string {
+  if (!value) return "Unavailable";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unavailable";
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function isAuctionStatusFilter(value: string | null): value is AuctionStatusFilter {
+  return value === "LIVE" || value === "ENDED" || value === "CANCELED" || value === "ALL";
+}
+
+function buildAuctionsUrl(status: AuctionStatusFilter): string {
   const params = new URLSearchParams();
 
   if (status !== "ALL") {
@@ -86,129 +102,148 @@ function buildAuctionsUrl(status: AuctionStatusFilter) {
   return `${API_BASE}/auctions${query ? `?${query}` : ""}`;
 }
 
-function getAuctionEndLabel(auction: AuctionRow) {
-  const raw = auction.extendedEndsAt || auction.endsAt;
-  if (!raw) return "—";
-
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return "—";
-
-  return date.toLocaleString();
+function getStatusTone(status: string): string {
+  switch (String(status || "").toUpperCase()) {
+    case "LIVE":
+      return "#22c55e";
+    case "ENDED":
+      return "#94a3b8";
+    case "CANCELED":
+      return "#ef4444";
+    default:
+      return "#60a5fa";
+  }
 }
 
-function formatMoney(value: string | number | null | undefined) {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return "—";
-  return amount.toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
-  });
-}
-
-function getStatusTone(status: string): React.CSSProperties {
-  const normalized = String(status || "").toUpperCase();
-
-  if (normalized === "LIVE") {
-    return {
-      background: "rgba(16, 185, 129, 0.14)",
-      color: "#047857",
-      border: "1px solid rgba(16, 185, 129, 0.28)",
-    };
-  }
-
-  if (normalized === "ENDED") {
-    return {
-      background: "rgba(71, 85, 105, 0.14)",
-      color: "#475569",
-      border: "1px solid rgba(71, 85, 105, 0.28)",
-    };
-  }
-
-  if (normalized === "CANCELED") {
-    return {
-      background: "rgba(220, 38, 38, 0.12)",
-      color: "#b91c1c",
-      border: "1px solid rgba(220, 38, 38, 0.24)",
-    };
-  }
-
-  return {
-    background: "rgba(59, 130, 246, 0.10)",
-    color: "#1d4ed8",
-    border: "1px solid rgba(59, 130, 246, 0.20)",
-  };
-}
+const FILTERS: AuctionStatusFilter[] = ["LIVE", "ENDED", "CANCELED", "ALL"];
+const POLL_MS = 30000;
 
 export default function AuctionsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const statusFilter = useMemo(
-    () => normalizeStatusFilter(searchParams.get("status")),
-    [searchParams]
-  );
 
+  const initialStatus = searchParams.get("status");
+  const [statusFilter, setStatusFilter] = useState<AuctionStatusFilter>(
+    isAuctionStatusFilter(initialStatus) ? initialStatus : "LIVE"
+  );
   const [rows, setRows] = useState<AuctionRow[]>([]);
+  const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const inFlightRef = useRef(false);
+
+  const syncUrl = useCallback(
+    (nextStatus: AuctionStatusFilter) => {
+      const nextParams = new URLSearchParams(searchParams);
+
+      if (nextStatus === "ALL") {
+        nextParams.delete("status");
+      } else {
+        nextParams.set("status", nextStatus);
+      }
+
+      setSearchParams(nextParams, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
+
   const load = useCallback(
-    async (isRefresh = false) => {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+    async (mode: "initial" | "refresh" = "initial") => {
+      if (inFlightRef.current) return;
+
+      inFlightRef.current = true;
+
+      if (mode === "initial") {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
 
       setError(null);
 
       try {
-        const res = await fetch(buildAuctionsUrl(statusFilter));
+        const res = await fetch(buildAuctionsUrl(statusFilter), {
+          cache: "no-store",
+        });
+
         const json = await safeJson<AuctionsResponse>(res);
 
         if (!res.ok) {
-          throw new Error(
-            extractApiError(json) || `Failed to load auctions (${res.status})`
-          );
+          const maybeError =
+            json && typeof json === "object" && !Array.isArray(json) && "error" in json
+              ? String((json as { error?: unknown }).error || "")
+              : "";
+
+          throw new Error(maybeError || `Failed to load auctions (${res.status})`);
         }
 
-        setRows(normalizeAuctionRows(json));
+        const normalizedRows = normalizeAuctionRows(json);
+        const nextTotal =
+          json && typeof json === "object" && !Array.isArray(json) && "total" in json
+            ? Number((json as { total?: unknown }).total ?? normalizedRows.length)
+            : normalizedRows.length;
+
+        setRows(normalizedRows);
+        setTotal(Number.isFinite(nextTotal) ? nextTotal : normalizedRows.length);
       } catch (err: unknown) {
         setRows([]);
-        setError(err instanceof Error ? err.message : "Failed to load auctions");
+        setTotal(0);
+        setError(err instanceof Error ? err.message : "Failed to load auctions.");
       } finally {
-        if (isRefresh) setRefreshing(false);
-        else setLoading(false);
+        inFlightRef.current = false;
+        setLoading(false);
+        setRefreshing(false);
       }
     },
     [statusFilter]
   );
 
   useEffect(() => {
-    load();
+    if (!isAuctionStatusFilter(initialStatus) && initialStatus !== null) {
+      syncUrl("LIVE");
+    }
+    // intentionally only reacts to current URL's initial invalid value
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    void load("initial");
   }, [load]);
 
   useEffect(() => {
     if (statusFilter !== "LIVE") return;
 
     const timer = window.setInterval(() => {
-      load(true);
-    }, 30000);
+      void load("refresh");
+    }, POLL_MS);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+    };
   }, [load, statusFilter]);
 
-  function applyFilter(next: AuctionStatusFilter) {
-    if (next === "LIVE") {
-      setSearchParams({});
-      return;
+  const headerDescription = useMemo(() => {
+    switch (statusFilter) {
+      case "LIVE":
+        return "Browse live marketplace auctions and track current prices in real time.";
+      case "ENDED":
+        return "Review ended auctions and inspect their final outcomes.";
+      case "CANCELED":
+        return "Review canceled auctions across the marketplace.";
+      case "ALL":
+      default:
+        return "Browse marketplace auctions, view current prices, and open any listing for details.";
     }
+  }, [statusFilter]);
 
-    setSearchParams({ status: next });
-  }
-
-  const emptyMessage =
-    statusFilter === "LIVE"
-      ? "No live auctions are available right now."
-      : statusFilter === "ALL"
-        ? "No auctions found."
-        : `No ${statusFilter.toLowerCase()} auctions found.`;
+  const handleFilterChange = useCallback(
+    (nextFilter: AuctionStatusFilter) => {
+      setStatusFilter(nextFilter);
+      syncUrl(nextFilter);
+    },
+    [syncUrl]
+  );
 
   return (
     <div className="page-stack">
@@ -216,49 +251,64 @@ export default function AuctionsPage() {
         <div className="toolbar" style={{ alignItems: "flex-start", gap: 16 }}>
           <div>
             <div className="section-title">Auctions</div>
-            <div className="section-subtitle">
-              Browse marketplace auctions, view current prices, and open any listing for details.
-            </div>
+            <div className="section-subtitle">{headerDescription}</div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {FILTERS.map((filter) => {
-              const active = filter === statusFilter;
-              return (
-                <button
-                  key={filter}
-                  type="button"
-                  className={active ? "btn btn-primary" : "btn btn-secondary"}
-                  onClick={() => applyFilter(filter)}
-                >
-                  {filter === "ALL" ? "All" : filter}
-                </button>
-              );
-            })}
-
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => load(true)}
-              disabled={loading || refreshing}
-            >
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void load("refresh")}
+            disabled={loading || refreshing}
+          >
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
 
-        {loading ? <p className="muted">Loading auctions…</p> : null}
-        {error ? <div className="error-text">{error}</div> : null}
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            marginTop: 8,
+            marginBottom: 18,
+          }}
+        >
+          {FILTERS.map((filter) => {
+            const active = statusFilter === filter;
 
-        {!loading && !error ? (
-          <div className="muted" style={{ marginBottom: 12 }}>
-            Showing {rows.length} auction{rows.length === 1 ? "" : "s"}.
+            return (
+              <button
+                key={filter}
+                type="button"
+                className={active ? "btn btn-primary" : "btn btn-secondary"}
+                onClick={() => handleFilterChange(filter)}
+              >
+                {filter}
+              </button>
+            );
+          })}
+        </div>
+
+        {error ? <div className="error-text">{error}</div> : null}
+        {loading ? <p className="muted">Loading auctions…</p> : null}
+
+        {!loading ? (
+          <div className="muted" style={{ marginBottom: 14 }}>
+            Showing {total} auction{total === 1 ? "" : "s"}.
           </div>
         ) : null}
 
-        {!loading && !error && rows.length === 0 ? (
+        {!loading && rows.length === 0 ? (
           <div className="list-card">
-            <strong>{emptyMessage}</strong>
+            <strong>
+              {statusFilter === "LIVE"
+                ? "No live auctions are available right now."
+                : statusFilter === "ENDED"
+                  ? "No ended auctions were found."
+                  : statusFilter === "CANCELED"
+                    ? "No canceled auctions were found."
+                    : "No auctions were found."}
+            </strong>
             <p className="muted" style={{ marginBottom: 0 }}>
               Try another filter or refresh the list.
             </p>
@@ -270,44 +320,74 @@ export default function AuctionsPage() {
             const statusTone = getStatusTone(auction.status);
 
             return (
-              <div key={auction.id} className="list-card" style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <strong>{auction.item?.title ?? "Auction Item"}</strong>
+              <div key={auction.id} className="list-card">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <div>
+                    <strong>{auction.item?.title || "Untitled Auction"}</strong>
+                    <div className="muted">
+                      Shop: {auction.shop?.name || "Unknown Shop"}
+                    </div>
+                  </div>
+
                   <span
                     style={{
-                      borderRadius: 999,
-                      padding: "4px 10px",
                       fontSize: 12,
-                      fontWeight: 700,
-                      whiteSpace: "nowrap",
-                      ...statusTone,
+                      fontWeight: 800,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: statusTone,
                     }}
                   >
                     {auction.status}
                   </span>
                 </div>
 
-                <div className="muted">
-                  Shop: {auction.shop?.name ?? "Unknown Shop"}
-                </div>
-
-                <div style={{ fontSize: 24, fontWeight: 800 }}>
-                  {formatMoney(auction.currentPrice)}
-                </div>
+                {auction.item?.description ? (
+                  <p className="muted" style={{ marginBottom: 0 }}>
+                    {auction.item.description}
+                  </p>
+                ) : null}
 
                 <div className="muted">
-                  Minimum increment: {formatMoney(auction.minIncrement)}
+                  Current Price: <strong>${toMoney(auction.currentPrice)}</strong>
                 </div>
 
                 <div className="muted">
-                  Ends: {getAuctionEndLabel(auction)}
-                  {auction.extendedEndsAt ? " (extended)" : ""}
+                  Starting Price: ${toMoney(auction.startingPrice)}
                 </div>
 
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
+                <div className="muted">
+                  Min Increment: ${toMoney(auction.minIncrement)}
+                </div>
+
+                <div className="muted">Starts: {toDateTime(auction.startsAt)}</div>
+                <div className="muted">
+                  Ends: {toDateTime(auction.extendedEndsAt || auction.endsAt)}
+                </div>
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
                   <Link to={`/auctions/${auction.id}`} className="btn btn-primary">
-                    Open Auction
+                    View Auction
                   </Link>
+
+                  {auction.item?.id ? (
+                    <Link to={`/items/${auction.item.id}`} className="btn btn-secondary">
+                      View Item
+                    </Link>
+                  ) : null}
+
+                  {auction.shop?.id ? (
+                    <Link to={`/shops/${auction.shop.id}`} className="btn btn-secondary">
+                      View Shop
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             );

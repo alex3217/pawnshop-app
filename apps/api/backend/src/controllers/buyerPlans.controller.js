@@ -1,151 +1,298 @@
 import { prisma } from "../lib/prisma.js";
-import {
-  DEFAULT_BUYER_SUBSCRIPTION_STATUS,
-  isKnownBuyerPlanCode,
-  listBuyerPlans,
-  normalizeBuyerPlanCode,
-  normalizeBuyerSubscriptionStatus,
-} from "../config/buyerPlans.js";
 
-function errorResponse(res, err, fallback = "Internal Server Error") {
-  const status = Number(err?.statusCode) || Number(err?.status) || 500;
-  const message = err?.message || fallback;
-  return res.status(status).json({ error: message });
+const BUYER_PLAN_CODES = ["FREE", "PLUS", "PREMIUM", "ULTRA"];
+const BUYER_SUBSCRIPTION_STATUSES = [
+  "UNKNOWN",
+  "ACTIVE",
+  "TRIALING",
+  "PAST_DUE",
+  "INCOMPLETE",
+  "INCOMPLETE_EXPIRED",
+  "CANCELED",
+  "PAUSED",
+];
+
+function sendError(res, error, fallbackMessage = "Internal server error") {
+  const status =
+    Number.isInteger(error?.statusCode) && error.statusCode >= 400
+      ? error.statusCode
+      : 500;
+
+  return res.status(status).json({
+    success: false,
+    error: error?.message || fallbackMessage,
+    ...(error?.details ? { details: error.details } : {}),
+  });
 }
 
-function createHttpError(message, statusCode = 500, details = undefined) {
-  const err = new Error(message);
-  err.statusCode = statusCode;
-  if (details !== undefined) err.details = details;
-  return err;
+function badRequest(message, details = undefined) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  if (details) error.details = details;
+  return error;
 }
 
-function getRequestUser(req) {
-  const user = req?.user;
-  if (!user || typeof user !== "object") {
-    throw createHttpError("Unauthorized", 401);
+function forbidden(message = "Forbidden") {
+  const error = new Error(message);
+  error.statusCode = 403;
+  return error;
+}
+
+function normalizeString(value, fallback = "") {
+  if (value === undefined || value === null) return fallback;
+  const str = String(value).trim();
+  return str.length ? str : fallback;
+}
+
+function normalizePlanCode(value, fallback = "FREE") {
+  return normalizeString(value, fallback).toUpperCase();
+}
+
+function normalizeStatus(value, fallback = "ACTIVE") {
+  return normalizeString(value, fallback).toUpperCase();
+}
+
+function normalizeDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function assertValidPlanCode(planCode) {
+  if (!BUYER_PLAN_CODES.includes(planCode)) {
+    throw badRequest("Invalid buyer plan code.", {
+      allowedPlanCodes: BUYER_PLAN_CODES,
+    });
   }
-  return user;
 }
 
-function getRequestUserId(req) {
-  const user = getRequestUser(req);
-  return String(user.sub || user.id || "").trim();
+function assertValidStatus(status) {
+  if (!BUYER_SUBSCRIPTION_STATUSES.includes(status)) {
+    throw badRequest("Invalid buyer subscription status.", {
+      allowedStatuses: BUYER_SUBSCRIPTION_STATUSES,
+    });
+  }
 }
 
-function parseOptionalDate(value, fieldName = "currentPeriodEnd") {
-  if (value == null || value === "") return null;
+function toResponse(record) {
+  if (!record) return null;
 
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    throw createHttpError(`Invalid ${fieldName}`, 400);
-  }
-
-  return parsed;
+  return {
+    id: record.id,
+    userId: record.userId,
+    planCode: normalizePlanCode(record.planCode || record.plan || "FREE"),
+    status: normalizeStatus(record.status || "ACTIVE"),
+    cancelAtPeriodEnd: !!record.cancelAtPeriodEnd,
+    currentPeriodEnd: record.currentPeriodEnd || null,
+    stripeCustomerId: record.stripeCustomerId || null,
+    stripeSubscriptionId: record.stripeSubscriptionId || null,
+    createdAt: record.createdAt || null,
+    updatedAt: record.updatedAt || null,
+  };
 }
 
-function assertKnownBuyerPlanCode(plan) {
-  const normalized = String(plan || "").trim().toUpperCase();
+async function buyerSubscriptionModelAvailable() {
+  return !!prisma?.buyerSubscription;
+}
 
-  if (!normalized) {
-    throw createHttpError("Plan is required", 400);
+async function requireBuyerSubscriptionModel() {
+  if (!(await buyerSubscriptionModelAvailable())) {
+    const error = new Error(
+      "Buyer subscription model is not available in the current Prisma client.",
+    );
+    error.statusCode = 501;
+    throw error;
   }
-
-  if (!isKnownBuyerPlanCode(normalized)) {
-    throw createHttpError(`Unsupported buyer plan: ${normalized}`, 400);
-  }
-
-  return normalizeBuyerPlanCode(normalized);
 }
 
 export async function listAvailableBuyerPlans(_req, res) {
   try {
     return res.json({
       success: true,
-      plans: listBuyerPlans(),
+      plans: [
+        {
+          code: "FREE",
+          label: "Free",
+          monthlyPriceCents: 0,
+          features: ["Browse marketplace", "Watchlist", "Saved searches"],
+        },
+        {
+          code: "PLUS",
+          label: "Plus",
+          monthlyPriceCents: 999,
+          features: [
+            "Everything in Free",
+            "Priority alerts",
+            "Enhanced saved searches",
+          ],
+        },
+        {
+          code: "PREMIUM",
+          label: "Premium",
+          monthlyPriceCents: 1999,
+          features: [
+            "Everything in Plus",
+            "Advanced notifications",
+            "Priority support",
+          ],
+        },
+        {
+          code: "ULTRA",
+          label: "Ultra",
+          monthlyPriceCents: 2999,
+          features: [
+            "Everything in Premium",
+            "VIP access features",
+            "Early feature access",
+          ],
+        },
+      ],
     });
-  } catch (err) {
-    return errorResponse(res, err, "Failed to load buyer plans");
+  } catch (error) {
+    return sendError(res, error);
   }
 }
 
 export async function getMyBuyerSubscription(req, res) {
   try {
-    const userId = getRequestUserId(req);
+    const userId = req?.user?.sub;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        buyerSubscriptionPlan: true,
-        buyerSubscriptionStatus: true,
-        buyerSubscriptionCurrentPeriodEnd: true,
-        buyerCancelAtPeriodEnd: true,
-        buyerStripeCustomerId: true,
-        buyerStripeSubscriptionId: true,
-      },
+    await requireBuyerSubscriptionModel();
+
+    const record = await prisma.buyerSubscription.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
     });
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    return res.json({
+      success: true,
+      subscription: toResponse(record),
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function upsertMyBuyerSubscription(req, res) {
+  try {
+    const userId = req?.user?.sub;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    await requireBuyerSubscriptionModel();
+
+    const planCode = normalizePlanCode(
+      req.body?.planCode ?? req.body?.plan ?? req.body?.code,
+      "FREE",
+    );
+    const status = normalizeStatus(req.body?.status, "ACTIVE");
+    const cancelAtPeriodEnd = !!req.body?.cancelAtPeriodEnd;
+    const currentPeriodEnd = normalizeDate(req.body?.currentPeriodEnd);
+    const stripeCustomerId = normalizeString(req.body?.stripeCustomerId, "") || null;
+    const stripeSubscriptionId =
+      normalizeString(req.body?.stripeSubscriptionId, "") || null;
+
+    assertValidPlanCode(planCode);
+    assertValidStatus(status);
+
+    const existing = await prisma.buyerSubscription.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    let record;
+
+    if (existing) {
+      record = await prisma.buyerSubscription.update({
+        where: { id: existing.id },
+        data: {
+          planCode,
+          status,
+          cancelAtPeriodEnd,
+          currentPeriodEnd,
+          stripeCustomerId,
+          stripeSubscriptionId,
+        },
+      });
+    } else {
+      record = await prisma.buyerSubscription.create({
+        data: {
+          userId,
+          planCode,
+          status,
+          cancelAtPeriodEnd,
+          currentPeriodEnd,
+          stripeCustomerId,
+          stripeSubscriptionId,
+        },
+      });
     }
 
     return res.json({
       success: true,
-      subscription: user,
+      subscription: toResponse(record),
     });
-  } catch (err) {
-    return errorResponse(res, err, "Failed to load buyer subscription");
+  } catch (error) {
+    return sendError(res, error);
   }
 }
 
-export async function setMyBuyerSubscription(req, res) {
+export async function cancelMyBuyerSubscription(req, res) {
   try {
-    const userId = getRequestUserId(req);
-    const {
-      plan,
-      status,
-      currentPeriodEnd,
-      cancelAtPeriodEnd = false,
-    } = req.body || {};
+    const userId = req?.user?.sub;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
 
-    const nextPlan = assertKnownBuyerPlanCode(plan);
-    const nextStatus = normalizeBuyerSubscriptionStatus(
-      status || DEFAULT_BUYER_SUBSCRIPTION_STATUS
-    );
-    const nextCurrentPeriodEnd = parseOptionalDate(
-      currentPeriodEnd,
-      "currentPeriodEnd"
-    );
+    await requireBuyerSubscriptionModel();
 
-    const updated = await prisma.user.update({
-      where: { id: userId },
+    const existing = await prisma.buyerSubscription.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    if (!existing) {
+      throw badRequest("No buyer subscription found to cancel.");
+    }
+
+    const record = await prisma.buyerSubscription.update({
+      where: { id: existing.id },
       data: {
-        buyerSubscriptionPlan: nextPlan,
-        buyerSubscriptionStatus: nextStatus,
-        buyerSubscriptionCurrentPeriodEnd: nextCurrentPeriodEnd,
-        buyerCancelAtPeriodEnd: Boolean(cancelAtPeriodEnd),
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        buyerSubscriptionPlan: true,
-        buyerSubscriptionStatus: true,
-        buyerSubscriptionCurrentPeriodEnd: true,
-        buyerCancelAtPeriodEnd: true,
-        buyerStripeCustomerId: true,
-        buyerStripeSubscriptionId: true,
+        status: "CANCELED",
+        cancelAtPeriodEnd: true,
       },
     });
 
     return res.json({
       success: true,
-      subscription: updated,
+      subscription: toResponse(record),
     });
-  } catch (err) {
-    return errorResponse(res, err, "Failed to update buyer subscription");
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function adminListBuyerSubscriptions(req, res) {
+  try {
+    if (req?.user?.role !== "ADMIN") {
+      throw forbidden();
+    }
+
+    await requireBuyerSubscriptionModel();
+
+    const records = await prisma.buyerSubscription.findMany({
+      orderBy: { updatedAt: "desc" },
+    });
+
+    return res.json({
+      success: true,
+      subscriptions: records.map(toResponse),
+    });
+  } catch (error) {
+    return sendError(res, error);
   }
 }
