@@ -106,6 +106,7 @@ const RegisterPage = lazyPage(() => import("./pages/RegisterPage"));
 const SavedSearchesPage = lazyPage(() => import("./pages/SavedSearchesPage"));
 const ScanConsolePage = lazyPage(() => import("./pages/ScanConsolePage"));
 const ShopDetailPage = lazyPage(() => import("./pages/ShopDetailPage"));
+const ShopsPage = lazyPage(() => import("./pages/ShopsPage"));
 const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
 
 function RouteFallback() {
@@ -184,6 +185,7 @@ function renderRouteGroup(
 const publicRoutes: RouteConfig[] = [
   { index: true, element: <HomePage /> },
   { path: "/marketplace", element: <MarketplacePage /> },
+  { path: "/shops", element: <ShopsPage /> },
   { path: "/shops/:id", element: <ShopDetailPage /> },
   { path: "/items/:id", element: <ItemDetailPage /> },
   { path: "/auctions", element: <AuctionsPage /> },
