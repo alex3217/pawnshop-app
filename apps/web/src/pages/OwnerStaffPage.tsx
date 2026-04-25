@@ -1,4 +1,4 @@
-// File: apps/web/src/pages/MyWinsPage.tsx
+// File: apps/web/src/pages/OwnerStaffPage.tsx
 
 import {
   useCallback,
@@ -10,102 +10,67 @@ import {
 import { Link } from "react-router-dom";
 import { getAuthHeaders, getAuthToken } from "../services/auth";
 
-type WinRecord = {
-  settlementId: string;
-  auctionId: string;
-  auctionTitle: string;
-  shopName: string;
-  finalAmountCents: number;
-  currency: string;
+type StaffRecord = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  locationName: string;
   status: string;
-  endedAt: string | null;
-  settledAt: string | null;
 };
 
-type ApiWinRecord = Partial<{
+type ApiStaffRecord = Partial<{
   id: string;
-  settlementId: string;
-  auctionId: string;
-  auctionTitle: string;
-  title: string;
-  itemTitle: string;
+  name: string;
+  fullName: string;
+  email: string;
+  userEmail: string;
+  role: string;
+  staffRole: string;
+  locationName: string;
   shopName: string;
   pawnShopName: string;
-  finalAmountCents: number;
-  amountCents: number;
-  amount: number;
-  currency: string;
   status: string;
-  endedAt: string;
-  settledAt: string;
 }>;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function toValidDate(value: string | null | undefined) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+function normalizeLabel(value: string | undefined, fallback: string) {
+  const normalized = String(value || fallback).trim();
+  return normalized || fallback;
 }
 
-function formatCurrency(cents: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency || "USD",
-  }).format((Number.isFinite(cents) ? cents : 0) / 100);
+function normalizeUpper(value: string | undefined, fallback: string) {
+  const normalized = String(value || fallback).trim().toUpperCase();
+  return normalized || fallback;
 }
 
-function formatDate(value: string | null) {
-  const date = toValidDate(value);
-  return date ? date.toLocaleString() : "—";
-}
-
-function normalizeStatus(value: string | undefined) {
-  const normalized = String(value || "WON").trim().toUpperCase();
-  if (!normalized) return "WON";
-  return normalized.replaceAll("_", " ");
-}
-
-function normalizeWin(row: ApiWinRecord, index: number): WinRecord {
-  const cents =
-    typeof row.finalAmountCents === "number"
-      ? row.finalAmountCents
-      : typeof row.amountCents === "number"
-        ? row.amountCents
-        : typeof row.amount === "number"
-          ? Math.round(row.amount * 100)
-          : 0;
-
+function normalizeStaff(
+  row: ApiStaffRecord,
+  index: number,
+): StaffRecord {
   return {
-    settlementId: String(row.settlementId || row.id || `win-${index}`),
-    auctionId: String(row.auctionId || ""),
-    auctionTitle: String(
-      row.auctionTitle || row.title || row.itemTitle || "Won auction",
+    id: String(row.id || `staff-${index}`),
+    name: String(row.name || row.fullName || `Staff ${index + 1}`),
+    email: String(row.email || row.userEmail || "—"),
+    role: normalizeUpper(row.role || row.staffRole, "TEAM_MEMBER"),
+    locationName: normalizeLabel(
+      row.locationName || row.shopName || row.pawnShopName,
+      "Unassigned",
     ),
-    shopName: String(row.shopName || row.pawnShopName || "Unknown shop"),
-    finalAmountCents: cents,
-    currency: String(row.currency || "USD"),
-    status: normalizeStatus(row.status),
-    endedAt: row.endedAt || null,
-    settledAt: row.settledAt || null,
+    status: normalizeUpper(row.status, "ACTIVE"),
   };
 }
 
-function extractWinRows(payload: unknown): ApiWinRecord[] {
-  if (Array.isArray(payload)) return payload as ApiWinRecord[];
+function extractStaffRows(payload: unknown): ApiStaffRecord[] {
+  if (Array.isArray(payload)) return payload as ApiStaffRecord[];
 
   if (isObject(payload)) {
-    if (Array.isArray(payload.data)) return payload.data as ApiWinRecord[];
-    if (Array.isArray(payload.wins)) return payload.wins as ApiWinRecord[];
-    if (Array.isArray(payload.items)) return payload.items as ApiWinRecord[];
-    if (Array.isArray(payload.settlements)) {
-      return payload.settlements as ApiWinRecord[];
-    }
-    if (payload.settlement && isObject(payload.settlement)) {
-      return [payload.settlement as ApiWinRecord];
-    }
+    if (Array.isArray(payload.data)) return payload.data as ApiStaffRecord[];
+    if (Array.isArray(payload.staff)) return payload.staff as ApiStaffRecord[];
+    if (Array.isArray(payload.items)) return payload.items as ApiStaffRecord[];
   }
 
   return [];
@@ -121,27 +86,15 @@ function extractMessage(payload: unknown) {
   return null;
 }
 
-function sortWinsNewestFirst(items: WinRecord[]) {
-  return [...items].sort((a, b) => {
-    const aTime =
-      toValidDate(a.settledAt)?.getTime() ??
-      toValidDate(a.endedAt)?.getTime() ??
-      0;
-    const bTime =
-      toValidDate(b.settledAt)?.getTime() ??
-      toValidDate(b.endedAt)?.getTime() ??
-      0;
-    return bTime - aTime;
-  });
-}
-
-async function fetchMyWins(signal?: AbortSignal): Promise<WinRecord[]> {
+async function fetchOwnerStaff(
+  signal?: AbortSignal,
+): Promise<StaffRecord[]> {
   const token = getAuthToken();
   if (!token) {
-    throw new Error("Missing buyer token. Please log in again.");
+    throw new Error("Missing owner token. Please log in again.");
   }
 
-  const endpoint = "/api/settlements/mine";
+  const endpoint = "/api/staff/mine";
 
   const response = await fetch(endpoint, {
     headers: {
@@ -160,17 +113,15 @@ async function fetchMyWins(signal?: AbortSignal): Promise<WinRecord[]> {
     throw new Error(message);
   }
 
-  const rawList = extractWinRows(payload);
+  const rawList = extractStaffRows(payload);
 
-  return sortWinsNewestFirst(
-    rawList.map((row: ApiWinRecord, index: number) =>
-      normalizeWin(row, index),
-    ),
+  return rawList.map((row: ApiStaffRecord, index: number) =>
+    normalizeStaff(row, index),
   );
 }
 
-export default function MyWinsPage() {
-  const [wins, setWins] = useState<WinRecord[]>([]);
+export default function OwnerStaffPage() {
+  const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -186,11 +137,11 @@ export default function MyWinsPage() {
       setError("");
 
       try {
-        const data = await fetchMyWins(signal);
-        setWins(data);
+        const data = await fetchOwnerStaff(signal);
+        setStaff(data);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Failed to load your wins.");
+        setError(err instanceof Error ? err.message : "Failed to load staff.");
       } finally {
         if (mode === "refresh") setRefreshing(false);
         else setLoading(false);
@@ -206,26 +157,23 @@ export default function MyWinsPage() {
   }, [load]);
 
   const summary = useMemo(() => {
-    const totalSpentCents = wins.reduce(
-      (sum, row) => sum + row.finalAmountCents,
-      0,
-    );
-
     return {
-      winsCount: wins.length,
-      totalSpentCents,
+      staffCount: staff.length,
+      activeCount: staff.filter((row) => row.status === "ACTIVE").length,
+      locationsCovered: new Set(
+        staff.map((row) => row.locationName).filter(Boolean),
+      ).size,
     };
-  }, [wins]);
+  }, [staff]);
 
   return (
     <div style={styles.page}>
       <div style={styles.hero}>
         <div>
-          <div style={styles.eyebrow}>Buyer</div>
-          <h1 style={styles.title}>My Wins</h1>
+          <div style={styles.eyebrow}>Owner</div>
+          <h1 style={styles.title}>Staff</h1>
           <p style={styles.subtitle}>
-            Review the auctions you have won, final pricing, and settlement
-            status.
+            Review your assigned team members, roles, and location coverage.
           </p>
         </div>
 
@@ -244,84 +192,69 @@ export default function MyWinsPage() {
 
       <div style={styles.statsGrid}>
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Won auctions</div>
-          <div style={styles.statValue}>{summary.winsCount}</div>
+          <div style={styles.statLabel}>Total staff</div>
+          <div style={styles.statValue}>{summary.staffCount}</div>
         </div>
 
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Total committed</div>
-          <div style={styles.statValue}>
-            {formatCurrency(summary.totalSpentCents)}
-          </div>
+          <div style={styles.statLabel}>Active staff</div>
+          <div style={styles.statValue}>{summary.activeCount}</div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div style={styles.statLabel}>Locations covered</div>
+          <div style={styles.statValue}>{summary.locationsCovered}</div>
         </div>
       </div>
 
       {loading ? (
-        <div style={styles.stateCard}>Loading your wins...</div>
+        <div style={styles.stateCard}>Loading staff...</div>
       ) : error ? (
         <div style={styles.errorCard}>
-          <div style={styles.emptyTitle}>Unable to load wins</div>
+          <div style={styles.emptyTitle}>Unable to load staff</div>
           <p style={styles.emptyText}>{error}</p>
         </div>
-      ) : wins.length === 0 ? (
+      ) : staff.length === 0 ? (
         <div style={styles.stateCard}>
-          <div style={styles.emptyTitle}>No wins yet</div>
+          <div style={styles.emptyTitle}>No staff assigned yet</div>
           <p style={styles.emptyText}>
-            When you win an auction, it will appear here with final price and
-            settlement status.
+            Staff records are not assigned to this owner yet. Once team members
+            are added, they will appear here with role and location details.
           </p>
-          <Link to="/auctions" style={styles.primaryLink}>
-            Browse live auctions
+          <Link to="/owner/locations" style={styles.primaryLink}>
+            Review locations
           </Link>
         </div>
       ) : (
         <div style={styles.list}>
-          {wins.map((win) => (
-            <article key={win.settlementId} style={styles.card}>
+          {staff.map((member) => (
+            <article key={member.id} style={styles.card}>
               <div style={styles.cardHeader}>
                 <div>
-                  <h2 style={styles.cardTitle}>{win.auctionTitle}</h2>
+                  <h2 style={styles.cardTitle}>{member.name}</h2>
                   <div style={styles.metaRow}>
-                    <span>{win.shopName}</span>
+                    <span>{member.email}</span>
                     <span>•</span>
-                    <span>Status: {win.status}</span>
+                    <span>{member.locationName}</span>
                   </div>
                 </div>
 
-                <div style={styles.amountPill}>
-                  {formatCurrency(win.finalAmountCents, win.currency)}
-                </div>
+                <div style={styles.statusPill}>{member.status}</div>
               </div>
 
               <div style={styles.detailGrid}>
                 <div>
-                  <div style={styles.detailLabel}>Auction ended</div>
-                  <div style={styles.detailValue}>
-                    {formatDate(win.endedAt)}
-                  </div>
+                  <div style={styles.detailLabel}>Role</div>
+                  <div style={styles.detailValue}>{member.role}</div>
                 </div>
-
                 <div>
-                  <div style={styles.detailLabel}>Settlement updated</div>
-                  <div style={styles.detailValue}>
-                    {formatDate(win.settledAt)}
-                  </div>
+                  <div style={styles.detailLabel}>Location</div>
+                  <div style={styles.detailValue}>{member.locationName}</div>
                 </div>
-              </div>
-
-              <div style={styles.cardActions}>
-                {win.auctionId ? (
-                  <Link
-                    to={`/auctions/${win.auctionId}`}
-                    style={styles.secondaryLink}
-                  >
-                    View auction
-                  </Link>
-                ) : null}
-
-                <Link to="/offers" style={styles.secondaryLink}>
-                  View offers
-                </Link>
+                <div>
+                  <div style={styles.detailLabel}>Status</div>
+                  <div style={styles.detailValue}>{member.status}</div>
+                </div>
               </div>
             </article>
           ))}
@@ -458,12 +391,12 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(238,242,255,0.72)",
     fontSize: 14,
   },
-  amountPill: {
+  statusPill: {
     alignSelf: "flex-start",
     borderRadius: 999,
     padding: "10px 14px",
-    background: "rgba(99,102,241,0.18)",
-    border: "1px solid rgba(129,140,248,0.3)",
+    background: "rgba(34,197,94,0.18)",
+    border: "1px solid rgba(74,222,128,0.3)",
     fontWeight: 900,
   },
   detailGrid: {
@@ -480,19 +413,6 @@ const styles: Record<string, CSSProperties> = {
   },
   detailValue: {
     fontSize: 15,
-    fontWeight: 700,
-  },
-  cardActions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  secondaryLink: {
-    textDecoration: "none",
-    color: "#eef2ff",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 12,
-    padding: "10px 14px",
     fontWeight: 700,
   },
 };

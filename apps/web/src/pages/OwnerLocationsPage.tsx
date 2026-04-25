@@ -1,4 +1,4 @@
-// File: apps/web/src/pages/MyWinsPage.tsx
+// File: apps/web/src/pages/OwnerLocationsPage.tsx
 
 import {
   useCallback,
@@ -10,101 +10,75 @@ import {
 import { Link } from "react-router-dom";
 import { getAuthHeaders, getAuthToken } from "../services/auth";
 
-type WinRecord = {
-  settlementId: string;
-  auctionId: string;
-  auctionTitle: string;
-  shopName: string;
-  finalAmountCents: number;
-  currency: string;
+type LocationRecord = {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  hours: string;
+  staffCount: number;
+  inventoryCount: number;
   status: string;
-  endedAt: string | null;
-  settledAt: string | null;
 };
 
-type ApiWinRecord = Partial<{
+type ApiLocationRecord = Partial<{
   id: string;
-  settlementId: string;
-  auctionId: string;
-  auctionTitle: string;
-  title: string;
-  itemTitle: string;
+  name: string;
   shopName: string;
-  pawnShopName: string;
-  finalAmountCents: number;
-  amountCents: number;
-  amount: number;
-  currency: string;
+  title: string;
+  address: string;
+  location: string;
+  phone: string;
+  hours: string;
+  staffCount: number;
+  inventoryCount: number;
+  itemCount: number;
   status: string;
-  endedAt: string;
-  settledAt: string;
 }>;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function toValidDate(value: string | null | undefined) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatCurrency(cents: number, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency || "USD",
-  }).format((Number.isFinite(cents) ? cents : 0) / 100);
-}
-
-function formatDate(value: string | null) {
-  const date = toValidDate(value);
-  return date ? date.toLocaleString() : "—";
-}
-
 function normalizeStatus(value: string | undefined) {
-  const normalized = String(value || "WON").trim().toUpperCase();
-  if (!normalized) return "WON";
-  return normalized.replaceAll("_", " ");
+  const normalized = String(value || "ACTIVE").trim().toUpperCase();
+  return normalized || "ACTIVE";
 }
 
-function normalizeWin(row: ApiWinRecord, index: number): WinRecord {
-  const cents =
-    typeof row.finalAmountCents === "number"
-      ? row.finalAmountCents
-      : typeof row.amountCents === "number"
-        ? row.amountCents
-        : typeof row.amount === "number"
-          ? Math.round(row.amount * 100)
-          : 0;
-
+function normalizeLocation(
+  row: ApiLocationRecord,
+  index: number,
+): LocationRecord {
   return {
-    settlementId: String(row.settlementId || row.id || `win-${index}`),
-    auctionId: String(row.auctionId || ""),
-    auctionTitle: String(
-      row.auctionTitle || row.title || row.itemTitle || "Won auction",
+    id: String(row.id || `location-${index}`),
+    name: String(
+      row.name || row.shopName || row.title || `Location ${index + 1}`,
     ),
-    shopName: String(row.shopName || row.pawnShopName || "Unknown shop"),
-    finalAmountCents: cents,
-    currency: String(row.currency || "USD"),
+    address: String(row.address || row.location || "Address not available"),
+    phone: String(row.phone || "—"),
+    hours: String(row.hours || "—"),
+    staffCount: Number.isFinite(row.staffCount) ? Number(row.staffCount) : 0,
+    inventoryCount: Number.isFinite(row.inventoryCount)
+      ? Number(row.inventoryCount)
+      : Number.isFinite(row.itemCount)
+        ? Number(row.itemCount)
+        : 0,
     status: normalizeStatus(row.status),
-    endedAt: row.endedAt || null,
-    settledAt: row.settledAt || null,
   };
 }
 
-function extractWinRows(payload: unknown): ApiWinRecord[] {
-  if (Array.isArray(payload)) return payload as ApiWinRecord[];
+function extractLocationRows(payload: unknown): ApiLocationRecord[] {
+  if (Array.isArray(payload)) return payload as ApiLocationRecord[];
 
   if (isObject(payload)) {
-    if (Array.isArray(payload.data)) return payload.data as ApiWinRecord[];
-    if (Array.isArray(payload.wins)) return payload.wins as ApiWinRecord[];
-    if (Array.isArray(payload.items)) return payload.items as ApiWinRecord[];
-    if (Array.isArray(payload.settlements)) {
-      return payload.settlements as ApiWinRecord[];
+    if (Array.isArray(payload.data)) {
+      return payload.data as ApiLocationRecord[];
     }
-    if (payload.settlement && isObject(payload.settlement)) {
-      return [payload.settlement as ApiWinRecord];
+    if (Array.isArray(payload.shops)) {
+      return payload.shops as ApiLocationRecord[];
+    }
+    if (Array.isArray(payload.locations)) {
+      return payload.locations as ApiLocationRecord[];
     }
   }
 
@@ -121,56 +95,68 @@ function extractMessage(payload: unknown) {
   return null;
 }
 
-function sortWinsNewestFirst(items: WinRecord[]) {
-  return [...items].sort((a, b) => {
-    const aTime =
-      toValidDate(a.settledAt)?.getTime() ??
-      toValidDate(a.endedAt)?.getTime() ??
-      0;
-    const bTime =
-      toValidDate(b.settledAt)?.getTime() ??
-      toValidDate(b.endedAt)?.getTime() ??
-      0;
-    return bTime - aTime;
-  });
+function sortLocations(items: LocationRecord[]) {
+  return [...items].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function fetchMyWins(signal?: AbortSignal): Promise<WinRecord[]> {
+async function fetchOwnerLocations(
+  signal?: AbortSignal,
+): Promise<LocationRecord[]> {
   const token = getAuthToken();
   if (!token) {
-    throw new Error("Missing buyer token. Please log in again.");
+    throw new Error("Missing owner token. Please log in again.");
   }
 
-  const endpoint = "/api/settlements/mine";
+  const candidates = ["/api/locations/mine", "/api/shops/mine"];
 
-  const response = await fetch(endpoint, {
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "include",
-    signal,
-  });
+  let lastError: unknown = null;
 
-  const payload: unknown = await response.json().catch(() => null);
+  for (const endpoint of candidates) {
+    try {
+      const response = await fetch(endpoint, {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        credentials: "include",
+        signal,
+      });
 
-  if (!response.ok) {
-    const message =
-      extractMessage(payload) || `Request failed (${response.status})`;
-    throw new Error(message);
+      if (response.status === 404) {
+        lastError = new Error(`Endpoint not found: ${endpoint}`);
+        continue;
+      }
+
+      const payload: unknown = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message =
+          extractMessage(payload) || `Request failed (${response.status})`;
+        throw new Error(message);
+      }
+
+      const rawList = extractLocationRows(payload);
+
+      return sortLocations(
+        rawList.map((row: ApiLocationRecord, index: number) =>
+          normalizeLocation(row, index),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
+      lastError = error;
+    }
   }
 
-  const rawList = extractWinRows(payload);
-
-  return sortWinsNewestFirst(
-    rawList.map((row: ApiWinRecord, index: number) =>
-      normalizeWin(row, index),
-    ),
-  );
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Unable to load owner locations.");
 }
 
-export default function MyWinsPage() {
-  const [wins, setWins] = useState<WinRecord[]>([]);
+export default function OwnerLocationsPage() {
+  const [locations, setLocations] = useState<LocationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -186,11 +172,11 @@ export default function MyWinsPage() {
       setError("");
 
       try {
-        const data = await fetchMyWins(signal);
-        setWins(data);
+        const data = await fetchOwnerLocations(signal);
+        setLocations(data);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Failed to load your wins.");
+        setError(err instanceof Error ? err.message : "Failed to load locations.");
       } finally {
         if (mode === "refresh") setRefreshing(false);
         else setLoading(false);
@@ -206,121 +192,131 @@ export default function MyWinsPage() {
   }, [load]);
 
   const summary = useMemo(() => {
-    const totalSpentCents = wins.reduce(
-      (sum, row) => sum + row.finalAmountCents,
-      0,
-    );
-
     return {
-      winsCount: wins.length,
-      totalSpentCents,
+      count: locations.length,
+      totalInventory: locations.reduce(
+        (sum, item) => sum + item.inventoryCount,
+        0,
+      ),
+      totalStaff: locations.reduce((sum, item) => sum + item.staffCount, 0),
+      activeLocations: locations.filter((item) => item.status === "ACTIVE")
+        .length,
     };
-  }, [wins]);
+  }, [locations]);
 
   return (
     <div style={styles.page}>
       <div style={styles.hero}>
         <div>
-          <div style={styles.eyebrow}>Buyer</div>
-          <h1 style={styles.title}>My Wins</h1>
+          <div style={styles.eyebrow}>Owner</div>
+          <h1 style={styles.title}>Locations</h1>
           <p style={styles.subtitle}>
-            Review the auctions you have won, final pricing, and settlement
-            status.
+            Track your shop footprint, inventory distribution, and staff
+            coverage by location.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void load("refresh")}
-          disabled={loading || refreshing}
-          style={{
-            ...styles.actionButton,
-            ...(loading || refreshing ? styles.actionButtonDisabled : {}),
-          }}
-        >
-          {refreshing ? "Refreshing..." : "Refresh"}
-        </button>
+        <div style={styles.heroActions}>
+          <button
+            type="button"
+            onClick={() => void load("refresh")}
+            disabled={loading || refreshing}
+            style={{
+              ...styles.secondaryButton,
+              ...(loading || refreshing ? styles.buttonDisabled : {}),
+            }}
+          >
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+
+          <Link to="/owner/shops/new" style={styles.primaryLink}>
+            Add location
+          </Link>
+        </div>
       </div>
 
       <div style={styles.statsGrid}>
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Won auctions</div>
-          <div style={styles.statValue}>{summary.winsCount}</div>
+          <div style={styles.statLabel}>Locations</div>
+          <div style={styles.statValue}>{summary.count}</div>
         </div>
 
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Total committed</div>
-          <div style={styles.statValue}>
-            {formatCurrency(summary.totalSpentCents)}
-          </div>
+          <div style={styles.statLabel}>Active locations</div>
+          <div style={styles.statValue}>{summary.activeLocations}</div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div style={styles.statLabel}>Inventory across locations</div>
+          <div style={styles.statValue}>{summary.totalInventory}</div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div style={styles.statLabel}>Staff assigned</div>
+          <div style={styles.statValue}>{summary.totalStaff}</div>
         </div>
       </div>
 
       {loading ? (
-        <div style={styles.stateCard}>Loading your wins...</div>
+        <div style={styles.stateCard}>Loading locations...</div>
       ) : error ? (
         <div style={styles.errorCard}>
-          <div style={styles.emptyTitle}>Unable to load wins</div>
+          <div style={styles.emptyTitle}>Unable to load locations</div>
           <p style={styles.emptyText}>{error}</p>
         </div>
-      ) : wins.length === 0 ? (
+      ) : locations.length === 0 ? (
         <div style={styles.stateCard}>
-          <div style={styles.emptyTitle}>No wins yet</div>
+          <div style={styles.emptyTitle}>No locations found</div>
           <p style={styles.emptyText}>
-            When you win an auction, it will appear here with final price and
-            settlement status.
+            Create your first shop location to start managing inventory and
+            staff.
           </p>
-          <Link to="/auctions" style={styles.primaryLink}>
-            Browse live auctions
+          <Link to="/owner/shops/new" style={styles.primaryLink}>
+            Create location
           </Link>
         </div>
       ) : (
         <div style={styles.list}>
-          {wins.map((win) => (
-            <article key={win.settlementId} style={styles.card}>
+          {locations.map((location) => (
+            <article key={location.id} style={styles.card}>
               <div style={styles.cardHeader}>
                 <div>
-                  <h2 style={styles.cardTitle}>{win.auctionTitle}</h2>
+                  <h2 style={styles.cardTitle}>{location.name}</h2>
                   <div style={styles.metaRow}>
-                    <span>{win.shopName}</span>
+                    <span>{location.address}</span>
                     <span>•</span>
-                    <span>Status: {win.status}</span>
+                    <span>Status: {location.status}</span>
                   </div>
                 </div>
 
-                <div style={styles.amountPill}>
-                  {formatCurrency(win.finalAmountCents, win.currency)}
-                </div>
+                <div style={styles.statusPill}>{location.status}</div>
               </div>
 
               <div style={styles.detailGrid}>
                 <div>
-                  <div style={styles.detailLabel}>Auction ended</div>
-                  <div style={styles.detailValue}>
-                    {formatDate(win.endedAt)}
-                  </div>
+                  <div style={styles.detailLabel}>Phone</div>
+                  <div style={styles.detailValue}>{location.phone}</div>
                 </div>
-
                 <div>
-                  <div style={styles.detailLabel}>Settlement updated</div>
-                  <div style={styles.detailValue}>
-                    {formatDate(win.settledAt)}
-                  </div>
+                  <div style={styles.detailLabel}>Hours</div>
+                  <div style={styles.detailValue}>{location.hours}</div>
+                </div>
+                <div>
+                  <div style={styles.detailLabel}>Inventory</div>
+                  <div style={styles.detailValue}>{location.inventoryCount}</div>
+                </div>
+                <div>
+                  <div style={styles.detailLabel}>Staff</div>
+                  <div style={styles.detailValue}>{location.staffCount}</div>
                 </div>
               </div>
 
               <div style={styles.cardActions}>
-                {win.auctionId ? (
-                  <Link
-                    to={`/auctions/${win.auctionId}`}
-                    style={styles.secondaryLink}
-                  >
-                    View auction
-                  </Link>
-                ) : null}
-
-                <Link to="/offers" style={styles.secondaryLink}>
-                  View offers
+                <Link to="/owner/inventory" style={styles.secondaryLink}>
+                  View inventory
+                </Link>
+                <Link to="/owner/staff" style={styles.secondaryLink}>
+                  View staff
                 </Link>
               </div>
             </article>
@@ -332,15 +328,17 @@ export default function MyWinsPage() {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: {
-    display: "grid",
-    gap: 20,
-  },
+  page: { display: "grid", gap: 20 },
   hero: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 16,
+    flexWrap: "wrap",
+  },
+  heroActions: {
+    display: "flex",
+    gap: 10,
     flexWrap: "wrap",
   },
   eyebrow: {
@@ -361,19 +359,6 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: 760,
     color: "rgba(238,242,255,0.78)",
     lineHeight: 1.6,
-  },
-  actionButton: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#eef2ff",
-    borderRadius: 12,
-    padding: "10px 14px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  actionButtonDisabled: {
-    opacity: 0.6,
-    cursor: "not-allowed",
   },
   statsGrid: {
     display: "grid",
@@ -419,13 +404,25 @@ const styles: Record<string, CSSProperties> = {
   },
   primaryLink: {
     display: "inline-flex",
-    marginTop: 16,
+    textDecoration: "none",
     color: "#0b1020",
     background: "#eef2ff",
-    textDecoration: "none",
     fontWeight: 800,
     padding: "10px 14px",
     borderRadius: 12,
+  },
+  secondaryButton: {
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    color: "#eef2ff",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
   },
   list: {
     display: "grid",
@@ -458,12 +455,12 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(238,242,255,0.72)",
     fontSize: 14,
   },
-  amountPill: {
+  statusPill: {
     alignSelf: "flex-start",
     borderRadius: 999,
     padding: "10px 14px",
-    background: "rgba(99,102,241,0.18)",
-    border: "1px solid rgba(129,140,248,0.3)",
+    background: "rgba(34,197,94,0.18)",
+    border: "1px solid rgba(74,222,128,0.3)",
     fontWeight: 900,
   },
   detailGrid: {
