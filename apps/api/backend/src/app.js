@@ -17,6 +17,10 @@ import watchlistRoutes from "./routes/watchlist.routes.js";
 import inventoryBulkRoutes from "./routes/inventoryBulk.routes.js";
 import savedSearchesRoutes from "./routes/savedSearches.routes.js";
 import sellerPlansRoutes from "./routes/sellerPlans.routes.js";
+import buyerPlansRoutes from "./routes/buyerPlans.routes.js";
+import locationsRoutes from "./routes/locations.routes.js";
+import staffRoutes from "./routes/staff.routes.js";
+import settlementsRoutes from "./routes/settlements.routes.js";
 import stripeRoutes from "./routes/stripe.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 
@@ -74,7 +78,7 @@ export function createApp() {
   const env = process.env.APP_ENV || process.env.NODE_ENV || "development";
   const allowedOrigins = parseAllowedOrigins(
     process.env.CORS_ORIGINS,
-    process.env.CORS_ORIGIN
+    process.env.CORS_ORIGIN,
   );
 
   const jsonLimit = process.env.JSON_LIMIT || "1mb";
@@ -90,7 +94,7 @@ export function createApp() {
   app.use(
     helmet({
       crossOriginResourcePolicy: false,
-    })
+    }),
   );
 
   const corsOptions = createCorsOptions(allowedOrigins);
@@ -102,7 +106,7 @@ export function createApp() {
       skip(req) {
         return req.path === "/health" || req.path === "/api/health";
       },
-    })
+    }),
   );
 
   const healthHandler = (_req, res) => {
@@ -145,18 +149,19 @@ export function createApp() {
       limit: jsonLimit,
       strict: true,
       type: ["application/json", "application/*+json"],
-    })
+    }),
   );
 
   app.use(
     express.urlencoded({
       extended: true,
       limit: urlencodedLimit,
-    })
+    }),
   );
 
   mountApi(app, "/auth", authRoutes);
   mountApi(app, "/shops", shopRoutes);
+  mountApi(app, "/locations", locationsRoutes);
   mountApi(app, "/items", itemRoutes);
   mountApi(app, "/inventory-bulk", inventoryBulkRoutes);
   mountApi(app, "/inquiries", inquiryRoutes);
@@ -166,6 +171,8 @@ export function createApp() {
   mountApi(app, "/watchlist", watchlistRoutes);
   mountApi(app, "/saved-searches", savedSearchesRoutes);
   mountApi(app, "/offers", offersRoutes);
+  mountApi(app, "/staff", staffRoutes);
+  mountApi(app, "/settlements", settlementsRoutes);
   mountApi(app, "/stripe", stripeRoutes);
 
   /**
@@ -180,6 +187,19 @@ export function createApp() {
    * - /api/shops/:id/subscription
    */
   app.use("/api", sellerPlansRoutes);
+
+  /**
+   * buyerPlansRoutes already contains absolute route fragments like:
+   * - /buyer-plans
+   * - /buyer-plans/mine
+   * - /buyer-plans/subscriptions
+   *
+   * Mount at /api only so the final URLs remain:
+   * - /api/buyer-plans
+   * - /api/buyer-plans/mine
+   * - /api/buyer-plans/subscriptions
+   */
+  app.use("/api", buyerPlansRoutes);
 
   app.use((req, res) => {
     return res.status(404).json({
@@ -224,7 +244,10 @@ export function createApp() {
 
     return res.status(statusCode).json({
       success: false,
-      error: process.env.NODE_ENV === "production" ? "Internal Server Error" : message,
+      error:
+        process.env.NODE_ENV === "production"
+          ? "Internal Server Error"
+          : message,
     });
   });
 

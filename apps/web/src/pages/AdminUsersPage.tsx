@@ -1,59 +1,149 @@
 // File: apps/web/src/pages/AdminUsersPage.tsx
 
-import { useEffect, useState } from "react";
-import { API_BASE } from "../config";
-import { getAuthToken } from "../services/auth";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import AdminPageShell from "../admin/components/AdminPageShell";
+import AdminTableShell from "../admin/components/AdminTableShell";
+import { adminApi, type AdminUserRow } from "../admin/services/adminApi";
+import type { AdminTableConfig } from "../admin/types/admin";
 
-type AdminUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  isActive: boolean;
-  createdAt: string;
-};
+function formatDateTime(value?: string) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
 
 export default function AdminUsersPage() {
-  const token = getAuthToken();
-  const [rows, setRows] = useState<AdminUser[]>([]);
+  const [rows, setRows] = useState<AdminUserRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const users = await adminApi.getUsers();
+      setRows(users);
+    } catch (err: unknown) {
+      setRows([]);
+      setError(err instanceof Error ? err.message : "Failed to load users.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`${API_BASE}/admin/users`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+    void load();
+  }, [load]);
 
-        const json = await res.json().catch(() => []);
-        if (!res.ok) throw new Error(json?.error || "Failed to load users");
+  const toggleBlocked = useCallback(async (user: AdminUserRow) => {
+    setBusyId(user.id);
+    setError(null);
 
-        setRows(Array.isArray(json) ? json : []);
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Failed to load users";
-        setError(message);
+    try {
+      if (user.isBlocked) {
+        await adminApi.unblockUser(user.id);
+      } else {
+        await adminApi.blockUser(user.id);
       }
-    }
 
-    load();
-  }, [token]);
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === user.id ? { ...row, isBlocked: !user.isBlocked } : row
+        )
+      );
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed user moderation action."
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  const tableConfig = useMemo<AdminTableConfig<AdminUserRow>>(
+    () => ({
+      key: "admin-users",
+      title: "Users",
+      emptyMessage: "There are no admin-visible users right now.",
+      rowKey: (row) => row.id,
+      columns: [
+        {
+          key: "name",
+          header: "Name",
+          render: (row) => row.name || "Unknown",
+        },
+        {
+          key: "email",
+          header: "Email",
+          render: (row) => row.email,
+        },
+        {
+          key: "role",
+          header: "Role",
+          render: (row) => row.role,
+        },
+        {
+          key: "status",
+          header: "Status",
+          render: (row) => (row.isBlocked ? "Blocked" : "Active"),
+        },
+        {
+          key: "createdAt",
+          header: "Created",
+          render: (row) => formatDateTime(row.createdAt),
+        },
+        {
+          key: "actions",
+          header: "Actions",
+          render: (row) => (
+            <button
+              type="button"
+              className={row.isBlocked ? "btn btn-secondary" : "btn btn-ghost"}
+              onClick={() => void toggleBlocked(row)}
+              disabled={busyId === row.id}
+            >
+              {busyId === row.id
+                ? "Working..."
+                : row.isBlocked
+                  ? "Unblock"
+                  : "Block"}
+            </button>
+          ),
+        },
+      ],
+    }),
+    [busyId, toggleBlocked]
+  );
 
   return (
-    <div>
-      <h2>Admin Users</h2>
-      {error ? <div style={{ color: "crimson" }}>{error}</div> : null}
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {rows.map((user) => (
-          <div key={user.id} style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12 }}>
-            <div style={{ fontWeight: 700 }}>{user.name}</div>
-            <div>{user.email}</div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>
-              Role: {user.role} · Active: {String(user.isActive)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <AdminPageShell
+      title="Users"
+      subtitle="Inspect platform users and block or unblock accounts."
+      actions={
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => void load()}
+          disabled={loading}
+        >
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+      }
+    >
+      <AdminTableShell
+        config={tableConfig}
+        rows={rows}
+        loading={loading}
+        error={error}
+      />
+    </AdminPageShell>
   );
 }

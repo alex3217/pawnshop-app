@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+// File: apps/web/src/pages/OffersPage.tsx
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAuthRole } from "../services/auth";
 import {
   acceptCounterOffer,
@@ -13,110 +15,148 @@ import {
 
 export default function OffersPage() {
   const role = getAuthRole();
-  const isOwnerView = role === "OWNER" || role === "ADMIN";
+  const isOwnerView = useMemo(
+    () => role === "OWNER" || role === "ADMIN",
+    [role]
+  );
 
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
-  async function loadOffers() {
+  const loadOffers = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const nextOffers = isOwnerView ? await getOwnerOffers() : await getMyOffers();
+      const nextOffers = isOwnerView
+        ? await getOwnerOffers()
+        : await getMyOffers();
+
       setOffers(nextOffers);
-    } catch (err) {
+    } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load offers.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [isOwnerView]);
 
   useEffect(() => {
     void loadOffers();
-  }, [isOwnerView]);
+  }, [loadOffers]);
 
-  async function handleAccept(id: string) {
-    try {
-      setActioningId(id);
-      await acceptOffer(id);
-      await loadOffers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to accept offer.");
-    } finally {
-      setActioningId(null);
-    }
-  }
+  const handleAccept = useCallback(
+    async (id: string) => {
+      try {
+        setActioningId(id);
+        setError(null);
+        await acceptOffer(id);
+        await loadOffers();
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to accept offer.");
+      } finally {
+        setActioningId(null);
+      }
+    },
+    [loadOffers]
+  );
 
-  async function handleReject(id: string) {
-    try {
-      setActioningId(id);
-      await rejectOffer(id);
-      await loadOffers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reject offer.");
-    } finally {
-      setActioningId(null);
-    }
-  }
+  const handleReject = useCallback(
+    async (id: string) => {
+      try {
+        setActioningId(id);
+        setError(null);
+        await rejectOffer(id);
+        await loadOffers();
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to reject offer.");
+      } finally {
+        setActioningId(null);
+      }
+    },
+    [loadOffers]
+  );
 
-  async function handleCounter(offer: Offer) {
-    const nextAmountRaw = window.prompt(
-      "Enter counteroffer amount",
-      String(offer.amount ?? "")
-    );
-    if (nextAmountRaw == null) return;
+  const handleCounter = useCallback(
+    async (offer: Offer) => {
+      const nextAmountRaw = window.prompt(
+        "Enter counteroffer amount",
+        String(offer.amount ?? "")
+      );
+      if (nextAmountRaw == null) return;
 
-    const nextAmount = Number(nextAmountRaw);
-    if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
-      setError("Counteroffer amount must be a valid number.");
-      return;
-    }
+      const nextAmount = Number(nextAmountRaw);
+      if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
+        setError("Counteroffer amount must be a valid number.");
+        return;
+      }
 
-    const nextMessage =
-      window.prompt("Optional counteroffer message", offer.counterMessage || offer.message || "") ||
-      "";
+      const nextMessage =
+        window.prompt(
+          "Optional counteroffer message",
+          offer.counterMessage || offer.message || ""
+        ) || "";
 
-    try {
-      setActioningId(offer.id);
-      await counterOffer({
-        offerId: offer.id,
-        counterAmount: nextAmount,
-        counterMessage: nextMessage,
-      });
-      await loadOffers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to counter offer.");
-    } finally {
-      setActioningId(null);
-    }
-  }
+      try {
+        setActioningId(offer.id);
+        setError(null);
+        await counterOffer({
+          offerId: offer.id,
+          counterAmount: nextAmount,
+          counterMessage: nextMessage,
+        });
+        await loadOffers();
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error ? err.message : "Failed to counter offer."
+        );
+      } finally {
+        setActioningId(null);
+      }
+    },
+    [loadOffers]
+  );
 
-  async function handleAcceptCounter(id: string) {
-    try {
-      setActioningId(id);
-      await acceptCounterOffer(id);
-      await loadOffers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to accept counteroffer.");
-    } finally {
-      setActioningId(null);
-    }
-  }
+  const handleAcceptCounter = useCallback(
+    async (id: string) => {
+      try {
+        setActioningId(id);
+        setError(null);
+        await acceptCounterOffer(id);
+        await loadOffers();
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to accept counteroffer."
+        );
+      } finally {
+        setActioningId(null);
+      }
+    },
+    [loadOffers]
+  );
 
-  async function handleDeclineCounter(id: string) {
-    try {
-      setActioningId(id);
-      await declineCounterOffer(id);
-      await loadOffers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to decline counteroffer.");
-    } finally {
-      setActioningId(null);
-    }
-  }
+  const handleDeclineCounter = useCallback(
+    async (id: string) => {
+      try {
+        setActioningId(id);
+        setError(null);
+        await declineCounterOffer(id);
+        await loadOffers();
+      } catch (err: unknown) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to decline counteroffer."
+        );
+      } finally {
+        setActioningId(null);
+      }
+    },
+    [loadOffers]
+  );
 
   return (
     <div style={styles.page}>
@@ -127,7 +167,9 @@ export default function OffersPage() {
 
       {!loading && !error && offers.length === 0 ? (
         <div style={styles.card}>
-          {isOwnerView ? "No incoming offers yet." : "You have not submitted any offers yet."}
+          {isOwnerView
+            ? "No incoming offers yet."
+            : "You have not submitted any offers yet."}
         </div>
       ) : null}
 
@@ -136,7 +178,9 @@ export default function OffersPage() {
           <article key={offer.id} style={styles.card}>
             <h3 style={styles.cardTitle}>{offer.item?.title || "Unknown Item"}</h3>
             <div style={styles.meta}>Shop: {offer.item?.shop?.name || "Unknown Shop"}</div>
-            <div style={styles.amount}>Offer: ${Number(offer.amount || 0).toFixed(2)}</div>
+            <div style={styles.amount}>
+              Offer: ${Number(offer.amount || 0).toFixed(2)}
+            </div>
             <div style={styles.meta}>Status: {offer.status}</div>
 
             {offer.counterAmount ? (
@@ -154,7 +198,7 @@ export default function OffersPage() {
               <div style={styles.actions}>
                 <button
                   type="button"
-                  onClick={() => handleAccept(offer.id)}
+                  onClick={() => void handleAccept(offer.id)}
                   disabled={actioningId === offer.id}
                   style={styles.acceptButton}
                 >
@@ -162,7 +206,7 @@ export default function OffersPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleReject(offer.id)}
+                  onClick={() => void handleReject(offer.id)}
                   disabled={actioningId === offer.id}
                   style={styles.rejectButton}
                 >
@@ -170,7 +214,7 @@ export default function OffersPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleCounter(offer)}
+                  onClick={() => void handleCounter(offer)}
                   disabled={actioningId === offer.id}
                   style={styles.counterButton}
                 >
@@ -183,7 +227,7 @@ export default function OffersPage() {
               <div style={styles.actions}>
                 <button
                   type="button"
-                  onClick={() => handleAcceptCounter(offer.id)}
+                  onClick={() => void handleAcceptCounter(offer.id)}
                   disabled={actioningId === offer.id}
                   style={styles.acceptButton}
                 >
@@ -191,7 +235,7 @@ export default function OffersPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDeclineCounter(offer.id)}
+                  onClick={() => void handleDeclineCounter(offer.id)}
                   disabled={actioningId === offer.id}
                   style={styles.rejectButton}
                 >
@@ -205,7 +249,6 @@ export default function OffersPage() {
     </div>
   );
 }
-
 const styles: Record<string, React.CSSProperties> = {
   page: { display: "grid", gap: 20, color: "#eef2ff" },
   title: { margin: 0, fontSize: 30, fontWeight: 800 },
@@ -219,53 +262,70 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 18,
     padding: 18,
-    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+    display: "grid",
+    gap: 10,
   },
-  cardTitle: { margin: "0 0 8px", fontSize: 20, fontWeight: 800 },
-  amount: { fontSize: 22, fontWeight: 800, marginTop: 8 },
-  meta: { color: "#a7b0d8", marginTop: 6 },
-  message: { color: "#d7def7", lineHeight: 1.5, marginTop: 10 },
-  error: { color: "#ff9ead", fontWeight: 700 },
-  actions: { display: "flex", gap: 12, marginTop: 14, flexWrap: "wrap" },
+  cardTitle: { margin: 0, fontSize: 20, fontWeight: 700 },
+  meta: { color: "#a5b4fc", fontSize: 14 },
+  amount: { fontSize: 18, fontWeight: 700 },
+  message: {
+    margin: 0,
+    color: "#e5e7eb",
+    background: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    padding: 12,
+  },
+  counterBox: {
+    background: "rgba(59,130,246,0.12)",
+    border: "1px solid rgba(96,165,250,0.3)",
+    color: "#dbeafe",
+    borderRadius: 12,
+    padding: 12,
+    fontWeight: 600,
+  },
+  counterMessage: {
+    marginTop: 8,
+    color: "#bfdbfe",
+    fontWeight: 400,
+  },
+  actions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
   acceptButton: {
     border: "none",
-    borderRadius: 12,
+    borderRadius: 999,
     padding: "10px 14px",
-    background: "#7ef0b3",
-    color: "#08111f",
-    fontWeight: 800,
+    fontWeight: 700,
     cursor: "pointer",
+    background: "#22c55e",
+    color: "#08110d",
   },
   rejectButton: {
     border: "none",
-    borderRadius: 12,
+    borderRadius: 999,
     padding: "10px 14px",
-    background: "#ff9ead",
-    color: "#08111f",
-    fontWeight: 800,
+    fontWeight: 700,
     cursor: "pointer",
+    background: "#ef4444",
+    color: "#fff",
   },
   counterButton: {
     border: "none",
-    borderRadius: 12,
+    borderRadius: 999,
     padding: "10px 14px",
-    background: "#ffd98a",
-    color: "#08111f",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  counterBox: {
-    marginTop: 10,
-    padding: "10px 12px",
-    borderRadius: 12,
-    background: "rgba(255, 217, 138, 0.14)",
-    color: "#ffe6ab",
-    border: "1px solid rgba(255, 217, 138, 0.24)",
     fontWeight: 700,
+    cursor: "pointer",
+    background: "#3b82f6",
+    color: "#fff",
   },
-  counterMessage: {
-    marginTop: 6,
-    color: "#f6f1dd",
-    fontWeight: 500,
+  error: {
+    background: "rgba(239,68,68,0.12)",
+    border: "1px solid rgba(239,68,68,0.35)",
+    color: "#fecaca",
+    borderRadius: 14,
+    padding: 14,
   },
 };

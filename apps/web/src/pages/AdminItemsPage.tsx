@@ -1,129 +1,57 @@
 // File: apps/web/src/pages/AdminItemsPage.tsx
 
-import { useEffect, useState } from "react";
-import { API_BASE } from "../config";
-import { getAuthRole, getAuthToken } from "../services/auth";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import AdminPageShell from "../admin/components/AdminPageShell";
+import AdminTableShell from "../admin/components/AdminTableShell";
+import { adminApi, type AdminItemRow } from "../admin/services/adminApi";
+import type { AdminTableConfig } from "../admin/types/admin";
 
-type AdminItem = {
-  id: string;
-  title: string;
-  price: string;
-  isDeleted: boolean;
-  shop?: {
-    name: string;
-  };
-};
+function formatMoney(value?: string | number | null, currency = "USD") {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
 
-async function parseJsonSafe(res: Response) {
-  const text = await res.text();
-  return text ? JSON.parse(text) : {};
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(num);
 }
 
 export default function AdminItemsPage() {
-  const token = getAuthToken();
-  const role = getAuthRole();
-
-  const [rows, setRows] = useState<AdminItem[]>([]);
+  const [rows, setRows] = useState<AdminItemRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      console.log("[AdminItemsPage] loading items", {
-        hasToken: Boolean(token),
-        role,
-        url: `${API_BASE}/admin/items`,
-      });
-
-      const res = await fetch(`${API_BASE}/admin/items`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
-
-      const json = await parseJsonSafe(res);
-
-      console.log("[AdminItemsPage] load response", {
-        status: res.status,
-        ok: res.ok,
-        count: Array.isArray(json) ? json.length : 0,
-        json,
-      });
-
-      if (!res.ok) {
-        throw new Error(json?.error || `Failed to load items (${res.status})`);
-      }
-
-      setRows(Array.isArray(json) ? json : []);
+      const items = await adminApi.getItems();
+      setRows(items);
     } catch (err: unknown) {
-      console.error("[AdminItemsPage] load error", err);
-
-      const message =
-        err instanceof Error ? err.message : "Failed to load items";
-      setError(message);
       setRows([]);
+      setError(err instanceof Error ? err.message : "Failed to load inventory.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    if (!token) {
-      setError("Missing admin token. Please log in again.");
-      setLoading(false);
-      return;
-    }
+    void load();
+  }, [load]);
 
-    if (role !== "ADMIN") {
-      setError("You must be logged in as an admin to view this page.");
-      setLoading(false);
-      return;
-    }
-
-    load();
-  }, [token, role]);
-
-  async function toggleDelete(item: AdminItem) {
+  const toggleDeleted = useCallback(async (item: AdminItemRow) => {
     setBusyId(item.id);
     setError(null);
 
     try {
-      const method = item.isDeleted ? "PATCH" : "DELETE";
-      const path = item.isDeleted
-        ? `${API_BASE}/admin/items/${item.id}/restore`
-        : `${API_BASE}/admin/items/${item.id}`;
-
-      console.log("[AdminItemsPage] moderation request", {
-        method,
-        path,
-        itemId: item.id,
-        currentDeletedState: item.isDeleted,
-      });
-
-      const res = await fetch(path, {
-        method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const json = await parseJsonSafe(res);
-
-      console.log("[AdminItemsPage] moderation response", {
-        status: res.status,
-        ok: res.ok,
-        json,
-      });
-
-      if (!res.ok) {
-        throw new Error(
-          json?.error || `Moderation action failed (${res.status})`
-        );
+      if (item.isDeleted) {
+        await adminApi.restoreItem(item.id);
+      } else {
+        await adminApi.softDeleteItem(item.id);
       }
 
       setRows((prev) =>
@@ -132,80 +60,106 @@ export default function AdminItemsPage() {
         )
       );
     } catch (err: unknown) {
-      console.error("[AdminItemsPage] moderation error", err);
-
-      const message =
-        err instanceof Error ? err.message : "Failed moderation action";
-      setError(message);
+      setError(
+        err instanceof Error ? err.message : "Failed inventory moderation action."
+      );
     } finally {
       setBusyId(null);
     }
-  }
+  }, []);
 
-  return (
-    <div className="page-stack">
-      <div className="page-card">
-        <div className="toolbar">
-          <div>
-            <div className="section-title">Admin Items</div>
-            <div className="section-subtitle">
-              Review inventory and delete or restore listings.
+  const tableConfig = useMemo<AdminTableConfig<AdminItemRow>>(
+    () => ({
+      key: "admin-inventory",
+      title: "Inventory",
+      emptyMessage: "There are no admin-visible listings right now.",
+      rowKey: (row) => row.id,
+      columns: [
+        {
+          key: "title",
+          header: "Item",
+          render: (row) => (
+            <div style={{ display: "grid", gap: 6 }}>
+              <strong>{row.title}</strong>
+              <div className="muted">Shop: {row.shop?.name || "Unknown"}</div>
             </div>
-          </div>
+          ),
+        },
+        {
+          key: "price",
+          header: "Price",
+          render: (row) => formatMoney(row.price, row.currency || "USD"),
+        },
+        {
+          key: "category",
+          header: "Category",
+          render: (row) => row.category || "—",
+        },
+        {
+          key: "condition",
+          header: "Condition",
+          render: (row) => row.condition || "—",
+        },
+        {
+          key: "status",
+          header: "Status",
+          render: (row) => row.status || "—",
+        },
+        {
+          key: "deleted",
+          header: "Deleted",
+          render: (row) => String(Boolean(row.isDeleted)),
+        },
+        {
+          key: "actions",
+          header: "Actions",
+          render: (row) => (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link to={`/items/${row.id}`} className="btn btn-secondary">
+                View
+              </Link>
 
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={load}
-            disabled={loading}
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
-        </div>
-
-        <div className="muted" style={{ fontSize: 12 }}>
-          Role: {role ?? "none"} · Token present: {String(Boolean(token))} ·
-          Items loaded: {rows.length}
-        </div>
-
-        {error ? <div className="error-text">{error}</div> : null}
-        {loading ? <p className="muted">Loading items…</p> : null}
-
-        {!loading && rows.length === 0 ? (
-          <div className="list-card">
-            <strong>No items found</strong>
-            <p className="muted" style={{ marginBottom: 0 }}>
-              There are no admin-visible items right now.
-            </p>
-          </div>
-        ) : null}
-
-        <div className="grid">
-          {rows.map((item) => (
-            <div key={item.id} className="list-card">
-              <strong>{item.title}</strong>
-              <div className="muted">Shop: {item.shop?.name ?? "Unknown"}</div>
-              <div className="muted">Price: ${item.price}</div>
-              <div className="muted">Deleted: {String(item.isDeleted)}</div>
-
-              <div style={{ marginTop: 10 }}>
-                <button
-                  type="button"
-                  className={item.isDeleted ? "btn btn-secondary" : "btn btn-ghost"}
-                  onClick={() => toggleDelete(item)}
-                  disabled={busyId === item.id}
-                >
-                  {busyId === item.id
-                    ? "Working..."
-                    : item.isDeleted
+              <button
+                type="button"
+                className={row.isDeleted ? "btn btn-secondary" : "btn btn-ghost"}
+                onClick={() => void toggleDeleted(row)}
+                disabled={busyId === row.id}
+              >
+                {busyId === row.id
+                  ? "Working..."
+                  : row.isDeleted
                     ? "Restore"
                     : "Delete"}
-                </button>
-              </div>
+              </button>
             </div>
-          ))}
-        </div>
-      </div>
-    </div>
+          ),
+        },
+      ],
+    }),
+    [busyId, toggleDeleted]
+  );
+
+  return (
+    <AdminPageShell
+      title="Inventory"
+      subtitle="Inspect marketplace listings and soft delete or restore them."
+      actions={
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => void load()}
+          disabled={loading}
+        >
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+      }
+    >
+      <AdminTableShell
+        config={tableConfig}
+        rows={rows}
+        loading={loading}
+        error={error}
+      />
+    </AdminPageShell>
   );
 }
