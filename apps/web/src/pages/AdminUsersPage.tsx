@@ -6,7 +6,7 @@ import AdminTableShell from "../admin/components/AdminTableShell";
 import { adminApi, type AdminUserRow } from "../admin/services/adminApi";
 import type { AdminTableConfig } from "../admin/types/admin";
 
-function formatDateTime(value?: string) {
+function formatDateTime(value?: string | null) {
   if (!value) return "—";
 
   const date = new Date(value);

@@ -375,6 +375,71 @@ function handleControllerError(res, err, fallback = "Internal Server Error") {
   return res.status(statusCode).json({ error: message });
 }
 
+async function upsertSettlementForEndedAuction(auctionId) {
+  const auction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    include: {
+      item: {
+        include: {
+          shop: true,
+        },
+      },
+      shop: true,
+      bids: {
+        orderBy: [{ amount: "desc" }, { createdAt: "asc" }],
+        take: 1,
+        include: {
+          user: true,
+        },
+      },
+    },
+  });
+
+  if (!auction) {
+    return { settlement: null, reason: "AUCTION_NOT_FOUND" };
+  }
+
+  const topBid = auction.bids?.[0] || null;
+  if (!topBid?.userId) {
+    return { settlement: null, reason: "NO_BIDS" };
+  }
+
+  const finalPrice = Number(topBid.amount);
+  if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
+    return { settlement: null, reason: "INVALID_TOP_BID" };
+  }
+
+  const settlement = await prisma.settlement.upsert({
+    where: { auctionId },
+    update: {
+      winnerUserId: topBid.userId,
+      finalPrice,
+      currency: "USD",
+      status: "CHARGED",
+      stripePaymentIntent: null,
+    },
+    create: {
+      auctionId,
+      winnerUserId: topBid.userId,
+      finalPrice,
+      currency: "USD",
+      status: "CHARGED",
+      stripePaymentIntent: null,
+    },
+    include: {
+      auction: {
+        include: {
+          item: true,
+          shop: true,
+        },
+      },
+      winner: true,
+    },
+  });
+
+  return { settlement, reason: "CREATED_OR_UPDATED" };
+}
+
 export async function listAuctions(req, res) {
   try {
     const {
@@ -676,10 +741,21 @@ export async function endAuction(req, res) {
 
     const auction = await prisma.auction.findUnique({
       where: { id },
-      select: await buildAuctionSelect({
-        includeItem: true,
-        includeShop: true,
-      }),
+      include: {
+        item: {
+          include: {
+            shop: true,
+          },
+        },
+        shop: true,
+        bids: {
+          orderBy: [{ amount: "desc" }, { createdAt: "asc" }],
+          take: 1,
+          include: {
+            user: true,
+          },
+        },
+      },
     });
 
     if (!auction) {
@@ -711,7 +787,32 @@ export async function endAuction(req, res) {
       }),
     });
 
-    return res.json(normalizeAuctionForResponse(updated, new Date()));
+    const settlementResult = await upsertSettlementForEndedAuction(id);
+
+    return res.json({
+      success: true,
+      auction: normalizeAuctionForResponse(updated, new Date()),
+      settlement:
+        settlementResult.settlement
+          ? {
+              id: settlementResult.settlement.id,
+              auctionId: settlementResult.settlement.auctionId,
+              winnerUserId: settlementResult.settlement.winnerUserId,
+              winnerName: settlementResult.settlement.winner?.name || null,
+              winnerEmail: settlementResult.settlement.winner?.email || null,
+              finalAmountCents: Math.round(
+                Number(settlementResult.settlement.finalPrice || 0) * 100,
+              ),
+              currency: settlementResult.settlement.currency || "USD",
+              status: settlementResult.settlement.status || "UNKNOWN",
+              settledAt:
+                settlementResult.settlement.updatedAt ||
+                settlementResult.settlement.createdAt ||
+                null,
+            }
+          : null,
+      settlementReason: settlementResult.reason,
+    });
   } catch (err) {
     return handleControllerError(res, err, "Failed to end auction");
   }

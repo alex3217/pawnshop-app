@@ -24,9 +24,10 @@ type RouteConfig =
       index?: false;
     };
 
-const ADMIN_ROLES: Role[] = ["ADMIN"];
-const OWNER_ROLES: Role[] = ["OWNER", "ADMIN"];
-const CONSUMER_ROLES: Role[] = ["CONSUMER", "ADMIN"];
+const ADMIN_ROLES: Role[] = ["ADMIN", "SUPER_ADMIN"];
+const SUPER_ADMIN_ROLES: Role[] = ["SUPER_ADMIN"];
+const OWNER_ROLES: Role[] = ["OWNER", "ADMIN", "SUPER_ADMIN"];
+const CONSUMER_ROLES: Role[] = ["CONSUMER", "ADMIN", "SUPER_ADMIN"];
 
 function isComponentExport(value: unknown): value is ComponentType<unknown> {
   return typeof value === "function";
@@ -72,13 +73,27 @@ const AdminOverviewPage = lazyPage(() =>
   import("./admin/pages/AdminOverviewPage"),
 );
 const AdminOwnersPage = lazyPage(() => import("./admin/pages/AdminOwnersPage"));
-const AdminShopsPage = lazyPage(() => import("./admin/pages/AdminShopsPage"));
 const AdminSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/AdminSubscriptionsPage"),
 );
 
 const AdminItemsPage = lazyPage(() => import("./pages/AdminItemsPage"));
 const AdminUsersPage = lazyPage(() => import("./pages/AdminUsersPage"));
+const SuperAdminUsersPage = lazyPage(() =>
+  import("./admin/pages/SuperAdminUsersPage"),
+);
+const SuperAdminShopsPage = lazyPage(() =>
+  import("./admin/pages/SuperAdminShopsPage"),
+);
+const SuperAdminSettlementsPage = lazyPage(() =>
+  import("./admin/pages/SuperAdminSettlementsPage"),
+);
+const SuperAdminPlatformSettingsPage = lazyPage(() =>
+  import("./admin/pages/SuperAdminPlatformSettingsPage"),
+);
+const SuperAdminBuyerSubscriptionsPage = lazyPage(() =>
+  import("./admin/pages/SuperAdminBuyerSubscriptionsPage"),
+);
 const AuctionDetailPage = lazyPage(() => import("./pages/AuctionDetailPage"));
 const AuctionsPage = lazyPage(() => import("./pages/AuctionsPage"));
 const BulkUploadPage = lazyPage(() => import("./pages/BulkUploadPage"));
@@ -93,9 +108,7 @@ const MyBidsPage = lazyPage(() => import("./pages/MyBidsPage"));
 const MyWinsPage = lazyPage(() => import("./pages/MyWinsPage"));
 const OffersPage = lazyPage(() => import("./pages/OffersPage"));
 const OwnerAuctionsPage = lazyPage(() => import("./pages/OwnerAuctionsPage"));
-const OwnerDashboardPage = lazyPage(() =>
-  import("./pages/OwnerDashboardPage"),
-);
+const OwnerDashboardPage = lazyPage(() => import("./pages/OwnerDashboardPage"));
 const OwnerInventoryPage = lazyPage(() => import("./pages/OwnerInventoryPage"));
 const OwnerLocationsPage = lazyPage(() => import("./pages/OwnerLocationsPage"));
 const OwnerStaffPage = lazyPage(() => import("./pages/OwnerStaffPage"));
@@ -223,7 +236,7 @@ const adminCoreRoutes: RouteConfig[] = [
   { path: "overview", element: <Navigate to="/admin" replace /> },
   { path: "users", element: <AdminUsersPage /> },
   { path: "owners", element: <AdminOwnersPage /> },
-  { path: "shops", element: <AdminShopsPage /> },
+  { path: "shops", element: <SuperAdminShopsPage /> },
   { path: "inventory", element: <AdminItemsPage /> },
   { path: "items", element: <Navigate to="/admin/inventory" replace /> },
   { path: "auctions", element: <AdminAuctionsPage /> },
@@ -306,6 +319,45 @@ const adminChildRoutes: RouteConfig[] = [
   ...adminPlaceholderRoutes,
 ];
 
+const superAdminRoutes: RouteConfig[] = [
+  { index: true, element: <AdminOverviewPage /> },
+  { path: "overview", element: <Navigate to="/super-admin" replace /> },
+  { path: "users", element: <SuperAdminUsersPage /> },
+  { path: "shops", element: <SuperAdminShopsPage /> },
+  { path: "owners", element: <AdminOwnersPage /> },
+  { path: "auctions", element: <AdminAuctionsPage /> },
+  { path: "offers", element: <AdminOffersPage /> },
+  { path: "inventory", element: <AdminItemsPage /> },
+  { path: "items", element: <Navigate to="/super-admin/inventory" replace /> },
+  { path: "plans/seller", element: <AdminSubscriptionsPage /> },
+  { path: "plans/buyer", element: <AdminSubscriptionsPage /> },
+  { path: "buyer-subscriptions", element: <SuperAdminBuyerSubscriptionsPage /> },
+  {
+    path: "subscriptions",
+    element: <Navigate to="/super-admin/buyer-subscriptions" replace />,
+  },
+  { path: "settlements", element: <SuperAdminSettlementsPage /> },
+  {
+    path: "revenue",
+    element: placeholderRoute(
+      "Platform revenue",
+      "Platform revenue, subscription MRR, and settlement reporting will appear here.",
+    ),
+  },
+  {
+    path: "audit",
+    element: placeholderRoute(
+      "Platform audit",
+      "Super Admin audit logs and sensitive action history will appear here.",
+    ),
+  },
+  { path: "platform-settings", element: <SuperAdminPlatformSettingsPage /> },
+  {
+    path: "settings",
+    element: <Navigate to="/super-admin/platform-settings" replace />,
+  },
+];
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -322,6 +374,19 @@ export default function App() {
               renderRoute(
                 route,
                 `admin-${"path" in route ? route.path : `index-${index}`}`,
+              ),
+            )}
+          </Route>
+        </Route>
+
+        <Route element={<RequireRole allowed={SUPER_ADMIN_ROLES} />}>
+          <Route path="/super-admin" element={withSuspense(<AdminLayout />)}>
+            {superAdminRoutes.map((route, index) =>
+              renderRoute(
+                route,
+                `super-admin-${
+                  "path" in route ? route.path : `index-${index}`
+                }`,
               ),
             )}
           </Route>

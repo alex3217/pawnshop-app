@@ -1,5 +1,6 @@
 // File: apps/api/backend/src/app.js
 
+import crypto from "node:crypto";
 import express from "express";
 import helmet from "helmet";
 import cors from "cors";
@@ -11,6 +12,7 @@ import offersRoutes from "./routes/offers.routes.js";
 import itemRoutes from "./routes/items.routes.js";
 import inquiryRoutes from "./routes/inquiries.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import superAdminRoutes from "./routes/superAdmin.routes.js";
 import auctionRoutes from "./routes/auctions.routes.js";
 import bidsRoutes from "./routes/bids.routes.js";
 import watchlistRoutes from "./routes/watchlist.routes.js";
@@ -25,19 +27,17 @@ import stripeRoutes from "./routes/stripe.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 
 function parseAllowedOrigins(...values) {
-  const items = values
-    .flatMap((value) => String(value || "").split(","))
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-  return new Set(items);
+  return new Set(
+    values
+      .flatMap((value) => String(value || "").split(","))
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
 }
 
 function normalizeMountPath(path) {
   const trimmed = String(path || "").trim();
-
   if (!trimmed || trimmed === "/") return "/";
-
   return `/${trimmed.replace(/^\/+|\/+$/g, "")}`;
 }
 
@@ -68,7 +68,67 @@ function createCorsOptions(allowedOrigins) {
     credentials: true,
     optionsSuccessStatus: 204,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "X-Request-Id",
+      "Stripe-Signature",
+    ],
   };
+}
+
+function shouldTrustProxy() {
+  return process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production";
+}
+
+function requestIdMiddleware(req, res, next) {
+  const incomingId = String(req.headers["x-request-id"] || "").trim();
+  const requestId = incomingId || crypto.randomUUID();
+
+  req.requestId = requestId;
+  res.setHeader("X-Request-Id", requestId);
+
+  next();
+}
+
+function noStore(_req, res, next) {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+}
+
+function createHealthPayload(serviceName, env) {
+  return {
+    ok: true,
+    success: true,
+    service: serviceName,
+    env,
+    ts: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    pid: process.pid,
+    memory: process.memoryUsage(),
+  };
+}
+
+function createErrorResponse(err, req) {
+  const rawStatus = Number(err?.statusCode || err?.status || 500);
+  const statusCode = rawStatus >= 400 && rawStatus <= 599 ? rawStatus : 500;
+  const message = err?.message || "Internal Server Error";
+
+  const body = {
+    success: false,
+    error:
+      process.env.NODE_ENV === "production" && statusCode >= 500
+        ? "Internal Server Error"
+        : message,
+    requestId: req.requestId,
+  };
+
+  if (process.env.NODE_ENV !== "production" && err?.details) {
+    body.details = err.details;
+  }
+
+  return { statusCode, body, message };
 }
 
 export function createApp() {
@@ -79,22 +139,28 @@ export function createApp() {
   const allowedOrigins = parseAllowedOrigins(
     process.env.CORS_ORIGINS,
     process.env.CORS_ORIGIN,
+    process.env.FRONTEND_URL,
+    process.env.WEB_URL
   );
 
-  const jsonLimit = process.env.JSON_LIMIT || "1mb";
+  const jsonLimit = process.env.JSON_LIMIT || "2mb";
   const urlencodedLimit = process.env.URLENCODED_LIMIT || jsonLimit;
   const morganFormat = process.env.NODE_ENV === "production" ? "combined" : "dev";
 
   app.disable("x-powered-by");
 
-  if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
+  if (shouldTrustProxy()) {
     app.set("trust proxy", 1);
   }
+
+  app.use(requestIdMiddleware);
 
   app.use(
     helmet({
       crossOriginResourcePolicy: false,
-    }),
+      contentSecurityPolicy:
+        process.env.NODE_ENV === "production" ? undefined : false,
+    })
   );
 
   const corsOptions = createCorsOptions(allowedOrigins);
@@ -106,40 +172,30 @@ export function createApp() {
       skip(req) {
         return req.path === "/health" || req.path === "/api/health";
       },
-    }),
+    })
   );
 
   const healthHandler = (_req, res) => {
-    res.set("Cache-Control", "no-store");
-
-    return res.status(200).json({
-      ok: true,
-      service: serviceName,
-      env,
-      ts: new Date().toISOString(),
-      uptimeSeconds: Math.floor(process.uptime()),
-    });
+    return res.status(200).json(createHealthPayload(serviceName, env));
   };
 
   const rootHandler = (_req, res) => {
-    res.set("Cache-Control", "no-store");
-
     return res.status(200).json({
       ok: true,
+      success: true,
       service: serviceName,
       message: "API is running",
       env,
     });
   };
 
-  app.get("/", rootHandler);
-  app.get("/api", rootHandler);
-  app.get("/health", healthHandler);
-  app.get("/api/health", healthHandler);
+  app.get("/", noStore, rootHandler);
+  app.get("/api", noStore, rootHandler);
+  app.get("/health", noStore, healthHandler);
+  app.get("/api/health", noStore, healthHandler);
 
   /**
-   * Stripe webhook must be mounted BEFORE express.json() / express.urlencoded()
-   * because Stripe signature verification requires the exact raw body bytes.
+   * Stripe webhook must stay before express.json().
    */
   app.use("/webhooks/stripe", stripeWebhookRoutes);
   app.use("/api/webhooks/stripe", stripeWebhookRoutes);
@@ -149,14 +205,14 @@ export function createApp() {
       limit: jsonLimit,
       strict: true,
       type: ["application/json", "application/*+json"],
-    }),
+    })
   );
 
   app.use(
     express.urlencoded({
       extended: true,
       limit: urlencodedLimit,
-    }),
+    })
   );
 
   mountApi(app, "/auth", authRoutes);
@@ -166,6 +222,7 @@ export function createApp() {
   mountApi(app, "/inventory-bulk", inventoryBulkRoutes);
   mountApi(app, "/inquiries", inquiryRoutes);
   mountApi(app, "/admin", adminRoutes);
+  mountApi(app, "/super-admin", superAdminRoutes);
   mountApi(app, "/auctions", auctionRoutes);
   mountApi(app, "/bids", bidsRoutes);
   mountApi(app, "/watchlist", watchlistRoutes);
@@ -175,56 +232,25 @@ export function createApp() {
   mountApi(app, "/settlements", settlementsRoutes);
   mountApi(app, "/stripe", stripeRoutes);
 
-  /**
-   * sellerPlansRoutes already contains absolute route fragments like:
-   * - /seller-plans
-   * - /shops/:id/entitlements
-   * - /shops/:id/subscription
-   *
-   * Mount at /api only so the final URLs remain:
-   * - /api/seller-plans
-   * - /api/shops/:id/entitlements
-   * - /api/shops/:id/subscription
-   */
   app.use("/api", sellerPlansRoutes);
-
-  /**
-   * buyerPlansRoutes already contains absolute route fragments like:
-   * - /buyer-plans
-   * - /buyer-plans/mine
-   * - /buyer-plans/subscriptions
-   *
-   * Mount at /api only so the final URLs remain:
-   * - /api/buyer-plans
-   * - /api/buyer-plans/mine
-   * - /api/buyer-plans/subscriptions
-   */
   app.use("/api", buyerPlansRoutes);
 
   app.use((req, res) => {
     return res.status(404).json({
       success: false,
       error: `Cannot ${req.method} ${req.originalUrl}`,
+      requestId: req.requestId,
     });
   });
 
-  app.use((err, _req, res, next) => {
+  app.use((err, req, res, next) => {
     if (res.headersSent) return next(err);
-
-    const message = err?.message || "Internal Server Error";
-    const statusCode = err?.statusCode || err?.status || 500;
-
-    if (message.startsWith("CORS blocked:")) {
-      return res.status(403).json({
-        success: false,
-        error: message,
-      });
-    }
 
     if (err instanceof SyntaxError && "body" in err) {
       return res.status(400).json({
         success: false,
         error: "Invalid JSON payload",
+        requestId: req.requestId,
       });
     }
 
@@ -232,23 +258,31 @@ export function createApp() {
       return res.status(413).json({
         success: false,
         error: "Request payload too large",
+        requestId: req.requestId,
       });
     }
 
+    if (String(err?.message || "").startsWith("CORS blocked:")) {
+      return res.status(403).json({
+        success: false,
+        error: err.message,
+        requestId: req.requestId,
+      });
+    }
+
+    const { statusCode, body, message } = createErrorResponse(err, req);
+
     console.error("[app:error]", {
+      requestId: req.requestId,
+      method: req.method,
+      url: req.originalUrl,
       name: err?.name,
       message,
-      stack: err?.stack,
       statusCode,
+      stack: err?.stack,
     });
 
-    return res.status(statusCode).json({
-      success: false,
-      error:
-        process.env.NODE_ENV === "production"
-          ? "Internal Server Error"
-          : message,
-    });
+    return res.status(statusCode).json(body);
   });
 
   return app;

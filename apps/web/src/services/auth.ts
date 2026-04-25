@@ -1,8 +1,6 @@
-// File: apps/web/src/services/auth.ts
-
 import { API_BASE } from "../config";
 
-export type Role = "CONSUMER" | "OWNER" | "ADMIN";
+export type Role = "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
 
 export type AuthUser = {
   id?: string;
@@ -22,6 +20,8 @@ const STORAGE_KEYS = {
   user: "auth_user",
   consumerToken: "consumer_token",
   ownerToken: "owner_token",
+  adminToken: "admin_token",
+  superAdminToken: "super_admin_token",
 
   // legacy / compatibility keys
   legacyToken: "token",
@@ -29,7 +29,12 @@ const STORAGE_KEYS = {
 } as const;
 
 function isRole(value: unknown): value is Role {
-  return value === "CONSUMER" || value === "OWNER" || value === "ADMIN";
+  return (
+    value === "CONSUMER" ||
+    value === "OWNER" ||
+    value === "ADMIN" ||
+    value === "SUPER_ADMIN"
+  );
 }
 
 function joinUrl(base: string, path: string) {
@@ -58,7 +63,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized.padEnd(
       normalized.length + ((4 - (normalized.length % 4)) % 4),
-      "="
+      "=",
     );
 
     return JSON.parse(atob(padded));
@@ -80,13 +85,16 @@ function getRoleSpecificTokenKey(role: Role) {
     case "OWNER":
       return STORAGE_KEYS.ownerToken;
     case "ADMIN":
+      return STORAGE_KEYS.adminToken;
+    case "SUPER_ADMIN":
+      return STORAGE_KEYS.superAdminToken;
     default:
       return null;
   }
 }
 
 function normalizeUser(raw: unknown): AuthUser | null {
-  if (!raw || typeof raw !== 'object') return null;
+  if (!raw || typeof raw !== "object") return null;
 
   const data = raw as Record<string, unknown>;
   const role = data.role;
@@ -145,6 +153,8 @@ function removeSessionValue(key: string) {
 function getStoredToken() {
   return (
     readStoredValue(STORAGE_KEYS.token) ||
+    readStoredValue(STORAGE_KEYS.superAdminToken) ||
+    readStoredValue(STORAGE_KEYS.adminToken) ||
     readStoredValue(STORAGE_KEYS.ownerToken) ||
     readStoredValue(STORAGE_KEYS.consumerToken) ||
     readStoredValue(STORAGE_KEYS.legacyToken) ||
@@ -161,7 +171,7 @@ function clearLegacyTokens() {
 
 async function requestAuth(
   path: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
 ): Promise<AuthResponse> {
   let res: Response;
 
@@ -211,7 +221,7 @@ async function requestAuth(
 
 export async function login(
   email: string,
-  password: string
+  password: string,
 ): Promise<AuthResponse> {
   return requestAuth("/auth/login", {
     email: email.trim().toLowerCase(),
@@ -223,10 +233,10 @@ export async function register(
   name: string,
   email: string,
   password: string,
-  role: Role
+  role: Role,
 ): Promise<AuthResponse> {
-  if (role === "ADMIN") {
-    throw new Error("Public registration for admin is not allowed.");
+  if (role === "ADMIN" || role === "SUPER_ADMIN") {
+    throw new Error("Public registration for privileged roles is not allowed.");
   }
 
   return requestAuth("/auth/register", {
@@ -251,6 +261,8 @@ export function persistAuth(token: string, role: Role, user?: AuthUser) {
 
   removeStoredValue(STORAGE_KEYS.consumerToken);
   removeStoredValue(STORAGE_KEYS.ownerToken);
+  removeStoredValue(STORAGE_KEYS.adminToken);
+  removeStoredValue(STORAGE_KEYS.superAdminToken);
 
   const roleSpecificKey = getRoleSpecificTokenKey(role);
   if (roleSpecificKey) {
@@ -258,13 +270,19 @@ export function persistAuth(token: string, role: Role, user?: AuthUser) {
   }
 }
 
-export function logout() {
+export function clearAuth() {
   removeStoredValue(STORAGE_KEYS.token);
   removeStoredValue(STORAGE_KEYS.role);
   removeStoredValue(STORAGE_KEYS.user);
   removeStoredValue(STORAGE_KEYS.consumerToken);
   removeStoredValue(STORAGE_KEYS.ownerToken);
+  removeStoredValue(STORAGE_KEYS.adminToken);
+  removeStoredValue(STORAGE_KEYS.superAdminToken);
   clearLegacyTokens();
+}
+
+export function logout() {
+  clearAuth();
 }
 
 export function getAuthToken() {
@@ -274,6 +292,11 @@ export function getAuthToken() {
 export function getAuthRole(): Role | null {
   const storedRole = readStoredValue(STORAGE_KEYS.role);
   if (isRole(storedRole)) return storedRole;
+
+  const storedUser = getAuthUser();
+  if (storedUser?.role && isRole(storedUser.role)) {
+    return storedUser.role;
+  }
 
   const token = getStoredToken();
   if (!token) return null;
