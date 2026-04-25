@@ -135,3 +135,7 @@ export async function getShopItems(shopId: string): Promise<{ shop: Shop; items:
     items: Array.isArray(payload.items) ? payload.items : [],
   };
 }
+
+export async function getMarketplaceShops(): Promise<Shop[]> {
+  return getAllShops();
+}

@@ -13,6 +13,7 @@ type NavItem = {
 const PUBLIC_NAV: NavItem[] = [
   { to: "/", label: "Home", end: true },
   { to: "/marketplace", label: "Marketplace" },
+  { to: "/shops", label: "Shops" },
   { to: "/auctions", label: "Auctions" },
 ];
 
