@@ -267,7 +267,7 @@ export default function SiteLayout() {
               <span>PawnLoop Marketplace</span>
             </div>
             <div style={styles.footerMeta}>
-              Buyer, owner, and admin marketplace workflows in one place.
+              Real-time pawnshop inventory, auctions, and payments in one place. Operated by Bealtair LLC.
             </div>
           </div>
 

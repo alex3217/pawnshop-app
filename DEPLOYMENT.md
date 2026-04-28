@@ -1,5 +1,16 @@
 # PawnLoop Marketplace Deployment Runbook
 
+## Legal / Brand Ownership
+
+Product brand:
+
+    PawnLoop Marketplace
+
+Legal operator:
+
+    Bealtair LLC
+
+
 ## Current Verified Commands
 
 Run before deployment:
