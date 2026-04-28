@@ -1,395 +1,287 @@
 // File: apps/web/src/pages/CreateAuctionPage.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { API_BASE } from "../config";
-import { getAuthHeaders, getAuthToken } from "../services/auth";
+import { createAuction } from "../services/auctions";
+import { getAuthRole, getAuthToken } from "../services/auth";
 
-type Item = {
-  id: string;
-  pawnShopId: string;
-  title: string;
-  status: string;
-  isDeleted?: boolean;
-};
-
-type AuctionRow = {
-  id: string;
+type FormState = {
   itemId: string;
-  shopId?: string;
-  status: string;
+  startPrice: string;
+  minIncrement: string;
+  startsAt: string;
+  endsAt: string;
 };
 
-type AuctionsResponse =
-  | {
-      rows?: AuctionRow[];
-      error?: string;
-      message?: string;
-    }
-  | AuctionRow[];
+function toDateTimeLocalValue(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
 
-type ItemsResponse =
-  | Item[]
-  | {
-      rows?: Item[];
-      items?: Item[];
-      error?: string;
-      message?: string;
-    };
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
 
-function toLocalDateTimeInputValue(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const yyyy = date.getFullYear();
-  const mm = pad(date.getMonth() + 1);
-  const dd = pad(date.getDate());
-  const hh = pad(date.getHours());
-  const min = pad(date.getMinutes());
-  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-function buildInitialTimes() {
-  const start = new Date();
-  start.setMinutes(start.getMinutes() + 5);
-  start.setSeconds(0, 0);
+function normalizeMoneyInput(value: string) {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const parts = cleaned.split(".");
 
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  if (parts.length <= 1) return cleaned;
 
-  return {
-    startsAt: toLocalDateTimeInputValue(start),
-    endsAt: toLocalDateTimeInputValue(end),
-  };
+  return `${parts[0]}.${parts.slice(1).join("").slice(0, 2)}`;
 }
 
-function parsePositiveNumber(value: string, fieldName: string) {
-  const num = Number(value);
-  if (!Number.isFinite(num) || num <= 0) {
-    throw new Error(`${fieldName} must be greater than 0.`);
-  }
-  return num;
-}
+function toIsoOrNull(value: string) {
+  if (!value) return null;
 
-function extractApiError(payload: unknown) {
-  if (!payload || typeof payload !== "object") return "";
-  const maybe = payload as { error?: unknown; message?: unknown };
-  return String(maybe.error || maybe.message || "").trim();
-}
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
 
-async function safeJson<T = unknown>(response: Response): Promise<T | null> {
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeItems(payload: ItemsResponse | null): Item[] {
-  if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== "object") return [];
-  if (Array.isArray(payload.rows)) return payload.rows;
-  if (Array.isArray(payload.items)) return payload.items;
-  return [];
-}
-
-function normalizeAuctionRows(payload: AuctionsResponse | null): AuctionRow[] {
-  if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== "object") return [];
-  if (Array.isArray(payload.rows)) return payload.rows;
-  return [];
-}
-
-function isAuctionEligibleItem(item: Item) {
-  if (!item || item.isDeleted) return false;
-  return String(item.status || "").toUpperCase() === "AVAILABLE";
+  return date.toISOString();
 }
 
 export default function CreateAuctionPage() {
-  const nav = useNavigate();
+  const navigate = useNavigate();
+
+  const nowPlusOneHour = useMemo(() => {
+    const date = new Date();
+    date.setHours(date.getHours() + 1);
+    return toDateTimeLocalValue(date);
+  }, []);
+
+  const tomorrow = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    return toDateTimeLocalValue(date);
+  }, []);
+
+  const [form, setForm] = useState<FormState>({
+    itemId: "",
+    startPrice: "10.00",
+    minIncrement: "1.00",
+    startsAt: "",
+    endsAt: tomorrow,
+  });
+
+  const [msg, setMsg] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
   const token = getAuthToken();
+  const role = String(getAuthRole() || "").toUpperCase();
+  const canCreateAuction =
+    role === "OWNER" || role === "ADMIN" || role === "SUPER_ADMIN";
 
-  const initialTimes = useMemo(() => buildInitialTimes(), []);
-  const [items, setItems] = useState<Item[]>([]);
-  const [existingAuctionItemIds, setExistingAuctionItemIds] = useState<string[]>([]);
-  const [itemId, setItemId] = useState("");
-  const [startingPrice, setStartingPrice] = useState("100");
-  const [minIncrement, setMinIncrement] = useState("10");
-  const [startsAt, setStartsAt] = useState(initialTimes.startsAt);
-  const [endsAt, setEndsAt] = useState(initialTimes.endsAt);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const startsAtIso = toIsoOrNull(form.startsAt);
+  const endsAtIso = toIsoOrNull(form.endsAt);
 
-  const availableItems = useMemo(() => {
-    return items.filter(
-      (item) =>
-        isAuctionEligibleItem(item) && !existingAuctionItemIds.includes(item.id)
-    );
-  }, [items, existingAuctionItemIds]);
+  function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
 
-  const selectedItem = useMemo(
-    () => availableItems.find((item) => item.id === itemId) ?? null,
-    [availableItems, itemId]
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadData() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        if (!token) {
-          throw new Error("You must be logged in as an owner.");
-        }
-
-        const [itemsRes, auctionsRes] = await Promise.all([
-          fetch(`${API_BASE}/items/mine`, {
-            headers: getAuthHeaders(),
-          }),
-          fetch(`${API_BASE}/auctions`, {
-            headers: getAuthHeaders(),
-          }),
-        ]);
-
-        const itemsJson = await safeJson<ItemsResponse>(itemsRes);
-        const auctionsJson = await safeJson<AuctionsResponse>(auctionsRes);
-
-        if (!itemsRes.ok) {
-          throw new Error(
-            extractApiError(itemsJson) || `Failed to load items (${itemsRes.status})`
-          );
-        }
-
-        if (!auctionsRes.ok) {
-          throw new Error(
-            extractApiError(auctionsJson) || `Failed to load auctions (${auctionsRes.status})`
-          );
-        }
-
-        const nextItems = normalizeItems(itemsJson);
-        const nextAuctions = normalizeAuctionRows(auctionsJson);
-
-        if (cancelled) return;
-
-        setItems(nextItems);
-        setExistingAuctionItemIds(
-          nextAuctions
-            .filter((auction) => Boolean(auction.itemId))
-            .map((auction) => auction.itemId)
-        );
-      } catch (err: unknown) {
-        if (cancelled) return;
-        setItems([]);
-        setExistingAuctionItemIds([]);
-        setError(
-          err instanceof Error ? err.message : "Failed to load auction form data"
-        );
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-
-  useEffect(() => {
-    if (availableItems.length === 0) {
-      setItemId("");
-      return;
-    }
-
-    setItemId((prev) => {
-      if (prev && availableItems.some((item) => item.id === prev)) {
-        return prev;
-      }
-      return availableItems[0].id;
-    });
-  }, [availableItems]);
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMsg(null);
 
     if (!token) {
-      setError("You must be logged in as an owner.");
+      setMsg("Login as an owner to create an auction.");
       return;
     }
 
-    if (!itemId || !selectedItem) {
-      setError(
-        "No eligible item selected. Create a new item or choose one without an auction."
-      );
+    if (!canCreateAuction) {
+      setMsg("Only owner or admin accounts can create auctions.");
       return;
     }
 
-    if (!selectedItem.pawnShopId) {
-      setError("Selected item is missing its shop relationship.");
+    const itemId = form.itemId.trim();
+    if (!itemId) {
+      setMsg("Enter an item ID.");
       return;
     }
 
-    setSaving(true);
+    const startPrice = Number(form.startPrice);
+    if (!Number.isFinite(startPrice) || startPrice <= 0) {
+      setMsg("Enter a valid starting price.");
+      return;
+    }
+
+    const minIncrement = Number(form.minIncrement);
+    if (!Number.isFinite(minIncrement) || minIncrement <= 0) {
+      setMsg("Enter a valid minimum bid increment.");
+      return;
+    }
+
+    if (!endsAtIso) {
+      setMsg("Enter a valid auction end time.");
+      return;
+    }
+
+    const endDate = new Date(endsAtIso);
+    const startDate = startsAtIso ? new Date(startsAtIso) : new Date();
+
+    if (endDate.getTime() <= startDate.getTime()) {
+      setMsg("Auction end time must be after the start time.");
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
-      const parsedStartingPrice = parsePositiveNumber(startingPrice, "Starting price");
-      const parsedMinIncrement = parsePositiveNumber(minIncrement, "Minimum increment");
-
-      const startsAtDate = new Date(startsAt);
-      const endsAtDate = new Date(endsAt);
-
-      if (Number.isNaN(startsAtDate.getTime())) {
-        throw new Error("Start time is invalid.");
-      }
-
-      if (Number.isNaN(endsAtDate.getTime())) {
-        throw new Error("End time is invalid.");
-      }
-
-      if (endsAtDate <= startsAtDate) {
-        throw new Error("End time must be after start time.");
-      }
-
-      const res = await fetch(`${API_BASE}/auctions`, {
-        method: "POST",
-        headers: getAuthHeaders(true),
-        body: JSON.stringify({
-          itemId,
-          shopId: selectedItem.pawnShopId,
-          startingPrice: parsedStartingPrice,
-          minIncrement: parsedMinIncrement,
-          startsAt: startsAtDate.toISOString(),
-          endsAt: endsAtDate.toISOString(),
-        }),
+      const auction = await createAuction({
+        itemId,
+        startPrice,
+        minIncrement,
+        startsAt: startsAtIso,
+        endsAt: endsAtIso,
       });
 
-      const json = await safeJson<Record<string, unknown>>(res);
-
-      if (res.status === 409) {
-        throw new Error("This item already has an auction. Choose another item.");
-      }
-
-      if (!res.ok) {
-        throw new Error(
-          extractApiError(json) || `Failed to create auction (${res.status})`
-        );
-      }
-
-      nav("/owner/auctions");
+      setMsg("Auction created.");
+      navigate(`/auctions/${auction.id}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create auction");
+      setMsg(err instanceof Error ? err.message : "Failed to create auction.");
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
   }
 
-  const submitDisabled =
-    saving || loading || availableItems.length === 0 || !itemId;
-
   return (
     <div className="page-stack">
-      <div className="page-card form-card">
-        <div className="section-title">Create Auction</div>
-        <div className="section-subtitle">
-          Launch a new auction from one of your available inventory items.
+      <div className="page-card" style={{ display: "grid", gap: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <h1 style={{ margin: 0 }}>Create Auction</h1>
+            <p className="muted" style={{ margin: "6px 0 0" }}>
+              Create a live auction for one of your pawnshop inventory items.
+            </p>
+          </div>
+
+          <Link className="btn" to="/owner/auctions">
+            Owner Auctions
+          </Link>
         </div>
 
-        {loading ? <p className="muted">Loading your items…</p> : null}
-
-        {!loading && availableItems.length === 0 ? (
-          <div className="list-card">
-            <strong>No eligible items available</strong>
-            <p className="muted" style={{ marginBottom: 12 }}>
-              Every current item may already have an auction, or you may need to create a new item first.
-            </p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link to="/owner/items/new" className="btn btn-primary">
-                Create Item
-              </Link>
-              <Link to="/owner/auctions" className="btn btn-secondary">
-                View My Auctions
-              </Link>
-            </div>
+        {!token ? (
+          <div className="alert alert-warning">
+            Login as an owner before creating an auction.
           </div>
         ) : null}
 
-        <form onSubmit={onSubmit} className="stack">
-          <label>
-            <div style={{ marginBottom: 6 }}>Select Item</div>
-            <select
-              value={itemId}
-              onChange={(e) => setItemId(e.target.value)}
-              required
-              disabled={loading || availableItems.length === 0}
-            >
-              {availableItems.length === 0 ? (
-                <option value="">No available items</option>
-              ) : null}
+        {token && !canCreateAuction ? (
+          <div className="alert alert-warning">
+            Your current role cannot create auctions.
+          </div>
+        ) : null}
 
-              {availableItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title} ({item.status})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <div style={{ marginBottom: 6 }}>Starting Price</div>
-            <input
-              value={startingPrice}
-              onChange={(e) => setStartingPrice(e.target.value)}
-              placeholder="Starting price"
-              inputMode="decimal"
-              required
-            />
-          </label>
-
-          <label>
-            <div style={{ marginBottom: 6 }}>Minimum Increment</div>
-            <input
-              value={minIncrement}
-              onChange={(e) => setMinIncrement(e.target.value)}
-              placeholder="Minimum increment"
-              inputMode="decimal"
-              required
-            />
-          </label>
-
-          <label>
-            <div style={{ marginBottom: 6 }}>Starts At</div>
-            <input
-              type="datetime-local"
-              value={startsAt}
-              onChange={(e) => setStartsAt(e.target.value)}
-              required
-            />
-          </label>
-
-          <label>
-            <div style={{ marginBottom: 6 }}>Ends At</div>
-            <input
-              type="datetime-local"
-              value={endsAt}
-              onChange={(e) => setEndsAt(e.target.value)}
-              required
-            />
-          </label>
-
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={submitDisabled}
+        {msg ? (
+          <div
+            className={msg === "Auction created." ? "alert alert-success" : "alert alert-danger"}
           >
-            {saving ? "Creating..." : "Create Auction"}
-          </button>
+            {msg}
+          </div>
+        ) : null}
 
-          {error ? <div className="error-text">{error}</div> : null}
+        <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Item ID</span>
+            <input
+              value={form.itemId}
+              onChange={(event) => updateForm("itemId", event.target.value)}
+              placeholder="Paste the inventory item ID"
+              autoComplete="off"
+              disabled={submitting}
+            />
+            <small className="muted">
+              Use an existing item from owner inventory. The next pass can replace this
+              with a dropdown picker.
+            </small>
+          </label>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 14,
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            }}
+          >
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Starting Price</span>
+              <input
+                value={form.startPrice}
+                onChange={(event) =>
+                  updateForm("startPrice", normalizeMoneyInput(event.target.value))
+                }
+                inputMode="decimal"
+                placeholder="10.00"
+                disabled={submitting}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Minimum Increment</span>
+              <input
+                value={form.minIncrement}
+                onChange={(event) =>
+                  updateForm("minIncrement", normalizeMoneyInput(event.target.value))
+                }
+                inputMode="decimal"
+                placeholder="1.00"
+                disabled={submitting}
+              />
+            </label>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 14,
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            }}
+          >
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Start Time</span>
+              <input
+                type="datetime-local"
+                value={form.startsAt}
+                min={nowPlusOneHour}
+                onChange={(event) => updateForm("startsAt", event.target.value)}
+                disabled={submitting}
+              />
+              <small className="muted">Leave blank to start as soon as backend allows.</small>
+            </label>
+
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>End Time</span>
+              <input
+                type="datetime-local"
+                value={form.endsAt}
+                min={nowPlusOneHour}
+                onChange={(event) => updateForm("endsAt", event.target.value)}
+                disabled={submitting}
+                required
+              />
+            </label>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={submitting || !token || !canCreateAuction}
+            >
+              {submitting ? "Creating…" : "Create Auction"}
+            </button>
+
+            <Link className="btn" to="/owner/inventory">
+              Go to Inventory
+            </Link>
+
+            <Link className="btn" to="/auctions">
+              View Auctions
+            </Link>
+          </div>
         </form>
       </div>
     </div>

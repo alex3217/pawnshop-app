@@ -1,101 +1,242 @@
-import { api } from "./apiClient";
+// File: apps/web/src/services/auctions.ts
 
-export type AuctionStatus = "LIVE" | "ENDED" | "CANCELED" | string;
+import { API_BASE } from "../config";
+import { getAuthToken } from "./auth";
+
+export type AuctionStatus = "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED" | string;
 
 export type Auction = {
   id: string;
-  itemId: string;
-  shopId: string;
   status: AuctionStatus;
-  startingPrice: number | string;
-  currentPrice: number | string;
-  minIncrement: number | string;
-  reservePrice?: number | string | null;
-  buyItNowPrice?: number | string | null;
-  startsAt?: string;
+  currentPrice: string | number;
+  minIncrement: string | number;
+  startsAt?: string | null;
   endsAt: string;
   extendedEndsAt?: string | null;
-  version?: number;
-  createdAt?: string;
-  updatedAt?: string;
-  item?: any;
-  shop?: any;
+  item?: {
+    id?: string;
+    title?: string | null;
+    description?: string | null;
+    category?: string | null;
+    condition?: string | null;
+    images?: string[] | null;
+  } | null;
+  shop?: {
+    id?: string;
+    name?: string | null;
+    address?: string | null;
+    phone?: string | null;
+  } | null;
 };
 
-type ApiObject = Record<string, unknown>;
+export type AuctionsResponse = {
+  auctions: Auction[];
+  total?: number;
+  page?: number;
+  limit?: number;
+};
 
-function isObject(v: unknown): v is ApiObject {
-  return typeof v === "object" && v !== null;
+export type CreateAuctionInput = {
+  itemId: string;
+  startPrice: number;
+  minIncrement: number;
+  startsAt?: string | null;
+  endsAt: string;
+};
+
+type ApiEnvelope<T> =
+  | T
+  | {
+      data?: T | { auction?: T };
+      auction?: T;
+      error?: string;
+      message?: string;
+      details?: string;
+      minRequired?: number;
+    };
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
-function normalizeAuctions(data: unknown): Auction[] {
-  if (Array.isArray(data)) return data as Auction[];
+async function safeJson<T = unknown>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
 
-  if (isObject(data)) {
-    if (Array.isArray(data.rows)) return data.rows as Auction[];
-    if (Array.isArray(data.auctions)) return data.auctions as Auction[];
-    if (Array.isArray(data.items)) return data.items as Auction[];
-    if (Array.isArray(data.data)) return data.data as Auction[];
+export function extractAuctionApiError(payload: unknown, fallback = "Auction request failed.") {
+  if (!isObject(payload)) return fallback;
+
+  const message = String(
+    payload.error || payload.message || payload.details || fallback,
+  ).trim();
+
+  const minRequired = Number(payload.minRequired);
+  if (Number.isFinite(minRequired)) {
+    return `${message || "Bid is too low"} minimum $${minRequired.toFixed(2)}`;
   }
 
-  return [];
+  return message || fallback;
 }
 
-function unwrapAuction(data: unknown): Auction {
-  if (!isObject(data)) throw new Error("Invalid auction response");
+export function getAuctionPayload(payload: unknown): Auction | null {
+  if (!isObject(payload)) return null;
 
-  const nested = isObject(data.data) ? data.data : null;
+  if (typeof payload.id === "string") return payload as Auction;
 
-  return (
-    data.auction ??
-    nested?.auction ??
-    nested ??
-    data
-  ) as Auction;
+  if (isObject(payload.auction) && typeof payload.auction.id === "string") {
+    return payload.auction as Auction;
+  }
+
+  if (isObject(payload.data)) {
+    if (isObject(payload.data.auction) && typeof payload.data.auction.id === "string") {
+      return payload.data.auction as Auction;
+    }
+
+    if (typeof payload.data.id === "string") {
+      return payload.data as Auction;
+    }
+  }
+
+  return null;
 }
 
-// =====================
-// PUBLIC
-// =====================
+function authHeaders(): HeadersInit {
+  const token = getAuthToken();
 
-export async function getAuctions(status?: string) {
-  const query = status && status !== "ALL" ? `?status=${status}` : "";
-  const data = await api.get<unknown>(`/auctions${query}`);
-  return normalizeAuctions(data);
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
 }
 
-export async function getAuction(id: string) {
-  if (!id) throw new Error("Missing auction id.");
-  const data = await api.get<unknown>(`/auctions/${encodeURIComponent(id)}`);
-  return unwrapAuction(data);
+export async function getAuctions(status?: string): Promise<AuctionsResponse> {
+  const params = new URLSearchParams();
+
+  if (status && status !== "ALL") {
+    params.set("status", status);
+  }
+
+  const query = params.toString();
+  const url = `${API_BASE}/auctions${query ? `?${query}` : ""}`;
+
+  const response = await fetch(url, {
+    credentials: "include",
+  });
+
+  const json = await safeJson<unknown>(response);
+
+  if (!response.ok) {
+    throw new Error(
+      extractAuctionApiError(json, `Failed to load auctions (${response.status})`),
+    );
+  }
+
+  if (Array.isArray(json)) {
+    return { auctions: json as Auction[] };
+  }
+
+  if (isObject(json)) {
+    const data = isObject(json.data) ? json.data : json;
+
+    const auctions =
+      Array.isArray(data.auctions)
+        ? (data.auctions as Auction[])
+        : Array.isArray(data.items)
+          ? (data.items as Auction[])
+          : Array.isArray(data.rows)
+            ? (data.rows as Auction[])
+            : [];
+
+    const total = Number(data.total ?? data.count ?? auctions.length);
+    const page = Number(data.page ?? 1);
+    const limit = Number(data.limit ?? auctions.length);
+
+    return {
+      auctions,
+      total: Number.isFinite(total) ? total : auctions.length,
+      page: Number.isFinite(page) ? page : 1,
+      limit: Number.isFinite(limit) ? limit : auctions.length,
+    };
+  }
+
+  return { auctions: [] };
 }
 
-// =====================
-// OWNER
-// =====================
+export async function getAuction(id: string): Promise<Auction> {
+  const response = await fetch(`${API_BASE}/auctions/${encodeURIComponent(id)}`, {
+    credentials: "include",
+  });
 
-export async function createAuction(input: {
-  itemId: string;
-  startingPrice: number;
-  minIncrement: number;
-  startsAt?: string;
-  endsAt: string;
-}) {
-  return api.post<Auction>("/auctions", input);
+  const json = await safeJson<ApiEnvelope<Auction>>(response);
+
+  if (!response.ok) {
+    throw new Error(
+      extractAuctionApiError(json, `Failed to load auction (${response.status})`),
+    );
+  }
+
+  const auction = getAuctionPayload(json);
+
+  if (!auction) {
+    throw new Error("Invalid auction response from server.");
+  }
+
+  return auction;
 }
 
-export async function cancelAuction(id: string) {
-  return api.post(`/auctions/${id}/cancel`);
+export async function placeBid(auctionId: string, amount: number): Promise<Auction | null> {
+  const response = await fetch(
+    `${API_BASE}/auctions/${encodeURIComponent(auctionId)}/bids`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ amount }),
+    },
+  );
+
+  const json = await safeJson<ApiEnvelope<Auction>>(response);
+
+  if (!response.ok) {
+    throw new Error(extractAuctionApiError(json, `Bid failed (${response.status})`));
+  }
+
+  return getAuctionPayload(json);
 }
 
-export async function endAuction(id: string) {
-  return api.post(`/auctions/${id}/end`);
-}
+export async function createAuction(input: CreateAuctionInput): Promise<Auction> {
+  const payload = {
+    itemId: input.itemId,
+    startPrice: input.startPrice,
+    minIncrement: input.minIncrement,
+    startsAt: input.startsAt || undefined,
+    endsAt: input.endsAt,
+  };
 
-// =====================
-// BIDDING
-// =====================
+  const response = await fetch(`${API_BASE}/auctions`, {
+    method: "POST",
+    headers: authHeaders(),
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
 
-export async function placeBid(auctionId: string, amount: number) {
-  return api.post(`/auctions/${auctionId}/bids`, { amount });
+  const json = await safeJson<ApiEnvelope<Auction>>(response);
+
+  if (!response.ok) {
+    throw new Error(
+      extractAuctionApiError(json, `Failed to create auction (${response.status})`),
+    );
+  }
+
+  const auction = getAuctionPayload(json);
+
+  if (!auction) {
+    throw new Error("Auction was created, but the server returned an invalid response.");
+  }
+
+  return auction;
 }
