@@ -1,9 +1,10 @@
 // File: apps/web/src/pages/CreateAuctionPage.tsx
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createAuction } from "../services/auctions";
+import { createAuction, getAuctions } from "../services/auctions";
+import { getMyItems } from "../services/items";
 import { getAuthRole, getAuthToken } from "../services/auth";
 
 type FormState = {
@@ -69,6 +70,9 @@ export default function CreateAuctionPage() {
 
   const [msg, setMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [items, setItems] = useState<any[]>([]);
+  const [existingAuctionItemIds, setExistingAuctionItemIds] = useState<string[]>([]);
+
 
   const token = getAuthToken();
   const role = String(getAuthRole() || "").toUpperCase();
@@ -77,6 +81,30 @@ export default function CreateAuctionPage() {
 
   const startsAtIso = toIsoOrNull(form.startsAt);
   const endsAtIso = toIsoOrNull(form.endsAt);
+  useEffect(() => {
+    (async () => {
+      try {
+        const [itemsData, auctionsRaw] = await Promise.all([
+          getMyItems(),
+          getAuctions(),
+        ]);
+
+        const auctionsData = Array.isArray(auctionsRaw) ? auctionsRaw : [];
+
+        setItems(itemsData || []);
+
+        const usedIds = (auctionsData || [])
+          .filter((a: any) => a.itemId)
+          .map((a: any) => String(a.itemId));
+
+        setExistingAuctionItemIds(usedIds);
+      } catch {
+        setItems([]);
+        setExistingAuctionItemIds([]);
+      }
+    })();
+  }, []);
+
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -186,13 +214,20 @@ export default function CreateAuctionPage() {
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
           <label style={{ display: "grid", gap: 6 }}>
             <span>Item ID</span>
-            <input
-              value={form.itemId}
-              onChange={(event) => updateForm("itemId", event.target.value)}
-              placeholder="Paste the inventory item ID"
-              autoComplete="off"
-              disabled={submitting}
-            />
+            <select
+                value={form.itemId}
+                onChange={(event) => updateForm("itemId", event.target.value)}
+                disabled={submitting}
+              >
+                <option value="">Select item</option>
+                {items
+                  .filter((item) => !existingAuctionItemIds.includes(String(item.id)))
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title || "Untitled Item"}
+                    </option>
+                  ))}
+              </select>
             <small className="muted">
               Use an existing item from owner inventory. The next pass can replace this
               with a dropdown picker.
