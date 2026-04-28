@@ -1,11 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { getMarketplaceItems, type Item } from "../services/items";
+import { API_BASE } from "../config";
 import { addSavedSearch } from "../services/savedSearches";
+import type { Item } from "../services/items";
+import {
+  ITEM_CATEGORY_OPTIONS,
+  ITEM_CONDITION_OPTIONS,
+} from "../constants/itemOptions";
 
-function normalizeText(value: string | null | undefined) {
-  return String(value || "").trim().toLowerCase();
-}
+type ItemsApiResponse =
+  | Item[]
+  | {
+      page?: number;
+      limit?: number;
+      total?: number;
+      rows?: Item[];
+      items?: Item[];
+      data?: Item[] | { rows?: Item[]; items?: Item[] };
+      error?: string;
+      message?: string;
+    };
+
 
 function normalizeLabel(value: string | null | undefined, fallback: string) {
   const normalized = String(value || "").trim();
@@ -17,17 +33,96 @@ function toPriceNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function extractApiError(payload: unknown) {
+  if (!payload || typeof payload !== "object") return "";
+  const maybe = payload as { error?: unknown; message?: unknown };
+  return String(maybe.error || maybe.message || "").trim();
+}
+
+async function safeJson<T = unknown>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeItems(payload: ItemsApiResponse | null): Item[] {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+
+  if (Array.isArray(payload.rows)) return payload.rows;
+  if (Array.isArray(payload.items)) return payload.items;
+  if (Array.isArray(payload.data)) return payload.data;
+
+  if (payload.data && typeof payload.data === "object") {
+    if (Array.isArray(payload.data.rows)) return payload.data.rows;
+    if (Array.isArray(payload.data.items)) return payload.data.items;
+  }
+
+  return [];
+}
+
+function getTotalFromPayload(payload: ItemsApiResponse | null, fallback: number) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return fallback;
+  }
+
+  return typeof payload.total === "number" ? payload.total : fallback;
+}
+
+function buildMarketplaceUrl(filters: {
+  query: string;
+  category: string;
+  condition: string;
+  shopId: string;
+  minPrice: string;
+  maxPrice: string;
+  sort: string;
+}) {
+  const params = new URLSearchParams();
+
+  const q = filters.query.trim();
+  const min = filters.minPrice.trim();
+  const max = filters.maxPrice.trim();
+
+  if (q) params.set("q", q);
+  if (filters.category !== "ALL") params.set("category", filters.category);
+  if (filters.condition !== "ALL") params.set("condition", filters.condition);
+  if (filters.shopId !== "ALL") params.set("shopId", filters.shopId);
+  if (min) params.set("minPrice", min);
+  if (max) params.set("maxPrice", max);
+  if (filters.sort !== "newest") params.set("sort", filters.sort);
+
+  const queryString = params.toString();
+  return `${API_BASE}/items${queryString ? `?${queryString}` : ""}`;
+}
+
 export default function MarketplacePage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+
   const [query, setQuery] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
+
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [conditionFilter, setConditionFilter] = useState("ALL");
   const [shopFilter, setShopFilter] = useState("ALL");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [sort, setSort] = useState("newest");
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setAppliedQuery(query);
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [query]);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,12 +132,39 @@ export default function MarketplacePage() {
       setError(null);
 
       try {
-        const nextItems = await getMarketplaceItems();
+        const url = buildMarketplaceUrl({
+          query: appliedQuery,
+          category: categoryFilter,
+          condition: conditionFilter,
+          shopId: shopFilter,
+          minPrice,
+          maxPrice,
+          sort,
+        });
+
+        const res = await fetch(url, {
+          method: "GET",
+          credentials: "include",
+        });
+
+        const json = await safeJson<ItemsApiResponse>(res);
+
+        if (!res.ok) {
+          throw new Error(
+            extractApiError(json) || `Failed to load marketplace (${res.status})`,
+          );
+        }
+
+        const nextItems = normalizeItems(json);
+
         if (!cancelled) {
           setItems(nextItems);
+          setTotalItems(getTotalFromPayload(json, nextItems.length));
         }
       } catch (err) {
         if (!cancelled) {
+          setItems([]);
+          setTotalItems(0);
           setError(
             err instanceof Error ? err.message : "Failed to load marketplace.",
           );
@@ -59,17 +181,36 @@ export default function MarketplacePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [
+    appliedQuery,
+    categoryFilter,
+    conditionFilter,
+    shopFilter,
+    minPrice,
+    maxPrice,
+    sort,
+  ]);
 
   async function handleSaveSearch() {
-    const nextQuery = query.trim();
-    if (!nextQuery) {
-      setSaveMessage("Enter a search before saving it.");
+    const parts = [
+      query.trim() ? `Search: ${query.trim()}` : "",
+      categoryFilter !== "ALL" ? `Category: ${categoryFilter}` : "",
+      conditionFilter !== "ALL" ? `Condition: ${conditionFilter}` : "",
+      shopFilter !== "ALL" ? `Shop: ${shopFilter}` : "",
+      minPrice.trim() ? `Min: ${minPrice.trim()}` : "",
+      maxPrice.trim() ? `Max: ${maxPrice.trim()}` : "",
+      sort !== "newest" ? `Sort: ${sort}` : "",
+    ].filter(Boolean);
+
+    const savedValue = parts.join(" | ");
+
+    if (!savedValue) {
+      setSaveMessage("Enter a search or filter before saving it.");
       return;
     }
 
     try {
-      await addSavedSearch(nextQuery);
+      await addSavedSearch(savedValue);
       setSaveMessage("Search saved.");
     } catch (err) {
       setSaveMessage(
@@ -80,32 +221,14 @@ export default function MarketplacePage() {
 
   function clearFilters() {
     setQuery("");
+    setAppliedQuery("");
     setCategoryFilter("ALL");
     setConditionFilter("ALL");
     setShopFilter("ALL");
     setMinPrice("");
     setMaxPrice("");
+    setSort("newest");
   }
-
-  const categoryOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        items
-          .map((item) => normalizeLabel(item.category, "Uncategorized"))
-          .filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b));
-  }, [items]);
-
-  const conditionOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        items
-          .map((item) => normalizeLabel(item.condition, "Condition not listed"))
-          .filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b));
-  }, [items]);
 
   const shopOptions = useMemo(() => {
     return Array.from(
@@ -123,82 +246,21 @@ export default function MarketplacePage() {
     ).sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
 
-  const filteredItems = useMemo(() => {
-    const q = normalizeText(query);
-    const parsedMin = minPrice.trim() === "" ? null : Number(minPrice);
-    const parsedMax = maxPrice.trim() === "" ? null : Number(maxPrice);
-
-    return items.filter((item) => {
-      const searchable = [
-        item.title,
-        item.description || "",
-        item.category || "",
-        item.condition || "",
-        item.shop?.name || "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      const itemCategory = normalizeLabel(item.category, "Uncategorized");
-      const itemCondition = normalizeLabel(
-        item.condition,
-        "Condition not listed",
-      );
-      const itemShopId = String(item.pawnShopId || item.shop?.id || "");
-      const itemPrice = toPriceNumber(item.price);
-
-      if (q && !searchable.includes(q)) return false;
-      if (categoryFilter !== "ALL" && itemCategory !== categoryFilter) {
-        return false;
-      }
-      if (conditionFilter !== "ALL" && itemCondition !== conditionFilter) {
-        return false;
-      }
-      if (shopFilter !== "ALL" && itemShopId !== shopFilter) {
-        return false;
-      }
-      if (
-        parsedMin !== null &&
-        Number.isFinite(parsedMin) &&
-        itemPrice < parsedMin
-      ) {
-        return false;
-      }
-      if (
-        parsedMax !== null &&
-        Number.isFinite(parsedMax) &&
-        itemPrice > parsedMax
-      ) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [
-    items,
-    query,
-    categoryFilter,
-    conditionFilter,
-    shopFilter,
-    minPrice,
-    maxPrice,
-  ]);
-
   const stats = useMemo(() => {
-    const totalValue = filteredItems.reduce(
+    const totalValue = items.reduce(
       (sum, item) => sum + toPriceNumber(item.price),
       0,
     );
 
     return {
-      total: items.length,
-      matching: filteredItems.length,
+      total: totalItems,
+      matching: items.length,
       shops: new Set(
-        filteredItems.map((item) => String(item.pawnShopId || item.shop?.id || "")),
+        items.map((item) => String(item.pawnShopId || item.shop?.id || "")),
       ).size,
       totalValue,
     };
-  }, [items, filteredItems]);
+  }, [items, totalItems]);
 
   const hasActiveFilters =
     query.trim() ||
@@ -206,7 +268,8 @@ export default function MarketplacePage() {
     conditionFilter !== "ALL" ||
     shopFilter !== "ALL" ||
     minPrice.trim() ||
-    maxPrice.trim();
+    maxPrice.trim() ||
+    sort !== "newest";
 
   return (
     <div style={styles.page}>
@@ -240,7 +303,8 @@ export default function MarketplacePage() {
           <div>
             <div style={styles.filterTitle}>Filter inventory</div>
             <div style={styles.filterSubtitle}>
-              Narrow results by category, condition, shop, or price range.
+              Results now come from backend filtering for category, condition,
+              shop, search, and price.
             </div>
           </div>
 
@@ -266,7 +330,7 @@ export default function MarketplacePage() {
               style={styles.input}
             >
               <option value="ALL">All Categories</option>
-              {categoryOptions.map((option) => (
+              {ITEM_CATEGORY_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
@@ -282,7 +346,7 @@ export default function MarketplacePage() {
               style={styles.input}
             >
               <option value="ALL">All Conditions</option>
-              {conditionOptions.map((option) => (
+              {ITEM_CONDITION_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
@@ -327,6 +391,22 @@ export default function MarketplacePage() {
               style={styles.input}
             />
           </label>
+
+          <label style={styles.field}>
+            <span style={styles.label}>Sort</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              style={styles.input}
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="price_asc">Price: Low → High</option>
+              <option value="price_desc">Price: High → Low</option>
+              <option value="title_asc">Title: A → Z</option>
+              <option value="title_desc">Title: Z → A</option>
+            </select>
+          </label>
         </div>
       </section>
 
@@ -343,12 +423,12 @@ export default function MarketplacePage() {
       {loading ? <div style={styles.card}>Loading marketplace...</div> : null}
       {error ? <div style={styles.error}>{error}</div> : null}
 
-      {!loading && !error && filteredItems.length === 0 ? (
+      {!loading && !error && items.length === 0 ? (
         <div style={styles.card}>No items matched your filters.</div>
       ) : null}
 
       <div style={styles.grid}>
-        {filteredItems.map((item) => (
+        {items.map((item) => (
           <article key={item.id} style={styles.card}>
             <div style={styles.kicker}>{item.shop?.name || "Unknown Shop"}</div>
             <h3 style={styles.cardTitle}>{item.title}</h3>
@@ -367,7 +447,10 @@ export default function MarketplacePage() {
               <Link to={`/items/${item.id}`} style={styles.primaryLink}>
                 View Item
               </Link>
-              <Link to={`/shops/${item.pawnShopId}`} style={styles.secondaryLink}>
+              <Link
+                to={`/shops/${item.pawnShopId || item.shop?.id || ""}`}
+                style={styles.secondaryLink}
+              >
                 View Shop
               </Link>
             </div>
@@ -378,7 +461,7 @@ export default function MarketplacePage() {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: {
     display: "grid",
     gap: 20,

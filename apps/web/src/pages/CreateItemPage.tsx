@@ -5,6 +5,10 @@ import type { FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { API_BASE } from "../config";
 import { getAuthHeaders, getAuthToken } from "../services/auth";
+import {
+  ITEM_CATEGORY_OPTIONS,
+  ITEM_CONDITION_OPTIONS,
+} from "../constants/itemOptions";
 
 type Shop = {
   id: string;
@@ -16,6 +20,7 @@ type ShopsResponse =
   | {
       rows?: Shop[];
       shops?: Shop[];
+      data?: Shop[] | { rows?: Shop[]; shops?: Shop[] };
       error?: string;
       message?: string;
     };
@@ -48,8 +53,17 @@ async function safeJson<T = unknown>(response: Response): Promise<T | null> {
 function normalizeShops(payload: ShopsResponse | null): Shop[] {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== "object") return [];
+
   if (Array.isArray(payload.rows)) return payload.rows;
   if (Array.isArray(payload.shops)) return payload.shops;
+
+  if (Array.isArray(payload.data)) return payload.data;
+
+  if (payload.data && typeof payload.data === "object") {
+    if (Array.isArray(payload.data.rows)) return payload.data.rows;
+    if (Array.isArray(payload.data.shops)) return payload.data.shops;
+  }
+
   return [];
 }
 
@@ -73,16 +87,27 @@ function sanitizePrice(value: string | null, fallback = "100") {
   return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : fallback;
 }
 
+function normalizeOption(
+  value: string,
+  options: readonly string[],
+  fallback: string,
+) {
+  return options.includes(value) ? value : fallback;
+}
+
 function getPrefillFromSearch(search: string): ItemPrefill {
   const params = new URLSearchParams(search);
+
+  const category = sanitizeText(params.get("category"), "Electronics");
+  const condition = sanitizeText(params.get("condition"), "Good");
 
   return {
     pawnShopId: sanitizeText(params.get("shopId")),
     title: sanitizeText(params.get("title")),
     description: sanitizeText(params.get("description")),
     price: sanitizePrice(params.get("price")),
-    category: sanitizeText(params.get("category"), "Electronics"),
-    condition: sanitizeText(params.get("condition"), "Good"),
+    category: normalizeOption(category, ITEM_CATEGORY_OPTIONS, "Electronics"),
+    condition: normalizeOption(condition, ITEM_CONDITION_OPTIONS, "Good"),
     source: sanitizeText(params.get("source")),
     code: sanitizeText(params.get("code")),
   };
@@ -95,7 +120,7 @@ export default function CreateItemPage() {
 
   const prefill = useMemo(
     () => getPrefillFromSearch(location.search),
-    [location.search]
+    [location.search],
   );
 
   const [shops, setShops] = useState<Shop[]>([]);
@@ -112,7 +137,7 @@ export default function CreateItemPage() {
 
   const selectedShop = useMemo(
     () => shops.find((shop) => shop.id === pawnShopId) ?? null,
-    [shops, pawnShopId]
+    [shops, pawnShopId],
   );
 
   const hasPrefill =
@@ -145,14 +170,14 @@ export default function CreateItemPage() {
 
         const res = await fetch(`${API_BASE}/shops/mine`, {
           headers: getAuthHeaders(),
-          credentials: "same-origin",
+          credentials: "include",
         });
 
         const json = await safeJson<ShopsResponse>(res);
 
         if (!res.ok) {
           throw new Error(
-            extractApiError(json) || `Failed to load shops (${res.status})`
+            extractApiError(json) || `Failed to load shops (${res.status})`,
           );
         }
 
@@ -178,9 +203,7 @@ export default function CreateItemPage() {
         setPawnShopId("");
         setError(err instanceof Error ? err.message : "Failed to load shops");
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -210,6 +233,16 @@ export default function CreateItemPage() {
       return;
     }
 
+    if (!category) {
+      setError("Please select a category.");
+      return;
+    }
+
+    if (!condition) {
+      setError("Please select a condition.");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -218,15 +251,15 @@ export default function CreateItemPage() {
       const res = await fetch(`${API_BASE}/items`, {
         method: "POST",
         headers: getAuthHeaders(true),
-        credentials: "same-origin",
+        credentials: "include",
         body: JSON.stringify({
           pawnShopId,
           title: title.trim(),
           description: description.trim(),
           price: parsedPrice,
           images: [],
-          category: category.trim(),
-          condition: condition.trim(),
+          category,
+          condition,
         }),
       });
 
@@ -234,7 +267,7 @@ export default function CreateItemPage() {
 
       if (!res.ok) {
         throw new Error(
-          extractApiError(json) || `Failed to create item (${res.status})`
+          extractApiError(json) || `Failed to create item (${res.status})`,
         );
       }
 
@@ -259,76 +292,89 @@ export default function CreateItemPage() {
   const submitDisabled =
     saving ||
     loading ||
-    !token ||
-    shops.length === 0 ||
     !pawnShopId ||
-    !title.trim();
+    !selectedShop ||
+    !title.trim() ||
+    !category ||
+    !condition;
 
   return (
     <div className="page-stack">
-      <div className="page-card form-card">
-        <div className="section-title">Create Item</div>
-        <div className="section-subtitle">
-          Add a new item to your shop inventory so it can be listed or auctioned.
+      <div className="page-card" style={{ display: "grid", gap: 18 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 16,
+            alignItems: "flex-start",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0 }}>Create Item</h2>
+            <p className="muted" style={{ marginTop: 6 }}>
+              Add inventory to your pawnshop marketplace.
+            </p>
+          </div>
+
+          <Link className="btn" to="/owner/inventory">
+            Back to Inventory
+          </Link>
         </div>
 
         {hasPrefill ? (
-          <div className="list-card" style={{ marginBottom: 12 }}>
-            <strong>Prefilled from scan</strong>
-            <p className="muted" style={{ margin: "8px 0 0" }}>
-              Review the scanned values, adjust anything needed, then save the
-              item.
-            </p>
-
-            {prefill.source || prefill.code ? (
-              <div className="muted" style={{ marginTop: 8 }}>
-                {prefill.source ? `Source: ${prefill.source}` : null}
-                {prefill.source && prefill.code ? " · " : null}
-                {prefill.code ? `Code: ${prefill.code}` : null}
-              </div>
-            ) : null}
-
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={clearPrefill}
-              >
-                Clear Prefill
-              </button>
-            </div>
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              border: "1px solid rgba(59,130,246,0.35)",
+              background: "rgba(59,130,246,0.1)",
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            <strong>Prefilled from scan/import</strong>
+            <span className="muted">
+              Review the details below before saving the item.
+            </span>
+            <button
+              type="button"
+              className="btn"
+              onClick={clearPrefill}
+              style={{ width: "fit-content" }}
+            >
+              Clear Prefill
+            </button>
           </div>
         ) : null}
 
-        {loading ? <p className="muted">Loading your shops…</p> : null}
-
-        {!loading && shops.length === 0 ? (
-          <div className="list-card">
-            <strong>No shops available</strong>
-            <p className="muted" style={{ marginBottom: 12 }}>
-              You need an owner shop before you can create inventory items.
-            </p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link to="/owner" className="btn btn-secondary">
-                Back to Dashboard
-              </Link>
-            </div>
+        {error ? (
+          <div
+            style={{
+              color: "#fecaca",
+              background: "rgba(220,38,38,0.12)",
+              border: "1px solid rgba(248,113,113,0.25)",
+              padding: 12,
+              borderRadius: 12,
+            }}
+          >
+            {error}
           </div>
         ) : null}
 
-        <form onSubmit={onSubmit} className="stack">
-          <label>
-            <div style={{ marginBottom: 6 }}>Select Shop</div>
+        <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+          <label style={fieldStyle}>
+            Shop
             <select
               value={pawnShopId}
               onChange={(e) => setPawnShopId(e.target.value)}
+              disabled={loading || saving}
               required
-              disabled={loading || shops.length === 0}
+              style={inputStyle}
             >
-              {shops.length === 0 ? (
-                <option value="">No shops available</option>
-              ) : null}
-
+              <option value="">
+                {loading ? "Loading shops..." : "Select shop"}
+              </option>
               {shops.map((shop) => (
                 <option key={shop.id} value={shop.id}>
                   {shop.name}
@@ -337,68 +383,111 @@ export default function CreateItemPage() {
             </select>
           </label>
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Title</div>
+          <label style={fieldStyle}>
+            Title
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Item title"
+              placeholder="Example: Yamaha keyboard"
               required
+              style={inputStyle}
             />
           </label>
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Description</div>
+          <label style={fieldStyle}>
+            Description
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the item"
-              rows={4}
+              placeholder="Describe the item, condition, accessories, and notes."
+              rows={5}
+              style={{ ...inputStyle, resize: "vertical" }}
             />
           </label>
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Price</div>
-            <input
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="Price"
-              inputMode="decimal"
-              required
-            />
-          </label>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 14,
+            }}
+          >
+            <label style={fieldStyle}>
+              Price
+              <input
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                inputMode="decimal"
+                placeholder="100"
+                required
+                style={inputStyle}
+              />
+            </label>
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Category</div>
-            <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="Category"
-              required
-            />
-          </label>
+            <label style={fieldStyle}>
+              Category
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                required
+                style={inputStyle}
+              >
+                <option value="">Select category</option>
+                {ITEM_CATEGORY_OPTIONS.map((itemCategory) => (
+                  <option key={itemCategory} value={itemCategory}>
+                    {itemCategory}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Condition</div>
-            <input
-              value={condition}
-              onChange={(e) => setCondition(e.target.value)}
-              placeholder="Condition"
-              required
-            />
-          </label>
+            <label style={fieldStyle}>
+              Condition
+              <select
+                value={condition}
+                onChange={(e) => setCondition(e.target.value)}
+                required
+                style={inputStyle}
+              >
+                <option value="">Select condition</option>
+                {ITEM_CONDITION_OPTIONS.map((itemCondition) => (
+                  <option key={itemCondition} value={itemCondition}>
+                    {itemCondition}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           <button
             type="submit"
             className="btn btn-primary"
             disabled={submitDisabled}
+            style={{
+              opacity: submitDisabled ? 0.65 : 1,
+              cursor: submitDisabled ? "not-allowed" : "pointer",
+            }}
           >
-            {saving ? "Creating..." : "Create Item"}
+            {saving ? "Creating Item..." : "Create Item"}
           </button>
-
-          {error ? <div className="error-text">{error}</div> : null}
         </form>
       </div>
     </div>
   );
 }
+
+const fieldStyle = {
+  display: "grid",
+  gap: 6,
+  fontWeight: 800,
+} satisfies React.CSSProperties;
+
+const inputStyle = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.16)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#eef2ff",
+  fontWeight: 700,
+} satisfies React.CSSProperties;

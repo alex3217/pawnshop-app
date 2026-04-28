@@ -3,6 +3,7 @@
 import { useMemo, type CSSProperties } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAuthRole, logout, type Role } from "../services/auth";
+import ScrollToTopButton from "./ScrollToTopButton";
 
 type NavItem = {
   to: string;
@@ -46,7 +47,7 @@ const OWNER_ACTION_NAV: NavItem[] = [
 ];
 
 const ADMIN_PRIMARY_NAV: NavItem[] = [
-  { to: "/admin", label: "Admin" },
+  { to: "/admin", label: "Admin Overview", end: true },
   { to: "/admin/subscriptions", label: "Admin Subscriptions" },
 ];
 
@@ -57,6 +58,21 @@ const ADMIN_SECONDARY_NAV: NavItem[] = [
   { to: "/admin/offers", label: "Offers" },
 ];
 
+const SUPER_ADMIN_PRIMARY_NAV: NavItem[] = [
+  { to: "/super-admin", label: "Platform Overview", end: true },
+  { to: "/super-admin/users", label: "Platform Users" },
+  { to: "/super-admin/shops", label: "Platform Shops" },
+];
+
+const SUPER_ADMIN_SECONDARY_NAV: NavItem[] = [
+  { to: "/super-admin/plans/seller", label: "Seller Plans" },
+  { to: "/super-admin/plans/buyer", label: "Buyer Plans" },
+  { to: "/super-admin/buyer-subscriptions", label: "Buyer Subscriptions" },
+  { to: "/super-admin/revenue", label: "Platform Revenue" },
+  { to: "/super-admin/settlements", label: "Settlements Control" },
+  { to: "/super-admin/platform-settings", label: "Platform Settings" },
+];
+
 const GUEST_NAV: NavItem[] = [
   { to: "/login", label: "Login" },
   { to: "/register", label: "Register" },
@@ -64,6 +80,7 @@ const GUEST_NAV: NavItem[] = [
 
 function dedupeNav(items: NavItem[]) {
   const seen = new Set<string>();
+
   return items.filter((item) => {
     if (seen.has(item.to)) return false;
     seen.add(item.to);
@@ -72,11 +89,11 @@ function dedupeNav(items: NavItem[]) {
 }
 
 function getRoleBadgeLabel(role: Role | null) {
-  if (!role) return "Guest";
-  return role;
+  return role || "Guest";
 }
 
 function getDashboardHref(role: Role | null) {
+  if (role === "SUPER_ADMIN") return "/super-admin";
   if (role === "ADMIN") return "/admin";
   if (role === "OWNER") return "/owner";
   if (role === "CONSUMER") return "/my-bids";
@@ -87,10 +104,12 @@ export default function SiteLayout() {
   const navigate = useNavigate();
   const role = getAuthRole();
 
+  const isSuperAdmin = role === "SUPER_ADMIN";
   const isAdmin = role === "ADMIN";
-  const showBuyerLinks = role === "CONSUMER" || isAdmin;
-  const showOwnerLinks = role === "OWNER" || isAdmin;
+  const showBuyerLinks = role === "CONSUMER" || isAdmin || isSuperAdmin;
+  const showOwnerLinks = role === "OWNER" || isAdmin || isSuperAdmin;
   const showAdminLinks = isAdmin;
+  const showSuperAdminLinks = isSuperAdmin;
   const showGuestLinks = !role;
 
   const {
@@ -105,6 +124,7 @@ export default function SiteLayout() {
       ...(showBuyerLinks ? BUYER_PRIMARY_NAV : []),
       ...(showOwnerLinks ? OWNER_PRIMARY_NAV.slice(0, 2) : []),
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV.slice(0, 1) : []),
+      ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
       ...(showGuestLinks ? GUEST_NAV : []),
     ]);
 
@@ -114,6 +134,8 @@ export default function SiteLayout() {
       ...(showOwnerLinks ? OWNER_ACTION_NAV : []),
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV : []),
       ...(showAdminLinks ? ADMIN_SECONDARY_NAV : []),
+      ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
+      ...(showSuperAdminLinks ? SUPER_ADMIN_SECONDARY_NAV : []),
     ]);
 
     const footer = dedupeNav([
@@ -122,6 +144,7 @@ export default function SiteLayout() {
       ...(showBuyerLinks ? BUYER_SECONDARY_NAV : []),
       ...(showOwnerLinks ? OWNER_PRIMARY_NAV : []),
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV : []),
+      ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
       ...(showGuestLinks ? GUEST_NAV : []),
     ]);
 
@@ -132,7 +155,14 @@ export default function SiteLayout() {
       dashboardHref: getDashboardHref(role),
       roleBadge: getRoleBadgeLabel(role),
     };
-  }, [role, showAdminLinks, showBuyerLinks, showGuestLinks, showOwnerLinks]);
+  }, [
+    role,
+    showAdminLinks,
+    showBuyerLinks,
+    showGuestLinks,
+    showOwnerLinks,
+    showSuperAdminLinks,
+  ]);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `nav-link${isActive ? " active" : ""}`;
@@ -147,7 +177,12 @@ export default function SiteLayout() {
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <div style={styles.topRow}>
-            <Link to="/" className="brand" style={styles.brand} aria-label="PawnShop Marketplace home">
+            <Link
+              to="/"
+              className="brand"
+              style={styles.brand}
+              aria-label="PawnShop Marketplace home"
+            >
               <span>PawnShop Marketplace</span>
             </Link>
 
@@ -223,6 +258,8 @@ export default function SiteLayout() {
         <Outlet />
       </main>
 
+      <ScrollToTopButton />
+
       <footer style={styles.footer}>
         <div style={styles.footerInner}>
           <div style={styles.footerBrandRow}>
@@ -258,22 +295,18 @@ const styles: Record<string, CSSProperties> = {
   header: {
     borderBottom: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(11,16,32,0.92)",
-    backdropFilter: "blur(10px)",
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
   },
   headerInner: {
-    maxWidth: 1280,
+    maxWidth: 1440,
     margin: "0 auto",
-    padding: "16px 20px 18px",
+    padding: "18px 20px",
     display: "grid",
     gap: 14,
   },
   topRow: {
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 16,
     flexWrap: "wrap",
   },
@@ -284,90 +317,91 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
   },
   brand: {
-    textDecoration: "none",
-    color: "#eef2ff",
+    color: "#ffffff",
     fontWeight: 900,
-    fontSize: 18,
-    letterSpacing: "-0.02em",
+    fontSize: 20,
+    textDecoration: "none",
   },
   roleBadge: {
+    border: "1px solid rgba(255,255,255,0.16)",
+    borderRadius: 999,
+    padding: "6px 10px",
     fontSize: 12,
     fontWeight: 800,
-    letterSpacing: "0.08em",
+    letterSpacing: "0.06em",
     textTransform: "uppercase",
-    padding: "8px 10px",
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#dbeafe",
+    background: "rgba(59,130,246,0.12)",
   },
   headerButtonPrimary: {
-    textDecoration: "none",
-    color: "#0b1020",
-    background: "#eef2ff",
-    borderRadius: 12,
-    padding: "10px 14px",
+    borderRadius: 10,
+    padding: "8px 12px",
+    background: "#6366f1",
+    color: "#ffffff",
     fontWeight: 800,
+    textDecoration: "none",
   },
   headerButtonSecondary: {
-    textDecoration: "none",
-    color: "#eef2ff",
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 12,
-    padding: "10px 14px",
+    borderRadius: 10,
+    padding: "8px 12px",
+    background: "rgba(255,255,255,0.08)",
+    color: "#ffffff",
     fontWeight: 800,
+    textDecoration: "none",
+    border: "1px solid rgba(255,255,255,0.12)",
+    cursor: "pointer",
   },
   primaryNav: {
     display: "flex",
-    gap: 12,
-    flexWrap: "wrap",
     alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
   },
   workspaceRow: {
     display: "grid",
     gap: 8,
+    paddingTop: 10,
+    borderTop: "1px solid rgba(255,255,255,0.08)",
   },
   workspaceLabel: {
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: "0.1em",
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: "0.08em",
     textTransform: "uppercase",
-    color: "rgba(238,242,255,0.62)",
+    color: "#94a3b8",
   },
   workspaceLinks: {
     display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
     alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
   },
   workspaceLink: {
+    color: "#cbd5e1",
     textDecoration: "none",
-    color: "#eef2ff",
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.12)",
     borderRadius: 999,
-    padding: "8px 12px",
+    padding: "7px 10px",
     fontSize: 13,
-    fontWeight: 700,
+    fontWeight: 800,
+    background: "rgba(255,255,255,0.04)",
   },
   workspaceLinkActive: {
-    background: "rgba(99,102,241,0.18)",
-    border: "1px solid rgba(129,140,248,0.35)",
+    color: "#ffffff",
+    borderColor: "rgba(99,102,241,0.7)",
+    background: "rgba(99,102,241,0.22)",
   },
   main: {
-    maxWidth: 1280,
     width: "100%",
-    margin: "0 auto",
-    padding: "24px 20px 40px",
   },
   footer: {
     borderTop: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(11,16,32,0.92)",
   },
   footerInner: {
-    maxWidth: 1280,
+    maxWidth: 1440,
     margin: "0 auto",
-    padding: "16px 20px 28px",
+    padding: "20px",
     display: "grid",
     gap: 12,
   },
@@ -376,13 +410,12 @@ const styles: Record<string, CSSProperties> = {
     gap: 6,
   },
   footerMeta: {
-    color: "rgba(238,242,255,0.66)",
-    fontSize: 13,
+    color: "#94a3b8",
+    fontSize: 14,
   },
   footerLinks: {
     display: "flex",
-    gap: 14,
+    gap: 12,
     flexWrap: "wrap",
-    alignItems: "center",
   },
 };

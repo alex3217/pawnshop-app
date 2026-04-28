@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { getAuthHeaders, getAuthToken } from "../services/auth";
+import { stripePromise } from "../lib/stripe";
 
 type WinRecord = {
   settlementId: string;
@@ -40,6 +41,16 @@ type ApiWinRecord = Partial<{
   settledAt: string;
 }>;
 
+type PaymentIntentResponse = {
+  success?: boolean;
+  paymentIntentId?: string;
+  clientSecret?: string;
+  amount?: number;
+  currency?: string;
+  error?: string;
+  message?: string;
+};
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -65,6 +76,11 @@ function formatDate(value: string | null) {
 function normalizeStatus(value: string | undefined) {
   const normalized = String(value || "WON").trim().toUpperCase();
   return (normalized || "WON").replaceAll("_", " ");
+}
+
+function isPayableStatus(status: string) {
+  const normalized = normalizeStatus(status);
+  return normalized === "PENDING" || normalized === "WON";
 }
 
 function normalizeWin(row: ApiWinRecord, index: number): WinRecord {
@@ -166,11 +182,44 @@ async function fetchMyWins(signal?: AbortSignal): Promise<WinRecord[]> {
   );
 }
 
+async function createSettlementPaymentIntent(settlementId: string) {
+  const response = await fetch(
+    `/api/stripe/payment-intents/settlements/${settlementId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      credentials: "include",
+      body: JSON.stringify({}),
+    },
+  );
+
+  const payload = (await response
+    .json()
+    .catch(() => null)) as PaymentIntentResponse | null;
+
+  if (!response.ok || !payload?.clientSecret) {
+    throw new Error(
+      payload?.error ||
+        payload?.message ||
+        `Failed to create payment (${response.status})`,
+    );
+  }
+
+  return payload;
+}
+
 export default function MyWinsPage() {
   const [wins, setWins] = useState<WinRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [payingSettlementId, setPayingSettlementId] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   const load = useCallback(
     async (
@@ -202,21 +251,61 @@ export default function MyWinsPage() {
     return () => controller.abort();
   }, [load]);
 
+  async function handlePay(settlementId: string) {
+    setError("");
+    setNotice("");
+    setPayingSettlementId(settlementId);
+
+    try {
+      const paymentIntent = await createSettlementPaymentIntent(settlementId);
+      const clientSecret = paymentIntent.clientSecret;
+
+      if (!clientSecret) {
+        throw new Error("Missing Stripe client secret.");
+      }
+
+      const stripe = await stripePromise;
+
+      if (!stripe) {
+        throw new Error("Stripe failed to load.");
+      }
+
+      const result = await stripe.confirmCardPayment(
+        clientSecret,
+        {
+          payment_method: {
+            card: {
+              token: "tok_visa",
+            },
+          },
+        },
+      );
+
+      if (result.error) {
+        throw new Error(result.error.message || "Payment failed.");
+      }
+
+      setNotice("Payment successful. Refreshing your wins...");
+      await load("refresh");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Payment failed.");
+    } finally {
+      setPayingSettlementId(null);
+    }
+  }
+
   const summary = useMemo(() => {
     const totalSpentCents = wins.reduce(
       (sum, row) => sum + row.finalAmountCents,
       0,
     );
 
+    const latest = wins.length > 0 ? sortWinsNewestFirst(wins)[0] : null;
+
     return {
       winsCount: wins.length,
       totalSpentCents,
-      latestSettlement:
-        wins.length > 0
-          ? sortWinsNewestFirst(wins)[0]?.settledAt ||
-            sortWinsNewestFirst(wins)[0]?.endedAt ||
-            null
-          : null,
+      latestSettlement: latest?.settledAt || latest?.endedAt || null,
     };
   }, [wins]);
 
@@ -227,8 +316,8 @@ export default function MyWinsPage() {
           <div style={styles.eyebrow}>Buyer</div>
           <h1 style={styles.title}>My Wins</h1>
           <p style={styles.subtitle}>
-            Review the auctions you have won, final pricing, and settlement
-            status.
+            Review won auctions, final pricing, payment status, and settlement
+            progress.
           </p>
         </div>
 
@@ -266,77 +355,104 @@ export default function MyWinsPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div style={styles.stateCard}>Loading your wins...</div>
-      ) : error ? (
+      {notice ? <div style={styles.noticeCard}>{notice}</div> : null}
+
+      {loading ? <div style={styles.stateCard}>Loading your wins...</div> : null}
+
+      {!loading && error ? (
         <div style={styles.errorCard}>
-          <div style={styles.emptyTitle}>Unable to load wins</div>
+          <div style={styles.emptyTitle}>Unable to continue</div>
           <p style={styles.emptyText}>{error}</p>
         </div>
-      ) : wins.length === 0 ? (
+      ) : null}
+
+      {!loading && !error && wins.length === 0 ? (
         <div style={styles.stateCard}>
           <div style={styles.emptyTitle}>No wins yet</div>
           <p style={styles.emptyText}>
-            When you win an auction, it will appear here with final price and
-            settlement status.
+            When you win an auction, it will appear here for payment and
+            settlement tracking.
           </p>
           <Link to="/auctions" style={styles.primaryLink}>
-            Browse live auctions
+            Browse Auctions
           </Link>
         </div>
-      ) : (
+      ) : null}
+
+      {!loading && wins.length > 0 ? (
         <div style={styles.list}>
-          {wins.map((win) => (
-            <article key={win.settlementId} style={styles.card}>
-              <div style={styles.cardHeader}>
-                <div>
-                  <h2 style={styles.cardTitle}>{win.auctionTitle}</h2>
-                  <div style={styles.metaRow}>
-                    <span>{win.shopName}</span>
-                    <span>•</span>
-                    <span>Status: {win.status}</span>
+          {wins.map((win) => {
+            const payable = isPayableStatus(win.status);
+            const paying = payingSettlementId === win.settlementId;
+
+            return (
+              <article key={win.settlementId} style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <div>
+                    <h2 style={styles.cardTitle}>{win.auctionTitle}</h2>
+                    <div style={styles.metaRow}>
+                      <span>{win.shopName}</span>
+                      <span>Settlement #{win.settlementId}</span>
+                    </div>
+                  </div>
+
+                  <div style={styles.amountPill}>
+                    {formatCurrency(win.finalAmountCents, win.currency)}
                   </div>
                 </div>
 
-                <div style={styles.amountPill}>
-                  {formatCurrency(win.finalAmountCents, win.currency)}
-                </div>
-              </div>
+                <div style={styles.detailGrid}>
+                  <div>
+                    <div style={styles.detailLabel}>Auction ended</div>
+                    <div style={styles.detailValue}>{formatDate(win.endedAt)}</div>
+                  </div>
 
-              <div style={styles.detailGrid}>
-                <div>
-                  <div style={styles.detailLabel}>Auction ended</div>
-                  <div style={styles.detailValue}>
-                    {formatDate(win.endedAt)}
+                  <div>
+                    <div style={styles.detailLabel}>Settlement updated</div>
+                    <div style={styles.detailValue}>
+                      {formatDate(win.settledAt)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={styles.detailLabel}>Status</div>
+                    <div style={styles.detailValue}>{win.status}</div>
                   </div>
                 </div>
 
-                <div>
-                  <div style={styles.detailLabel}>Settlement updated</div>
-                  <div style={styles.detailValue}>
-                    {formatDate(win.settledAt)}
-                  </div>
-                </div>
-              </div>
+                <div style={styles.cardActions}>
+                  {payable ? (
+                    <button
+                      type="button"
+                      onClick={() => void handlePay(win.settlementId)}
+                      disabled={paying}
+                      style={{
+                        ...styles.payButton,
+                        ...(paying ? styles.actionButtonDisabled : {}),
+                      }}
+                    >
+                      {paying ? "Processing..." : "Pay Now"}
+                    </button>
+                  ) : null}
 
-              <div style={styles.cardActions}>
-                {win.auctionId ? (
-                  <Link
-                    to={`/auctions/${win.auctionId}`}
-                    style={styles.secondaryLink}
-                  >
-                    View auction
+                  {win.auctionId ? (
+                    <Link
+                      to={`/auctions/${win.auctionId}`}
+                      style={styles.secondaryLink}
+                    >
+                      View Auction
+                    </Link>
+                  ) : null}
+
+                  <Link to="/offers" style={styles.secondaryLink}>
+                    View Offers
                   </Link>
-                ) : null}
-
-                <Link to="/offers" style={styles.secondaryLink}>
-                  View offers
-                </Link>
-              </div>
-            </article>
-          ))}
+                </div>
+              </article>
+            );
+          })}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -345,113 +461,129 @@ const styles: Record<string, CSSProperties> = {
   page: {
     display: "grid",
     gap: 20,
+    color: "#eef2ff",
   },
   hero: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-start",
     gap: 16,
+    alignItems: "flex-start",
     flexWrap: "wrap",
   },
   eyebrow: {
-    fontSize: 12,
-    fontWeight: 800,
-    letterSpacing: "0.1em",
+    color: "#93c5fd",
+    fontWeight: 900,
     textTransform: "uppercase",
-    opacity: 0.72,
-    marginBottom: 8,
+    letterSpacing: "0.1em",
+    fontSize: 12,
   },
   title: {
-    margin: 0,
-    fontSize: "clamp(2rem, 4vw, 2.6rem)",
+    margin: "6px 0 0",
+    fontSize: 34,
     fontWeight: 900,
   },
   subtitle: {
-    margin: "10px 0 0",
-    maxWidth: 760,
-    color: "rgba(238,242,255,0.78)",
+    marginTop: 8,
+    color: "#a7b0d8",
+    maxWidth: 620,
     lineHeight: 1.6,
   },
   actionButton: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#eef2ff",
+    border: "none",
+    color: "#08111f",
+    background: "#7ef0b3",
+    padding: "12px 14px",
     borderRadius: 12,
-    padding: "10px 14px",
-    fontWeight: 700,
+    fontWeight: 900,
     cursor: "pointer",
   },
   actionButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.65,
     cursor: "not-allowed",
+  },
+  payButton: {
+    border: "none",
+    color: "#ffffff",
+    background: "#22c55e",
+    padding: "10px 14px",
+    borderRadius: 12,
+    fontWeight: 900,
+    cursor: "pointer",
   },
   statsGrid: {
     display: "grid",
+    gap: 14,
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 16,
   },
   statCard: {
+    background: "#121935",
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
     borderRadius: 18,
     padding: 18,
   },
   statLabel: {
+    color: "#a7b0d8",
     fontSize: 13,
-    color: "rgba(238,242,255,0.7)",
-    marginBottom: 8,
+    fontWeight: 800,
   },
   statValue: {
+    marginTop: 8,
     fontSize: 28,
     fontWeight: 900,
   },
   statValueSmall: {
-    fontSize: 16,
+    marginTop: 8,
+    fontSize: 18,
+    fontWeight: 900,
+  },
+  noticeCard: {
+    background: "rgba(34,197,94,0.12)",
+    border: "1px solid rgba(34,197,94,0.24)",
+    color: "#bbf7d0",
+    borderRadius: 16,
+    padding: 16,
     fontWeight: 800,
   },
-  stateCard: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    borderRadius: 18,
-    padding: 22,
-  },
   errorCard: {
-    border: "1px solid rgba(255,120,120,0.25)",
-    background: "rgba(255,120,120,0.09)",
-    color: "#ffd4d4",
+    background: "rgba(239,68,68,0.12)",
+    border: "1px solid rgba(239,68,68,0.24)",
+    borderRadius: 16,
+    padding: 18,
+    color: "#fecaca",
+  },
+  stateCard: {
+    background: "#121935",
+    border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 18,
     padding: 22,
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: 800,
-    marginBottom: 8,
+    fontWeight: 900,
   },
   emptyText: {
-    margin: 0,
-    color: "rgba(238,242,255,0.76)",
+    color: "#a7b0d8",
+    lineHeight: 1.6,
   },
   primaryLink: {
-    display: "inline-flex",
-    marginTop: 16,
-    color: "#0b1020",
-    background: "#eef2ff",
+    display: "inline-block",
+    marginTop: 12,
     textDecoration: "none",
-    fontWeight: 800,
+    background: "#6ea8fe",
+    color: "#08111f",
     padding: "10px 14px",
     borderRadius: 12,
+    fontWeight: 900,
   },
   list: {
     display: "grid",
     gap: 16,
   },
   card: {
+    background: "#121935",
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
     borderRadius: 18,
-    padding: 20,
-    display: "grid",
-    gap: 18,
+    padding: 18,
   },
   cardHeader: {
     display: "flex",
@@ -462,51 +594,52 @@ const styles: Record<string, CSSProperties> = {
   cardTitle: {
     margin: 0,
     fontSize: 22,
-    fontWeight: 800,
+    fontWeight: 900,
   },
   metaRow: {
     display: "flex",
-    gap: 8,
+    gap: 10,
     flexWrap: "wrap",
+    color: "#a7b0d8",
+    fontSize: 13,
     marginTop: 8,
-    color: "rgba(238,242,255,0.72)",
-    fontSize: 14,
   },
   amountPill: {
-    alignSelf: "flex-start",
+    background: "rgba(34,197,94,0.14)",
+    border: "1px solid rgba(34,197,94,0.28)",
+    color: "#bbf7d0",
     borderRadius: 999,
-    padding: "10px 14px",
-    background: "rgba(99,102,241,0.18)",
-    border: "1px solid rgba(129,140,248,0.3)",
+    padding: "8px 12px",
     fontWeight: 900,
+    height: "fit-content",
   },
   detailGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: 14,
+    marginTop: 18,
   },
   detailLabel: {
+    color: "#a7b0d8",
     fontSize: 12,
+    fontWeight: 800,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    color: "rgba(238,242,255,0.6)",
-    marginBottom: 6,
   },
   detailValue: {
-    fontSize: 15,
-    fontWeight: 700,
+    marginTop: 6,
+    fontWeight: 800,
   },
   cardActions: {
     display: "flex",
-    gap: 10,
+    gap: 12,
+    alignItems: "center",
     flexWrap: "wrap",
+    marginTop: 18,
   },
   secondaryLink: {
+    color: "#bfdbfe",
     textDecoration: "none",
-    color: "#eef2ff",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 12,
-    padding: "10px 14px",
-    fontWeight: 700,
+    fontWeight: 900,
   },
 };

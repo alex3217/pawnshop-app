@@ -129,7 +129,7 @@ async function fetchAdminSubscriptions(
     "/api/admin/subscriptions",
     "/api/subscriptions/admin",
     "/api/admin/shops/subscriptions",
-    "/api/admin/owners/subscriptions",
+    "/api/admin/subscriptions",
   ];
 
   let lastError: unknown = null;
