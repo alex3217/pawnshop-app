@@ -252,6 +252,13 @@ async function runAutoBidEngine(tx, auctionId, options = {}) {
   const now = options.now instanceof Date ? options.now : new Date();
   const generatedBids = [];
 
+  // AutoBid is optional in dev/current schema. If Prisma was generated without
+  // an autoBid delegate, normal bidding must still work.
+  if (!tx?.autoBid?.findMany) {
+    return generatedBids;
+  }
+
+
   for (let round = 0; round < maxRounds; round += 1) {
     const auction = await tx.auction.findUnique({
       where: { id: auctionId },
