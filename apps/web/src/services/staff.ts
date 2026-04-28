@@ -1,7 +1,4 @@
-// File: apps/web/src/services/staff.ts
-
-import { API_BASE } from "../config";
-import { getAuthHeaders } from "./auth";
+import { api } from "./apiClient";
 
 export type StaffRole =
   | "OWNER"
@@ -81,16 +78,6 @@ function getNestedObject(value: unknown, key: string): ApiObject | null {
   return isObject(nested) ? nested : null;
 }
 
-function getString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value : undefined;
-}
-
-function joinUrl(base: string, path: string) {
-  const normalizedBase = base.replace(/\/+$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
-}
-
 function buildQuery(query?: StaffQuery) {
   if (!query) return "";
 
@@ -106,33 +93,8 @@ function buildQuery(query?: StaffQuery) {
   return qs ? `?${qs}` : "";
 }
 
-async function parseResponse<T>(res: Response): Promise<T> {
-  const text = await res.text();
-  let data: unknown = {};
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = {};
-  }
-
-  if (!res.ok) {
-    const message =
-      getString(isObject(data) ? data.message : undefined) ||
-      getString(isObject(data) ? data.error : undefined) ||
-      getString(isObject(data) ? data.details : undefined) ||
-      `Request failed with status ${res.status}`;
-
-    throw new Error(message);
-  }
-
-  return data as T;
-}
-
 function unwrapStaffMember(data: unknown): StaffMember {
-  if (!isObject(data)) {
-    throw new Error("Invalid staff response");
-  }
+  if (!isObject(data)) throw new Error("Invalid staff response");
 
   const nestedData = getNestedObject(data, "data");
 
@@ -171,6 +133,8 @@ function unwrapStaffList(data: unknown): StaffListResponse {
   const staff =
     (Array.isArray(data.staff) ? data.staff : undefined) ??
     (Array.isArray(data.staffMembers) ? data.staffMembers : undefined) ??
+    (Array.isArray(data.rows) ? data.rows : undefined) ??
+    (Array.isArray(data.items) ? data.items : undefined) ??
     (Array.isArray(data.data) ? data.data : undefined) ??
     (nestedData && Array.isArray(nestedData.staff)
       ? nestedData.staff
@@ -204,23 +168,13 @@ function unwrapStaffList(data: unknown): StaffListResponse {
 }
 
 export async function getStaff(query?: StaffQuery): Promise<StaffListResponse> {
-  const res = await fetch(joinUrl(API_BASE, `/staff${buildQuery(query)}`), {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
-
-  return unwrapStaffList(await parseResponse(res));
+  const data = await api.get<unknown>(`/staff${buildQuery(query)}`);
+  return unwrapStaffList(data);
 }
 
 export async function getMyStaff(query?: StaffQuery): Promise<StaffListResponse> {
-  const res = await fetch(joinUrl(API_BASE, `/staff/mine${buildQuery(query)}`), {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
-
-  return unwrapStaffList(await parseResponse(res));
+  const data = await api.get<unknown>(`/staff/mine${buildQuery(query)}`);
+  return unwrapStaffList(data);
 }
 
 export async function getShopStaff(
@@ -231,63 +185,42 @@ export async function getShopStaff(
 }
 
 export async function getStaffMemberById(id: string): Promise<StaffMember> {
-  const res = await fetch(joinUrl(API_BASE, `/staff/${id}`), {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
-
-  return unwrapStaffMember(await parseResponse(res));
+  if (!id) throw new Error("Missing staff member id.");
+  const data = await api.get<unknown>(`/staff/${encodeURIComponent(id)}`);
+  return unwrapStaffMember(data);
 }
 
 export async function createStaffMember(
   input: CreateStaffInput,
 ): Promise<StaffMember> {
-  const res = await fetch(joinUrl(API_BASE, "/staff"), {
-    method: "POST",
-    headers: getAuthHeaders(true),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-
-  return unwrapStaffMember(await parseResponse(res));
+  const data = await api.post<unknown>("/staff", input);
+  return unwrapStaffMember(data);
 }
 
 export async function inviteStaffMember(
   input: CreateStaffInput,
 ): Promise<StaffMember> {
-  const res = await fetch(joinUrl(API_BASE, "/staff/invite"), {
-    method: "POST",
-    headers: getAuthHeaders(true),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-
-  return unwrapStaffMember(await parseResponse(res));
+  const data = await api.post<unknown>("/staff/invite", input);
+  return unwrapStaffMember(data);
 }
 
 export async function updateStaffMember(
   id: string,
   input: UpdateStaffInput,
 ): Promise<StaffMember> {
-  const res = await fetch(joinUrl(API_BASE, `/staff/${id}`), {
-    method: "PATCH",
-    headers: getAuthHeaders(true),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
+  if (!id) throw new Error("Missing staff member id.");
 
-  return unwrapStaffMember(await parseResponse(res));
+  const data = await api.patch<unknown>(
+    `/staff/${encodeURIComponent(id)}`,
+    input,
+  );
+
+  return unwrapStaffMember(data);
 }
 
 export async function removeStaffMember(id: string): Promise<void> {
-  const res = await fetch(joinUrl(API_BASE, `/staff/${id}`), {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
-
-  await parseResponse(res);
+  if (!id) throw new Error("Missing staff member id.");
+  await api.delete<unknown>(`/staff/${encodeURIComponent(id)}`);
 }
 
 export async function activateStaffMember(id: string): Promise<StaffMember> {
