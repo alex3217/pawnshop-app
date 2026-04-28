@@ -1,11 +1,54 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
-import { adminApi, type AdminAuctionRow } from "../services/adminApi";
+import { API_BASE } from "../../config";
 
 type AuctionStatus = "LIVE" | "ENDED" | "CANCELED" | "ALL";
 
+type AuctionRow = {
+  id: string;
+  itemId: string;
+  shopId: string;
+  status: string;
+  startingPrice: string | number | null;
+  minIncrement: string | number | null;
+  currentPrice: string | number | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  extendedEndsAt: string | null;
+  createdAt: string | null;
+  item?: {
+    id: string;
+    title: string;
+  } | null;
+  shop?: {
+    id: string;
+    name: string;
+  } | null;
+};
+
+type AuctionsResponse =
+  | {
+      page?: number;
+      limit?: number;
+      total?: number;
+      rows?: AuctionRow[];
+      auctions?: AuctionRow[];
+      items?: AuctionRow[];
+    }
+  | AuctionRow[]
+  | null;
+
 const FILTERS: AuctionStatus[] = ["LIVE", "ENDED", "CANCELED", "ALL"];
+
+function normalizeRows(payload: AuctionsResponse): AuctionRow[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.rows)) return payload.rows;
+  if (Array.isArray(payload.auctions)) return payload.auctions;
+  if (Array.isArray(payload.items)) return payload.items;
+  return [];
+}
 
 function money(value: string | number | null | undefined) {
   const num = Number(value);
@@ -18,25 +61,39 @@ function formatDate(value: string | null | undefined) {
   return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString();
 }
 
+function buildUrl(status: AuctionStatus) {
+  const params = new URLSearchParams();
+  params.set("limit", "50");
+  if (status !== "ALL") params.set("status", status);
+  return `${API_BASE}/auctions?${params.toString()}`;
+}
+
 export default function AdminAuctionsPage() {
-  const [rows, setRows] = useState<AdminAuctionRow[]>([]);
+  const [rows, setRows] = useState<AuctionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<AuctionStatus>("ALL");
   const [error, setError] = useState<string | null>(null);
 
-  async function load(
-    mode: "initial" | "refresh" = "initial",
-    status = statusFilter,
-    signal?: AbortSignal,
-  ) {
+  async function load(mode: "initial" | "refresh" = "initial", status = statusFilter) {
     if (mode === "initial") setLoading(true);
     if (mode === "refresh") setRefreshing(true);
     setError(null);
 
     try {
-      const data = await adminApi.getAuctions(status, signal);
-      setRows(data);
+      const res = await fetch(buildUrl(status), { cache: "no-store" });
+      const text = await res.text();
+      const json = text ? (JSON.parse(text) as AuctionsResponse) : null;
+
+      if (!res.ok) {
+        const maybeError =
+          json && typeof json === "object" && !Array.isArray(json) && "error" in json
+            ? String((json as { error?: unknown }).error || "")
+            : "";
+        throw new Error(maybeError || `Failed to load auctions (${res.status})`);
+      }
+
+      setRows(normalizeRows(json));
     } catch (err: unknown) {
       setRows([]);
       setError(err instanceof Error ? err.message : "Failed to load auctions.");
@@ -47,9 +104,7 @@ export default function AdminAuctionsPage() {
   }
 
   useEffect(() => {
-    const controller = new AbortController();
-    void load("initial", statusFilter, controller.signal);
-    return () => controller.abort();
+    void load("initial", statusFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
@@ -96,10 +151,7 @@ export default function AdminAuctionsPage() {
       {!loading ? (
         <div
           className="grid"
-          style={{
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            marginBottom: 20,
-          }}
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginBottom: 20 }}
         >
           <div className="list-card">
             <div className="muted">Visible</div>

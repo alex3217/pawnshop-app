@@ -7,7 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { adminApi, type AdminShopRow } from "../services/adminApi";
+import { getAuthHeaders, getAuthToken } from "../../services/auth";
 
 type AdminSubscriptionRecord = {
   id: string;
@@ -21,6 +21,28 @@ type AdminSubscriptionRecord = {
   stripeSubscriptionId: string | null;
 };
 
+type ApiAdminSubscriptionRecord = Partial<{
+  id: string;
+  shopId: string;
+  shopName: string;
+  ownerName: string;
+  owner: { name?: string };
+  plan: string;
+  subscriptionPlan: string;
+  status: string;
+  subscriptionStatus: string;
+  interval: string;
+  billingInterval: string;
+  currentPeriodEnd: string;
+  subscriptionCurrentPeriodEnd: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+}>;
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function formatDate(value: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -28,30 +50,63 @@ function formatDate(value: string | null) {
   return date.toLocaleString();
 }
 
-function normalizePlan(value: string | null | undefined) {
+function normalizePlan(value: string | undefined) {
   return String(value || "FREE").trim().toUpperCase();
 }
 
-function normalizeStatus(value: string | null | undefined) {
+function normalizeStatus(value: string | undefined) {
   const normalized = String(value || "UNKNOWN").trim().toUpperCase();
   return normalized || "UNKNOWN";
 }
 
+function normalizeInterval(value: string | undefined) {
+  const normalized = String(value || "MONTHLY").trim().toUpperCase();
+  return normalized || "MONTHLY";
+}
+
 function normalizeSubscription(
-  shop: AdminShopRow,
+  row: ApiAdminSubscriptionRecord,
   index: number,
 ): AdminSubscriptionRecord {
   return {
-    id: String(shop.id || `subscription-${index}`),
-    shopName: String(shop.name || `Shop ${index + 1}`),
-    ownerName: String(shop.ownerName || shop.ownerEmail || "Unknown owner"),
-    plan: normalizePlan(shop.subscriptionPlan),
-    status: normalizeStatus(shop.subscriptionStatus),
-    interval: "MONTHLY",
-    currentPeriodEnd: shop.subscriptionCurrentPeriodEnd || null,
-    stripeCustomerId: shop.stripeCustomerId || null,
-    stripeSubscriptionId: shop.stripeSubscriptionId || null,
+    id: String(row.id || row.shopId || `subscription-${index}`),
+    shopName: String(row.shopName || `Shop ${index + 1}`),
+    ownerName: String(row.ownerName || row.owner?.name || "Unknown owner"),
+    plan: normalizePlan(row.plan || row.subscriptionPlan),
+    status: normalizeStatus(row.status || row.subscriptionStatus),
+    interval: normalizeInterval(row.interval || row.billingInterval),
+    currentPeriodEnd:
+      row.currentPeriodEnd || row.subscriptionCurrentPeriodEnd || null,
+    stripeCustomerId: row.stripeCustomerId || null,
+    stripeSubscriptionId: row.stripeSubscriptionId || null,
   };
+}
+
+function extractSubscriptionRows(
+  payload: unknown,
+): ApiAdminSubscriptionRecord[] {
+  if (Array.isArray(payload)) return payload as ApiAdminSubscriptionRecord[];
+
+  if (isObject(payload)) {
+    if (Array.isArray(payload.data)) {
+      return payload.data as ApiAdminSubscriptionRecord[];
+    }
+    if (Array.isArray(payload.subscriptions)) {
+      return payload.subscriptions as ApiAdminSubscriptionRecord[];
+    }
+    if (Array.isArray(payload.items)) {
+      return payload.items as ApiAdminSubscriptionRecord[];
+    }
+  }
+
+  return [];
+}
+
+function extractMessage(payload: unknown) {
+  if (isObject(payload) && typeof payload.message === "string") {
+    return payload.message;
+  }
+  return null;
 }
 
 function sortSubscriptions(items: AdminSubscriptionRecord[]) {
@@ -65,8 +120,62 @@ function sortSubscriptions(items: AdminSubscriptionRecord[]) {
 async function fetchAdminSubscriptions(
   signal?: AbortSignal,
 ): Promise<AdminSubscriptionRecord[]> {
-  const shops = await adminApi.getShops(signal);
-  return sortSubscriptions(shops.map(normalizeSubscription));
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error("Missing admin token. Please log in again.");
+  }
+
+  const candidates = [
+    "/api/admin/subscriptions",
+    "/api/subscriptions/admin",
+    "/api/admin/shops/subscriptions",
+    "/api/admin/subscriptions",
+  ];
+
+  let lastError: unknown = null;
+
+  for (const endpoint of candidates) {
+    try {
+      const response = await fetch(endpoint, {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        credentials: "include",
+        signal,
+      });
+
+      if (response.status === 404) {
+        lastError = new Error(`Endpoint not found: ${endpoint}`);
+        continue;
+      }
+
+      const payload: unknown = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message =
+          extractMessage(payload) || `Request failed (${response.status})`;
+        throw new Error(message);
+      }
+
+      const rawList = extractSubscriptionRows(payload);
+
+      return sortSubscriptions(
+        rawList.map((row: ApiAdminSubscriptionRecord, index: number) =>
+          normalizeSubscription(row, index),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Unable to load admin subscriptions.");
 }
 
 export default function AdminSubscriptionsPage() {
@@ -154,8 +263,8 @@ export default function AdminSubscriptionsPage() {
           <div style={styles.eyebrow}>Admin</div>
           <h1 style={styles.title}>Subscriptions</h1>
           <p style={styles.subtitle}>
-            Monitor seller plan coverage, billing status, Stripe references, and
-            renewal timing.
+            Track plan distribution, renewal state, and subscription health across
+            shops.
           </p>
         </div>
 
@@ -164,8 +273,8 @@ export default function AdminSubscriptionsPage() {
           onClick={() => void load("refresh")}
           disabled={loading || refreshing}
           style={{
-            ...styles.actionButton,
-            ...(loading || refreshing ? styles.actionButtonDisabled : {}),
+            ...styles.secondaryButton,
+            ...(loading || refreshing ? styles.buttonDisabled : {}),
           }}
         >
           {refreshing ? "Refreshing..." : "Refresh"}
@@ -174,57 +283,53 @@ export default function AdminSubscriptionsPage() {
 
       <div style={styles.statsGrid}>
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Total subscriptions</div>
+          <div style={styles.statLabel}>Total shops tracked</div>
           <div style={styles.statValue}>{summary.total}</div>
         </div>
-
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Active</div>
+          <div style={styles.statLabel}>Active subscriptions</div>
           <div style={styles.statValue}>{summary.active}</div>
         </div>
-
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Free plans</div>
+          <div style={styles.statLabel}>Free plan</div>
           <div style={styles.statValue}>{summary.free}</div>
         </div>
-
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Paid plans</div>
           <div style={styles.statValue}>{summary.paid}</div>
         </div>
-
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Past due</div>
           <div style={styles.statValue}>{summary.pastDue}</div>
         </div>
       </div>
 
-      <div style={styles.filterCard}>
-        <label style={styles.filterLabel}>
-          Plan
+      <div style={styles.filterBar}>
+        <label style={styles.filterGroup}>
+          <span style={styles.filterLabel}>Plan</span>
           <select
             value={planFilter}
             onChange={(event) => setPlanFilter(event.target.value)}
             style={styles.select}
           >
-            {availablePlans.map((plan) => (
-              <option key={plan} value={plan}>
-                {plan}
+            {availablePlans.map((value) => (
+              <option key={value} value={value}>
+                {value}
               </option>
             ))}
           </select>
         </label>
 
-        <label style={styles.filterLabel}>
-          Status
+        <label style={styles.filterGroup}>
+          <span style={styles.filterLabel}>Status</span>
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
             style={styles.select}
           >
-            {availableStatuses.map((status) => (
-              <option key={status} value={status}>
-                {status}
+            {availableStatuses.map((value) => (
+              <option key={value} value={value}>
+                {value}
               </option>
             ))}
           </select>
@@ -240,57 +345,41 @@ export default function AdminSubscriptionsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div style={styles.stateCard}>
-          <div style={styles.emptyTitle}>No subscriptions found</div>
-          <p style={styles.emptyText}>
-            No subscriptions matched the current filters.
-          </p>
+          No subscriptions matched the current filters.
         </div>
       ) : (
-        <div style={styles.list}>
-          {filtered.map((subscription) => (
-            <article key={subscription.id} style={styles.card}>
-              <div style={styles.cardHeader}>
-                <div>
-                  <h2 style={styles.cardTitle}>{subscription.shopName}</h2>
-                  <div style={styles.metaRow}>
-                    <span>{subscription.ownerName}</span>
-                    <span>•</span>
-                    <span>{subscription.interval}</span>
-                  </div>
-                </div>
-
-                <div style={styles.statusPill}>{subscription.status}</div>
-              </div>
-
-              <div style={styles.detailGrid}>
-                <div>
-                  <div style={styles.detailLabel}>Plan</div>
-                  <div style={styles.detailValue}>{subscription.plan}</div>
-                </div>
-
-                <div>
-                  <div style={styles.detailLabel}>Current period end</div>
-                  <div style={styles.detailValue}>
-                    {formatDate(subscription.currentPeriodEnd)}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={styles.detailLabel}>Stripe customer</div>
-                  <div style={styles.detailValue}>
-                    {subscription.stripeCustomerId || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={styles.detailLabel}>Stripe subscription</div>
-                  <div style={styles.detailValue}>
-                    {subscription.stripeSubscriptionId || "—"}
-                  </div>
-                </div>
-              </div>
-            </article>
-          ))}
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Shop</th>
+                <th style={styles.th}>Owner</th>
+                <th style={styles.th}>Plan</th>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Interval</th>
+                <th style={styles.th}>Current period end</th>
+                <th style={styles.th}>Stripe refs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row) => (
+                <tr key={row.id}>
+                  <td style={styles.td}>{row.shopName}</td>
+                  <td style={styles.td}>{row.ownerName}</td>
+                  <td style={styles.td}>{row.plan}</td>
+                  <td style={styles.td}>{row.status}</td>
+                  <td style={styles.td}>{row.interval}</td>
+                  <td style={styles.td}>{formatDate(row.currentPeriodEnd)}</td>
+                  <td style={styles.td}>
+                    <div style={styles.refStack}>
+                      <span>{row.stripeCustomerId || "—"}</span>
+                      <span>{row.stripeSubscriptionId || "—"}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -325,7 +414,7 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(238,242,255,0.78)",
     lineHeight: 1.6,
   },
-  actionButton: {
+  secondaryButton: {
     border: "1px solid rgba(255,255,255,0.14)",
     background: "rgba(255,255,255,0.06)",
     color: "#eef2ff",
@@ -334,13 +423,13 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     cursor: "pointer",
   },
-  actionButtonDisabled: {
+  buttonDisabled: {
     opacity: 0.6,
     cursor: "not-allowed",
   },
   statsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: 16,
   },
   statCard: {
@@ -358,27 +447,29 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 28,
     fontWeight: 900,
   },
-  filterCard: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    borderRadius: 18,
-    padding: 16,
+  filterBar: {
+    display: "flex",
+    gap: 14,
+    flexWrap: "wrap",
+    alignItems: "end",
   },
-  filterLabel: {
+  filterGroup: {
     display: "grid",
     gap: 8,
-    fontSize: 13,
-    fontWeight: 800,
-    color: "rgba(238,242,255,0.78)",
+    minWidth: 180,
+  },
+  filterLabel: {
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    color: "rgba(238,242,255,0.72)",
   },
   select: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(15,23,42,0.9)",
-    color: "#eef2ff",
     borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
+    color: "#eef2ff",
     padding: "10px 12px",
   },
   stateCard: {
@@ -401,62 +492,37 @@ const styles: Record<string, CSSProperties> = {
   },
   emptyText: {
     margin: 0,
-    color: "rgba(238,242,255,0.76)",
+    color: "#ffd4d4",
   },
-  list: {
-    display: "grid",
-    gap: 16,
-  },
-  card: {
+  tableWrap: {
+    overflowX: "auto",
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.04)",
     borderRadius: 18,
-    padding: 20,
-    display: "grid",
-    gap: 18,
   },
-  cardHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    flexWrap: "wrap",
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    minWidth: 980,
   },
-  cardTitle: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 800,
-  },
-  metaRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    marginTop: 8,
-    color: "rgba(238,242,255,0.72)",
-    fontSize: 14,
-  },
-  statusPill: {
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    padding: "10px 14px",
-    background: "rgba(34,197,94,0.18)",
-    border: "1px solid rgba(74,222,128,0.3)",
-    fontWeight: 900,
-  },
-  detailGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 14,
-  },
-  detailLabel: {
+  th: {
+    textAlign: "left",
+    padding: "14px 16px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
     fontSize: 12,
     textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(238,242,255,0.6)",
-    marginBottom: 6,
+    letterSpacing: "0.06em",
+    color: "rgba(238,242,255,0.68)",
   },
-  detailValue: {
-    fontSize: 15,
-    fontWeight: 700,
-    overflowWrap: "anywhere",
+  td: {
+    padding: "14px 16px",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    verticalAlign: "top",
+  },
+  refStack: {
+    display: "grid",
+    gap: 4,
+    fontSize: 12,
+    color: "rgba(238,242,255,0.74)",
   },
 };

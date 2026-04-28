@@ -19,11 +19,11 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 LAST_BODY="$TMP_DIR/last-body.json"
 
 log() {
-  printf '\n%s\n' "$1"
+  printf '\n%s\n' "$1" >&2
 }
 
 pass() {
-  printf '✅ %s\n' "$1"
+  printf '✅ %s\n' "$1" >&2
 }
 
 fail() {
@@ -73,7 +73,12 @@ request() {
 
   if [[ "$status" != 2* ]]; then
     printf '\nRequest failed: %s %s\nHTTP %s\n' "$method" "$url" "$status" >&2
-    cat "$LAST_BODY" >&2 || true
+    printf 'Response body:\n' >&2
+    if [ -s "$LAST_BODY" ]; then
+      cat "$LAST_BODY" >&2 || true
+    else
+      printf '<empty body>' >&2
+    fi
     printf '\n' >&2
     exit 1
   fi
