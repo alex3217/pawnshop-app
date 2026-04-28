@@ -7,8 +7,14 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { API_BASE } from "../config";
-import { getAuthHeaders, getAuthToken } from "../services/auth";
+import { getAuthToken } from "../services/auth";
+import {
+  createSubscriptionCheckoutSession,
+  getOwnerShops,
+  getSellerPlans,
+  getShopEntitlements,
+  updateShopSubscription,
+} from "../services/ownerWorkspace";
 
 type SellerPlan = {
   code: "FREE" | "PRO" | "PREMIUM" | "ULTRA" | string;
@@ -68,13 +74,6 @@ type Shop = {
   name: string;
 };
 
-type CheckoutSessionResponse = {
-  url?: string;
-  sessionId?: string;
-  customerId?: string;
-  planCode?: string;
-  error?: string;
-};
 
 type ApiEnvelope<T> = {
   success?: boolean;
@@ -191,10 +190,6 @@ function buildFallbackEntitlements(shop: Shop | null, planCode = "FREE"): Entitl
 }
 
 
-function apiUrl(path: string) {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE}${normalized}`;
-}
 
 function formatMoney(cents: number) {
   return `$${(Number(cents || 0) / 100).toFixed(2)}`;
@@ -248,31 +243,7 @@ function isPaidPlanCode(planCode: string) {
   return PAID_PLAN_CODES.has(String(planCode || "").trim().toUpperCase());
 }
 
-async function safeJson<T = unknown>(response: Response): Promise<T | null> {
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
 
-function extractApiError(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-
-  const candidate = payload as Record<string, unknown>;
-
-  const direct =
-    candidate.error ||
-    candidate.message ||
-    (candidate.data &&
-    typeof candidate.data === "object" &&
-    !Array.isArray(candidate.data)
-      ? (candidate.data as Record<string, unknown>).error ||
-        (candidate.data as Record<string, unknown>).message
-      : "");
-
-  return typeof direct === "string" ? direct : "";
-}
 
 function requireAuthToken() {
   const token = getAuthToken();
@@ -499,19 +470,7 @@ export default function OwnerSubscriptionPage() {
       try {
         requireAuthToken();
 
-        const res = await fetch(apiUrl(`/shops/${shopId}/entitlements`), {
-          headers: getAuthHeaders(),
-          credentials: "include",
-          signal: opts?.signal,
-        });
-
-        const json = await safeJson(res);
-
-        if (!res.ok) {
-          throw new Error(
-            extractApiError(json) || `Failed to load entitlements (${res.status})`
-          );
-        }
+        const json = await getShopEntitlements(shopId, opts?.signal);
 
         const nextEntitlements = normalizeEntitlements(json);
 
@@ -558,35 +517,10 @@ export default function OwnerSubscriptionPage() {
       try {
         requireAuthToken();
 
-        const [plansRes, shopsRes] = await Promise.all([
-          fetch(apiUrl("/seller-plans"), {
-            headers: getAuthHeaders(),
-            credentials: "include",
-            signal: controller.signal,
-          }),
-          fetch(apiUrl("/shops/mine"), {
-            headers: getAuthHeaders(),
-            credentials: "include",
-            signal: controller.signal,
-          }),
-        ]);
-
         const [plansJson, shopsJson] = await Promise.all([
-          safeJson(plansRes),
-          safeJson(shopsRes),
+          getSellerPlans(controller.signal),
+          getOwnerShops(controller.signal),
         ]);
-
-        if (!plansRes.ok) {
-          throw new Error(
-            extractApiError(plansJson) || `Failed to load plans (${plansRes.status})`
-          );
-        }
-
-        if (!shopsRes.ok) {
-          throw new Error(
-            extractApiError(shopsJson) || `Failed to load owner shops (${shopsRes.status})`
-          );
-        }
 
         const nextPlans = sortPlans(normalizePlans(plansJson));
         const nextShops = normalizeShops(shopsJson);
@@ -708,56 +642,30 @@ export default function OwnerSubscriptionPage() {
           normalizedPlanCode
         );
 
-        const res = await fetch(apiUrl("/stripe/checkout/subscription"), {
-          method: "POST",
-          headers: getAuthHeaders(true),
-          credentials: "include",
-          body: JSON.stringify({
-            shopId: selectedShopId,
-            planCode: normalizedPlanCode,
-            successUrl,
-            cancelUrl,
-          }),
+        const checkoutSession = await createSubscriptionCheckoutSession({
+          shopId: selectedShopId,
+          planCode: normalizedPlanCode,
+          successUrl,
+          cancelUrl,
         });
 
-        const json = (await safeJson<CheckoutSessionResponse>(res)) || {};
-
-        if (!res.ok) {
-          throw new Error(
-            extractApiError(json) || `Failed to start checkout (${res.status})`
-          );
-        }
-
-        if (!json.url) {
+        if (!checkoutSession.url) {
           throw new Error("Stripe checkout session did not return a redirect URL.");
         }
 
         if (typeof window !== "undefined") {
-          window.location.assign(json.url);
+          window.location.assign(checkoutSession.url);
           return;
         }
 
         return;
       }
 
-      const res = await fetch(apiUrl(`/shops/${selectedShopId}/subscription`), {
-        method: "PATCH",
-        headers: getAuthHeaders(true),
-        credentials: "include",
-        body: JSON.stringify({
-          plan: normalizedPlanCode,
-          status: "ACTIVE",
-          cancelAtPeriodEnd: false,
-        }),
+      const json = await updateShopSubscription(selectedShopId, {
+        plan: normalizedPlanCode,
+        status: "ACTIVE",
+        cancelAtPeriodEnd: false,
       });
-
-      const json = await safeJson(res);
-
-      if (!res.ok) {
-        throw new Error(
-          extractApiError(json) || `Failed to switch plan (${res.status})`
-        );
-      }
 
       const nextEntitlements = normalizeEntitlements(json);
 

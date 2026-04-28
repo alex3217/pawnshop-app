@@ -8,7 +8,12 @@ import {
   type CSSProperties,
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getAuthHeaders, getAuthToken } from "../services/auth";
+import { getAuthToken } from "../services/auth";
+import {
+  getOwnerItems,
+  getOwnerShops,
+  getShopEntitlements,
+} from "../services/ownerWorkspace";
 
 type Shop = {
   id: string;
@@ -71,10 +76,6 @@ type ApiEnvelope<T> = {
   entitlements?: T;
 };
 
-function apiUrl(path: string) {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `${''}${normalized}`;
-}
 
 function requireAuthToken() {
   const token = getAuthToken();
@@ -84,31 +85,7 @@ function requireAuthToken() {
   return token;
 }
 
-async function safeJson<T = unknown>(response: Response): Promise<T | null> {
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
 
-function extractApiError(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-
-  const candidate = payload as Record<string, unknown>;
-  const nested =
-    candidate.data && typeof candidate.data === "object"
-      ? (candidate.data as Record<string, unknown>)
-      : null;
-
-  return String(
-    candidate.error ||
-      candidate.message ||
-      nested?.error ||
-      nested?.message ||
-      ""
-  );
-}
 
 function unwrapData<T = unknown>(payload: unknown): T | null {
   if (payload == null) return null;
@@ -352,19 +329,7 @@ export default function OwnerDashboardPage() {
       try {
         requireAuthToken();
 
-        const res = await fetch(apiUrl(`/shops/${shopId}/entitlements`), {
-          headers: getAuthHeaders(),
-          credentials: "same-origin",
-          signal,
-        });
-
-        const json = await safeJson(res);
-
-        if (!res.ok) {
-          throw new Error(
-            extractApiError(json) || `Failed to load entitlements (${res.status})`
-          );
-        }
+        const json = await getShopEntitlements(shopId, signal);
 
         const nextEntitlements = normalizeEntitlements(json);
 
@@ -402,35 +367,10 @@ export default function OwnerDashboardPage() {
       try {
         requireAuthToken();
 
-        const [shopsRes, itemsRes] = await Promise.all([
-          fetch(apiUrl("/shops/mine"), {
-            headers: getAuthHeaders(),
-            credentials: "same-origin",
-            signal,
-          }),
-          fetch(apiUrl("/items/mine"), {
-            headers: getAuthHeaders(),
-            credentials: "same-origin",
-            signal,
-          }),
-        ]);
-
         const [shopsJson, itemsJson] = await Promise.all([
-          safeJson(shopsRes),
-          safeJson(itemsRes),
+          getOwnerShops(signal),
+          getOwnerItems(signal),
         ]);
-
-        if (!shopsRes.ok) {
-          throw new Error(
-            extractApiError(shopsJson) || `Failed to load shops (${shopsRes.status})`
-          );
-        }
-
-        if (!itemsRes.ok) {
-          throw new Error(
-            extractApiError(itemsJson) || `Failed to load items (${itemsRes.status})`
-          );
-        }
 
         const nextShops = normalizeShops(shopsJson);
         const nextItems = normalizeItems(itemsJson);
