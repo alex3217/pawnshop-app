@@ -1,7 +1,6 @@
 // File: apps/web/src/services/staff.ts
 
-import { API_BASE } from "../config";
-import { getAuthHeaders } from "./auth";
+import { api } from "./apiClient";
 
 export type StaffRole =
   | "OWNER"
@@ -19,16 +18,35 @@ export type StaffStatus =
   | "ARCHIVED"
   | string;
 
+export type StaffPermission =
+  | "inventory:read"
+  | "inventory:write"
+  | "auctions:read"
+  | "auctions:write"
+  | "offers:read"
+  | "offers:write"
+  | "locations:read"
+  | "locations:write"
+  | "staff:read"
+  | "staff:write"
+  | string;
+
 export type StaffMember = {
   id: string;
   shopId?: string | null;
   userId?: string | null;
   name?: string | null;
+  fullName?: string | null;
   email: string;
+  userEmail?: string | null;
   phone?: string | null;
   role: StaffRole;
+  staffRole?: StaffRole | null;
   status?: StaffStatus;
-  permissions?: string[] | null;
+  locationName?: string | null;
+  shopName?: string | null;
+  pawnShopName?: string | null;
+  permissions?: StaffPermission[] | null;
   invitedAt?: string | null;
   acceptedAt?: string | null;
   createdAt?: string;
@@ -39,7 +57,7 @@ export type StaffMember = {
 
 export type StaffListResponse = {
   staff: StaffMember[];
-  total?: number;
+  total: number;
   page?: number;
   pageSize?: number;
 };
@@ -59,7 +77,7 @@ export type CreateStaffInput = {
   name?: string;
   phone?: string;
   role: StaffRole;
-  permissions?: string[];
+  permissions?: StaffPermission[];
 };
 
 export type UpdateStaffInput = Partial<
@@ -81,14 +99,9 @@ function getNestedObject(value: unknown, key: string): ApiObject | null {
   return isObject(nested) ? nested : null;
 }
 
-function getString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value : undefined;
-}
-
-function joinUrl(base: string, path: string) {
-  const normalizedBase = base.replace(/\/+$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
+function cleanQueryValue(value: unknown) {
+  if (value === undefined || value === null || value === "") return null;
+  return String(value);
 }
 
 function buildQuery(query?: StaffQuery) {
@@ -97,36 +110,22 @@ function buildQuery(query?: StaffQuery) {
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== null && value !== "") {
-      params.set(key, String(value));
-    }
+    const clean = cleanQueryValue(value);
+    if (clean !== null) params.set(key, clean);
   }
 
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }
 
-async function parseResponse<T>(res: Response): Promise<T> {
-  const text = await res.text();
-  let data: unknown = {};
+function normalizeRole(value: unknown, fallback: StaffRole = "STAFF") {
+  const role = String(value || fallback).trim().toUpperCase();
+  return role || fallback;
+}
 
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = {};
-  }
-
-  if (!res.ok) {
-    const message =
-      getString(isObject(data) ? data.message : undefined) ||
-      getString(isObject(data) ? data.error : undefined) ||
-      getString(isObject(data) ? data.details : undefined) ||
-      `Request failed with status ${res.status}`;
-
-    throw new Error(message);
-  }
-
-  return data as T;
+function normalizeStatus(value: unknown, fallback: StaffStatus = "ACTIVE") {
+  const status = String(value || fallback).trim().toUpperCase();
+  return status || fallback;
 }
 
 function unwrapStaffMember(data: unknown): StaffMember {
@@ -138,8 +137,10 @@ function unwrapStaffMember(data: unknown): StaffMember {
 
   const staffMember =
     data.staffMember ??
+    data.member ??
     data.staff ??
     nestedData?.staffMember ??
+    nestedData?.member ??
     nestedData?.staff ??
     nestedData ??
     data;
@@ -171,12 +172,24 @@ function unwrapStaffList(data: unknown): StaffListResponse {
   const staff =
     (Array.isArray(data.staff) ? data.staff : undefined) ??
     (Array.isArray(data.staffMembers) ? data.staffMembers : undefined) ??
+    (Array.isArray(data.members) ? data.members : undefined) ??
+    (Array.isArray(data.items) ? data.items : undefined) ??
+    (Array.isArray(data.rows) ? data.rows : undefined) ??
     (Array.isArray(data.data) ? data.data : undefined) ??
     (nestedData && Array.isArray(nestedData.staff)
       ? nestedData.staff
       : undefined) ??
     (nestedData && Array.isArray(nestedData.staffMembers)
       ? nestedData.staffMembers
+      : undefined) ??
+    (nestedData && Array.isArray(nestedData.members)
+      ? nestedData.members
+      : undefined) ??
+    (nestedData && Array.isArray(nestedData.items)
+      ? nestedData.items
+      : undefined) ??
+    (nestedData && Array.isArray(nestedData.rows)
+      ? nestedData.rows
       : undefined) ??
     [];
 
@@ -203,91 +216,129 @@ function unwrapStaffList(data: unknown): StaffListResponse {
   };
 }
 
-export async function getStaff(query?: StaffQuery): Promise<StaffListResponse> {
-  const res = await fetch(joinUrl(API_BASE, `/staff${buildQuery(query)}`), {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
+function normalizeCreateStaffInput(input: CreateStaffInput): CreateStaffInput {
+  const email = String(input.email || "").trim().toLowerCase();
+  const shopId = String(input.shopId || "").trim();
 
-  return unwrapStaffList(await parseResponse(res));
+  if (!shopId) throw new Error("Missing shop id.");
+  if (!email) throw new Error("Missing staff email.");
+
+  return {
+    shopId,
+    email,
+    name: input.name?.trim() || undefined,
+    phone: input.phone?.trim() || undefined,
+    role: normalizeRole(input.role),
+    permissions: Array.isArray(input.permissions)
+      ? input.permissions.filter(Boolean)
+      : undefined,
+  };
 }
 
-export async function getMyStaff(query?: StaffQuery): Promise<StaffListResponse> {
-  const res = await fetch(joinUrl(API_BASE, `/staff/mine${buildQuery(query)}`), {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
+function normalizeUpdateStaffInput(input: UpdateStaffInput): UpdateStaffInput {
+  return {
+    ...input,
+    email: input.email?.trim().toLowerCase() || undefined,
+    name: input.name?.trim() || undefined,
+    phone: input.phone?.trim() || undefined,
+    role: input.role ? normalizeRole(input.role) : undefined,
+    status: input.status ? normalizeStatus(input.status) : undefined,
+    permissions: Array.isArray(input.permissions)
+      ? input.permissions.filter(Boolean)
+      : undefined,
+  };
+}
+
+export async function getStaff(
+  query?: StaffQuery,
+  signal?: AbortSignal,
+): Promise<StaffListResponse> {
+  const data = await api.get<unknown>(`/staff${buildQuery(query)}`, { signal });
+  return unwrapStaffList(data);
+}
+
+export async function getMyStaff(
+  query?: StaffQuery,
+  signal?: AbortSignal,
+): Promise<StaffListResponse> {
+  const data = await api.get<unknown>(`/staff/mine${buildQuery(query)}`, {
+    signal,
   });
 
-  return unwrapStaffList(await parseResponse(res));
+  return unwrapStaffList(data);
 }
 
 export async function getShopStaff(
   shopId: string,
   query?: Omit<StaffQuery, "shopId">,
+  signal?: AbortSignal,
 ): Promise<StaffListResponse> {
-  return getStaff({ ...query, shopId });
+  if (!shopId) throw new Error("Missing shop id.");
+  return getStaff({ ...query, shopId }, signal);
 }
 
-export async function getStaffMemberById(id: string): Promise<StaffMember> {
-  const res = await fetch(joinUrl(API_BASE, `/staff/${id}`), {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
+export async function getStaffMemberById(
+  id: string,
+  signal?: AbortSignal,
+): Promise<StaffMember> {
+  if (!id) throw new Error("Missing staff member id.");
+
+  const data = await api.get<unknown>(`/staff/${encodeURIComponent(id)}`, {
+    signal,
   });
 
-  return unwrapStaffMember(await parseResponse(res));
+  return unwrapStaffMember(data);
 }
 
 export async function createStaffMember(
   input: CreateStaffInput,
+  signal?: AbortSignal,
 ): Promise<StaffMember> {
-  const res = await fetch(joinUrl(API_BASE, "/staff"), {
-    method: "POST",
-    headers: getAuthHeaders(true),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
+  const data = await api.post<unknown>(
+    "/staff",
+    normalizeCreateStaffInput(input),
+    { signal },
+  );
 
-  return unwrapStaffMember(await parseResponse(res));
+  return unwrapStaffMember(data);
 }
 
 export async function inviteStaffMember(
   input: CreateStaffInput,
+  signal?: AbortSignal,
 ): Promise<StaffMember> {
-  const res = await fetch(joinUrl(API_BASE, "/staff/invite"), {
-    method: "POST",
-    headers: getAuthHeaders(true),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
+  const data = await api.post<unknown>(
+    "/staff/invite",
+    normalizeCreateStaffInput(input),
+    { signal },
+  );
 
-  return unwrapStaffMember(await parseResponse(res));
+  return unwrapStaffMember(data);
 }
 
 export async function updateStaffMember(
   id: string,
   input: UpdateStaffInput,
+  signal?: AbortSignal,
 ): Promise<StaffMember> {
-  const res = await fetch(joinUrl(API_BASE, `/staff/${id}`), {
-    method: "PATCH",
-    headers: getAuthHeaders(true),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
+  if (!id) throw new Error("Missing staff member id.");
 
-  return unwrapStaffMember(await parseResponse(res));
+  const data = await api.patch<unknown>(
+    `/staff/${encodeURIComponent(id)}`,
+    normalizeUpdateStaffInput(input),
+    { signal },
+  );
+
+  return unwrapStaffMember(data);
 }
 
-export async function removeStaffMember(id: string): Promise<void> {
-  const res = await fetch(joinUrl(API_BASE, `/staff/${id}`), {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
+export async function removeStaffMember(
+  id: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (!id) throw new Error("Missing staff member id.");
 
-  await parseResponse(res);
+  await api.delete<unknown>(`/staff/${encodeURIComponent(id)}`, { signal });
 }
 
 export async function activateStaffMember(id: string): Promise<StaffMember> {
@@ -304,7 +355,7 @@ export async function archiveStaffMember(id: string): Promise<StaffMember> {
 
 export async function updateStaffPermissions(
   id: string,
-  permissions: string[],
+  permissions: StaffPermission[],
 ): Promise<StaffMember> {
   return updateStaffMember(id, { permissions });
 }
