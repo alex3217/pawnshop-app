@@ -20,6 +20,23 @@ if [ -z "$DATABASE_URL" ]; then
   exit 1
 fi
 
+PG_DUMP_URL="$(
+  RAW_DATABASE_URL="$DATABASE_URL" node - <<'NODE'
+const raw = process.env.RAW_DATABASE_URL || "";
+const url = new URL(raw);
+url.searchParams.delete("schema");
+process.stdout.write(url.toString());
+NODE
+)"
+
+PG_SCHEMA="$(
+  RAW_DATABASE_URL="$DATABASE_URL" node - <<'NODE'
+const raw = process.env.RAW_DATABASE_URL || "";
+const url = new URL(raw);
+process.stdout.write(url.searchParams.get("schema") || "");
+NODE
+)"
+
 STAMP="$(date +%Y%m%d-%H%M%S)"
 SAFE_ENV_NAME="$(basename "$ENV_FILE" | tr -cd '[:alnum:]_.-')"
 OUT_FILE="$BACKUP_DIR/${SAFE_ENV_NAME}.${STAMP}.dump"
@@ -27,10 +44,18 @@ OUT_FILE="$BACKUP_DIR/${SAFE_ENV_NAME}.${STAMP}.dump"
 echo "Creating database backup from: $ENV_FILE"
 echo "Output: $OUT_FILE"
 
-pg_dump "$DATABASE_URL" \
-  --format=custom \
-  --no-owner \
-  --no-privileges \
+PG_DUMP_ARGS=(
+  "$PG_DUMP_URL"
+  --format=custom
+  --no-owner
+  --no-privileges
   --file="$OUT_FILE"
+)
+
+if [ -n "$PG_SCHEMA" ]; then
+  PG_DUMP_ARGS+=(--schema="$PG_SCHEMA")
+fi
+
+pg_dump "${PG_DUMP_ARGS[@]}"
 
 echo "✅ Database backup created: $OUT_FILE"
