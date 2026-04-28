@@ -1,27 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { API_BASE } from "../config";
 import { addSavedSearch } from "../services/savedSearches";
-import type { Item } from "../services/items";
+import { getMarketplaceItemsPaged, type Item } from "../services/items";
 import {
   ITEM_CATEGORY_OPTIONS,
   ITEM_CONDITION_OPTIONS,
 } from "../constants/itemOptions";
-
-type ItemsApiResponse =
-  | Item[]
-  | {
-      page?: number;
-      limit?: number;
-      total?: number;
-      rows?: Item[];
-      items?: Item[];
-      data?: Item[] | { rows?: Item[]; items?: Item[] };
-      error?: string;
-      message?: string;
-    };
-
 
 function normalizeLabel(value: string | null | undefined, fallback: string) {
   const normalized = String(value || "").trim();
@@ -31,71 +16,6 @@ function normalizeLabel(value: string | null | undefined, fallback: string) {
 function toPriceNumber(value: string | number | null | undefined) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function extractApiError(payload: unknown) {
-  if (!payload || typeof payload !== "object") return "";
-  const maybe = payload as { error?: unknown; message?: unknown };
-  return String(maybe.error || maybe.message || "").trim();
-}
-
-async function safeJson<T = unknown>(response: Response): Promise<T | null> {
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeItems(payload: ItemsApiResponse | null): Item[] {
-  if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== "object") return [];
-
-  if (Array.isArray(payload.rows)) return payload.rows;
-  if (Array.isArray(payload.items)) return payload.items;
-  if (Array.isArray(payload.data)) return payload.data;
-
-  if (payload.data && typeof payload.data === "object") {
-    if (Array.isArray(payload.data.rows)) return payload.data.rows;
-    if (Array.isArray(payload.data.items)) return payload.data.items;
-  }
-
-  return [];
-}
-
-function getTotalFromPayload(payload: ItemsApiResponse | null, fallback: number) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return fallback;
-  }
-
-  return typeof payload.total === "number" ? payload.total : fallback;
-}
-
-function buildMarketplaceUrl(filters: {
-  query: string;
-  category: string;
-  condition: string;
-  shopId: string;
-  minPrice: string;
-  maxPrice: string;
-  sort: string;
-}) {
-  const params = new URLSearchParams();
-
-  const q = filters.query.trim();
-  const min = filters.minPrice.trim();
-  const max = filters.maxPrice.trim();
-
-  if (q) params.set("q", q);
-  if (filters.category !== "ALL") params.set("category", filters.category);
-  if (filters.condition !== "ALL") params.set("condition", filters.condition);
-  if (filters.shopId !== "ALL") params.set("shopId", filters.shopId);
-  if (min) params.set("minPrice", min);
-  if (max) params.set("maxPrice", max);
-  if (filters.sort !== "newest") params.set("sort", filters.sort);
-
-  const queryString = params.toString();
-  return `${API_BASE}/items${queryString ? `?${queryString}` : ""}`;
 }
 
 export default function MarketplacePage() {
@@ -131,37 +51,22 @@ export default function MarketplacePage() {
       setLoading(true);
       setError(null);
 
-      try {
-        const url = buildMarketplaceUrl({
-          query: appliedQuery,
-          category: categoryFilter,
-          condition: conditionFilter,
-          shopId: shopFilter,
-          minPrice,
-          maxPrice,
-          sort,
-        });
+        try {
+          const result = await getMarketplaceItemsPaged({
+            query: appliedQuery,
+            category: categoryFilter,
+            condition: conditionFilter,
+            shopId: shopFilter,
+            minPrice,
+            maxPrice,
+            sort,
+          });
 
-        const res = await fetch(url, {
-          method: "GET",
-          credentials: "include",
-        });
-
-        const json = await safeJson<ItemsApiResponse>(res);
-
-        if (!res.ok) {
-          throw new Error(
-            extractApiError(json) || `Failed to load marketplace (${res.status})`,
-          );
-        }
-
-        const nextItems = normalizeItems(json);
-
-        if (!cancelled) {
-          setItems(nextItems);
-          setTotalItems(getTotalFromPayload(json, nextItems.length));
-        }
-      } catch (err) {
+          if (!cancelled) {
+            setItems(result.items);
+            setTotalItems(result.total);
+          }
+        } catch (err) {
         if (!cancelled) {
           setItems([]);
           setTotalItems(0);

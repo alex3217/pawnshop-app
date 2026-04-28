@@ -1,68 +1,15 @@
 // File: apps/web/src/pages/MyBidsPage.tsx
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { API_BASE } from "../config";
-import { getAuthHeaders, getAuthToken } from "../services/auth";
-
-type BidRow = {
-  id: string;
-  auctionId: string;
-  userId: string;
-  amount: string;
-  createdAt: string;
-  auction?: {
-    id: string;
-    status: string;
-    currentPrice: string;
-    minIncrement: string;
-    startsAt: string;
-    endsAt: string;
-    extendedEndsAt?: string | null;
-    item?: {
-      id?: string;
-      title?: string | null;
-    } | null;
-    shop?: {
-      id?: string;
-      name?: string | null;
-    } | null;
-  } | null;
-};
-
-type MyBidsResponse =
-  | {
-      success?: boolean;
-      rows?: BidRow[];
-      error?: string;
-      message?: string;
-    }
-  | BidRow[];
-
-function extractApiError(payload: unknown) {
-  if (!payload || typeof payload !== "object") return "";
-  const maybe = payload as { error?: unknown; message?: unknown };
-  return String(maybe.error || maybe.message || "");
-}
-
-async function safeJson<T = unknown>(response: Response): Promise<T | null> {
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeRows(payload: MyBidsResponse | null): BidRow[] {
-  if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== "object") return [];
-  if (Array.isArray(payload.rows)) return payload.rows;
-  return [];
-}
+import { getAuthToken } from "../services/auth";
+import { getMyBids, type BidRow } from "../services/bids";
 
 function formatMoney(value: string | number | null | undefined) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "—";
+
   return amount.toLocaleString(undefined, {
     style: "currency",
     currency: "USD",
@@ -72,8 +19,10 @@ function formatMoney(value: string | number | null | undefined) {
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "—";
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
+
   return date.toLocaleString();
 }
 
@@ -82,7 +31,7 @@ function getAuctionEndLabel(row: BidRow) {
   return formatDateTime(raw);
 }
 
-function getStatusTone(status: string): React.CSSProperties {
+function getStatusTone(status: string): CSSProperties {
   const normalized = String(status || "").toUpperCase();
 
   if (normalized === "LIVE") {
@@ -125,7 +74,7 @@ export default function MyBidsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (isRefresh = false) => {
+    async (isRefresh = false, signal?: AbortSignal) => {
       if (!token) {
         setRows([]);
         setError("You must be logged in to view your bids.");
@@ -140,20 +89,11 @@ export default function MyBidsPage() {
       setError(null);
 
       try {
-        const res = await fetch(`${API_BASE}/bids/mine`, {
-          headers: getAuthHeaders(),
-        });
-
-        const json = await safeJson<MyBidsResponse>(res);
-
-        if (!res.ok) {
-          throw new Error(
-            extractApiError(json) || `Failed to load bids (${res.status})`
-          );
-        }
-
-        setRows(normalizeRows(json));
+        const data = await getMyBids(signal);
+        setRows(data);
       } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+
         setRows([]);
         setError(err instanceof Error ? err.message : "Failed to load bids");
       } finally {
@@ -161,20 +101,22 @@ export default function MyBidsPage() {
         else setLoading(false);
       }
     },
-    [token]
+    [token],
   );
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(false, controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   const summary = useMemo(() => {
     const liveCount = rows.filter(
-      (row) => String(row.auction?.status || "").toUpperCase() === "LIVE"
+      (row) => String(row.auction?.status || "").toUpperCase() === "LIVE",
     ).length;
 
     const endedCount = rows.filter(
-      (row) => String(row.auction?.status || "").toUpperCase() === "ENDED"
+      (row) => String(row.auction?.status || "").toUpperCase() === "ENDED",
     ).length;
 
     return {
@@ -191,14 +133,15 @@ export default function MyBidsPage() {
           <div>
             <div className="section-title">My Bids</div>
             <div className="section-subtitle">
-              Review your bid history, current auction status, and latest auction prices.
+              Review your bid history, current auction status, and latest
+              auction prices.
             </div>
           </div>
 
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => load(true)}
+            onClick={() => void load(true)}
             disabled={loading || refreshing}
           >
             {refreshing ? "Refreshing..." : "Refresh"}
@@ -207,7 +150,8 @@ export default function MyBidsPage() {
 
         {!loading && !error ? (
           <div className="muted" style={{ marginBottom: 12 }}>
-            Total bids: {summary.total} · Live auctions: {summary.liveCount} · Ended auctions: {summary.endedCount}
+            Total bids: {summary.total} · Live auctions: {summary.liveCount} ·
+            Ended auctions: {summary.endedCount}
           </div>
         ) : null}
 
@@ -232,8 +176,18 @@ export default function MyBidsPage() {
             const statusTone = getStatusTone(status);
 
             return (
-              <div key={row.id} className="list-card" style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div
+                key={row.id}
+                className="list-card"
+                style={{ display: "grid", gap: 10 }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                  }}
+                >
                   <strong>{row.auction?.item?.title ?? "Auction Item"}</strong>
                   <span
                     style={{
@@ -275,11 +229,15 @@ export default function MyBidsPage() {
                   {row.auction?.extendedEndsAt ? " (extended)" : ""}
                 </div>
 
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
-                  <Link
-                    to={`/auctions/${row.auctionId}`}
-                    className="btn btn-primary"
-                  >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    marginTop: 4,
+                  }}
+                >
+                  <Link to={`/auctions/${row.auctionId}`} className="btn btn-primary">
                     Open Auction
                   </Link>
                 </div>

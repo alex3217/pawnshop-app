@@ -121,3 +121,83 @@ export async function createItem(
 
   return unwrapItem(data);
 }
+
+export type MarketplaceItemFilters = {
+  query?: string;
+  category?: string;
+  condition?: string;
+  shopId?: string;
+  minPrice?: string;
+  maxPrice?: string;
+  sort?: string;
+};
+
+export type MarketplaceItemsResult = {
+  items: Item[];
+  total: number;
+};
+
+function buildMarketplaceItemsQuery(filters: MarketplaceItemFilters = {}) {
+  const params = new URLSearchParams();
+
+  const query = String(filters.query || "").trim();
+  const minPrice = String(filters.minPrice || "").trim();
+  const maxPrice = String(filters.maxPrice || "").trim();
+
+  if (query) params.set("q", query);
+  if (filters.category && filters.category !== "ALL") {
+    params.set("category", filters.category);
+  }
+  if (filters.condition && filters.condition !== "ALL") {
+    params.set("condition", filters.condition);
+  }
+  if (filters.shopId && filters.shopId !== "ALL") {
+    params.set("shopId", filters.shopId);
+  }
+  if (minPrice) params.set("minPrice", minPrice);
+  if (maxPrice) params.set("maxPrice", maxPrice);
+  if (filters.sort && filters.sort !== "newest") {
+    params.set("sort", filters.sort);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
+function getTotalFromMarketplacePayload(payload: unknown, fallback: number) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return fallback;
+  }
+
+  const record = payload as Record<string, unknown>;
+
+  if (typeof record.total === "number") return record.total;
+
+  if (
+    record.data &&
+    typeof record.data === "object" &&
+    typeof (record.data as Record<string, unknown>).total === "number"
+  ) {
+    return (record.data as { total: number }).total;
+  }
+
+  return fallback;
+}
+
+export async function getMarketplaceItemsPaged(
+  filters: MarketplaceItemFilters = {},
+  signal?: AbortSignal,
+): Promise<MarketplaceItemsResult> {
+  const data = await api.get<unknown>(
+    `/items${buildMarketplaceItemsQuery(filters)}`,
+    { auth: false, signal },
+  );
+
+  const items = normalizeItems(data);
+
+  return {
+    items,
+    total: getTotalFromMarketplacePayload(data, items.length),
+  };
+}
+
