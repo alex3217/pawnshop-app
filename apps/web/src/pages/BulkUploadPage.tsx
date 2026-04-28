@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { getMyShops, type Shop } from "../services/shops";
-import { getAuthHeaders } from "../services/auth";
-import { API_BASE } from "../config";
+import { importInventoryCsv } from "../services/uploads";
 
 type ImportResult = {
   totalRows: number;
@@ -70,36 +69,9 @@ export default function BulkUploadPage() {
     setSubmitting(true);
 
     try {
-      const formData = new FormData();
-      formData.append("shopId", shopId);
-      formData.append("file", file);
+      const data = await importInventoryCsv(shopId, file);
 
-      const res = await fetch(`${API_BASE}/inventory-bulk/import`, {
-        method: "POST",
-        headers: {
-          ...getAuthHeaders(),
-        },
-        credentials: "same-origin",
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.error || `Failed to import inventory (${res.status})`);
-      }
-
-      setResult({
-        totalRows: data.totalRows,
-        successCount: data.successCount,
-        failedCount: data.failedCount,
-        errors: Array.isArray(data.errors)
-          ? data.errors.map((entry: { line: number; error: string }) => ({
-              line: entry.line,
-              error: entry.error,
-            }))
-          : [],
-      });
+      setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bulk upload failed.");
     } finally {

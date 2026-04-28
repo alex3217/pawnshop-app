@@ -201,3 +201,73 @@ export async function getMarketplaceItemsPaged(
   };
 }
 
+
+export type ScanItemInput = {
+  shopId: string;
+  code: string;
+};
+
+export type ScanPayload = {
+  item?: {
+    id?: string;
+    title?: string;
+    description?: string;
+    price?: string | number;
+    category?: string;
+    condition?: string;
+    pawnShopId?: string;
+  };
+  title?: string;
+  description?: string;
+  price?: string | number;
+  category?: string;
+  condition?: string;
+  pawnShopId?: string;
+  code?: string;
+  source?: string;
+};
+
+export type ScanResult = {
+  data?: ScanPayload;
+  sold?: unknown;
+  [key: string]: unknown;
+};
+
+export async function scanItem(
+  input: ScanItemInput,
+  tokenOverride?: string,
+  signal?: AbortSignal,
+): Promise<ScanResult> {
+  if (!input.shopId) throw new Error("Missing shop id.");
+  if (!input.code) throw new Error("Missing scan code.");
+
+  return api.post<ScanResult>(
+    "/items/scan",
+    input,
+    {
+      signal,
+      headers: tokenOverride
+        ? { Authorization: `Bearer ${tokenOverride}` }
+        : undefined,
+    },
+  );
+}
+
+export async function markItemSold(
+  itemId: string,
+  tokenOverride?: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  if (!itemId) throw new Error("Missing item id.");
+
+  return api.post<unknown>(
+    `/items/${encodeURIComponent(itemId)}/sell`,
+    undefined,
+    {
+      signal,
+      headers: tokenOverride
+        ? { Authorization: `Bearer ${tokenOverride}` }
+        : undefined,
+    },
+  );
+}

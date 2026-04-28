@@ -1,5 +1,4 @@
-import { API_BASE } from "../config";
-import { getAuthHeaders } from "./auth";
+import { api } from "./apiClient";
 
 export type UploadKind =
   | "ITEM_IMAGE"
@@ -40,43 +39,17 @@ export type UploadOptions = {
   fieldName?: string;
 };
 
+export type BulkInventoryImportResult = {
+  totalRows: number;
+  successCount: number;
+  failedCount: number;
+  errors?: Array<{ line: number; error: string }>;
+};
+
 type ApiObject = Record<string, unknown>;
 
 function isObject(value: unknown): value is ApiObject {
   return typeof value === "object" && value !== null;
-}
-
-function joinUrl(base: string, path: string) {
-  const normalizedBase = base.replace(/\/+$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
-}
-
-function getErrorMessage(data: unknown, fallback: string) {
-  if (!isObject(data)) return fallback;
-
-  if (typeof data.message === "string") return data.message;
-  if (typeof data.error === "string") return data.error;
-  if (typeof data.details === "string") return data.details;
-
-  return fallback;
-}
-
-async function parseResponse<T>(res: Response): Promise<T> {
-  const text = await res.text();
-  let data: unknown = {};
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = {};
-  }
-
-  if (!res.ok) {
-    throw new Error(getErrorMessage(data, `Request failed with status ${res.status}`));
-  }
-
-  return data as T;
 }
 
 function normalizeUploadedFile(data: unknown): UploadedFile {
@@ -99,7 +72,6 @@ function normalizeUploadedFile(data: unknown): UploadedFile {
 
 function normalizeUploadedFiles(data: unknown): UploadedFile[] {
   if (Array.isArray(data)) return data as UploadedFile[];
-
   if (!isObject(data)) return [];
 
   const nestedData = isObject(data.data) ? data.data : null;
@@ -130,27 +102,49 @@ function appendOptions(formData: FormData, options?: UploadOptions) {
   }
 }
 
+function normalizeBulkImportResult(data: unknown): BulkInventoryImportResult {
+  const payload =
+    isObject(data) && isObject(data.data)
+      ? data.data
+      : isObject(data)
+        ? data
+        : {};
+
+  const errors = Array.isArray(payload.errors)
+    ? payload.errors.map((entry) => {
+        const row = isObject(entry) ? entry : {};
+        return {
+          line: Number(row.line || 0),
+          error: String(row.error || row.message || "Import row failed."),
+        };
+      })
+    : [];
+
+  return {
+    totalRows: Number(payload.totalRows || 0),
+    successCount: Number(payload.successCount || 0),
+    failedCount: Number(payload.failedCount || errors.length || 0),
+    errors,
+  };
+}
+
 export async function uploadFile(
   file: File,
   options?: UploadOptions,
+  signal?: AbortSignal,
 ): Promise<UploadedFile> {
   const formData = new FormData();
   formData.append(options?.fieldName || "file", file);
   appendOptions(formData, options);
 
-  const res = await fetch(joinUrl(API_BASE, "/uploads"), {
-    method: "POST",
-    headers: getAuthHeaders(false),
-    credentials: "include",
-    body: formData,
-  });
-
-  return normalizeUploadedFile(await parseResponse(res));
+  const data = await api.upload<unknown>("/uploads", formData, { signal });
+  return normalizeUploadedFile(data);
 }
 
 export async function uploadFiles(
   files: File[],
   options?: UploadOptions,
+  signal?: AbortSignal,
 ): Promise<UploadedFile[]> {
   const formData = new FormData();
 
@@ -160,14 +154,27 @@ export async function uploadFiles(
 
   appendOptions(formData, options);
 
-  const res = await fetch(joinUrl(API_BASE, "/uploads/bulk"), {
-    method: "POST",
-    headers: getAuthHeaders(false),
-    credentials: "include",
-    body: formData,
+  const data = await api.upload<unknown>("/uploads/bulk", formData, { signal });
+  return normalizeUploadedFiles(data);
+}
+
+export async function importInventoryCsv(
+  shopId: string,
+  file: File,
+  signal?: AbortSignal,
+): Promise<BulkInventoryImportResult> {
+  if (!shopId) throw new Error("Select a shop first.");
+  if (!file) throw new Error("Choose a CSV file to upload.");
+
+  const formData = new FormData();
+  formData.append("shopId", shopId);
+  formData.append("file", file);
+
+  const data = await api.upload<unknown>("/inventory-bulk/import", formData, {
+    signal,
   });
 
-  return normalizeUploadedFiles(await parseResponse(res));
+  return normalizeBulkImportResult(data);
 }
 
 export async function uploadItemImage(

@@ -1,60 +1,13 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../config";
 import { getAuthToken } from "../services/auth";
-
-type ScanPayload = {
-  item?: {
-    id?: string;
-    title?: string;
-    description?: string;
-    price?: string | number;
-    category?: string;
-    condition?: string;
-    pawnShopId?: string;
-  };
-  title?: string;
-  description?: string;
-  price?: string | number;
-  category?: string;
-  condition?: string;
-  pawnShopId?: string;
-  code?: string;
-  source?: string;
-};
-
-type ScanResult = {
-  data?: ScanPayload;
-  sold?: unknown;
-  [key: string]: unknown;
-};
-
-async function apiFetch(
-  path: string,
-  opts: RequestInit & { token?: string } = {}
-) {
-  const headers = new Headers(opts.headers || {});
-  headers.set("Content-Type", "application/json");
-
-  if (opts.token) {
-    headers.set("Authorization", `Bearer ${opts.token}`);
-  }
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...opts,
-    headers,
-    credentials: "same-origin",
-  });
-  const text = await res.text();
-  const json = text ? JSON.parse(text) : null;
-
-  if (!res.ok) {
-    throw new Error(json?.error || json?.message || `Request failed (${res.status})`);
-  }
-
-  return json;
-}
+import {
+  markItemSold,
+  scanItem,
+  type ScanPayload,
+  type ScanResult,
+} from "../services/items";
 
 function toQueryValue(value: unknown) {
   if (value === undefined || value === null) return "";
@@ -77,12 +30,7 @@ export default function ScanConsolePage() {
     setResult(null);
 
     try {
-      const data = await apiFetch("/items/scan", {
-        method: "POST",
-        token,
-        body: JSON.stringify({ shopId, code }),
-      });
-
+      const data = await scanItem({ shopId, code }, token);
       setResult(data);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Scan failed";
@@ -96,10 +44,7 @@ export default function ScanConsolePage() {
     setErr("");
 
     try {
-      const data = await apiFetch(`/items/${item.id}/sell`, {
-        method: "POST",
-        token,
-      });
+      const data = await markItemSold(item.id, token);
 
       setResult((prev) => ({
         ...(prev || {}),
@@ -112,7 +57,7 @@ export default function ScanConsolePage() {
   }
 
   function openCreateItemWithPrefill() {
-    const payload = result?.data;
+    const payload = result?.data as ScanPayload | undefined;
     if (!payload) return;
 
     const sourceItem = payload.item ?? payload;
