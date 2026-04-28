@@ -10,6 +10,7 @@ import {
 import { Link } from "react-router-dom";
 import { getAuthHeaders, getAuthToken } from "../services/auth";
 import { stripePromise } from "../lib/stripe";
+import { getMySettlements as getMySettlementsService, createSettlementPaymentIntent as createSettlementPaymentIntentService } from "../services/settlements";
 
 type WinRecord = {
   settlementId: string;
@@ -150,39 +151,22 @@ function sortWinsNewestFirst(items: WinRecord[]) {
   });
 }
 
-async function fetchMyWins(signal?: AbortSignal): Promise<WinRecord[]> {
+async function fetchMyWins(_signal?: AbortSignal): Promise<WinRecord[]> {
   const token = getAuthToken();
   if (!token) {
     throw new Error("Missing buyer token. Please log in again.");
   }
 
-  const response = await fetch("/api/settlements/mine", {
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "include",
-    signal,
-  });
-
-  const payload: unknown = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const message =
-      extractMessage(payload) || `Request failed (${response.status})`;
-    throw new Error(message);
-  }
-
-  const rawList = extractWinRows(payload);
+  const settlements = await getMySettlementsService();
 
   return sortWinsNewestFirst(
-    rawList.map((row: ApiWinRecord, index: number) =>
-      normalizeWin(row, index),
+    settlements.map((row: unknown, index: number) =>
+      normalizeWin(row as ApiWinRecord, index),
     ),
   );
 }
 
-async function createSettlementPaymentIntent(settlementId: string) {
+export async function createSettlementPaymentIntentLegacy(settlementId: string) {
   const response = await fetch(
     `/api/stripe/payment-intents/settlements/${settlementId}`,
     {
@@ -257,7 +241,7 @@ export default function MyWinsPage() {
     setPayingSettlementId(settlementId);
 
     try {
-      const paymentIntent = await createSettlementPaymentIntent(settlementId);
+      const paymentIntent = await createSettlementPaymentIntentService(settlementId);
       const clientSecret = paymentIntent.clientSecret;
 
       if (!clientSecret) {
@@ -270,16 +254,7 @@ export default function MyWinsPage() {
         throw new Error("Stripe failed to load.");
       }
 
-      const result = await stripe.confirmCardPayment(
-        clientSecret,
-        {
-          payment_method: {
-            card: {
-              token: "tok_visa",
-            },
-          },
-        },
-      );
+      const result = await stripe.confirmCardPayment(clientSecret);
 
       if (result.error) {
         throw new Error(result.error.message || "Payment failed.");
