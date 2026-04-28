@@ -240,3 +240,111 @@ export async function createAuction(input: CreateAuctionInput): Promise<Auction>
 
   return auction;
 }
+
+
+export async function getOwnerAuctions(status?: string): Promise<AuctionsResponse> {
+  const params = new URLSearchParams();
+
+  if (status && status !== "ALL") {
+    params.set("status", status);
+  }
+
+  const query = params.toString();
+
+  const candidateUrls = [
+    `${API_BASE}/owner/auctions${query ? `?${query}` : ""}`,
+    `${API_BASE}/auctions/owner${query ? `?${query}` : ""}`,
+    `${API_BASE}/auctions/mine${query ? `?${query}` : ""}`,
+    `${API_BASE}/auctions/my${query ? `?${query}` : ""}`,
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const url of candidateUrls) {
+    const response = await fetch(url, {
+      headers: authHeaders(),
+      credentials: "include",
+    });
+
+    const json = await safeJson<unknown>(response);
+
+    if (!response.ok) {
+      lastError = new Error(
+        extractAuctionApiError(json, `Failed to load owner auctions (${response.status})`),
+      );
+
+      if (response.status === 404) {
+        continue;
+      }
+
+      throw lastError;
+    }
+
+    if (Array.isArray(json)) {
+      return { auctions: json as Auction[] };
+    }
+
+    if (isObject(json)) {
+      const data = isObject(json.data) ? json.data : json;
+
+      const auctions =
+        Array.isArray(data.auctions)
+          ? (data.auctions as Auction[])
+          : Array.isArray(data.items)
+            ? (data.items as Auction[])
+            : Array.isArray(data.rows)
+              ? (data.rows as Auction[])
+              : [];
+
+      const total = Number(data.total ?? data.count ?? auctions.length);
+      const page = Number(data.page ?? 1);
+      const limit = Number(data.limit ?? auctions.length);
+
+      return {
+        auctions,
+        total: Number.isFinite(total) ? total : auctions.length,
+        page: Number.isFinite(page) ? page : 1,
+        limit: Number.isFinite(limit) ? limit : auctions.length,
+      };
+    }
+
+    return { auctions: [] };
+  }
+
+  throw lastError ?? new Error("Failed to load owner auctions.");
+}
+
+export async function cancelAuction(auctionId: string): Promise<Auction | null> {
+  const candidateUrls = [
+    `${API_BASE}/owner/auctions/${encodeURIComponent(auctionId)}/cancel`,
+    `${API_BASE}/auctions/${encodeURIComponent(auctionId)}/cancel`,
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const url of candidateUrls) {
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: authHeaders(),
+      credentials: "include",
+    });
+
+    const json = await safeJson<unknown>(response);
+
+    if (!response.ok) {
+      lastError = new Error(
+        extractAuctionApiError(json, `Failed to cancel auction (${response.status})`),
+      );
+
+      if (response.status === 404) {
+        continue;
+      }
+
+      throw lastError;
+    }
+
+    return getAuctionPayload(json);
+  }
+
+  throw lastError ?? new Error("Failed to cancel auction.");
+}
