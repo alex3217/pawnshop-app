@@ -55,5 +55,5 @@ backend/
 frontend/
 diagnostics/
 infra/
-src/
 vite.config.js
+apps/mobile/
