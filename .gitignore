@@ -57,3 +57,9 @@ diagnostics/
 infra/
 vite.config.js
 apps/mobile/
+
+# Database backups
+backups/
+*.dump
+*.sql
+*.sql.gz

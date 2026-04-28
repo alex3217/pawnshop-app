@@ -14,6 +14,9 @@
     "pm2:prod": "pm2 startOrReload ecosystem.config.cjs --only pawn-prod-6001 --update-env",
     "check:deploy:dev": "bash scripts/check-deploy-health.sh http://127.0.0.1:6002",
     "check:deploy:staging": "bash scripts/check-deploy-health.sh http://127.0.0.1:6003",
-    "check:deploy:prod": "bash scripts/check-deploy-health.sh http://127.0.0.1:6001"
+    "check:deploy:prod": "bash scripts/check-deploy-health.sh http://127.0.0.1:6001",
+    "db:backup:dev": "bash scripts/backup-db.sh apps/api/backend/.env.development",
+    "db:backup:staging": "bash scripts/backup-db.sh apps/api/backend/.env.staging",
+    "db:backup:prod": "bash scripts/backup-db.sh apps/api/backend/.env.production"
   }
 }
