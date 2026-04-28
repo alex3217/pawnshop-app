@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "check:dev-wiring": "bash ../../scripts/check-dev-wiring.sh"
+    "check:dev-wiring": "bash ../../scripts/check-dev-wiring.sh",
+    "check:auth-files": "bash ../../scripts/check-frontend-auth-files.sh",
+    "check:dev-safe": "npm run check:dev-wiring && npm run check:auth-files"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
