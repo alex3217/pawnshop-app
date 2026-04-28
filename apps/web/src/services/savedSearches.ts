@@ -1,84 +1,91 @@
-import { API_BASE } from "../config";
-import { getAuthHeaders } from "./auth";
+import { api } from "./apiClient";
 
 export type SavedSearch = {
   id: string;
-  userId?: string;
+  userId?: string | null;
   query: string;
   createdAt?: string;
+  updatedAt?: string;
 };
 
-function joinUrl(base: string, path: string) {
-  const normalizedBase = base.replace(/\/+$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
+type ApiObject = Record<string, unknown>;
+
+function isObject(value: unknown): value is ApiObject {
+  return typeof value === "object" && value !== null;
 }
 
-async function parseJson(res: Response) {
-  const text = await res.text();
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    return {};
+function normalizeSavedSearches(data: unknown): SavedSearch[] {
+  if (Array.isArray(data)) return data as SavedSearch[];
+
+  if (isObject(data)) {
+    if (Array.isArray(data.rows)) return data.rows as SavedSearch[];
+    if (Array.isArray(data.items)) return data.items as SavedSearch[];
+    if (Array.isArray(data.searches)) return data.searches as SavedSearch[];
+    if (Array.isArray(data.savedSearches)) return data.savedSearches as SavedSearch[];
+    if (Array.isArray(data.data)) return data.data as SavedSearch[];
   }
+
+  return [];
 }
 
-function extractError(data: unknown, fallback: string) {
-  if (!data || typeof data !== "object") return fallback;
-  const record = data as Record<string, unknown>;
-  if (typeof record.error === "string" && record.error.trim()) return record.error;
-  if (typeof record.message === "string" && record.message.trim()) return record.message;
-  return fallback;
+function unwrapSavedSearch(data: unknown): SavedSearch {
+  if (!isObject(data)) throw new Error("Invalid saved search response");
+
+  const nested = isObject(data.data) ? data.data : null;
+
+  const savedSearch =
+    data.savedSearch ??
+    data.search ??
+    nested?.savedSearch ??
+    nested?.search ??
+    nested ??
+    data;
+
+  if (!isObject(savedSearch)) {
+    throw new Error("Invalid saved search response");
+  }
+
+  return savedSearch as SavedSearch;
+}
+
+function cleanQuery(query: string) {
+  const value = String(query || "").trim();
+  if (!value) throw new Error("Missing saved search query.");
+  return value;
 }
 
 export async function getMySavedSearches(): Promise<SavedSearch[]> {
-  const res = await fetch(joinUrl(API_BASE, "/saved-searches/mine"), {
-    headers: getAuthHeaders(),
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to load saved searches (${res.status})`));
-  }
-
-  return Array.isArray(data) ? data : [];
+  const data = await api.get<unknown>("/saved-searches/mine");
+  return normalizeSavedSearches(data);
 }
 
 export async function addSavedSearch(query: string): Promise<SavedSearch> {
-  const res = await fetch(joinUrl(API_BASE, "/saved-searches"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "same-origin",
-    body: JSON.stringify({ query }),
+  const data = await api.post<unknown>("/saved-searches", {
+    query: cleanQuery(query),
   });
 
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to save search (${res.status})`));
-  }
-
-  return data as SavedSearch;
+  return unwrapSavedSearch(data);
 }
 
-export async function removeSavedSearch(id: string): Promise<{ success: boolean; id: string }> {
-  const res = await fetch(joinUrl(API_BASE, `/saved-searches/${id}`), {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-    credentials: "same-origin",
-  });
+export async function removeSavedSearch(
+  id: string,
+): Promise<{ success: boolean; id: string }> {
+  const safeId = String(id || "").trim();
+  if (!safeId) throw new Error("Missing saved search id.");
 
-  const data = await parseJson(res);
+  const data = await api.delete<unknown>(
+    `/saved-searches/${encodeURIComponent(safeId)}`,
+  );
 
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to delete saved search (${res.status})`));
+  if (isObject(data) && typeof data.success === "boolean") {
+    return {
+      success: data.success,
+      id: typeof data.id === "string" ? data.id : safeId,
+    };
   }
 
-  return data as { success: boolean; id: string };
+  return {
+    success: true,
+    id: safeId,
+  };
 }
