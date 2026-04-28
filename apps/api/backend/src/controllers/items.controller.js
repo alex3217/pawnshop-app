@@ -1,6 +1,30 @@
 import { prisma } from "../lib/prisma.js";
 import { assertCanCreateListingForShop } from "../services/sellerPlan.service.js";
 
+const VALID_CATEGORIES = [
+  "Jewelry",
+  "Electronics",
+  "Musical Instruments",
+  "Tools",
+  "Collectibles",
+  "Watches",
+  "Designer Goods",
+  "Sports Equipment",
+  "Appliances",
+  "Vehicles",
+  "Other",
+];
+
+const VALID_CONDITIONS = [
+  "New",
+  "Like New",
+  "Excellent",
+  "Good",
+  "Fair",
+  "Poor",
+  "For Parts",
+];
+
 const ITEM_SAFE_FIELDS = [
   "id",
   "pawnShopId",
@@ -33,6 +57,12 @@ const PAWNSHOP_SAFE_FIELDS = [
 
 const tableColumnsCache = new Map();
 
+function createHttpError(statusCode, message) {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  return err;
+}
+
 async function getTableColumns(tableName) {
   if (tableColumnsCache.has(tableName)) {
     return tableColumnsCache.get(tableName);
@@ -47,7 +77,7 @@ async function getTableColumns(tableName) {
   `;
 
   const columns = new Set(
-    Array.isArray(rows) ? rows.map((row) => row.column_name) : []
+    Array.isArray(rows) ? rows.map((row) => row.column_name) : [],
   );
 
   tableColumnsCache.set(tableName, columns);
@@ -76,7 +106,10 @@ async function buildPawnShopSelect(extraFields = []) {
 }
 
 async function buildItemSelect({ includeShop = false, extraFields = [] } = {}) {
-  const select = await buildScalarSelect("Item", [...ITEM_SAFE_FIELDS, ...extraFields]);
+  const select = await buildScalarSelect("Item", [
+    ...ITEM_SAFE_FIELDS,
+    ...extraFields,
+  ]);
 
   if (includeShop) {
     select.shop = { select: await buildPawnShopSelect() };
@@ -166,6 +199,54 @@ function resolveStatus(body = {}) {
   return normalizeStringOrNull(body.status);
 }
 
+function validateCategory(category) {
+  if (category === undefined || category === null) return;
+  if (!VALID_CATEGORIES.includes(category)) {
+    throw createHttpError(400, `Invalid category. Allowed: ${VALID_CATEGORIES.join(", ")}`);
+  }
+}
+
+function validateCondition(condition) {
+  if (condition === undefined || condition === null) return;
+  if (!VALID_CONDITIONS.includes(condition)) {
+    throw createHttpError(400, `Invalid condition. Allowed: ${VALID_CONDITIONS.join(", ")}`);
+  }
+}
+
+
+function normalizeSort(value) {
+  const sort = normalizeString(value) || "newest";
+
+  const allowed = new Set([
+    "newest",
+    "oldest",
+    "price_asc",
+    "price_desc",
+    "title_asc",
+    "title_desc",
+  ]);
+
+  if (!allowed.has(sort)) {
+    throw createHttpError(
+      400,
+      "Invalid sort. Allowed: newest, oldest, price_asc, price_desc, title_asc, title_desc",
+    );
+  }
+
+  return sort;
+}
+
+function buildItemOrderBy(sort, itemColumns) {
+  if (sort === "price_asc" && itemColumns.has("price")) return { price: "asc" };
+  if (sort === "price_desc" && itemColumns.has("price")) return { price: "desc" };
+  if (sort === "title_asc" && itemColumns.has("title")) return { title: "asc" };
+  if (sort === "title_desc" && itemColumns.has("title")) return { title: "desc" };
+  if (sort === "oldest" && itemColumns.has("createdAt")) return { createdAt: "asc" };
+  if (itemColumns.has("createdAt")) return { createdAt: "desc" };
+
+  return { id: "desc" };
+}
+
 function handleControllerError(res, err, fallback = "Internal Server Error") {
   const statusCode = Number(err?.statusCode) || 500;
   const message = err?.message || fallback;
@@ -176,14 +257,23 @@ export async function listItems(req, res) {
   try {
     const {
       q,
-      category,
+      category: rawCategory,
+      condition: rawCondition,
       shopId,
       pawnShopId,
       minPrice,
       maxPrice,
+      sort: rawSort = "newest",
       page = "1",
       limit = "20",
     } = req.query;
+
+    const category = normalizeString(rawCategory);
+    const condition = normalizeString(rawCondition);
+    const sort = normalizeSort(rawSort);
+
+    validateCategory(category);
+    validateCondition(condition);
 
     const pageNum = toPositivePage(page, 1);
     const pageSize = Math.min(100, toPositivePage(limit, 20));
@@ -196,6 +286,7 @@ export async function listItems(req, res) {
     }
 
     const itemColumns = await getTableColumns("Item");
+    const orderBy = buildItemOrderBy(sort, itemColumns);
     const orFilters = [];
 
     if (q && itemColumns.has("title")) {
@@ -203,13 +294,16 @@ export async function listItems(req, res) {
     }
 
     if (q && itemColumns.has("description")) {
-      orFilters.push({ description: { contains: String(q), mode: "insensitive" } });
+      orFilters.push({
+        description: { contains: String(q), mode: "insensitive" },
+      });
     }
 
     const where = await buildItemWhere({
       ...(itemColumns.has("status") ? { status: "AVAILABLE" } : {}),
       ...(orFilters.length ? { OR: orFilters } : {}),
-      ...(category && itemColumns.has("category") ? { category: String(category) } : {}),
+      ...(category && itemColumns.has("category") ? { category } : {}),
+      ...(condition && itemColumns.has("condition") ? { condition } : {}),
       ...((shopId || pawnShopId) && itemColumns.has("pawnShopId")
         ? { pawnShopId: String(shopId || pawnShopId) }
         : {}),
@@ -229,7 +323,7 @@ export async function listItems(req, res) {
       prisma.item.count({ where }),
       prisma.item.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy,
         select,
         skip: (pageNum - 1) * pageSize,
         take: pageSize,
@@ -309,6 +403,9 @@ export async function createItem(req, res) {
     const price = resolvePrice(rawBody);
     const requestedStatus = resolveStatus(rawBody);
 
+    validateCategory(category);
+    validateCondition(condition);
+
     if (!pawnShopId || !title || price === undefined) {
       return res.status(400).json({
         error: "Missing fields",
@@ -327,8 +424,6 @@ export async function createItem(req, res) {
     const shop = await prisma.pawnShop.findUnique({
       where: { id: pawnShopId },
       select: {
-        id: true,
-        ownerId: true,
         ...(await buildPawnShopSelect(["isDeleted"])),
       },
     });
@@ -337,7 +432,11 @@ export async function createItem(req, res) {
       return res.status(404).json({ error: "Shop not found" });
     }
 
-    if (req.user.role !== "ADMIN" && shop.ownerId !== req.user.sub) {
+    if (
+      req.user.role !== "ADMIN" &&
+      req.user.role !== "SUPER_ADMIN" &&
+      shop.ownerId !== req.user.sub
+    ) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -391,7 +490,11 @@ export async function updateItem(req, res) {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    if (req.user.role !== "ADMIN" && item.shop?.ownerId !== req.user.sub) {
+    if (
+      req.user.role !== "ADMIN" &&
+      req.user.role !== "SUPER_ADMIN" &&
+      item.shop?.ownerId !== req.user.sub
+    ) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -404,6 +507,9 @@ export async function updateItem(req, res) {
     const status = resolveStatus(rawBody);
     const images = normalizeImages(rawBody.images);
     const price = resolvePrice(rawBody);
+
+    if (rawBody.category !== undefined) validateCategory(category);
+    if (rawBody.condition !== undefined) validateCondition(condition);
 
     if (images === null) {
       return res.status(400).json({ error: "Images must be an array of strings" });
@@ -480,7 +586,11 @@ export async function deleteItem(req, res) {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    if (req.user.role !== "ADMIN" && item.shop?.ownerId !== req.user.sub) {
+    if (
+      req.user.role !== "ADMIN" &&
+      req.user.role !== "SUPER_ADMIN" &&
+      item.shop?.ownerId !== req.user.sub
+    ) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -518,8 +628,6 @@ export async function scanItem(req, res) {
     const shop = await prisma.pawnShop.findUnique({
       where: { id: shopId },
       select: {
-        id: true,
-        ownerId: true,
         ...(await buildPawnShopSelect(["isDeleted"])),
       },
     });
@@ -528,7 +636,11 @@ export async function scanItem(req, res) {
       return res.status(404).json({ error: "Shop not found" });
     }
 
-    if (req.user.role !== "ADMIN" && shop.ownerId !== req.user.sub) {
+    if (
+      req.user.role !== "ADMIN" &&
+      req.user.role !== "SUPER_ADMIN" &&
+      shop.ownerId !== req.user.sub
+    ) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -605,7 +717,11 @@ export async function sellItem(req, res) {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    if (req.user.role !== "ADMIN" && item.shop?.ownerId !== req.user.sub) {
+    if (
+      req.user.role !== "ADMIN" &&
+      req.user.role !== "SUPER_ADMIN" &&
+      item.shop?.ownerId !== req.user.sub
+    ) {
       return res.status(403).json({ error: "Forbidden" });
     }
 

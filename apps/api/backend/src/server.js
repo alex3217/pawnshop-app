@@ -8,10 +8,17 @@ import { createServer } from "http";
 
 import { createApp } from "./app.js";
 import { initSocket } from "./realtime/socket.js";
+import {
+  startAuctionScheduler,
+  stopAuctionScheduler,
+} from "./services/auctionScheduler.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const backendRoot = path.resolve(__dirname, "..");
+
+let schedulerStarted = false;
+let isShuttingDown = false;
 
 function loadEnvFiles() {
   const appEnv = (process.env.APP_ENV || process.env.NODE_ENV || "development").trim();
@@ -22,8 +29,8 @@ function loadEnvFiles() {
         process.env.DOTENV_CONFIG_PATH,
         path.resolve(backendRoot, `.env.${appEnv}`),
         path.resolve(backendRoot, ".env"),
-      ].filter(Boolean)
-    )
+      ].filter(Boolean),
+    ),
   );
 
   for (const file of candidates) {
@@ -46,12 +53,33 @@ function resolvePort(...candidates) {
     console.warn(`[config] Ignoring invalid port value: ${candidate}`);
   }
 
-  return 6002;
+  return 6001;
+}
+
+function shouldStartSchedulers() {
+  if (process.env.AUCTION_SCHEDULER_ENABLED === "false") {
+    console.log("[scheduler] Auction scheduler disabled by env.");
+    return false;
+  }
+
+  return process.env.NODE_ENV === "production";
+}
+
+function startSchedulersOnce() {
+  if (schedulerStarted) return;
+
+  if (!shouldStartSchedulers()) {
+    console.log("[scheduler] Auction scheduler skipped outside production.");
+    return;
+  }
+
+  schedulerStarted = true;
+  startAuctionScheduler();
 }
 
 loadEnvFiles();
 
-const PORT = resolvePort(process.env.PORT, process.env.PAWN_PORT, 6002);
+const PORT = resolvePort(process.env.PORT, process.env.PAWN_PORT, 6001);
 const HOST = process.env.HOST || "0.0.0.0";
 
 const app = createApp();
@@ -68,10 +96,20 @@ try {
 
 server.listen(PORT, HOST, () => {
   console.log(`✅ API running: http://localhost:${PORT}`);
+  startSchedulersOnce();
 });
 
 function shutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
   console.log(`[server] Received ${signal}. Shutting down gracefully...`);
+
+  try {
+    stopAuctionScheduler();
+  } catch (err) {
+    console.error("[scheduler] Failed to stop auction scheduler:", err);
+  }
 
   server.close((err) => {
     if (err) {

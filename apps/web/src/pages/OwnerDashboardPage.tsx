@@ -8,7 +8,6 @@ import {
   type CSSProperties,
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { API_BASE } from "../config";
 import { getAuthHeaders, getAuthToken } from "../services/auth";
 
 type Shop = {
@@ -74,7 +73,7 @@ type ApiEnvelope<T> = {
 
 function apiUrl(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE}${normalized}`;
+  return `${''}${normalized}`;
 }
 
 function requireAuthToken() {

@@ -20,7 +20,15 @@ export default function LoginPage() {
     try {
       const { token, user } = await login(email, password);
       persistAuth(token, user.role, user);
-      nav("/auctions");
+      
+if (user.role === "OWNER") {
+  nav("/owner");
+} else if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
+  nav("/admin");
+} else {
+  nav("/auctions");
+}
+
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
       setError(message);
