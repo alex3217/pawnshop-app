@@ -127,6 +127,8 @@ function extractWinRows(payload: unknown): ApiWinRecord[] {
   return [];
 }
 
+void extractWinRows;
+
 function extractMessage(payload: unknown) {
   if (isObject(payload) && typeof payload.message === "string") {
     return payload.message;
@@ -136,6 +138,8 @@ function extractMessage(payload: unknown) {
   }
   return null;
 }
+
+void extractMessage;
 
 function sortWinsNewestFirst(items: WinRecord[]) {
   return [...items].sort((a, b) => {
