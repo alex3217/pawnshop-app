@@ -1,207 +1,104 @@
-import { API_BASE } from "../config";
-import { getAuthHeaders } from "./auth";
+import { api } from "./apiClient";
+
+export type OfferStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "COUNTERED"
+  | "CANCELED"
+  | string;
+
+export type OfferItem = {
+  id?: string | null;
+  title?: string | null;
+  shop?: {
+    id?: string | null;
+    name?: string | null;
+  } | null;
+};
 
 export type Offer = {
   id: string;
-  itemId: string;
-  buyerId: string;
-  ownerId: string;
-  amount: string | number;
-  counterAmount?: string | number | null;
+  itemId?: string | null;
+  buyerId?: string | null;
+  sellerId?: string | null;
+  ownerId?: string | null;
+  amount?: number | string | null;
+  counterAmount?: number | string | null;
   message?: string | null;
   counterMessage?: string | null;
-  status: string;
+  status: OfferStatus;
   createdAt?: string;
   updatedAt?: string;
-  respondedAt?: string | null;
-  item?: {
-    id: string;
-    title: string;
-    price: string | number;
-    shop?: {
-      id: string;
-      name: string;
-    };
-  };
+  item?: OfferItem | null;
+  buyer?: unknown;
+  seller?: unknown;
 };
 
-function joinUrl(base: string, path: string) {
-  const normalizedBase = base.replace(/\/+$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
-}
+export type CreateOfferInput = {
+  itemId: string;
+  amount: number | string;
+  message?: string;
+};
 
-async function parseJson(res: Response) {
-  const text = await res.text();
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    return {};
+export type CounterOfferInput = {
+  offerId: string;
+  counterAmount: number | string;
+  message?: string;
+  counterMessage?: string;
+};
+
+function normalizeOffers(data: unknown): Offer[] {
+  if (Array.isArray(data)) return data as Offer[];
+
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    if (Array.isArray(record.rows)) return record.rows as Offer[];
+    if (Array.isArray(record.items)) return record.items as Offer[];
+    if (Array.isArray(record.offers)) return record.offers as Offer[];
+    if (Array.isArray(record.data)) return record.data as Offer[];
   }
-}
 
-function extractError(data: unknown, fallback: string) {
-  if (!data || typeof data !== "object") return fallback;
-  const record = data as Record<string, unknown>;
-  if (typeof record.error === "string" && record.error.trim()) return record.error;
-  if (typeof record.message === "string" && record.message.trim()) return record.message;
-  return fallback;
+  return [];
 }
 
 export async function getMyOffers(): Promise<Offer[]> {
-  const res = await fetch(joinUrl(API_BASE, "/offers/mine"), {
-    headers: getAuthHeaders(),
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to load offers (${res.status})`));
-  }
-
-  return Array.isArray(data) ? data : [];
+  const data = await api.get<unknown>("/offers/mine");
+  return normalizeOffers(data);
 }
 
-export async function createOffer(input: {
-  itemId: string;
-  amount: number;
-  message?: string;
-}): Promise<Offer> {
-  const res = await fetch(joinUrl(API_BASE, "/offers"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "same-origin",
-    body: JSON.stringify(input),
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to create offer (${res.status})`));
-  }
-
-  return data as Offer;
+export async function createOffer(input: CreateOfferInput): Promise<Offer> {
+  return api.post<Offer>("/offers", input);
 }
 
 export async function getOwnerOffers(): Promise<Offer[]> {
-  const res = await fetch(joinUrl(API_BASE, "/offers/owner"), {
-    headers: getAuthHeaders(),
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to load owner offers (${res.status})`));
-  }
-
-  return Array.isArray(data) ? data : [];
+  const data = await api.get<unknown>("/offers/owner");
+  return normalizeOffers(data);
 }
 
 export async function acceptOffer(offerId: string): Promise<Offer> {
-  const res = await fetch(joinUrl(API_BASE, `/offers/${offerId}/accept`), {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to accept offer (${res.status})`));
-  }
-
-  return data as Offer;
+  return api.post<Offer>(`/offers/${encodeURIComponent(offerId)}/accept`);
 }
 
 export async function rejectOffer(offerId: string): Promise<Offer> {
-  const res = await fetch(joinUrl(API_BASE, `/offers/${offerId}/reject`), {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to reject offer (${res.status})`));
-  }
-
-  return data as Offer;
+  return api.post<Offer>(`/offers/${encodeURIComponent(offerId)}/reject`);
 }
 
-export async function counterOffer(input: {
-  offerId: string;
-  counterAmount: number;
-  counterMessage?: string;
-}): Promise<Offer> {
-  const res = await fetch(joinUrl(API_BASE, `/offers/${input.offerId}/counter`), {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "same-origin",
-    body: JSON.stringify({
+export async function counterOffer(input: CounterOfferInput): Promise<Offer> {
+  return api.post<Offer>(
+    `/offers/${encodeURIComponent(input.offerId)}/counter`,
+    {
       counterAmount: input.counterAmount,
-      counterMessage: input.counterMessage,
-    }),
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to counter offer (${res.status})`));
-  }
-
-  return data as Offer;
+      message: input.message ?? input.counterMessage,
+      counterMessage: input.counterMessage ?? input.message,
+    },
+  );
 }
 
 export async function acceptCounterOffer(offerId: string): Promise<Offer> {
-  const res = await fetch(joinUrl(API_BASE, `/offers/${offerId}/accept-counter`), {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to accept counteroffer (${res.status})`));
-  }
-
-  return data as Offer;
+  return api.post<Offer>(`/offers/${encodeURIComponent(offerId)}/accept-counter`);
 }
 
 export async function declineCounterOffer(offerId: string): Promise<Offer> {
-  const res = await fetch(joinUrl(API_BASE, `/offers/${offerId}/decline-counter`), {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to decline counteroffer (${res.status})`));
-  }
-
-  return data as Offer;
+  return api.post<Offer>(`/offers/${encodeURIComponent(offerId)}/decline-counter`);
 }
