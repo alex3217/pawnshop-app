@@ -76,6 +76,7 @@ PG_RESTORE_ARGS=(
   --if-exists
   --no-owner
   --no-privileges
+  --file=-
 )
 
 if [ -n "$PG_SCHEMA" ]; then
