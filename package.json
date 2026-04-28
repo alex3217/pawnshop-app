@@ -22,6 +22,7 @@
     "db:restore:staging": "bash scripts/restore-db.sh apps/api/backend/.env.staging",
     "db:restore:prod": "bash scripts/restore-db.sh apps/api/backend/.env.production",
     "check:staging-readiness": "bash scripts/check-staging-readiness.sh",
-    "check:prod-preflight": "bash scripts/check-prod-preflight.sh"
+    "check:prod-preflight": "bash scripts/check-prod-preflight.sh",
+    "check:prod-smoke": "bash scripts/check-prod-smoke.sh"
   }
 }
