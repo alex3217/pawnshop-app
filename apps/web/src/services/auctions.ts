@@ -4,15 +4,20 @@ export type AuctionStatus = "LIVE" | "ENDED" | "CANCELED" | string;
 
 export type Auction = {
   id: string;
-  itemId?: string;
-  shopId?: string;
+  itemId: string;
+  shopId: string;
   status: AuctionStatus;
-  startingPrice: number;
-  currentPrice: number;
-  minIncrement: number;
+  startingPrice: number | string;
+  currentPrice: number | string;
+  minIncrement: number | string;
+  reservePrice?: number | string | null;
+  buyItNowPrice?: number | string | null;
   startsAt?: string;
-  endsAt?: string;
-  extendedEndsAt?: string;
+  endsAt: string;
+  extendedEndsAt?: string | null;
+  version?: number;
+  createdAt?: string;
+  updatedAt?: string;
   item?: any;
   shop?: any;
 };
@@ -74,7 +79,7 @@ export async function createAuction(input: {
   startingPrice: number;
   minIncrement: number;
   startsAt?: string;
-  endsAt?: string;
+  endsAt: string;
 }) {
   return api.post<Auction>("/auctions", input);
 }

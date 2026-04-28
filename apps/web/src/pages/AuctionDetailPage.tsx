@@ -5,6 +5,9 @@ import { Link, useParams } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
 import { API_BASE, SOCKET_PATH, SOCKET_URL } from "../config";
 import { getAuthRole, getAuthToken } from "../services/auth";
+import { getAuction, placeBid as placeBidApi } from "../services/auctions";
+
+void API_BASE;
 
 type AuctionStatus = "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED" | string;
 
@@ -77,7 +80,7 @@ function getSuggestedBidValue(auction: Auction | null) {
   return (current + increment).toFixed(2);
 }
 
-async function safeJson<T = unknown>(response: Response): Promise<T | null> {
+export async function safeJson<T = unknown>(response: Response): Promise<T | null> {
   try {
     return (await response.json()) as T;
   } catch {
@@ -85,7 +88,7 @@ async function safeJson<T = unknown>(response: Response): Promise<T | null> {
   }
 }
 
-function extractApiError(payload: unknown) {
+export function extractApiError(payload: unknown) {
   if (!isObject(payload)) return "";
 
   const errorText = String(
@@ -101,7 +104,7 @@ function extractApiError(payload: unknown) {
   return errorText;
 }
 
-function getAuctionPayload(payload: unknown): Auction | null {
+export function getAuctionPayload(payload: unknown): Auction | null {
   if (!isObject(payload)) return null;
 
   if (typeof payload.id === "string") return payload as Auction;
@@ -309,27 +312,9 @@ export default function AuctionDetailPage() {
       setMsg(null);
 
       try {
-        const response = await fetch(`${API_BASE}/auctions/${id}`, {
-          signal: controller.signal,
-          credentials: "include",
-        });
-
-        const json = await safeJson(response);
-
-        if (!response.ok) {
-          throw new Error(
-            extractApiError(json) || `Failed to load auction (${response.status})`,
-          );
-        }
-
-        const nextAuction = getAuctionPayload(json);
-
-        if (!nextAuction) {
-          throw new Error("Invalid auction response from server.");
-        }
-
-        setAuction(nextAuction);
-        applySuggestedBidIfSafe(nextAuction);
+          const nextAuction = await getAuction(id);
+          setAuction(nextAuction);
+          applySuggestedBidIfSafe(nextAuction);
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") return;
 
@@ -453,36 +438,14 @@ export default function AuctionDetailPage() {
     setSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE}/auctions/${id}/bids`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: "include",
-        body: JSON.stringify({ amount }),
-      });
+        await placeBidApi(id, amount);
 
-      const json = await safeJson<Record<string, unknown>>(response);
+        const refreshed = await getAuction(id);
+        setAuction(refreshed);
+        applySuggestedBidIfSafe(refreshed);
 
-      if (!response.ok) {
-        throw new Error(
-          extractApiError(json) || `Bid failed (${response.status})`,
-        );
-      }
-
-      const nextAuction = getAuctionPayload(json);
-
-      if (nextAuction) {
-        setAuction(nextAuction);
-        applySuggestedBidIfSafe(nextAuction);
-      } else {
-        const realtimePayload = getRealtimePayload(json);
-        if (realtimePayload) mergeRealtimeAuction(realtimePayload);
-      }
-
-      userEditedBidRef.current = false;
-      setMsg("Bid placed!");
+        userEditedBidRef.current = false;
+        setMsg("Bid placed!");
     } catch (err: unknown) {
       setMsg(err instanceof Error ? err.message : "Bid failed.");
     } finally {
