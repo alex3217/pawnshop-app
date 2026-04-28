@@ -6,6 +6,7 @@
     "build:web": "npm --prefix apps/web run build",
     "dev:web": "npm --prefix apps/web run dev",
     "check:app-flow": "bash scripts/check-app-flow.sh",
-    "check:app-flow-full": "bash scripts/check-app-flow-full.sh"
+    "check:app-flow-full": "bash scripts/check-app-flow-full.sh",
+    "check:payment-webhook": "bash scripts/check-payment-webhook.sh"
   }
 }

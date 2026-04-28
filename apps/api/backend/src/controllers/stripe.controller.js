@@ -491,6 +491,9 @@ export async function handleStripeWebhook(req, res) {
             data: {
               status: "CHARGED",
               stripePaymentIntent: String(pi.id),
+              chargedAt: new Date(),
+              failedAt: null,
+              failureMessage: null,
             },
           });
         }
@@ -507,6 +510,11 @@ export async function handleStripeWebhook(req, res) {
             data: {
               status: "FAILED",
               stripePaymentIntent: String(pi.id),
+              failedAt: new Date(),
+              failureMessage:
+                pi?.last_payment_error?.message ||
+                pi?.last_payment_error?.decline_code ||
+                "Payment failed",
             },
           });
         }
