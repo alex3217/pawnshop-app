@@ -177,7 +177,7 @@ pass "Owner items endpoint"
 request GET "/staff/mine" "$OWNER_TOKEN"
 pass "Owner staff endpoint"
 
-request GET "/auctions/owner/mine" "$OWNER_TOKEN"
+request GET "/auctions/mine" "$OWNER_TOKEN"
 pass "Owner auctions endpoint"
 
 log "Checking admin flow visibility..."

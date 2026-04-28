@@ -512,6 +512,90 @@ export async function listAuctions(req, res) {
   }
 }
 
+
+export async function listMyAuctions(req, res) {
+  try {
+    const userId = getRequesterId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const {
+      page = "1",
+      limit = "50",
+      status,
+      shopId,
+      itemId,
+    } = req.query;
+
+    const pageNum = toPositivePage(page, 1);
+    const pageSize = Math.min(100, toPositivePage(limit, 50));
+    const now = new Date();
+
+    const auctionColumns = await getTableColumns("Auction");
+
+    if (status !== undefined) {
+      const normalizedStatus = normalizeAuctionStatusInput(status);
+      if (!normalizedStatus) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+    }
+
+    const ownerScope = isAdminRequest(req)
+      ? {}
+      : {
+          item: {
+            shop: {
+              ownerId: userId,
+            },
+          },
+        };
+
+    const baseWhere = {
+      ...(shopId && auctionColumns.has("shopId") ? { shopId: String(shopId) } : {}),
+      ...(itemId && auctionColumns.has("itemId") ? { itemId: String(itemId) } : {}),
+    };
+
+    const effectiveStatusWhere = buildEffectiveStatusWhere(
+      status,
+      now,
+      auctionColumns,
+    );
+
+    const where = mergeWhere(ownerScope, baseWhere, effectiveStatusWhere);
+
+    const select = await buildAuctionSelect({
+      includeItem: true,
+      includeShop: true,
+    });
+
+    const [total, rows] = await Promise.all([
+      prisma.auction.count({ where }),
+      prisma.auction.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select,
+        skip: (pageNum - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const staleExpiredIds = getStaleExpiredAuctionIds(rows, now);
+    await reconcileExpiredAuctions(staleExpiredIds, auctionColumns);
+
+    return res.json({
+      page: pageNum,
+      limit: pageSize,
+      total,
+      rows: rows.map((row) => normalizeAuctionForResponse(row, now)),
+    });
+  } catch (err) {
+    return handleControllerError(res, err, "Failed to list owner auctions");
+  }
+}
+
+
 export async function getAuction(req, res) {
   try {
     const id = String(req.params.id || "").trim();

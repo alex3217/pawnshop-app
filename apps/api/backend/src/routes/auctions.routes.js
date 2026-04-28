@@ -4,10 +4,12 @@ import { Router } from "express";
 import { authRequired, requireRole } from "../middleware/auth.js";
 import {
   listAuctions,
+  listMyAuctions,
   getAuction,
   createAuction,
   cancelAuction,
   endAuction,
+  setAutoBid,
 } from "../controllers/auctions.controller.js";
 import { placeBid } from "../controllers/bids.controller.js";
 
@@ -15,6 +17,10 @@ const router = Router();
 
 // Public
 router.get("/", listAuctions);
+
+// Owner/Admin
+router.get("/mine", authRequired, requireRole("OWNER", "ADMIN"), listMyAuctions);
+
 router.get("/:id", getAuction);
 
 // Consumer/Admin
