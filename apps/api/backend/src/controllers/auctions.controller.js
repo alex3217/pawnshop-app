@@ -426,15 +426,13 @@ async function upsertSettlementForEndedAuction(auctionId) {
       winnerUserId: topBid.userId,
       finalPrice,
       currency: "USD",
-      status: "CHARGED",
-      stripePaymentIntent: null,
     },
     create: {
       auctionId,
       winnerUserId: topBid.userId,
       finalPrice,
       currency: "USD",
-      status: "CHARGED",
+      status: "PENDING",
       stripePaymentIntent: null,
     },
     include: {

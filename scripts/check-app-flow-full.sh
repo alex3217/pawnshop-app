@@ -228,5 +228,26 @@ fi
 
 pass "Buyer sees settlement/win: $FOUND_SETTLEMENT"
 
+log "Creating settlement PaymentIntent..."
+request POST "/stripe/payment-intents/settlements/${FOUND_SETTLEMENT}" "$BUYER_TOKEN" '{}'
+
+PAYMENT_INTENT_ID="$(json_get "json.paymentIntentId || json.data?.paymentIntentId || ''")"
+CLIENT_SECRET="$(json_get "json.clientSecret || json.data?.clientSecret || ''")"
+
+if [ -z "$PAYMENT_INTENT_ID" ]; then
+  printf 'Settlement PaymentIntent response did not include paymentIntentId\n' >&2
+  cat "$LAST_BODY" >&2 || true
+  exit 1
+fi
+
+if [ -z "$CLIENT_SECRET" ]; then
+  printf 'Settlement PaymentIntent response did not include clientSecret\n' >&2
+  cat "$LAST_BODY" >&2 || true
+  exit 1
+fi
+
+pass "PaymentIntent created for settlement: $PAYMENT_INTENT_ID"
+
+
 log "Full app flow smoke test completed."
 pass "check:app-flow-full passed"
