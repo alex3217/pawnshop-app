@@ -17,6 +17,9 @@
     "check:deploy:prod": "bash scripts/check-deploy-health.sh http://127.0.0.1:6001",
     "db:backup:dev": "bash scripts/backup-db.sh apps/api/backend/.env.development",
     "db:backup:staging": "bash scripts/backup-db.sh apps/api/backend/.env.staging",
-    "db:backup:prod": "bash scripts/backup-db.sh apps/api/backend/.env.production"
+    "db:backup:prod": "bash scripts/backup-db.sh apps/api/backend/.env.production",
+    "db:restore:dev": "bash scripts/restore-db.sh apps/api/backend/.env.development",
+    "db:restore:staging": "bash scripts/restore-db.sh apps/api/backend/.env.staging",
+    "db:restore:prod": "bash scripts/restore-db.sh apps/api/backend/.env.production"
   }
 }
