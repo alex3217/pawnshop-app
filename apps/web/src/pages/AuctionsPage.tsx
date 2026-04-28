@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { API_BASE } from "../config";
+import { getAuctions } from "../services/auctions";
 
 type AuctionStatusFilter = "LIVE" | "ENDED" | "CANCELED" | "ALL";
 
@@ -87,19 +87,6 @@ function toDateTime(value: string | null | undefined): string {
 
 function isAuctionStatusFilter(value: string | null): value is AuctionStatusFilter {
   return value === "LIVE" || value === "ENDED" || value === "CANCELED" || value === "ALL";
-}
-
-function buildAuctionsUrl(status: AuctionStatusFilter): string {
-  const params = new URLSearchParams();
-
-  if (status !== "ALL") {
-    params.set("status", status);
-  }
-
-  params.set("limit", "50");
-
-  const query = params.toString();
-  return `${API_BASE}/auctions${query ? `?${query}` : ""}`;
 }
 
 function getStatusTone(status: string): string {
