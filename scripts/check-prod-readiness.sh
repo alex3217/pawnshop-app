@@ -55,6 +55,7 @@ DESTRUCTIVE_DB="$(
     apps/api/backend/src \
     apps/api/backend/prisma \
     scripts \
+    ':(exclude)scripts/check-prod-readiness.sh' \
     ':(exclude)**/node_modules/**' || true
 )"
 fail_if_output "No destructive DB commands found in source/scripts" "$DESTRUCTIVE_DB"
