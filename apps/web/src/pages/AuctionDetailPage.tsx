@@ -3,11 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
-import { API_BASE, SOCKET_PATH, SOCKET_URL } from "../config";
+import { SOCKET_PATH, SOCKET_URL } from "../config";
 import { getAuthRole, getAuthToken } from "../services/auth";
 import { getAuction, placeBid as placeBidApi } from "../services/auctions";
-
-void API_BASE;
 
 type AuctionStatus = "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED" | string;
 
@@ -88,7 +86,9 @@ function getSuggestedBidValue(auction: Auction | null) {
   return (current + increment).toFixed(2);
 }
 
-export async function safeJson<T = unknown>(response: Response): Promise<T | null> {
+export async function safeJson<T = unknown>(
+  response: Response,
+): Promise<T | null> {
   try {
     return (await response.json()) as T;
   } catch {
@@ -152,7 +152,8 @@ function getRealtimePayload(payload: unknown): AuctionRealtimePayload | null {
         ? payload.minIncrement
         : undefined,
     extendedEndsAt:
-      typeof payload.extendedEndsAt === "string" || payload.extendedEndsAt === null
+      typeof payload.extendedEndsAt === "string" ||
+      payload.extendedEndsAt === null
         ? payload.extendedEndsAt
         : undefined,
     endsAt:
@@ -176,7 +177,8 @@ function getBidEventPayload(payload: unknown): AuctionBidEvent | null {
   const amount =
     typeof payload.amount === "string" || typeof payload.amount === "number"
       ? payload.amount
-      : typeof payload.currentPrice === "string" || typeof payload.currentPrice === "number"
+      : typeof payload.currentPrice === "string" ||
+          typeof payload.currentPrice === "number"
         ? payload.currentPrice
         : "";
 
@@ -189,13 +191,18 @@ function getBidEventPayload(payload: unknown): AuctionBidEvent | null {
         : `${auctionId}:${String(amount)}:${Date.now()}`,
     auctionId,
     amount,
-    createdAt: typeof payload.createdAt === "string" ? payload.createdAt : new Date().toISOString(),
-    bidderName: typeof payload.bidderName === "string" ? payload.bidderName : null,
+    createdAt:
+      typeof payload.createdAt === "string"
+        ? payload.createdAt
+        : new Date().toISOString(),
+    bidderName:
+      typeof payload.bidderName === "string" ? payload.bidderName : null,
   };
 }
 
 function formatBidTime(value?: string) {
   if (!value) return "just now";
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "just now";
 
@@ -233,6 +240,7 @@ function getTimeLeft(endTime: Date | null, now: number) {
   const ss = totalSeconds % 60;
 
   if (days > 0) return `${days}d ${hh}h ${mm}m`;
+
   if (hh > 0) {
     return `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
   }
@@ -267,7 +275,6 @@ export default function AuctionDetailPage() {
   const canBid = isBuyer || canModerateBid;
 
   const endTime = useMemo(() => getEffectiveEndDate(auction), [auction]);
-
   const timeLeft = useMemo(() => getTimeLeft(endTime, now), [endTime, now]);
 
   const statusLabel = getStatusLabel(auction?.status);
@@ -364,9 +371,12 @@ export default function AuctionDetailPage() {
       setMsg(null);
 
       try {
-          const nextAuction = await getAuction(id);
-          setAuction(nextAuction);
-          applySuggestedBidIfSafe(nextAuction);
+        const nextAuction = await getAuction(id);
+
+        if (controller.signal.aborted) return;
+
+        setAuction(nextAuction);
+        applySuggestedBidIfSafe(nextAuction);
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") return;
 
@@ -439,7 +449,11 @@ export default function AuctionDetailPage() {
       if (!bidEvent || bidEvent.auctionId !== id) return;
 
       setBidEvents((current) => {
-        const next = [bidEvent, ...current.filter((item) => item.id !== bidEvent.id)];
+        const next = [
+          bidEvent,
+          ...current.filter((item) => item.id !== bidEvent.id),
+        ];
+
         return next.slice(0, 8);
       });
 
@@ -507,13 +521,14 @@ export default function AuctionDetailPage() {
     setSubmitting(true);
 
     try {
-        await placeBidApi(id, amount);
+      await placeBidApi(id, amount);
 
-        const refreshed = await getAuction(id);
-        setAuction(refreshed);
-        applySuggestedBidIfSafe(refreshed);
+      const refreshed = await getAuction(id);
+      setAuction(refreshed);
+      applySuggestedBidIfSafe(refreshed);
 
-        setBidEvents((current) => [
+      setBidEvents((current) =>
+        [
           {
             id: `local:${id}:${amount}:${Date.now()}`,
             auctionId: id,
@@ -522,10 +537,11 @@ export default function AuctionDetailPage() {
             bidderName: "You",
           },
           ...current,
-        ].slice(0, 8));
+        ].slice(0, 8),
+      );
 
-        userEditedBidRef.current = false;
-        setMsg("Bid placed!");
+      userEditedBidRef.current = false;
+      setMsg("Bid placed!");
     } catch (err: unknown) {
       setMsg(err instanceof Error ? err.message : "Bid failed.");
     } finally {
@@ -697,11 +713,22 @@ export default function AuctionDetailPage() {
             background: "rgba(99,102,241,0.09)",
           }}
         >
-          <div>
-            <div style={{ display: "grid", gap: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "grid", gap: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
               <h3 style={{ margin: 0 }}>Live Bid Activity</h3>
-              <span style={{ color: socketConnected ? "#86efac" : "#fca5a5", fontWeight: 800 }}>
+
+              <span
+                style={{
+                  color: socketConnected ? "#86efac" : "#fca5a5",
+                  fontWeight: 800,
+                }}
+              >
                 {socketConnected ? "Live" : "Reconnecting"}
               </span>
             </div>
@@ -724,10 +751,13 @@ export default function AuctionDetailPage() {
                     }}
                   >
                     <span>
-                      <strong>{event.bidderName || "New bidder"}</strong>{" "}
-                      bid {formatMoney(event.amount)}
+                      <strong>{event.bidderName || "New bidder"}</strong> bid{" "}
+                      {formatMoney(event.amount)}
                     </span>
-                    <span className="muted">{formatBidTime(event.createdAt)}</span>
+
+                    <span className="muted">
+                      {formatBidTime(event.createdAt)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -735,10 +765,10 @@ export default function AuctionDetailPage() {
           </div>
 
           <h3 style={{ margin: 0 }}>Place a Bid</h3>
-            <div className="muted" style={{ fontSize: 13 }}>
-              Enter at least{" "}
-              {suggestedBid ? formatMoney(suggestedBid) : "the next minimum bid"}.
-            </div>
+
+          <div className="muted" style={{ fontSize: 13 }}>
+            Enter at least{" "}
+            {suggestedBid ? formatMoney(suggestedBid) : "the next minimum bid"}.
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -784,17 +814,28 @@ export default function AuctionDetailPage() {
             </Link>
           </div>
 
-          {!token ? <div style={noticeStyle}>Login as a buyer to place bids.</div> : null}
-          {token && !canBid ? (
-            <div style={noticeStyle}>This account role cannot place buyer bids.</div>
+          {!token ? (
+            <div style={noticeStyle}>Login as a buyer to place bids.</div>
           ) : null}
+
+          {token && !canBid ? (
+            <div style={noticeStyle}>
+              This account role cannot place buyer bids.
+            </div>
+          ) : null}
+
           {token && canBid && !isLive ? (
             <div style={noticeStyle}>Bidding is closed for this auction.</div>
           ) : null}
-          {hasEnded ? <div style={noticeStyle}>This auction has ended.</div> : null}
+
+          {hasEnded ? (
+            <div style={noticeStyle}>This auction has ended.</div>
+          ) : null}
 
           {msg ? (
-            <div style={{ color: success ? "#22c55e" : "#f87171" }}>{msg}</div>
+            <div style={{ color: success ? "#22c55e" : "#f87171" }}>
+              {msg}
+            </div>
           ) : null}
         </div>
       </div>
