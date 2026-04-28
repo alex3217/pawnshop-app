@@ -1,4 +1,4 @@
-# PawnShop App Deployment Runbook
+# PawnLoop Marketplace Deployment Runbook
 
 ## Current Verified Commands
 

@@ -69,7 +69,7 @@ export default function HomeScreen() {
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.badge}>PawnShop Marketplace</Text>
+      <Text style={styles.badge}>PawnLoop Marketplace</Text>
 
       <Text style={styles.title}>Buy, browse, and bid from mobile.</Text>
 

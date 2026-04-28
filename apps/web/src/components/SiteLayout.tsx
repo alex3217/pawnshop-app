@@ -181,9 +181,9 @@ export default function SiteLayout() {
               to="/"
               className="brand"
               style={styles.brand}
-              aria-label="PawnShop Marketplace home"
+              aria-label="PawnLoop Marketplace home"
             >
-              <span>PawnShop Marketplace</span>
+              <span>PawnLoop Marketplace</span>
             </Link>
 
             <div style={styles.topRowRight}>
@@ -264,7 +264,7 @@ export default function SiteLayout() {
         <div style={styles.footerInner}>
           <div style={styles.footerBrandRow}>
             <div className="brand" style={styles.brand}>
-              <span>PawnShop Marketplace</span>
+              <span>PawnLoop Marketplace</span>
             </div>
             <div style={styles.footerMeta}>
               Buyer, owner, and admin marketplace workflows in one place.

@@ -134,7 +134,7 @@ function createErrorResponse(err, req) {
 export function createApp() {
   const app = express();
 
-  const serviceName = process.env.APP_NAME || "pawnshop-api";
+  const serviceName = process.env.APP_NAME || "pawnloop-api";
   const env = process.env.APP_ENV || process.env.NODE_ENV || "development";
   const allowedOrigins = parseAllowedOrigins(
     process.env.CORS_ORIGINS,

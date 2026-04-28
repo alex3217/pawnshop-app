@@ -27,7 +27,7 @@ export default function AdminLayout() {
           }}
         >
           <div>
-            <div className="section-title">PawnShop Marketplace Admin</div>
+            <div className="section-title">PawnLoop Marketplace Admin</div>
             <div className="section-subtitle">
               Configure, moderate, and monitor the platform.
             </div>
