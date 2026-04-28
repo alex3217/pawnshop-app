@@ -1,5 +1,4 @@
-import { API_BASE } from "../config";
-import { getAuthHeaders } from "./auth";
+import { api } from "./apiClient";
 
 export type WatchlistEntry = {
   id: string;
@@ -26,77 +25,35 @@ export type WatchlistEntry = {
   };
 };
 
-function joinUrl(base: string, path: string) {
-  const normalizedBase = base.replace(/\/+$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
-}
+function normalizeWatchlist(data: unknown): WatchlistEntry[] {
+  if (Array.isArray(data)) return data as WatchlistEntry[];
 
-async function parseJson(res: Response) {
-  const text = await res.text();
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    return {};
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    if (Array.isArray(record.rows)) return record.rows as WatchlistEntry[];
+    if (Array.isArray(record.items)) return record.items as WatchlistEntry[];
+    if (Array.isArray(record.watchlist)) return record.watchlist as WatchlistEntry[];
+    if (Array.isArray(record.data)) return record.data as WatchlistEntry[];
   }
-}
 
-function extractError(data: unknown, fallback: string) {
-  if (!data || typeof data !== "object") return fallback;
-  const record = data as Record<string, unknown>;
-  if (typeof record.error === "string" && record.error.trim()) return record.error;
-  if (typeof record.message === "string" && record.message.trim()) return record.message;
-  return fallback;
+  return [];
 }
 
 export async function getMyWatchlist(): Promise<WatchlistEntry[]> {
-  const res = await fetch(joinUrl(API_BASE, "/watchlist/mine"), {
-    headers: getAuthHeaders(),
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to load watchlist (${res.status})`));
-  }
-
-  return Array.isArray(data) ? data : [];
+  const data = await api.get<unknown>("/watchlist/mine");
+  return normalizeWatchlist(data);
 }
 
 export async function addToWatchlist(itemId: string): Promise<WatchlistEntry> {
-  const res = await fetch(joinUrl(API_BASE, "/watchlist"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "same-origin",
-    body: JSON.stringify({ itemId }),
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to save item (${res.status})`));
-  }
-
-  return data as WatchlistEntry;
+  if (!itemId) throw new Error("Missing item id.");
+  return api.post<WatchlistEntry>("/watchlist", { itemId });
 }
 
-export async function removeFromWatchlist(itemId: string): Promise<{ success: boolean; itemId: string }> {
-  const res = await fetch(joinUrl(API_BASE, `/watchlist/${itemId}`), {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to remove item (${res.status})`));
-  }
-
-  return data as { success: boolean; itemId: string };
+export async function removeFromWatchlist(
+  itemId: string,
+): Promise<{ success: boolean; itemId: string }> {
+  if (!itemId) throw new Error("Missing item id.");
+  return api.delete<{ success: boolean; itemId: string }>(
+    `/watchlist/${encodeURIComponent(itemId)}`,
+  );
 }
