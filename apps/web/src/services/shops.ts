@@ -1,5 +1,4 @@
-import { API_BASE } from "../config";
-import { getAuthHeaders } from "./auth";
+import { api } from "./apiClient";
 
 export type Shop = {
   id: string;
@@ -38,104 +37,71 @@ export type CreateShopInput = {
   hours?: string;
 };
 
-function joinUrl(base: string, path: string) {
-  const normalizedBase = base.replace(/\/+$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
-}
+function normalizeShops(data: unknown): Shop[] {
+  if (Array.isArray(data)) return data as Shop[];
 
-async function parseJson<T = Record<string, unknown>>(res: Response): Promise<T> {
-  const text = await res.text();
-  if (!text) return {} as T;
-
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return {} as T;
+  if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    if (Array.isArray(record.rows)) return record.rows as Shop[];
+    if (Array.isArray(record.items)) return record.items as Shop[];
+    if (Array.isArray(record.shops)) return record.shops as Shop[];
+    if (Array.isArray(record.data)) return record.data as Shop[];
   }
-}
 
-function extractError(data: unknown, fallback: string) {
-  if (!data || typeof data !== "object") return fallback;
-  const record = data as Record<string, unknown>;
-  if (typeof record.error === "string" && record.error.trim()) return record.error;
-  if (typeof record.message === "string" && record.message.trim()) return record.message;
-  return fallback;
+  return [];
 }
 
 export async function getAllShops(): Promise<Shop[]> {
-  const res = await fetch(joinUrl(API_BASE, "/shops"), {
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson<Shop[] | Record<string, unknown>>(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to load shops (${res.status})`));
-  }
-
-  return Array.isArray(data) ? data : [];
-}
-
-export async function getMyShops(): Promise<Shop[]> {
-  const res = await fetch(joinUrl(API_BASE, "/shops/mine"), {
-    headers: getAuthHeaders(),
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson<Shop[] | Record<string, unknown>>(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to load my shops (${res.status})`));
-  }
-
-  return Array.isArray(data) ? data : [];
-}
-
-export async function createShop(input: CreateShopInput): Promise<Shop> {
-  const res = await fetch(joinUrl(API_BASE, "/shops"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    credentials: "same-origin",
-    body: JSON.stringify({
-      name: input.name,
-      address: input.address || undefined,
-      phone: input.phone || undefined,
-      description: input.description || undefined,
-      hours: input.hours || undefined,
-    }),
-  });
-
-  const data = await parseJson<Shop | Record<string, unknown>>(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to create shop (${res.status})`));
-  }
-
-  return data as Shop;
-}
-
-export async function getShopItems(shopId: string): Promise<{ shop: Shop; items: ShopItem[] }> {
-  const res = await fetch(joinUrl(API_BASE, `/shops/${shopId}/items`), {
-    credentials: "same-origin",
-  });
-
-  const data = await parseJson<{ shop: Shop; items: ShopItem[] } | Record<string, unknown>>(res);
-
-  if (!res.ok) {
-    throw new Error(extractError(data, `Failed to load shop items (${res.status})`));
-  }
-
-  const payload = data as { shop?: Shop; items?: ShopItem[] };
-  return {
-    shop: payload.shop as Shop,
-    items: Array.isArray(payload.items) ? payload.items : [],
-  };
+  const data = await api.get<unknown>("/shops", { auth: false });
+  return normalizeShops(data);
 }
 
 export async function getMarketplaceShops(): Promise<Shop[]> {
   return getAllShops();
+}
+
+export async function getMyShops(): Promise<Shop[]> {
+  const data = await api.get<unknown>("/shops/mine");
+  return normalizeShops(data);
+}
+
+export async function createShop(input: CreateShopInput): Promise<Shop> {
+  return api.post<Shop>("/shops", {
+    name: input.name,
+    address: input.address || undefined,
+    phone: input.phone || undefined,
+    description: input.description || undefined,
+    hours: input.hours || undefined,
+  });
+}
+
+export async function getShopItems(
+  shopId: string,
+): Promise<{ shop: Shop; items: ShopItem[] }> {
+  if (!shopId) throw new Error("Missing shop id.");
+
+  const data = await api.get<unknown>(
+    `/shops/${encodeURIComponent(shopId)}/items`,
+    { auth: false },
+  );
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const payload = data as { shop?: Shop; items?: ShopItem[]; rows?: ShopItem[]; data?: ShopItem[] };
+
+    return {
+      shop: payload.shop as Shop,
+      items: Array.isArray(payload.items)
+        ? payload.items
+        : Array.isArray(payload.rows)
+          ? payload.rows
+          : Array.isArray(payload.data)
+            ? payload.data
+            : [],
+    };
+  }
+
+  return {
+    shop: {} as Shop,
+    items: Array.isArray(data) ? (data as ShopItem[]) : [],
+  };
 }
