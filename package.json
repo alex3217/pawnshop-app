@@ -20,6 +20,7 @@
     "db:backup:prod": "bash scripts/backup-db.sh apps/api/backend/.env.production",
     "db:restore:dev": "bash scripts/restore-db.sh apps/api/backend/.env.development",
     "db:restore:staging": "bash scripts/restore-db.sh apps/api/backend/.env.staging",
-    "db:restore:prod": "bash scripts/restore-db.sh apps/api/backend/.env.production"
+    "db:restore:prod": "bash scripts/restore-db.sh apps/api/backend/.env.production",
+    "check:staging-readiness": "bash scripts/check-staging-readiness.sh"
   }
 }
