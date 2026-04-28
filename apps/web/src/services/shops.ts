@@ -37,7 +37,7 @@ export type CreateShopInput = {
   hours?: string;
 };
 
-function normalizeShops(data: unknown): Shop[] {
+export function normalizeShops(data: unknown): Shop[] {
   if (Array.isArray(data)) return data as Shop[];
 
   if (data && typeof data === "object") {
@@ -46,47 +46,68 @@ function normalizeShops(data: unknown): Shop[] {
     if (Array.isArray(record.items)) return record.items as Shop[];
     if (Array.isArray(record.shops)) return record.shops as Shop[];
     if (Array.isArray(record.data)) return record.data as Shop[];
+
+    if (
+      record.data &&
+      typeof record.data === "object" &&
+      Array.isArray((record.data as Record<string, unknown>).shops)
+    ) {
+      return (record.data as { shops: Shop[] }).shops;
+    }
   }
 
   return [];
 }
 
-export async function getAllShops(): Promise<Shop[]> {
-  const data = await api.get<unknown>("/shops", { auth: false });
+export async function getAllShops(signal?: AbortSignal): Promise<Shop[]> {
+  const data = await api.get<unknown>("/shops", { auth: false, signal });
   return normalizeShops(data);
 }
 
-export async function getMarketplaceShops(): Promise<Shop[]> {
-  return getAllShops();
+export async function getMarketplaceShops(signal?: AbortSignal): Promise<Shop[]> {
+  return getAllShops(signal);
 }
 
-export async function getMyShops(): Promise<Shop[]> {
-  const data = await api.get<unknown>("/shops/mine");
+export async function getMyShops(signal?: AbortSignal): Promise<Shop[]> {
+  const data = await api.get<unknown>("/shops/mine", { signal });
   return normalizeShops(data);
 }
 
-export async function createShop(input: CreateShopInput): Promise<Shop> {
-  return api.post<Shop>("/shops", {
-    name: input.name,
-    address: input.address || undefined,
-    phone: input.phone || undefined,
-    description: input.description || undefined,
-    hours: input.hours || undefined,
-  });
+export async function createShop(
+  input: CreateShopInput,
+  signal?: AbortSignal,
+): Promise<Shop> {
+  return api.post<Shop>(
+    "/shops",
+    {
+      name: input.name,
+      address: input.address || undefined,
+      phone: input.phone || undefined,
+      description: input.description || undefined,
+      hours: input.hours || undefined,
+    },
+    { signal },
+  );
 }
 
 export async function getShopItems(
   shopId: string,
+  signal?: AbortSignal,
 ): Promise<{ shop: Shop; items: ShopItem[] }> {
   if (!shopId) throw new Error("Missing shop id.");
 
   const data = await api.get<unknown>(
     `/shops/${encodeURIComponent(shopId)}/items`,
-    { auth: false },
+    { auth: false, signal },
   );
 
   if (data && typeof data === "object" && !Array.isArray(data)) {
-    const payload = data as { shop?: Shop; items?: ShopItem[]; rows?: ShopItem[]; data?: ShopItem[] };
+    const payload = data as {
+      shop?: Shop;
+      items?: ShopItem[];
+      rows?: ShopItem[];
+      data?: ShopItem[];
+    };
 
     return {
       shop: payload.shop as Shop,

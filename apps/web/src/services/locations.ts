@@ -7,13 +7,20 @@ export type PawnShopLocation = {
   shopId?: string | null;
   ownerId?: string | null;
   name: string;
+  shopName?: string | null;
+  title?: string | null;
   address?: string | null;
+  location?: string | null;
   city?: string | null;
   state?: string | null;
   postalCode?: string | null;
   country?: string | null;
   phone?: string | null;
   email?: string | null;
+  hours?: string | null;
+  staffCount?: number | null;
+  inventoryCount?: number | null;
+  itemCount?: number | null;
   status?: LocationStatus | string;
   createdAt?: string;
   updatedAt?: string;
@@ -45,12 +52,18 @@ function unwrapList(data: unknown): PawnShopLocation[] {
   if (!isObject(data)) return [];
 
   if (Array.isArray(data.locations)) return data.locations as PawnShopLocation[];
+  if (Array.isArray(data.shops)) return data.shops as PawnShopLocation[];
   if (Array.isArray(data.rows)) return data.rows as PawnShopLocation[];
   if (Array.isArray(data.items)) return data.items as PawnShopLocation[];
   if (Array.isArray(data.data)) return data.data as PawnShopLocation[];
 
-  if (isObject(data.data) && Array.isArray(data.data.locations)) {
-    return data.data.locations as PawnShopLocation[];
+  if (isObject(data.data)) {
+    if (Array.isArray(data.data.locations)) {
+      return data.data.locations as PawnShopLocation[];
+    }
+    if (Array.isArray(data.data.shops)) {
+      return data.data.shops as PawnShopLocation[];
+    }
   }
 
   return [];
@@ -72,39 +85,57 @@ function unwrapOne(data: unknown): PawnShopLocation {
   return data as PawnShopLocation;
 }
 
-export async function getLocations(): Promise<PawnShopLocation[]> {
-  const data = await api.get<unknown>("/locations");
+export async function getLocations(
+  signal?: AbortSignal,
+): Promise<PawnShopLocation[]> {
+  const data = await api.get<unknown>("/locations", { signal });
   return unwrapList(data);
 }
 
-export async function getMyLocations(): Promise<PawnShopLocation[]> {
-  const data = await api.get<unknown>("/locations/mine");
+export async function getMyLocations(
+  signal?: AbortSignal,
+): Promise<PawnShopLocation[]> {
+  const data = await api.get<unknown>("/locations/mine", { signal });
   return unwrapList(data);
 }
 
-export async function getLocationById(id: string): Promise<PawnShopLocation> {
+export async function getLocationById(
+  id: string,
+  signal?: AbortSignal,
+): Promise<PawnShopLocation> {
   if (!id) throw new Error("Missing location id.");
-  const data = await api.get<unknown>(`/locations/${encodeURIComponent(id)}`);
+  const data = await api.get<unknown>(`/locations/${encodeURIComponent(id)}`, {
+    signal,
+  });
   return unwrapOne(data);
 }
 
 export async function createLocation(
   input: CreateLocationInput,
+  signal?: AbortSignal,
 ): Promise<PawnShopLocation> {
-  const data = await api.post<unknown>("/locations", input);
+  const data = await api.post<unknown>("/locations", input, { signal });
   return unwrapOne(data);
 }
 
 export async function updateLocation(
   id: string,
   input: UpdateLocationInput,
+  signal?: AbortSignal,
 ): Promise<PawnShopLocation> {
   if (!id) throw new Error("Missing location id.");
-  const data = await api.patch<unknown>(`/locations/${encodeURIComponent(id)}`, input);
+  const data = await api.patch<unknown>(
+    `/locations/${encodeURIComponent(id)}`,
+    input,
+    { signal },
+  );
   return unwrapOne(data);
 }
 
-export async function deleteLocation(id: string): Promise<void> {
+export async function deleteLocation(
+  id: string,
+  signal?: AbortSignal,
+): Promise<void> {
   if (!id) throw new Error("Missing location id.");
-  await api.delete<unknown>(`/locations/${encodeURIComponent(id)}`);
+  await api.delete<unknown>(`/locations/${encodeURIComponent(id)}`, { signal });
 }

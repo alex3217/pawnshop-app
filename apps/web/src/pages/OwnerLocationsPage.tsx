@@ -8,7 +8,9 @@ import {
   type CSSProperties,
 } from "react";
 import { Link } from "react-router-dom";
-import { getAuthHeaders, getAuthToken } from "../services/auth";
+import { getAuthToken } from "../services/auth";
+import { getMyLocations } from "../services/locations";
+import { getMyShops } from "../services/shops";
 
 type LocationRecord = {
   id: string;
@@ -85,15 +87,6 @@ function extractLocationRows(payload: unknown): ApiLocationRecord[] {
   return [];
 }
 
-function extractMessage(payload: unknown) {
-  if (isObject(payload) && typeof payload.message === "string") {
-    return payload.message;
-  }
-  if (isObject(payload) && typeof payload.error === "string") {
-    return payload.error;
-  }
-  return null;
-}
 
 function sortLocations(items: LocationRecord[]) {
   return [...items].sort((a, b) => a.name.localeCompare(b.name));
@@ -107,52 +100,35 @@ async function fetchOwnerLocations(
     throw new Error("Missing owner token. Please log in again.");
   }
 
-  const candidates = ["/api/locations/mine", "/api/shops/mine"];
+  try {
+    const locations = await getMyLocations(signal);
+    const locationRows = extractLocationRows(locations);
 
-  let lastError: unknown = null;
-
-  for (const endpoint of candidates) {
-    try {
-      const response = await fetch(endpoint, {
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        credentials: "include",
-        signal,
-      });
-
-      if (response.status === 404) {
-        lastError = new Error(`Endpoint not found: ${endpoint}`);
-        continue;
-      }
-
-      const payload: unknown = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        const message =
-          extractMessage(payload) || `Request failed (${response.status})`;
-        throw new Error(message);
-      }
-
-      const rawList = extractLocationRows(payload);
-
+    if (locationRows.length > 0) {
       return sortLocations(
-        rawList.map((row: ApiLocationRecord, index: number) =>
+        locationRows.map((row: ApiLocationRecord, index: number) =>
           normalizeLocation(row, index),
         ),
       );
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        throw error;
-      }
-      lastError = error;
     }
-  }
 
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("Unable to load owner locations.");
+    const shops = await getMyShops(signal);
+    const shopRows = extractLocationRows(shops);
+
+    return sortLocations(
+      shopRows.map((row: ApiLocationRecord, index: number) =>
+        normalizeLocation(row, index),
+      ),
+    );
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+
+    throw error instanceof Error
+      ? error
+      : new Error("Unable to load owner locations.");
+  }
 }
 
 export default function OwnerLocationsPage() {
