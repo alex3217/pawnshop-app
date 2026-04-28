@@ -19,6 +19,7 @@ router.get("/:id", getAuction);
 
 // Consumer/Admin
 router.post("/:id/bids", authRequired, requireRole("CONSUMER", "ADMIN"), placeBid);
+router.post("/:id/auto-bid", authRequired, requireRole("CONSUMER", "ADMIN"), setAutoBid);
 
 // Owner/Admin
 router.post("/", authRequired, requireRole("OWNER", "ADMIN"), createAuction);
