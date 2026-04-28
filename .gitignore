@@ -51,7 +51,7 @@ node_modules/
 apps/api/backend/prisma/schema.prisma.save
 apps/mobile/....
 pawnshop-backend/
-backend/
+/backend/
 frontend/
 diagnostics/
 infra/
