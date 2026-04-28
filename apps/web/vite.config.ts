@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const API_TARGET = "http://127.0.0.1:6002";
+const API_TARGET = process.env.VITE_API_TARGET || "http://127.0.0.1:6002";
 
 export default defineConfig({
   plugins: [react()],

@@ -7,11 +7,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:dev-wiring": "bash ../../scripts/check-dev-wiring.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
-    "@stripe/stripe-js": "^9.1.0",
+    "@stripe/react-stripe-js": "^6.3.0",
+    "@stripe/stripe-js": "^9.3.1",
     "@zxing/browser": "^0.1.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
