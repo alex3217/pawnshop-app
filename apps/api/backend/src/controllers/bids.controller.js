@@ -9,13 +9,7 @@ import {
 } from "../lib/auctionStatus.js";
 import { getIo } from "../realtime/socket.js";
 
-const BID_SAFE_FIELDS = [
-  "id",
-  "auctionId",
-  "userId",
-  "amount",
-  "createdAt",
-];
+const BID_SAFE_FIELDS = ["id", "auctionId", "userId", "amount", "createdAt"];
 
 const AUCTION_SAFE_FIELDS = [
   "id",
@@ -91,7 +85,7 @@ async function getTableColumns(tableName) {
   `;
 
   const columns = new Set(
-    Array.isArray(rows) ? rows.map((row) => row.column_name) : []
+    Array.isArray(rows) ? rows.map((row) => row.column_name) : [],
   );
 
   tableColumnsCache.set(tableName, columns);
@@ -134,7 +128,10 @@ async function buildAuctionSelect({
   includeShop = false,
   extraFields = [],
 } = {}) {
-  const select = await buildScalarSelect("Auction", [...AUCTION_SAFE_FIELDS, ...extraFields]);
+  const select = await buildScalarSelect("Auction", [
+    ...AUCTION_SAFE_FIELDS,
+    ...extraFields,
+  ]);
 
   if (includeItem) {
     select.item = { select: await buildItemSelect({ includeShop: true }) };
@@ -216,7 +213,7 @@ async function reconcileExpiredAuctionStatus(
   db,
   auction,
   now = new Date(),
-  auctionColumns = null
+  auctionColumns = null,
 ) {
   if (!auction) return auction;
 
@@ -248,6 +245,99 @@ async function reconcileExpiredAuctionStatus(
     ...auction,
     status: "ENDED",
   };
+}
+
+async function runAutoBidEngine(tx, auctionId, options = {}) {
+  const maxRounds = Number(options.maxRounds || 20);
+  const now = options.now instanceof Date ? options.now : new Date();
+  const generatedBids = [];
+
+  for (let round = 0; round < maxRounds; round += 1) {
+    const auction = await tx.auction.findUnique({
+      where: { id: auctionId },
+      select: {
+        id: true,
+        currentPrice: true,
+        minIncrement: true,
+        status: true,
+        startsAt: true,
+        endsAt: true,
+        extendedEndsAt: true,
+        antiSnipeWindowSec: true,
+      },
+    });
+
+    if (!auction) return generatedBids;
+
+    const effectiveStatus = getEffectiveAuctionStatus(auction, now);
+    if (effectiveStatus !== "LIVE") return generatedBids;
+
+    const currentPrice = Number(auction.currentPrice ?? 0);
+    const minIncrement = Number(auction.minIncrement ?? 0);
+    const minRequired = currentPrice + minIncrement;
+
+    if (
+      !Number.isFinite(currentPrice) ||
+      !Number.isFinite(minIncrement) ||
+      !Number.isFinite(minRequired) ||
+      minIncrement <= 0
+    ) {
+      return generatedBids;
+    }
+
+    const topBid = await tx.bid.findFirst({
+      where: { auctionId },
+      orderBy: [{ amount: "desc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        userId: true,
+        amount: true,
+        createdAt: true,
+      },
+    });
+
+    const autoBids = await tx.autoBid.findMany({
+      where: {
+        auctionId,
+        maxAmount: { gte: minRequired },
+      },
+      orderBy: [{ maxAmount: "desc" }, { updatedAt: "asc" }],
+      take: 5,
+    });
+
+    const challenger = autoBids.find((row) => row.userId !== topBid?.userId);
+    if (!challenger) return generatedBids;
+
+    const challengerMax = Number(challenger.maxAmount);
+    if (!Number.isFinite(challengerMax)) return generatedBids;
+
+    const nextAmount = Math.min(challengerMax, minRequired);
+
+    if (!Number.isFinite(nextAmount) || nextAmount <= currentPrice) {
+      return generatedBids;
+    }
+
+    const autoBid = await tx.bid.create({
+      data: {
+        auctionId,
+        userId: challenger.userId,
+        amount: nextAmount,
+      },
+      select: await buildBidSelect({ includeUser: true }),
+    });
+
+    await tx.auction.update({
+      where: { id: auctionId },
+      data: {
+        currentPrice: nextAmount,
+        version: { increment: 1 },
+      },
+    });
+
+    generatedBids.push(autoBid);
+  }
+
+  return generatedBids;
 }
 
 export async function placeBid(req, res) {
@@ -343,7 +433,12 @@ export async function placeBid(req, res) {
         throw err;
       }
 
-      freshAuction = await reconcileExpiredAuctionStatus(tx, freshAuction, now, auctionColumns);
+      freshAuction = await reconcileExpiredAuctionStatus(
+        tx,
+        freshAuction,
+        now,
+        auctionColumns,
+      );
 
       const freshEffectiveStatus = getEffectiveAuctionStatus(freshAuction, now);
       if (freshEffectiveStatus !== "LIVE") {
@@ -351,7 +446,7 @@ export async function placeBid(req, res) {
       }
 
       const liveCurrent = Number(
-        freshAuction.currentPrice ?? freshAuction.startingPrice ?? 0
+        freshAuction.currentPrice ?? freshAuction.startingPrice ?? 0,
       );
       const liveMinInc = Number(freshAuction.minIncrement ?? 0);
       const liveMinRequired = liveCurrent + liveMinInc;
@@ -395,6 +490,8 @@ export async function placeBid(req, res) {
         select: await buildBidSelect({ includeUser: true }),
       });
 
+      const autoBids = await runAutoBidEngine(tx, freshAuction.id, { now });
+
       const currentEnd = getEffectiveAuctionEnd(freshAuction)
         ? new Date(getEffectiveAuctionEnd(freshAuction))
         : null;
@@ -428,6 +525,7 @@ export async function placeBid(req, res) {
 
       return {
         bid,
+        autoBids,
         auction: normalizeAuctionForResponse(latestAuction, new Date()),
         extendedEndsAt:
           latestAuction?.extendedEndsAt ?? extendedEndsAt ?? freshAuction.extendedEndsAt ?? null,
@@ -438,6 +536,12 @@ export async function placeBid(req, res) {
     const responseExtendedEndsAt =
       responseAuction?.extendedEndsAt ?? result.extendedEndsAt ?? null;
 
+    const finalPrice =
+      responseAuction?.currentPrice ??
+      result.autoBids?.[result.autoBids.length - 1]?.amount ??
+      result.bid.amount ??
+      bidAmount;
+
     const io = getIo();
     if (io) {
       io.to(`auction:${auctionId}`).emit("auction:bid", {
@@ -446,12 +550,25 @@ export async function placeBid(req, res) {
         bidId: result.bid.id,
         userId: req.user.sub,
         createdAt: result.bid.createdAt,
+        auto: false,
         extendedEndsAt: toSerializableDate(responseExtendedEndsAt),
       });
 
+      for (const autoBid of result.autoBids || []) {
+        io.to(`auction:${auctionId}`).emit("auction:bid", {
+          auctionId,
+          amount: String(autoBid.amount),
+          bidId: autoBid.id,
+          userId: autoBid.userId,
+          createdAt: autoBid.createdAt,
+          auto: true,
+          extendedEndsAt: toSerializableDate(responseExtendedEndsAt),
+        });
+      }
+
       io.to(`auction:${auctionId}`).emit("auction:updated", {
         auctionId,
-        currentPrice: String(bidAmount),
+        currentPrice: String(finalPrice),
         status: responseAuction?.status ?? "LIVE",
         extendedEndsAt: toSerializableDate(responseExtendedEndsAt),
       });
@@ -461,6 +578,7 @@ export async function placeBid(req, res) {
       ok: true,
       success: true,
       bid: result.bid,
+      autoBids: result.autoBids || [],
       extendedEndsAt: responseExtendedEndsAt,
       auction: responseAuction,
     });
