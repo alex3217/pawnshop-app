@@ -22,8 +22,6 @@ const STORAGE_KEYS = {
   ownerToken: "owner_token",
   adminToken: "admin_token",
   superAdminToken: "super_admin_token",
-
-  // legacy / compatibility keys
   legacyToken: "token",
   legacyAccessToken: "accessToken",
 } as const;
@@ -72,6 +70,16 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
+function isTokenExpired(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  const exp = payload?.exp;
+
+  if (typeof exp !== "number") return false;
+
+  const now = Math.floor(Date.now() / 1000);
+  return now >= exp;
+}
+
 function getRoleFromToken(token: string): Role | null {
   const payload = decodeJwtPayload(token);
   const role = payload?.role;
@@ -116,6 +124,29 @@ function normalizeUser(raw: unknown): AuthUser | null {
     email,
     name,
   };
+}
+
+function unwrapAuthPayload(data: Record<string, unknown>) {
+  const nested =
+    data.data && typeof data.data === "object"
+      ? (data.data as Record<string, unknown>)
+      : null;
+
+  const token =
+    typeof data.token === "string"
+      ? data.token
+      : typeof data.accessToken === "string"
+        ? data.accessToken
+        : typeof nested?.token === "string"
+          ? nested.token
+          : typeof nested?.accessToken === "string"
+            ? nested.accessToken
+            : "";
+
+  const rawUser = data.user ?? nested?.user ?? nested?.profile ?? data.profile;
+  const user = normalizeUser(rawUser);
+
+  return { token, user };
 }
 
 function readStoredValue(key: string) {
@@ -180,7 +211,7 @@ async function requestAuth(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      credentials: "same-origin",
+      credentials: "include",
     });
   } catch (error) {
     console.error("[auth.requestAuth] fetch failed", {
@@ -204,8 +235,7 @@ async function requestAuth(
     throw new Error(message);
   }
 
-  const token = typeof data?.token === "string" ? data.token : "";
-  const user = normalizeUser(data?.user);
+  const { token, user } = unwrapAuthPayload(data);
 
   if (!token || !user) {
     console.error("[auth.requestAuth] invalid response", {
@@ -286,8 +316,18 @@ export function logout() {
 }
 
 export function getAuthToken() {
-  return getStoredToken();
+  const token = getStoredToken();
+  if (!token) return "";
+
+  if (isTokenExpired(token)) {
+    console.warn("[auth] token expired, clearing session");
+    clearAuth();
+    return "";
+  }
+
+  return token;
 }
+
 
 export function getAuthRole(): Role | null {
   const storedRole = readStoredValue(STORAGE_KEYS.role);
@@ -335,10 +375,17 @@ export function getAuthHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export function getAuthHeaders(includeJson = false) {
+export function getAuthHeaders(includeJson = false): Record<string, string> {
   const token = getAuthToken();
-  return {
-    ...(includeJson ? { "Content-Type": "application/json" } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+  const headers: Record<string, string> = {};
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  return headers;
 }

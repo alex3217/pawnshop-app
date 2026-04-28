@@ -1,7 +1,7 @@
 // File: apps/web/src/components/RequireRole.tsx
 
 import { Navigate, Outlet } from "react-router-dom";
-import { getAuthRole } from "../services/auth";
+import { getAuthRole, getAuthToken } from "../services/auth";
 import type { Role } from "../services/auth";
 
 type RequireRoleProps = {
@@ -9,9 +9,10 @@ type RequireRoleProps = {
 };
 
 export default function RequireRole({ allowed }: RequireRoleProps) {
+  const token = getAuthToken();
   const role = getAuthRole();
 
-  if (!role) {
+  if (!token || !role) {
     return <Navigate to="/login" replace />;
   }
 
