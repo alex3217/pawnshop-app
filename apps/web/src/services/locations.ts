@@ -1,5 +1,4 @@
-import { API_BASE } from "../config";
-import { getAuthHeaders } from "./auth";
+import { api } from "./apiClient";
 
 export type LocationStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
@@ -41,42 +40,13 @@ function isObject(value: unknown): value is ApiObject {
   return typeof value === "object" && value !== null;
 }
 
-function joinUrl(base: string, path: string) {
-  const normalizedBase = base.replace(/\/+$/, "");
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${normalizedBase}${normalizedPath}`;
-}
-
-async function parseResponse<T>(res: Response): Promise<T> {
-  const text = await res.text();
-  let data: unknown = {};
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = {};
-  }
-
-  if (!res.ok) {
-    const message =
-      isObject(data) && typeof data.message === "string"
-        ? data.message
-        : isObject(data) && typeof data.error === "string"
-          ? data.error
-          : `Request failed with status ${res.status}`;
-
-    throw new Error(message);
-  }
-
-  return data as T;
-}
-
 function unwrapList(data: unknown): PawnShopLocation[] {
   if (Array.isArray(data)) return data as PawnShopLocation[];
-
   if (!isObject(data)) return [];
 
   if (Array.isArray(data.locations)) return data.locations as PawnShopLocation[];
+  if (Array.isArray(data.rows)) return data.rows as PawnShopLocation[];
+  if (Array.isArray(data.items)) return data.items as PawnShopLocation[];
   if (Array.isArray(data.data)) return data.data as PawnShopLocation[];
 
   if (isObject(data.data) && Array.isArray(data.data.locations)) {
@@ -103,68 +73,38 @@ function unwrapOne(data: unknown): PawnShopLocation {
 }
 
 export async function getLocations(): Promise<PawnShopLocation[]> {
-  const res = await fetch(joinUrl(API_BASE, "/locations"), {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
-
-  return unwrapList(await parseResponse(res));
+  const data = await api.get<unknown>("/locations");
+  return unwrapList(data);
 }
 
 export async function getMyLocations(): Promise<PawnShopLocation[]> {
-  const res = await fetch(joinUrl(API_BASE, "/locations/mine"), {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
-
-  return unwrapList(await parseResponse(res));
+  const data = await api.get<unknown>("/locations/mine");
+  return unwrapList(data);
 }
 
 export async function getLocationById(id: string): Promise<PawnShopLocation> {
-  const res = await fetch(joinUrl(API_BASE, `/locations/${id}`), {
-    method: "GET",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
-
-  return unwrapOne(await parseResponse(res));
+  if (!id) throw new Error("Missing location id.");
+  const data = await api.get<unknown>(`/locations/${encodeURIComponent(id)}`);
+  return unwrapOne(data);
 }
 
 export async function createLocation(
   input: CreateLocationInput,
 ): Promise<PawnShopLocation> {
-  const res = await fetch(joinUrl(API_BASE, "/locations"), {
-    method: "POST",
-    headers: getAuthHeaders(true),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-
-  return unwrapOne(await parseResponse(res));
+  const data = await api.post<unknown>("/locations", input);
+  return unwrapOne(data);
 }
 
 export async function updateLocation(
   id: string,
   input: UpdateLocationInput,
 ): Promise<PawnShopLocation> {
-  const res = await fetch(joinUrl(API_BASE, `/locations/${id}`), {
-    method: "PATCH",
-    headers: getAuthHeaders(true),
-    credentials: "include",
-    body: JSON.stringify(input),
-  });
-
-  return unwrapOne(await parseResponse(res));
+  if (!id) throw new Error("Missing location id.");
+  const data = await api.patch<unknown>(`/locations/${encodeURIComponent(id)}`, input);
+  return unwrapOne(data);
 }
 
 export async function deleteLocation(id: string): Promise<void> {
-  const res = await fetch(joinUrl(API_BASE, `/locations/${id}`), {
-    method: "DELETE",
-    headers: getAuthHeaders(),
-    credentials: "include",
-  });
-
-  await parseResponse(res);
+  if (!id) throw new Error("Missing location id.");
+  await api.delete<unknown>(`/locations/${encodeURIComponent(id)}`);
 }
