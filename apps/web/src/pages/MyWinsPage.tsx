@@ -10,7 +10,20 @@ import {
 import { Link } from "react-router-dom";
 import { getAuthHeaders, getAuthToken } from "../services/auth";
 import { stripePromise } from "../lib/stripe";
+import {
+  CardElement,
+  Elements,
+  useElements,
+  useStripe,
+} from "@stripe/react-stripe-js";
 import { getMySettlements as getMySettlementsService, createSettlementPaymentIntent as createSettlementPaymentIntentService } from "../services/settlements";
+
+type ActivePayment = {
+  settlementId: string;
+  clientSecret: string;
+  title: string;
+  amountLabel: string;
+};
 
 type WinRecord = {
   settlementId: string;
@@ -199,6 +212,119 @@ export async function createSettlementPaymentIntentLegacy(settlementId: string) 
   return payload;
 }
 
+
+function SettlementPaymentPanel({
+  activePayment,
+  disabled,
+  onCancel,
+  onError,
+  onSuccess,
+}: {
+  activePayment: ActivePayment;
+  disabled: boolean;
+  onCancel: () => void;
+  onError: (message: string) => void;
+  onSuccess: () => Promise<void>;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!stripe || !elements) {
+      onError("Stripe is still loading. Please try again.");
+      return;
+    }
+
+    const card = elements.getElement(CardElement);
+
+    if (!card) {
+      onError("Card form is not ready yet.");
+      return;
+    }
+
+    setProcessing(true);
+    onError("");
+
+    try {
+      const result = await stripe.confirmCardPayment(activePayment.clientSecret, {
+        payment_method: {
+          card,
+        },
+      });
+
+      if (result.error) {
+        throw new Error(result.error.message || "Payment failed.");
+      }
+
+      await onSuccess();
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : "Payment failed.");
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  return (
+    <section style={styles.paymentPanel}>
+      <div style={styles.paymentPanelHeader}>
+        <div>
+          <div style={styles.detailLabel}>Secure checkout</div>
+          <h2 style={styles.paymentTitle}>{activePayment.title}</h2>
+          <div style={styles.metaRow}>
+            <span>Settlement #{activePayment.settlementId}</span>
+            <span>{activePayment.amountLabel}</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={disabled || processing}
+          style={styles.secondaryButton}
+        >
+          Close
+        </button>
+      </div>
+
+      <form onSubmit={onSubmit} style={styles.paymentForm}>
+        <div style={styles.cardElementBox}>
+          <CardElement
+            options={{
+              hidePostalCode: true,
+              style: {
+                base: {
+                  color: "#0f172a",
+                  fontSize: "16px",
+                  "::placeholder": {
+                    color: "#64748b",
+                  },
+                },
+                invalid: {
+                  color: "#dc2626",
+                },
+              },
+            }}
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={!stripe || disabled || processing}
+          style={{
+            ...styles.payButton,
+            ...(!stripe || disabled || processing ? styles.actionButtonDisabled : {}),
+          }}
+        >
+          {processing ? "Confirming payment..." : "Confirm Payment"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 export default function MyWinsPage() {
   const [wins, setWins] = useState<WinRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,6 +334,8 @@ export default function MyWinsPage() {
   );
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [activePayment, setActivePayment] = useState<ActivePayment | null>(null);
+  const [paymentError, setPaymentError] = useState("");
 
   const load = useCallback(
     async (
@@ -242,6 +370,7 @@ export default function MyWinsPage() {
   async function handlePay(settlementId: string) {
     setError("");
     setNotice("");
+    setPaymentError("");
     setPayingSettlementId(settlementId);
 
     try {
@@ -252,25 +381,30 @@ export default function MyWinsPage() {
         throw new Error("Missing Stripe client secret.");
       }
 
-      const stripe = await stripePromise;
+      const selectedWin = wins.find((win) => win.settlementId === settlementId);
 
-      if (!stripe) {
-        throw new Error("Stripe failed to load.");
-      }
+      setActivePayment({
+        settlementId,
+        clientSecret,
+        title: selectedWin?.auctionTitle || "Settlement payment",
+        amountLabel: selectedWin
+          ? formatCurrency(selectedWin.finalAmountCents, selectedWin.currency)
+          : "Payment due",
+      });
 
-      const result = await stripe.confirmCardPayment(clientSecret);
-
-      if (result.error) {
-        throw new Error(result.error.message || "Payment failed.");
-      }
-
-      setNotice("Payment successful. Refreshing your wins...");
-      await load("refresh");
+      setNotice("Payment ready. Enter your card details to complete checkout.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed.");
     } finally {
       setPayingSettlementId(null);
     }
+  }
+
+  async function handlePaymentSuccess() {
+    setNotice("Payment successful. Your settlement status is refreshing now...");
+    setActivePayment(null);
+    setPaymentError("");
+    await load("refresh");
   }
 
   const summary = useMemo(() => {
@@ -335,6 +469,23 @@ export default function MyWinsPage() {
       </div>
 
       {notice ? <div style={styles.noticeCard}>{notice}</div> : null}
+
+      {paymentError ? <div style={styles.errorCard}>{paymentError}</div> : null}
+
+      {activePayment ? (
+        <Elements stripe={stripePromise} options={{ clientSecret: activePayment.clientSecret }}>
+          <SettlementPaymentPanel
+            activePayment={activePayment}
+            disabled={Boolean(payingSettlementId)}
+            onCancel={() => {
+              setActivePayment(null);
+              setPaymentError("");
+            }}
+            onError={setPaymentError}
+            onSuccess={handlePaymentSuccess}
+          />
+        </Elements>
+      ) : null}
 
       {loading ? <div style={styles.stateCard}>Loading your wins...</div> : null}
 
@@ -479,6 +630,47 @@ const styles: Record<string, CSSProperties> = {
   actionButtonDisabled: {
     opacity: 0.65,
     cursor: "not-allowed",
+  },
+  paymentPanel: {
+    display: "grid",
+    gap: 14,
+    padding: 18,
+    borderRadius: 18,
+    background: "#ecfdf5",
+    border: "1px solid rgba(34,197,94,0.35)",
+    color: "#0f172a",
+  },
+  paymentPanelHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  paymentTitle: {
+    margin: "4px 0",
+    fontSize: 20,
+    fontWeight: 900,
+    color: "#0f172a",
+  },
+  paymentForm: {
+    display: "grid",
+    gap: 12,
+  },
+  cardElementBox: {
+    padding: 14,
+    borderRadius: 12,
+    background: "#ffffff",
+    border: "1px solid rgba(15,23,42,0.18)",
+  },
+  secondaryButton: {
+    border: "1px solid rgba(15,23,42,0.18)",
+    color: "#0f172a",
+    background: "#ffffff",
+    padding: "10px 12px",
+    borderRadius: 12,
+    fontWeight: 900,
+    cursor: "pointer",
   },
   payButton: {
     border: "none",
