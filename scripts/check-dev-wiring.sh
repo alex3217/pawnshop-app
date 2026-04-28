@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
+
+
 WEB_PORT="${WEB_PORT:-5176}"
 API_PORT="${API_PORT:-6002}"
 WEB_URL="http://127.0.0.1:${WEB_PORT}"
