@@ -45,6 +45,14 @@ type AuctionRealtimePayload = {
   status?: string;
 };
 
+type AuctionBidEvent = {
+  id: string;
+  auctionId: string;
+  amount: string | number;
+  createdAt?: string;
+  bidderName?: string | null;
+};
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -155,6 +163,49 @@ function getRealtimePayload(payload: unknown): AuctionRealtimePayload | null {
   };
 }
 
+function getBidEventPayload(payload: unknown): AuctionBidEvent | null {
+  if (!isObject(payload)) return null;
+
+  const auctionId =
+    typeof payload.auctionId === "string"
+      ? payload.auctionId
+      : typeof payload.id === "string"
+        ? payload.id
+        : "";
+
+  const amount =
+    typeof payload.amount === "string" || typeof payload.amount === "number"
+      ? payload.amount
+      : typeof payload.currentPrice === "string" || typeof payload.currentPrice === "number"
+        ? payload.currentPrice
+        : "";
+
+  if (!auctionId || amount === "") return null;
+
+  return {
+    id:
+      typeof payload.bidId === "string"
+        ? payload.bidId
+        : `${auctionId}:${String(amount)}:${Date.now()}`,
+    auctionId,
+    amount,
+    createdAt: typeof payload.createdAt === "string" ? payload.createdAt : new Date().toISOString(),
+    bidderName: typeof payload.bidderName === "string" ? payload.bidderName : null,
+  };
+}
+
+function formatBidTime(value?: string) {
+  if (!value) return "just now";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "just now";
+
+  return date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 function getEffectiveEndDate(auction: Auction | null) {
   if (!auction) return null;
 
@@ -200,6 +251,7 @@ export default function AuctionDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [socketConnected, setSocketConnected] = useState(false);
+  const [bidEvents, setBidEvents] = useState<AuctionBidEvent[]>([]);
 
   const socketRef = useRef<Socket | null>(null);
   const userEditedBidRef = useRef(false);
@@ -382,11 +434,27 @@ export default function AuctionDetailPage() {
       mergeRealtimeAuction(payload);
     };
 
+    const handleBidEvent = (data: unknown) => {
+      const bidEvent = getBidEventPayload(data);
+      if (!bidEvent || bidEvent.auctionId !== id) return;
+
+      setBidEvents((current) => {
+        const next = [bidEvent, ...current.filter((item) => item.id !== bidEvent.id)];
+        return next.slice(0, 8);
+      });
+
+      mergeRealtimeAuction({
+        auctionId: bidEvent.auctionId,
+        currentPrice: bidEvent.amount,
+      });
+    };
+
     socket.on("connect", joinAuctionRoom);
     socket.on("reconnect", joinAuctionRoom);
     socket.on("disconnect", handleDisconnect);
     socket.on("auction:updated", handleRealtimeUpdate);
     socket.on("auction:bidPlaced", handleRealtimeUpdate);
+    socket.on("auction:bid", handleBidEvent);
 
     return () => {
       leaveAuctionRoom();
@@ -395,6 +463,7 @@ export default function AuctionDetailPage() {
       socket.off("disconnect", handleDisconnect);
       socket.off("auction:updated", handleRealtimeUpdate);
       socket.off("auction:bidPlaced", handleRealtimeUpdate);
+      socket.off("auction:bid", handleBidEvent);
       socket.disconnect();
       socketRef.current = null;
       setSocketConnected(false);
@@ -443,6 +512,17 @@ export default function AuctionDetailPage() {
         const refreshed = await getAuction(id);
         setAuction(refreshed);
         applySuggestedBidIfSafe(refreshed);
+
+        setBidEvents((current) => [
+          {
+            id: `local:${id}:${amount}:${Date.now()}`,
+            auctionId: id,
+            amount,
+            createdAt: new Date().toISOString(),
+            bidderName: "You",
+          },
+          ...current,
+        ].slice(0, 8));
 
         userEditedBidRef.current = false;
         setMsg("Bid placed!");
@@ -618,7 +698,43 @@ export default function AuctionDetailPage() {
           }}
         >
           <div>
-            <h3 style={{ margin: 0 }}>Place a Bid</h3>
+            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <h3 style={{ margin: 0 }}>Live Bid Activity</h3>
+              <span style={{ color: socketConnected ? "#86efac" : "#fca5a5", fontWeight: 800 }}>
+                {socketConnected ? "Live" : "Reconnecting"}
+              </span>
+            </div>
+
+            {bidEvents.length === 0 ? (
+              <div className="muted">No live bid events yet.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                {bidEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      background: "rgba(15, 23, 42, 0.65)",
+                      border: "1px solid rgba(148, 163, 184, 0.25)",
+                    }}
+                  >
+                    <span>
+                      <strong>{event.bidderName || "New bidder"}</strong>{" "}
+                      bid {formatMoney(event.amount)}
+                    </span>
+                    <span className="muted">{formatBidTime(event.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <h3 style={{ margin: 0 }}>Place a Bid</h3>
             <div className="muted" style={{ fontSize: 13 }}>
               Enter at least{" "}
               {suggestedBid ? formatMoney(suggestedBid) : "the next minimum bid"}.
