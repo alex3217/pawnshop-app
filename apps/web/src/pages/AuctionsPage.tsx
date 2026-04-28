@@ -52,21 +52,7 @@ type AuctionsResponse =
   | AuctionRow[]
   | null;
 
-async function safeJson<T>(res: Response): Promise<T | null> {
-  const text = await res.text();
-  return text ? (JSON.parse(text) as T) : null;
-}
 
-function normalizeAuctionRows(payload: AuctionsResponse): AuctionRow[] {
-  if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-
-  if (Array.isArray(payload.rows)) return payload.rows;
-  if (Array.isArray(payload.auctions)) return payload.auctions;
-  if (Array.isArray(payload.items)) return payload.items;
-
-  return [];
-}
 
 function toMoney(value: string | number | null | undefined): string {
   const num = Number(value);
@@ -150,29 +136,10 @@ export default function AuctionsPage() {
       setError(null);
 
       try {
-        const res = await fetch(buildAuctionsUrl(statusFilter), {
-          cache: "no-store",
-        });
-
-        const json = await safeJson<AuctionsResponse>(res);
-
-        if (!res.ok) {
-          const maybeError =
-            json && typeof json === "object" && !Array.isArray(json) && "error" in json
-              ? String((json as { error?: unknown }).error || "")
-              : "";
-
-          throw new Error(maybeError || `Failed to load auctions (${res.status})`);
-        }
-
-        const normalizedRows = normalizeAuctionRows(json);
-        const nextTotal =
-          json && typeof json === "object" && !Array.isArray(json) && "total" in json
-            ? Number((json as { total?: unknown }).total ?? normalizedRows.length)
-            : normalizedRows.length;
-
-        setRows(normalizedRows);
-        setTotal(Number.isFinite(nextTotal) ? nextTotal : normalizedRows.length);
+        const normalizedRows = (await getAuctions(statusFilter)) as AuctionsResponse;
+        const rows = Array.isArray(normalizedRows) ? normalizedRows : [];
+        setRows(rows);
+        setTotal(rows.length);
       } catch (err: unknown) {
         setRows([]);
         setTotal(0);
