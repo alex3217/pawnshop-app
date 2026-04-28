@@ -24,6 +24,7 @@
     "check:staging-readiness": "bash scripts/check-staging-readiness.sh",
     "check:prod-preflight": "bash scripts/check-prod-preflight.sh",
     "check:prod-smoke": "bash scripts/check-prod-smoke.sh",
-    "check:launch": "npm run check:prod-preflight && npm run check:deploy:prod && npm run check:prod-smoke"
+    "check:launch": "npm run check:prod-preflight && npm run check:deploy:prod && npm run check:prod-smoke",
+    "check:domain": "bash scripts/check-domain-readiness.sh"
   }
 }
