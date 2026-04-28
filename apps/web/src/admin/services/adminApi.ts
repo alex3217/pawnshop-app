@@ -158,6 +158,23 @@ export type AdminSettlementRow = {
   stripePaymentIntent?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  auction?: {
+    id?: string | null;
+    itemId?: string | null;
+    shopId?: string | null;
+    status?: string | null;
+    endsAt?: string | null;
+    item?: {
+      id?: string | null;
+      title?: string | null;
+      category?: string | null;
+      condition?: string | null;
+    } | null;
+    shop?: {
+      id?: string | null;
+      name?: string | null;
+    } | null;
+  } | null;
 };
 
 export type SellerPlanSummary = {

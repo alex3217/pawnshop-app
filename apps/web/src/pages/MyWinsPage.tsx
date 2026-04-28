@@ -6,23 +6,29 @@ import {
   useMemo,
   useState,
   type CSSProperties,
+  type FormEvent,
 } from "react";
 import { Link } from "react-router-dom";
-import { getAuthHeaders, getAuthToken } from "../services/auth";
-import { stripePromise } from "../lib/stripe";
 import {
   CardElement,
   Elements,
   useElements,
   useStripe,
 } from "@stripe/react-stripe-js";
-import { getMySettlements as getMySettlementsService, createSettlementPaymentIntent as createSettlementPaymentIntentService } from "../services/settlements";
+import { stripePromise } from "../lib/stripe";
+import { getAuthToken } from "../services/auth";
+import {
+  createSettlementPaymentIntent,
+  getMySettlements,
+  type Settlement,
+} from "../services/settlements";
 
 type ActivePayment = {
   settlementId: string;
   clientSecret: string;
   title: string;
   amountLabel: string;
+  paymentIntentId?: string;
 };
 
 type WinRecord = {
@@ -35,44 +41,39 @@ type WinRecord = {
   status: string;
   endedAt: string | null;
   settledAt: string | null;
+  stripePaymentIntent: string | null;
 };
-
-type ApiWinRecord = Partial<{
-  id: string;
-  settlementId: string;
-  auctionId: string;
-  auctionTitle: string;
-  title: string;
-  itemTitle: string;
-  shopName: string;
-  pawnShopName: string;
-  finalAmountCents: number;
-  amountCents: number;
-  amount: number;
-  currency: string;
-  status: string;
-  endedAt: string;
-  settledAt: string;
-}>;
-
-type PaymentIntentResponse = {
-  success?: boolean;
-  paymentIntentId?: string;
-  clientSecret?: string;
-  amount?: number;
-  currency?: string;
-  error?: string;
-  message?: string;
-};
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function toValidDate(value: string | null | undefined) {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toNumber(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function toCentsFromSettlement(row: Settlement) {
+  if (typeof row.finalAmountCents === "number") return row.finalAmountCents;
+  if (typeof row.amountCents === "number") return row.amountCents;
+
+  if (row.finalPrice !== undefined && row.finalPrice !== null) {
+    return Math.round(toNumber(row.finalPrice) * 100);
+  }
+
+  if (row.amount !== undefined && row.amount !== null) {
+    const amount = toNumber(row.amount);
+
+    if (amount > 0 && amount < 1_000_000) {
+      return Math.round(amount * 100);
+    }
+
+    return Math.round(amount);
+  }
+
+  return 0;
 }
 
 function formatCurrency(cents: number, currency = "USD") {
@@ -88,71 +89,90 @@ function formatDate(value: string | null) {
 }
 
 function normalizeStatus(value: string | undefined) {
-  const normalized = String(value || "WON").trim().toUpperCase();
-  return (normalized || "WON").replaceAll("_", " ");
+  const normalized = String(value || "PENDING").trim().toUpperCase();
+
+  const aliases: Record<string, string> = {
+    PAID: "CHARGED",
+    COMPLETE: "CHARGED",
+    COMPLETED: "CHARGED",
+    SUCCESS: "CHARGED",
+    SUCCEEDED: "CHARGED",
+    WON: "PENDING",
+  };
+
+  return (aliases[normalized] || normalized || "PENDING").replaceAll("_", " ");
+}
+
+function isPaidStatus(status: string) {
+  return normalizeStatus(status) === "CHARGED";
+}
+
+function isFailedStatus(status: string) {
+  return normalizeStatus(status) === "FAILED";
 }
 
 function isPayableStatus(status: string) {
   const normalized = normalizeStatus(status);
-  return normalized === "PENDING" || normalized === "WON";
+  return normalized === "PENDING" || normalized === "FAILED";
 }
 
-function normalizeWin(row: ApiWinRecord, index: number): WinRecord {
-  const cents =
-    typeof row.finalAmountCents === "number"
-      ? row.finalAmountCents
-      : typeof row.amountCents === "number"
-        ? row.amountCents
-        : typeof row.amount === "number"
-          ? Math.round(row.amount * 100)
-          : 0;
+function getStatusBadgeStyle(status: string): CSSProperties {
+  const normalized = normalizeStatus(status);
 
+  const base: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    width: "fit-content",
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+  };
+
+  if (normalized === "CHARGED") {
+    return {
+      ...base,
+      color: "#bbf7d0",
+      background: "rgba(34,197,94,0.16)",
+      border: "1px solid rgba(34,197,94,0.32)",
+    };
+  }
+
+  if (normalized === "FAILED") {
+    return {
+      ...base,
+      color: "#fecaca",
+      background: "rgba(239,68,68,0.16)",
+      border: "1px solid rgba(239,68,68,0.32)",
+    };
+  }
+
+  return {
+    ...base,
+    color: "#fde68a",
+    background: "rgba(245,158,11,0.16)",
+    border: "1px solid rgba(245,158,11,0.32)",
+  };
+}
+
+function normalizeWin(row: Settlement, index: number): WinRecord {
   return {
     settlementId: String(row.settlementId || row.id || `win-${index}`),
     auctionId: String(row.auctionId || ""),
     auctionTitle: String(
-      row.auctionTitle || row.title || row.itemTitle || "Won auction",
+      row.auctionTitle || row.itemTitle || "Won auction",
     ),
-    shopName: String(row.shopName || row.pawnShopName || "Unknown shop"),
-    finalAmountCents: cents,
-    currency: String(row.currency || "USD"),
+    shopName: String(row.shopName || "Unknown shop"),
+    finalAmountCents: toCentsFromSettlement(row),
+    currency: String(row.currency || "USD").toUpperCase(),
     status: normalizeStatus(row.status),
     endedAt: row.endedAt || null,
-    settledAt: row.settledAt || null,
+    settledAt: row.settledAt || row.updatedAt || row.createdAt || null,
+    stripePaymentIntent: row.stripePaymentIntent || null,
   };
 }
-
-function extractWinRows(payload: unknown): ApiWinRecord[] {
-  if (Array.isArray(payload)) return payload as ApiWinRecord[];
-
-  if (isObject(payload)) {
-    if (Array.isArray(payload.data)) return payload.data as ApiWinRecord[];
-    if (Array.isArray(payload.wins)) return payload.wins as ApiWinRecord[];
-    if (Array.isArray(payload.items)) return payload.items as ApiWinRecord[];
-    if (Array.isArray(payload.settlements)) {
-      return payload.settlements as ApiWinRecord[];
-    }
-    if (payload.settlement && isObject(payload.settlement)) {
-      return [payload.settlement as ApiWinRecord];
-    }
-  }
-
-  return [];
-}
-
-void extractWinRows;
-
-function extractMessage(payload: unknown) {
-  if (isObject(payload) && typeof payload.message === "string") {
-    return payload.message;
-  }
-  if (isObject(payload) && typeof payload.error === "string") {
-    return payload.error;
-  }
-  return null;
-}
-
-void extractMessage;
 
 function sortWinsNewestFirst(items: WinRecord[]) {
   return [...items].sort((a, b) => {
@@ -168,50 +188,19 @@ function sortWinsNewestFirst(items: WinRecord[]) {
   });
 }
 
-async function fetchMyWins(_signal?: AbortSignal): Promise<WinRecord[]> {
+async function fetchMyWins(): Promise<WinRecord[]> {
   const token = getAuthToken();
+
   if (!token) {
     throw new Error("Missing buyer token. Please log in again.");
   }
 
-  const settlements = await getMySettlementsService();
+  const settlements = await getMySettlements();
 
   return sortWinsNewestFirst(
-    settlements.map((row: unknown, index: number) =>
-      normalizeWin(row as ApiWinRecord, index),
-    ),
+    settlements.map((row, index) => normalizeWin(row, index)),
   );
 }
-
-export async function createSettlementPaymentIntentLegacy(settlementId: string) {
-  const response = await fetch(
-    `/api/stripe/payment-intents/settlements/${settlementId}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      credentials: "include",
-      body: JSON.stringify({}),
-    },
-  );
-
-  const payload = (await response
-    .json()
-    .catch(() => null)) as PaymentIntentResponse | null;
-
-  if (!response.ok || !payload?.clientSecret) {
-    throw new Error(
-      payload?.error ||
-        payload?.message ||
-        `Failed to create payment (${response.status})`,
-    );
-  }
-
-  return payload;
-}
-
 
 function SettlementPaymentPanel({
   activePayment,
@@ -230,7 +219,7 @@ function SettlementPaymentPanel({
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!stripe || !elements) {
@@ -259,6 +248,12 @@ function SettlementPaymentPanel({
         throw new Error(result.error.message || "Payment failed.");
       }
 
+      if (result.paymentIntent?.status !== "succeeded") {
+        throw new Error(
+          `Payment is ${result.paymentIntent?.status || "not complete"} yet.`,
+        );
+      }
+
       await onSuccess();
     } catch (err: unknown) {
       onError(err instanceof Error ? err.message : "Payment failed.");
@@ -276,6 +271,9 @@ function SettlementPaymentPanel({
           <div style={styles.metaRow}>
             <span>Settlement #{activePayment.settlementId}</span>
             <span>{activePayment.amountLabel}</span>
+            {activePayment.paymentIntentId ? (
+              <span>PI {activePayment.paymentIntentId}</span>
+            ) : null}
           </div>
         </div>
 
@@ -315,7 +313,9 @@ function SettlementPaymentPanel({
           disabled={!stripe || disabled || processing}
           style={{
             ...styles.payButton,
-            ...(!stripe || disabled || processing ? styles.actionButtonDisabled : {}),
+            ...(!stripe || disabled || processing
+              ? styles.actionButtonDisabled
+              : {}),
           }}
         >
           {processing ? "Confirming payment..." : "Confirm Payment"}
@@ -337,59 +337,60 @@ export default function MyWinsPage() {
   const [activePayment, setActivePayment] = useState<ActivePayment | null>(null);
   const [paymentError, setPaymentError] = useState("");
 
-  const load = useCallback(
-    async (
-      mode: "initial" | "refresh" = "initial",
-      signal?: AbortSignal,
-    ) => {
-      if (mode === "refresh") setRefreshing(true);
-      else setLoading(true);
+  const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    if (mode === "refresh") setRefreshing(true);
+    else setLoading(true);
 
-      setError("");
+    setError("");
 
-      try {
-        const data = await fetchMyWins(signal);
-        setWins(data);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Failed to load your wins.");
-      } finally {
-        if (mode === "refresh") setRefreshing(false);
-        else setLoading(false);
-      }
-    },
-    [],
-  );
+    try {
+      const data = await fetchMyWins();
+      setWins(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load your wins.");
+    } finally {
+      if (mode === "refresh") setRefreshing(false);
+      else setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void load("initial", controller.signal);
-    return () => controller.abort();
+    void load("initial");
   }, [load]);
 
-  async function handlePay(settlementId: string) {
+  async function handlePay(win: WinRecord) {
     setError("");
     setNotice("");
     setPaymentError("");
-    setPayingSettlementId(settlementId);
+    setPayingSettlementId(win.settlementId);
 
     try {
-      const paymentIntent = await createSettlementPaymentIntentService(settlementId);
-      const clientSecret = paymentIntent.clientSecret;
+      if (!isPayableStatus(win.status)) {
+        throw new Error("This settlement is not payable.");
+      }
 
-      if (!clientSecret) {
+      const paymentIntent = await createSettlementPaymentIntent(win.settlementId);
+
+      if (
+        normalizeStatus(String(paymentIntent.settlementStatus || "")) ===
+          "CHARGED" &&
+        !paymentIntent.clientSecret
+      ) {
+        setNotice("This settlement is already paid. Refreshing status now...");
+        await load("refresh");
+        return;
+      }
+
+      if (!paymentIntent.clientSecret) {
         throw new Error("Missing Stripe client secret.");
       }
 
-      const selectedWin = wins.find((win) => win.settlementId === settlementId);
-
       setActivePayment({
-        settlementId,
-        clientSecret,
-        title: selectedWin?.auctionTitle || "Settlement payment",
-        amountLabel: selectedWin
-          ? formatCurrency(selectedWin.finalAmountCents, selectedWin.currency)
-          : "Payment due",
+        settlementId: win.settlementId,
+        clientSecret: paymentIntent.clientSecret,
+        paymentIntentId: paymentIntent.paymentIntentId,
+        title: win.auctionTitle || "Settlement payment",
+        amountLabel: formatCurrency(win.finalAmountCents, win.currency),
       });
 
       setNotice("Payment ready. Enter your card details to complete checkout.");
@@ -408,16 +409,29 @@ export default function MyWinsPage() {
   }
 
   const summary = useMemo(() => {
-    const totalSpentCents = wins.reduce(
+    const totalCommittedCents = wins.reduce(
       (sum, row) => sum + row.finalAmountCents,
       0,
     );
+
+    const paidCents = wins
+      .filter((row) => isPaidStatus(row.status))
+      .reduce((sum, row) => sum + row.finalAmountCents, 0);
+
+    const pendingCents = wins
+      .filter((row) => isPayableStatus(row.status))
+      .reduce((sum, row) => sum + row.finalAmountCents, 0);
 
     const latest = wins.length > 0 ? sortWinsNewestFirst(wins)[0] : null;
 
     return {
       winsCount: wins.length,
-      totalSpentCents,
+      paidCount: wins.filter((row) => isPaidStatus(row.status)).length,
+      pendingCount: wins.filter((row) => isPayableStatus(row.status)).length,
+      failedCount: wins.filter((row) => isFailedStatus(row.status)).length,
+      totalCommittedCents,
+      paidCents,
+      pendingCents,
       latestSettlement: latest?.settledAt || latest?.endedAt || null,
     };
   }, [wins]);
@@ -437,10 +451,12 @@ export default function MyWinsPage() {
         <button
           type="button"
           onClick={() => void load("refresh")}
-          disabled={loading || refreshing}
+          disabled={loading || refreshing || Boolean(payingSettlementId)}
           style={{
             ...styles.actionButton,
-            ...(loading || refreshing ? styles.actionButtonDisabled : {}),
+            ...(loading || refreshing || payingSettlementId
+              ? styles.actionButtonDisabled
+              : {}),
           }}
         >
           {refreshing ? "Refreshing..." : "Refresh"}
@@ -454,9 +470,23 @@ export default function MyWinsPage() {
         </div>
 
         <div style={styles.statCard}>
+          <div style={styles.statLabel}>Pending payment</div>
+          <div style={styles.statValue}>{summary.pendingCount}</div>
+          <div style={styles.statHint}>
+            {formatCurrency(summary.pendingCents)}
+          </div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div style={styles.statLabel}>Paid settlements</div>
+          <div style={styles.statValue}>{summary.paidCount}</div>
+          <div style={styles.statHint}>{formatCurrency(summary.paidCents)}</div>
+        </div>
+
+        <div style={styles.statCard}>
           <div style={styles.statLabel}>Total committed</div>
           <div style={styles.statValue}>
-            {formatCurrency(summary.totalSpentCents)}
+            {formatCurrency(summary.totalCommittedCents)}
           </div>
         </div>
 
@@ -468,12 +498,23 @@ export default function MyWinsPage() {
         </div>
       </div>
 
+      {summary.failedCount > 0 ? (
+        <div style={styles.warningCard}>
+          {summary.failedCount} settlement payment{" "}
+          {summary.failedCount === 1 ? "needs" : "need"} attention. You can
+          retry failed settlement payments below.
+        </div>
+      ) : null}
+
       {notice ? <div style={styles.noticeCard}>{notice}</div> : null}
 
       {paymentError ? <div style={styles.errorCard}>{paymentError}</div> : null}
 
       {activePayment ? (
-        <Elements stripe={stripePromise} options={{ clientSecret: activePayment.clientSecret }}>
+        <Elements
+          stripe={stripePromise}
+          options={{ clientSecret: activePayment.clientSecret }}
+        >
           <SettlementPaymentPanel
             activePayment={activePayment}
             disabled={Boolean(payingSettlementId)}
@@ -514,6 +555,8 @@ export default function MyWinsPage() {
           {wins.map((win) => {
             const payable = isPayableStatus(win.status);
             const paying = payingSettlementId === win.settlementId;
+            const paid = isPaidStatus(win.status);
+            const failed = isFailedStatus(win.status);
 
             return (
               <article key={win.settlementId} style={styles.card}>
@@ -523,6 +566,9 @@ export default function MyWinsPage() {
                     <div style={styles.metaRow}>
                       <span>{win.shopName}</span>
                       <span>Settlement #{win.settlementId}</span>
+                      {win.stripePaymentIntent ? (
+                        <span>PI {win.stripePaymentIntent}</span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -546,7 +592,7 @@ export default function MyWinsPage() {
 
                   <div>
                     <div style={styles.detailLabel}>Status</div>
-                    <div style={styles.detailValue}>{win.status}</div>
+                    <div style={getStatusBadgeStyle(win.status)}>{win.status}</div>
                   </div>
                 </div>
 
@@ -554,15 +600,25 @@ export default function MyWinsPage() {
                   {payable ? (
                     <button
                       type="button"
-                      onClick={() => void handlePay(win.settlementId)}
-                      disabled={paying}
+                      onClick={() => void handlePay(win)}
+                      disabled={paying || Boolean(activePayment)}
                       style={{
                         ...styles.payButton,
-                        ...(paying ? styles.actionButtonDisabled : {}),
+                        ...(paying || activePayment
+                          ? styles.actionButtonDisabled
+                          : {}),
                       }}
                     >
-                      {paying ? "Processing..." : "Pay Now"}
+                      {paying
+                        ? "Preparing..."
+                        : failed
+                          ? "Retry Payment"
+                          : "Pay Now"}
                     </button>
+                  ) : null}
+
+                  {paid ? (
+                    <span style={styles.paidLabel}>Payment completed</span>
                   ) : null}
 
                   {win.auctionId ? (
@@ -684,7 +740,7 @@ const styles: Record<string, CSSProperties> = {
   statsGrid: {
     display: "grid",
     gap: 14,
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
   },
   statCard: {
     background: "#121935",
@@ -707,10 +763,24 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 18,
     fontWeight: 900,
   },
+  statHint: {
+    marginTop: 4,
+    color: "#a7b0d8",
+    fontSize: 13,
+    fontWeight: 800,
+  },
   noticeCard: {
     background: "rgba(34,197,94,0.12)",
     border: "1px solid rgba(34,197,94,0.24)",
     color: "#bbf7d0",
+    borderRadius: 16,
+    padding: 16,
+    fontWeight: 800,
+  },
+  warningCard: {
+    background: "rgba(245,158,11,0.12)",
+    border: "1px solid rgba(245,158,11,0.26)",
+    color: "#fde68a",
     borderRadius: 16,
     padding: 16,
     fontWeight: 800,
@@ -811,6 +881,10 @@ const styles: Record<string, CSSProperties> = {
   secondaryLink: {
     color: "#bfdbfe",
     textDecoration: "none",
+    fontWeight: 900,
+  },
+  paidLabel: {
+    color: "#bbf7d0",
     fontWeight: 900,
   },
 };

@@ -1,6 +1,12 @@
 // File: apps/web/src/pages/OwnerAuctionsPage.tsx
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Link } from "react-router-dom";
 import {
   cancelAuction,
@@ -12,6 +18,7 @@ import {
 import { getAuthRole, getAuthToken } from "../services/auth";
 
 type StatusFilter = "ALL" | "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED";
+type AuctionAction = "cancel" | "end";
 
 type OwnerAuctionMessage = {
   type: "success" | "warning" | "danger";
@@ -25,6 +32,25 @@ const STATUS_FILTERS: StatusFilter[] = [
   "ENDED",
   "CANCELED",
 ];
+
+const ACTIONABLE_STATUSES = new Set(["SCHEDULED", "LIVE"]);
+
+const cardGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: 16,
+};
+
+const metricGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))",
+  gap: 10,
+};
+
+const smallMutedStyle: CSSProperties = {
+  color: "var(--muted-foreground, #64748b)",
+  fontSize: 12,
+};
 
 function formatMoney(value: string | number | null | undefined) {
   const amount = Number(value);
@@ -51,8 +77,8 @@ function statusLabel(status: AuctionStatus | null | undefined) {
   return String(status || "UNKNOWN").toUpperCase();
 }
 
-function getStatusBadgeStyle(label: string) {
-  const base = {
+function getStatusBadgeStyle(label: string): CSSProperties {
+  const base: CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
     borderRadius: 999,
@@ -60,41 +86,42 @@ function getStatusBadgeStyle(label: string) {
     fontSize: 12,
     fontWeight: 900,
     letterSpacing: "0.06em",
-    textTransform: "uppercase" as const,
+    textTransform: "uppercase",
     color: "#ffffff",
+    width: "fit-content",
   };
 
   if (label === "LIVE") {
     return {
       ...base,
-      background: "rgba(34,197,94,0.9)",
-    };
-  }
-
-  if (label === "ENDED") {
-    return {
-      ...base,
-      background: "rgba(100,116,139,0.9)",
-    };
-  }
-
-  if (label === "CANCELED") {
-    return {
-      ...base,
-      background: "rgba(239,68,68,0.9)",
+      background: "rgba(34,197,94,0.95)",
     };
   }
 
   if (label === "SCHEDULED") {
     return {
       ...base,
-      background: "rgba(245,158,11,0.9)",
+      background: "rgba(245,158,11,0.95)",
+    };
+  }
+
+  if (label === "ENDED") {
+    return {
+      ...base,
+      background: "rgba(100,116,139,0.95)",
+    };
+  }
+
+  if (label === "CANCELED") {
+    return {
+      ...base,
+      background: "rgba(239,68,68,0.95)",
     };
   }
 
   return {
     ...base,
-    background: "rgba(71,85,105,0.9)",
+    background: "rgba(71,85,105,0.95)",
   };
 }
 
@@ -112,12 +139,94 @@ function itemSubtitle(auction: Auction) {
   return parts.length ? parts.join(" • ") : "No item details available";
 }
 
+function getItemId(auction: Auction) {
+  return auction.item?.id || auction.itemId;
+}
+
+function getShopId(auction: Auction) {
+  return auction.shop?.id || auction.shopId;
+}
+
 function canCancelAuction(status: string) {
-  return status === "SCHEDULED" || status === "LIVE";
+  return ACTIONABLE_STATUSES.has(status);
 }
 
 function canEndAuction(status: string) {
-  return status === "LIVE" || status === "SCHEDULED";
+  return ACTIONABLE_STATUSES.has(status);
+}
+
+function disabledReason(status: string, action: AuctionAction) {
+  if (status === "ENDED") {
+    return action === "cancel"
+      ? "Ended auctions cannot be canceled."
+      : "This auction is already ended.";
+  }
+
+  if (status === "CANCELED") {
+    return action === "cancel"
+      ? "This auction is already canceled."
+      : "Canceled auctions cannot be ended.";
+  }
+
+  return "This action is only available for scheduled or live auctions.";
+}
+
+function Metric({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(148,163,184,0.25)",
+        borderRadius: 14,
+        padding: "10px 12px",
+        background: "rgba(148,163,184,0.08)",
+        display: "grid",
+        gap: 4,
+      }}
+    >
+      <span style={smallMutedStyle}>{label}</span>
+      <strong style={{ fontSize: strong ? 18 : 14 }}>{value}</strong>
+    </div>
+  );
+}
+
+function StatusFilterButton({
+  status,
+  active,
+  count,
+  disabled,
+  onClick,
+}: {
+  status: StatusFilter;
+  active: boolean;
+  count: number;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={active ? "btn btn-primary" : "btn"}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 10,
+        minHeight: 42,
+      }}
+    >
+      <span>{status}</span>
+      <strong>{count}</strong>
+    </button>
+  );
 }
 
 export default function OwnerAuctionsPage() {
@@ -132,19 +241,39 @@ export default function OwnerAuctionsPage() {
   const [message, setMessage] = useState<OwnerAuctionMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [cancelingId, setCancelingId] = useState<string | null>(null);
-  const [endingId, setEndingId] = useState<string | null>(null);
+  const [actionLoadingById, setActionLoadingById] = useState<
+    Record<string, AuctionAction>
+  >({});
 
-  const actionInProgress = Boolean(cancelingId || endingId);
+  const actionInProgress = Object.keys(actionLoadingById).length > 0;
 
   const counts = useMemo(() => {
-    return auctions.reduce<Record<string, number>>((acc, auction) => {
-      const key = statusLabel(auction.status);
-      acc[key] = (acc[key] || 0) + 1;
-      acc.ALL = (acc.ALL || 0) + 1;
-      return acc;
-    }, {});
+    return auctions.reduce<Record<StatusFilter, number>>(
+      (acc, auction) => {
+        const key = statusLabel(auction.status) as StatusFilter;
+
+        acc.ALL += 1;
+
+        if (key in acc) {
+          acc[key] += 1;
+        }
+
+        return acc;
+      },
+      {
+        ALL: 0,
+        SCHEDULED: 0,
+        LIVE: 0,
+        ENDED: 0,
+        CANCELED: 0,
+      },
+    );
   }, [auctions]);
+
+  const liveCount = counts.LIVE;
+  const scheduledCount = counts.SCHEDULED;
+  const endedCount = counts.ENDED;
+  const canceledCount = counts.CANCELED;
 
   const load = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -201,7 +330,31 @@ export default function OwnerAuctionsPage() {
     void load("initial");
   }, [load]);
 
-  async function onEndAuction(auctionId: string) {
+  function setAuctionAction(auctionId: string, action: AuctionAction | null) {
+    setActionLoadingById((current) => {
+      const next = { ...current };
+
+      if (action) {
+        next[auctionId] = action;
+      } else {
+        delete next[auctionId];
+      }
+
+      return next;
+    });
+  }
+
+  async function onEndAuction(auction: Auction) {
+    const status = statusLabel(auction.status);
+
+    if (!canEndAuction(status)) {
+      setMessage({
+        type: "warning",
+        text: disabledReason(status, "end"),
+      });
+      return;
+    }
+
     const confirmed = window.confirm(
       "End this auction now? This should create the final auction result and settlement flow.",
     );
@@ -209,10 +362,10 @@ export default function OwnerAuctionsPage() {
     if (!confirmed) return;
 
     setMessage(null);
-    setEndingId(auctionId);
+    setAuctionAction(auction.id, "end");
 
     try {
-      await endAuction(auctionId);
+      await endAuction(auction.id);
       await load("refresh");
       setMessage({
         type: "success",
@@ -224,11 +377,21 @@ export default function OwnerAuctionsPage() {
         text: err instanceof Error ? err.message : "Failed to end auction.",
       });
     } finally {
-      setEndingId(null);
+      setAuctionAction(auction.id, null);
     }
   }
 
-  async function onCancelAuction(auctionId: string) {
+  async function onCancelAuction(auction: Auction) {
+    const status = statusLabel(auction.status);
+
+    if (!canCancelAuction(status)) {
+      setMessage({
+        type: "warning",
+        text: disabledReason(status, "cancel"),
+      });
+      return;
+    }
+
     const confirmed = window.confirm(
       "Cancel this auction? This should only be used before the auction is completed.",
     );
@@ -236,10 +399,10 @@ export default function OwnerAuctionsPage() {
     if (!confirmed) return;
 
     setMessage(null);
-    setCancelingId(auctionId);
+    setAuctionAction(auction.id, "cancel");
 
     try {
-      await cancelAuction(auctionId);
+      await cancelAuction(auction.id);
       await load("refresh");
       setMessage({
         type: "success",
@@ -251,13 +414,13 @@ export default function OwnerAuctionsPage() {
         text: err instanceof Error ? err.message : "Failed to cancel auction.",
       });
     } finally {
-      setCancelingId(null);
+      setAuctionAction(auction.id, null);
     }
   }
 
   return (
     <div className="page-stack">
-      <div className="page-card" style={{ display: "grid", gap: 16 }}>
+      <div className="page-card" style={{ display: "grid", gap: 18 }}>
         <div
           style={{
             display: "flex",
@@ -270,7 +433,7 @@ export default function OwnerAuctionsPage() {
           <div>
             <h1 style={{ margin: 0 }}>Owner Auctions</h1>
             <p className="muted" style={{ margin: "6px 0 0" }}>
-              Manage live, scheduled, ended, and canceled auctions from your
+              Manage scheduled, live, ended, and canceled auctions from your
               pawnshop inventory.
             </p>
           </div>
@@ -280,7 +443,7 @@ export default function OwnerAuctionsPage() {
               Inventory
             </Link>
 
-            <Link className="btn btn-primary" to="/create-auction">
+            <Link className="btn btn-primary" to="/owner/auctions/new">
               Create Auction
             </Link>
           </div>
@@ -290,29 +453,30 @@ export default function OwnerAuctionsPage() {
           <div className={`alert alert-${message.type}`}>{message.text}</div>
         ) : null}
 
+        <div style={metricGridStyle}>
+          <Metric label="Total Loaded" value={String(counts.ALL)} strong />
+          <Metric label="Live" value={String(liveCount)} />
+          <Metric label="Scheduled" value={String(scheduledCount)} />
+          <Metric label="Ended" value={String(endedCount)} />
+          <Metric label="Canceled" value={String(canceledCount)} />
+        </div>
+
         <div
           style={{
             display: "grid",
             gap: 12,
-            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
           }}
         >
           {STATUS_FILTERS.map((status) => (
-            <button
+            <StatusFilterButton
               key={status}
-              type="button"
-              className={statusFilter === status ? "btn btn-primary" : "btn"}
-              onClick={() => setStatusFilter(status)}
+              status={status}
+              active={statusFilter === status}
+              count={counts[status]}
               disabled={loading || refreshing || actionInProgress}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 10,
-              }}
-            >
-              <span>{status}</span>
-              <strong>{counts[status] || 0}</strong>
-            </button>
+              onClick={() => setStatusFilter(status)}
+            />
           ))}
         </div>
 
@@ -322,9 +486,10 @@ export default function OwnerAuctionsPage() {
             gap: 10,
             flexWrap: "wrap",
             alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          <label style={{ display: "grid", gap: 6 }}>
+          <label style={{ display: "grid", gap: 6, minWidth: 180 }}>
             <span>Status Filter</span>
             <select
               value={statusFilter}
@@ -335,7 +500,7 @@ export default function OwnerAuctionsPage() {
             >
               {STATUS_FILTERS.map((status) => (
                 <option key={status} value={status}>
-                  {status} {counts[status] ? `(${counts[status]})` : ""}
+                  {status}
                 </option>
               ))}
             </select>
@@ -353,7 +518,7 @@ export default function OwnerAuctionsPage() {
               !canViewOwnerAuctions
             }
           >
-            {refreshing ? "Refreshing…" : "Refresh"}
+            {refreshing ? "Refreshing…" : "Refresh Auctions"}
           </button>
         </div>
 
@@ -366,7 +531,7 @@ export default function OwnerAuctionsPage() {
               Create an auction from one of your inventory items.
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Link className="btn btn-primary" to="/create-auction">
+              <Link className="btn btn-primary" to="/owner/auctions/new">
                 Create Auction
               </Link>
               <Link className="btn" to="/owner/inventory">
@@ -375,102 +540,175 @@ export default function OwnerAuctionsPage() {
             </div>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="admin-table" style={{ width: "100%" }}>
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Status</th>
-                  <th>Current Price</th>
-                  <th>Min Increment</th>
-                  <th>Starts</th>
-                  <th>Ends</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
+          <div style={cardGridStyle}>
+            {auctions.map((auction) => {
+              const label = statusLabel(auction.status);
+              const cancelable = canCancelAuction(label);
+              const endable = canEndAuction(label);
+              const rowAction = actionLoadingById[auction.id];
+              const rowBusy = Boolean(rowAction);
+              const itemId = getItemId(auction);
+              const shopId = getShopId(auction);
 
-              <tbody>
-                {auctions.map((auction) => {
-                  const label = statusLabel(auction.status);
-                  const cancelable = canCancelAuction(label);
-                  const endable = canEndAuction(label);
-                  const rowBusy =
-                    cancelingId === auction.id || endingId === auction.id;
+              return (
+                <article
+                  key={auction.id}
+                  className="page-card"
+                  style={{
+                    display: "grid",
+                    gap: 14,
+                    alignContent: "space-between",
+                    border:
+                      label === "LIVE"
+                        ? "1px solid rgba(34,197,94,0.35)"
+                        : undefined,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <div style={{ display: "grid", gap: 5 }}>
+                      <Link to={`/auctions/${auction.id}`}>
+                        <strong style={{ fontSize: 18 }}>
+                          {itemTitle(auction)}
+                        </strong>
+                      </Link>
+                      <small className="muted">{itemSubtitle(auction)}</small>
+                    </div>
 
-                  return (
-                    <tr key={auction.id}>
-                      <td>
-                        <div style={{ display: "grid", gap: 4 }}>
-                          <Link to={`/auctions/${auction.id}`}>
-                            <strong>{itemTitle(auction)}</strong>
-                          </Link>
-                          <small className="muted">{itemSubtitle(auction)}</small>
-                        </div>
-                      </td>
+                    <span style={getStatusBadgeStyle(label)}>{label}</span>
+                  </div>
 
-                      <td>
-                        <span style={getStatusBadgeStyle(label)}>{label}</span>
-                      </td>
+                  <div style={metricGridStyle}>
+                    <Metric
+                      label="Current Price"
+                      value={formatMoney(auction.currentPrice)}
+                      strong
+                    />
+                    <Metric
+                      label="Starting Price"
+                      value={formatMoney(auction.startingPrice)}
+                    />
+                    <Metric
+                      label="Min Increment"
+                      value={formatMoney(auction.minIncrement)}
+                    />
+                    <Metric
+                      label="Reserve"
+                      value={formatMoney(auction.reservePrice)}
+                    />
+                  </div>
 
-                      <td>{formatMoney(auction.currentPrice)}</td>
-                      <td>{formatMoney(auction.minIncrement)}</td>
-                      <td>{formatDateTime(auction.startsAt)}</td>
-                      <td>
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 8,
+                      borderTop: "1px solid rgba(148,163,184,0.25)",
+                      paddingTop: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "90px 1fr",
+                        gap: 8,
+                      }}
+                    >
+                      <span style={smallMutedStyle}>Starts</span>
+                      <strong>{formatDateTime(auction.startsAt)}</strong>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "90px 1fr",
+                        gap: 8,
+                      }}
+                    >
+                      <span style={smallMutedStyle}>Ends</span>
+                      <strong>
                         {formatDateTime(auction.extendedEndsAt || auction.endsAt)}
-                        {auction.extendedEndsAt ? (
-                          <div className="muted" style={{ fontSize: 12 }}>
-                            Extended
-                          </div>
-                        ) : null}
-                      </td>
+                      </strong>
+                    </div>
 
-                      <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Link className="btn btn-sm" to={`/auctions/${auction.id}`}>
-                            View
-                          </Link>
+                    {auction.extendedEndsAt ? (
+                      <div className="alert alert-warning" style={{ margin: 0 }}>
+                        Auction end time was extended by bidding activity.
+                      </div>
+                    ) : null}
+                  </div>
 
-                          {cancelable ? (
-                            <button
-                              className="btn btn-sm"
-                              type="button"
-                              onClick={() => void onCancelAuction(auction.id)}
-                              disabled={rowBusy || actionInProgress}
-                            >
-                              {cancelingId === auction.id ? "Canceling…" : "Cancel"}
-                            </button>
-                          ) : null}
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Link className="btn btn-sm" to={`/auctions/${auction.id}`}>
+                      Auction Detail
+                    </Link>
 
-                          {endable ? (
-                            <button
-                              className="btn btn-sm btn-primary"
-                              type="button"
-                              onClick={() => void onEndAuction(auction.id)}
-                              disabled={rowBusy || actionInProgress}
-                            >
-                              {endingId === auction.id ? "Ending…" : "End"}
-                            </button>
-                          ) : null}
+                    {itemId ? (
+                      <Link className="btn btn-sm" to={`/items/${itemId}`}>
+                        Item
+                      </Link>
+                    ) : null}
 
-                          {!cancelable && !endable ? (
-                            <span className="muted" style={{ fontSize: 12 }}>
-                              No actions
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    {shopId ? (
+                      <Link className="btn btn-sm" to={`/shops/${shopId}`}>
+                        Shop
+                      </Link>
+                    ) : null}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      borderTop: "1px solid rgba(148,163,184,0.25)",
+                      paddingTop: 12,
+                    }}
+                  >
+                    <button
+                      className="btn btn-sm"
+                      type="button"
+                      onClick={() => void onCancelAuction(auction)}
+                      disabled={!cancelable || rowBusy}
+                      title={
+                        cancelable ? "Cancel auction" : disabledReason(label, "cancel")
+                      }
+                    >
+                      {rowAction === "cancel" ? "Canceling…" : "Cancel Auction"}
+                    </button>
+
+                    <button
+                      className="btn btn-sm btn-primary"
+                      type="button"
+                      onClick={() => void onEndAuction(auction)}
+                      disabled={!endable || rowBusy}
+                      title={endable ? "End auction" : disabledReason(label, "end")}
+                    >
+                      {rowAction === "end" ? "Ending…" : "End Auction"}
+                    </button>
+
+                    {!cancelable && !endable ? (
+                      <span style={smallMutedStyle}>
+                        Actions disabled for {label.toLowerCase()} auctions.
+                      </span>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </div>
