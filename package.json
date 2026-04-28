@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "check:dev-safe": "npm --prefix apps/web run check:dev-safe",
+    "check:dev-wiring": "npm --prefix apps/web run check:dev-wiring",
+    "build:web": "npm --prefix apps/web run build",
+    "dev:web": "npm --prefix apps/web run dev"
+  }
+}
