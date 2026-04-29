@@ -135,6 +135,36 @@ export async function listShops(req, res) {
   }
 }
 
+
+export async function getShopById(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: "Shop id is required." });
+    }
+
+    const [where, select] = await Promise.all([
+      buildPawnShopWhere({ id }),
+      buildPawnShopSelect(),
+    ]);
+
+    const shop = await prisma.pawnShop.findFirst({
+      where,
+      select,
+    });
+
+    if (!shop) {
+      return res.status(404).json({ error: "Shop not found." });
+    }
+
+    return res.json(shop);
+  } catch (error) {
+    console.error("Failed to get shop by id:", error);
+    return res.status(500).json({ error: "Failed to load shop." });
+  }
+}
+
 export async function myShops(req, res) {
   try {
     const userId = req?.user?.sub;

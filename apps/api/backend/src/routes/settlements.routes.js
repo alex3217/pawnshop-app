@@ -12,7 +12,7 @@ import {
 
 const router = Router();
 
-const BUYER_ROLES = ["CONSUMER", "ADMIN"];
+const BUYER_ROLES = ["CONSUMER", "OWNER", "ADMIN"];
 const ADMIN_ROLES = ["ADMIN"];
 const ID_MAX_LENGTH = 128;
 

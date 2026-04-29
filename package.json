@@ -28,6 +28,11 @@
     "check:domain": "bash scripts/check-domain-readiness.sh",
     "check:static-safety": "bash scripts/check-static-safety.sh",
     "check:processes": "bash scripts/check-process-boundaries.sh",
-    "check:processes:frontend": "REQUIRE_FRONTEND=1 bash scripts/check-process-boundaries.sh"
+    "check:processes:frontend": "REQUIRE_FRONTEND=1 bash scripts/check-process-boundaries.sh",
+    "check:frontend-routes": "bash scripts/check-frontend-routes-links.sh",
+    "check:backend-routes": "bash scripts/check-backend-routes.sh",
+    "check:role-routes": "bash scripts/check-role-routes.sh",
+    "check:click-routes": "node scripts/playwright/route-click-audit.mjs",
+    "check:all-routes": "npm run check:frontend-routes && npm run check:backend-routes && npm run check:role-routes && npm run check:click-routes"
   }
 }
