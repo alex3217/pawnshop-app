@@ -25,6 +25,9 @@
     "check:prod-preflight": "bash scripts/check-prod-preflight.sh",
     "check:prod-smoke": "bash scripts/check-prod-smoke.sh",
     "check:launch": "npm run check:prod-preflight && npm run check:deploy:prod && npm run check:prod-smoke",
-    "check:domain": "bash scripts/check-domain-readiness.sh"
+    "check:domain": "bash scripts/check-domain-readiness.sh",
+    "check:static-safety": "bash scripts/check-static-safety.sh",
+    "check:processes": "bash scripts/check-process-boundaries.sh",
+    "check:processes:frontend": "REQUIRE_FRONTEND=1 bash scripts/check-process-boundaries.sh"
   }
 }

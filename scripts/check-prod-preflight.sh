@@ -116,6 +116,7 @@ fi
 
 echo "✅ Latest production backup found: $LATEST_PROD_BACKUP"
 
-npm run check:prod-readiness
+npm run check:static-safety
+npm run build:web
 
 echo "✅ Production preflight passed."
