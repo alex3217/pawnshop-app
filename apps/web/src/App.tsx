@@ -83,6 +83,7 @@ const SuperAdminUsersPage = lazyPage(() =>
   import("./admin/pages/SuperAdminUsersPage"),
 );
 const SuperAdminOverviewPage = lazyPage(() => import("./admin/pages/SuperAdminOverviewPage"));
+const SuperAdminAuditPage = lazyPage(() => import("./admin/pages/SuperAdminAuditPage"));
 const SuperAdminShopsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminShopsPage"),
 );
@@ -345,13 +346,7 @@ const superAdminRoutes: RouteConfig[] = [
       "Platform revenue, subscription MRR, and settlement reporting will appear here.",
     ),
   },
-  {
-    path: "audit",
-    element: placeholderRoute(
-      "Platform audit",
-      "Super Admin audit logs and sensitive action history will appear here.",
-    ),
-  },
+  { path: "audit", element: <SuperAdminAuditPage /> },
   { path: "platform-settings", element: <SuperAdminPlatformSettingsPage /> },
   {
     path: "settings",

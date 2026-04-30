@@ -333,3 +333,30 @@ model PlatformSetting {
   @@index([key])
   @@index([updatedByUserId])
 }
+
+model SuperAdminAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  actorRole  String?
+  action     String
+  method     String
+  path       String
+  routeKey   String?
+  targetType String?
+  targetId   String?
+  statusCode Int?
+  success    Boolean  @default(true)
+  requestId  String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([actorEmail, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+  @@index([success, createdAt])
+}
+
