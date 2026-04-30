@@ -230,13 +230,18 @@ async function callOpenAI(input) {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const err = new Error(payload?.error?.message || "OpenAI listing assistant request failed.");
-    err.statusCode = response.status;
-    err.details = {
-      providerStatus: response.status,
-      providerType: payload?.error?.type || null,
-    };
-    throw err;
+    const providerStatus = response.status;
+    const providerType = payload?.error?.type || null;
+
+    console.warn("[aiListingAssistant] OpenAI provider error; using fallback", {
+      providerStatus,
+      providerType,
+    });
+
+    return buildFallbackSuggestion(
+      input,
+      `OpenAI unavailable (${providerStatus}${providerType ? ` ${providerType}` : ""}). Using safe local fallback.`,
+    );
   }
 
   const outputText = extractOutputText(payload);
