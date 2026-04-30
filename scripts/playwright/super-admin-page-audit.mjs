@@ -14,6 +14,7 @@ const routesToCheck = [
   "/super-admin/settlements",
   "/super-admin/buyer-subscriptions",
   "/super-admin/platform-settings",
+  "/super-admin/audit",
   "/super-admin/inventory",
 ];
 

@@ -165,6 +165,7 @@ if [ -n "$SUPER_ADMIN_EMAIL" ] && [ -n "$SUPER_ADMIN_PASSWORD" ]; then
   request GET "/super-admin/settlements" "$SUPER_ADMIN_TOKEN"
   request GET "/super-admin/revenue" "$SUPER_ADMIN_TOKEN"
   request GET "/super-admin/platform-settings" "$SUPER_ADMIN_TOKEN"
+  request GET "/super-admin/audit" "$SUPER_ADMIN_TOKEN"
 else
   echo "⚠️  Super admin route checks skipped. Set SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD to test them." >&2
 fi
