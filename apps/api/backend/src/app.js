@@ -25,6 +25,7 @@ import staffRoutes from "./routes/staff.routes.js";
 import settlementsRoutes from "./routes/settlements.routes.js";
 import stripeRoutes from "./routes/stripe.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
+import aiRoutes from "./routes/ai.routes.js";
 
 function parseAllowedOrigins(...values) {
   return new Set(
@@ -231,6 +232,7 @@ export function createApp() {
   mountApi(app, "/staff", staffRoutes);
   mountApi(app, "/settlements", settlementsRoutes);
   mountApi(app, "/stripe", stripeRoutes);
+  mountApi(app, "/ai", aiRoutes);
 
   app.use("/api", sellerPlansRoutes);
   app.use("/api", buyerPlansRoutes);

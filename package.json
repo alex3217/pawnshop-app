@@ -34,6 +34,7 @@
     "check:role-routes": "bash scripts/check-role-routes.sh",
     "check:click-routes": "node scripts/playwright/route-click-audit.mjs",
     "check:all-routes": "npm run check:frontend-routes && npm run check:backend-routes && npm run check:role-routes && npm run check:click-routes",
-    "check:super-admin-pages": "node scripts/playwright/super-admin-page-audit.mjs"
+    "check:super-admin-pages": "node scripts/playwright/super-admin-page-audit.mjs",
+    "check:ai-listing-assistant": "bash scripts/check-ai-listing-assistant.sh"
   }
 }
