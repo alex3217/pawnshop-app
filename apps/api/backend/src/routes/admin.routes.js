@@ -50,7 +50,7 @@ function validateIdParam(paramName, label) {
   };
 }
 
-router.use(authRequired, requireRole("ADMIN"));
+router.use(authRequired, requireRole("ADMIN", "SUPER_ADMIN"));
 
 router.get("/users", asyncRoute(listUsers));
 router.delete(

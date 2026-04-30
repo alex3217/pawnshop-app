@@ -8,7 +8,8 @@ type AdminRouteGroup =
   | "admin-growth"
   | "admin-system"
   | "super-admin-core"
-  | "super-admin-commercial"
+  | "super-admin-marketplace"
+  | "super-admin-billing"
   | "super-admin-governance";
 
 type AdminRouteInput = {
@@ -187,65 +188,72 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
   route({
     key: "superAdminOverview",
     path: "/super-admin",
-    label: "Platform Overview",
+    label: "Command Center",
     permissions: ["admin:overview:read"],
     group: "super-admin-core",
   }),
   route({
     key: "superAdminUsers",
     path: "/super-admin/users",
-    label: "Platform Users",
+    label: "Users & Roles",
     permissions: ["admin:users:read"],
     group: "super-admin-core",
   }),
   route({
     key: "superAdminShops",
     path: "/super-admin/shops",
-    label: "Platform Shops",
+    label: "Shop Management",
     permissions: ["admin:shops:read"],
-    group: "super-admin-core",
+    group: "super-admin-marketplace",
+  }),
+  route({
+    key: "superAdminInventory",
+    path: "/super-admin/inventory",
+    label: "Inventory Control",
+    permissions: ["admin:inventory:read"],
+    group: "super-admin-marketplace",
   }),
 
   route({
     key: "superAdminSellerPlans",
     path: "/super-admin/plans/seller",
-    label: "Seller Plans",
+    label: "Seller Plan Control",
     permissions: ["admin:subscriptions:read"],
-    group: "super-admin-commercial",
+    group: "super-admin-billing",
   }),
   route({
     key: "superAdminBuyerPlans",
     path: "/super-admin/plans/buyer",
-    label: "Buyer Plans",
+    label: "Buyer Plan Control",
     permissions: ["admin:subscriptions:read"],
-    group: "super-admin-commercial",
+    group: "super-admin-billing",
   }),
   route({
     key: "superAdminBuyerSubscriptions",
     path: "/super-admin/buyer-subscriptions",
     label: "Buyer Subscriptions",
     permissions: ["admin:subscriptions:read"],
-    group: "super-admin-commercial",
+    group: "super-admin-billing",
   }),
   route({
     key: "superAdminRevenue",
     path: "/super-admin/revenue",
-    label: "Platform Revenue",
+    label: "Revenue Dashboard",
     permissions: ["admin:revenue:read"],
-    group: "super-admin-commercial",
+    group: "super-admin-billing",
   }),
   route({
     key: "superAdminSettlements",
     path: "/super-admin/settlements",
-    label: "Settlements Control",
+    label: "Settlement Control",
     permissions: ["admin:orders:read"],
-    group: "super-admin-commercial",
+    group: "super-admin-billing",
   }),
 
   route({
     key: "superAdminAudit",
     path: "/super-admin/audit",
-    label: "Platform Audit",
+    label: "Audit Logs",
     permissions: ["admin:audit:read"],
     group: "super-admin-governance",
   }),

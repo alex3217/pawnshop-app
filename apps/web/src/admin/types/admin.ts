@@ -23,6 +23,7 @@ export type AdminNavKey =
   | "superAdminOverview"
   | "superAdminUsers"
   | "superAdminShops"
+  | "superAdminInventory"
   | "superAdminSellerPlans"
   | "superAdminBuyerPlans"
   | "superAdminBuyerSubscriptions"
@@ -56,7 +57,8 @@ export type AdminSectionKey =
   | "growth"
   | "system"
   | "super-admin-core"
-  | "super-admin-commercial"
+  | "super-admin-marketplace"
+  | "super-admin-billing"
   | "super-admin-governance";
 
 export type AdminRouteGroup =
@@ -65,7 +67,8 @@ export type AdminRouteGroup =
   | "admin-growth"
   | "admin-system"
   | "super-admin-core"
-  | "super-admin-commercial"
+  | "super-admin-marketplace"
+  | "super-admin-billing"
   | "super-admin-governance";
 
 export type AdminBadgeTone =
