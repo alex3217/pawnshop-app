@@ -30,6 +30,17 @@ export type CreateItemInput = {
   condition: string;
 };
 
+export type UpdateItemInput = {
+  pawnShopId?: string;
+  title?: string;
+  description?: string;
+  price?: number;
+  images?: string[];
+  category?: string;
+  condition?: string;
+  status?: string;
+};
+
 function normalizeItems(data: unknown): Item[] {
   if (Array.isArray(data)) return data as Item[];
 
@@ -120,6 +131,52 @@ export async function createItem(
   );
 
   return unwrapItem(data);
+}
+
+
+export async function updateItem(
+  id: string,
+  input: UpdateItemInput,
+  signal?: AbortSignal,
+): Promise<Item> {
+  if (!id) throw new Error("Missing item id.");
+
+  const payload: Record<string, unknown> = {};
+
+  if (input.pawnShopId !== undefined) payload.pawnShopId = input.pawnShopId;
+  if (input.title !== undefined) {
+    if (!input.title.trim()) throw new Error("Missing item title.");
+    payload.title = input.title.trim();
+  }
+  if (input.description !== undefined) {
+    payload.description = input.description.trim();
+  }
+  if (input.price !== undefined) {
+    if (!Number.isFinite(input.price) || input.price <= 0) {
+      throw new Error("Price must be greater than 0.");
+    }
+    payload.price = input.price;
+  }
+  if (input.images !== undefined) payload.images = input.images;
+  if (input.category !== undefined) payload.category = input.category;
+  if (input.condition !== undefined) payload.condition = input.condition;
+  if (input.status !== undefined) payload.status = input.status;
+
+  const data = await api.put<unknown>(
+    `/items/${encodeURIComponent(id)}`,
+    payload,
+    { signal },
+  );
+
+  return unwrapItem(data);
+}
+
+export async function deleteItem(
+  id: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  if (!id) throw new Error("Missing item id.");
+  return api.delete<unknown>(`/items/${encodeURIComponent(id)}`, { signal });
 }
 
 export type MarketplaceItemFilters = {

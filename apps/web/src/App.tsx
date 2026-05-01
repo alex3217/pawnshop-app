@@ -26,8 +26,8 @@ type RouteConfig =
 
 const ADMIN_ROLES: Role[] = ["ADMIN", "SUPER_ADMIN"];
 const SUPER_ADMIN_ROLES: Role[] = ["SUPER_ADMIN"];
-const OWNER_ROLES: Role[] = ["OWNER", "ADMIN", "SUPER_ADMIN"];
-const CONSUMER_ROLES: Role[] = ["CONSUMER", "ADMIN", "SUPER_ADMIN"];
+const OWNER_ROLES: Role[] = ["OWNER", "ADMIN"];
+const CONSUMER_ROLES: Role[] = ["CONSUMER", "ADMIN"];
 
 function isComponentExport(value: unknown): value is ComponentType<unknown> {
   return typeof value === "function";
@@ -101,6 +101,7 @@ const AuctionsPage = lazyPage(() => import("./pages/AuctionsPage"));
 const BulkUploadPage = lazyPage(() => import("./pages/BulkUploadPage"));
 const CreateAuctionPage = lazyPage(() => import("./pages/CreateAuctionPage"));
 const CreateItemPage = lazyPage(() => import("./pages/CreateItemPage"));
+const OwnerItemEditPage = lazyPage(() => import("./pages/OwnerItemEditPage"));
 const CreateShopPage = lazyPage(() => import("./pages/CreateShopPage"));
 const HomePage = lazyPage(() => import("./pages/HomePage"));
 const ItemDetailPage = lazyPage(() => import("./pages/ItemDetailPage"));
@@ -223,6 +224,7 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner/dashboard", element: <Navigate to="/owner" replace /> },
   { path: "/owner/shops/new", element: <CreateShopPage /> },
   { path: "/owner/items/new", element: <CreateItemPage /> },
+  { path: "items/:id/edit", element: <OwnerItemEditPage /> },
   { path: "/owner/inventory", element: <OwnerInventoryPage /> },
   { path: "/owner/locations", element: <OwnerLocationsPage /> },
   { path: "/owner/staff", element: <OwnerStaffPage /> },

@@ -106,8 +106,8 @@ export default function SiteLayout() {
 
   const isSuperAdmin = role === "SUPER_ADMIN";
   const isAdmin = role === "ADMIN";
-  const showBuyerLinks = role === "CONSUMER" || isAdmin || isSuperAdmin;
-  const showOwnerLinks = role === "OWNER" || isAdmin || isSuperAdmin;
+  const showBuyerLinks = role === "CONSUMER" || isAdmin;
+  const showOwnerLinks = role === "OWNER" || isAdmin;
   const showAdminLinks = isAdmin;
   const showSuperAdminLinks = isSuperAdmin;
   const showGuestLinks = !role;

@@ -1,8 +1,6 @@
-// File: apps/web/src/pages/OwnerInventoryPage.tsx
-
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { getMyItems, type Item } from "../services/items";
+import { deleteItem, getMyItems, markItemSold, type Item } from "../services/items";
 
 function formatPrice(value: string | number) {
   const num = Number(value);
@@ -48,6 +46,8 @@ export default function OwnerInventoryPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionItemId, setActionItemId] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
@@ -75,10 +75,52 @@ export default function OwnerInventoryPage() {
   const activeCount = useMemo(() => {
     return items.filter((item) =>
       ["AVAILABLE", "PENDING", "ACTIVE"].includes(
-        String(item.status || "").toUpperCase()
+        String(item.status || "").toUpperCase(),
       )
     ).length;
   }, [items]);
+
+  async function handleMarkSold(item: Item) {
+    if (!item.id || actionItemId) return;
+
+    const confirmed = window.confirm(`Mark "${item.title}" as sold?`);
+    if (!confirmed) return;
+
+    setActionItemId(item.id);
+    setNotice(null);
+    setError(null);
+
+    try {
+      await markItemSold(item.id);
+      setNotice(`Marked "${item.title}" as sold.`);
+      await load(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark item sold.");
+    } finally {
+      setActionItemId("");
+    }
+  }
+
+  async function handleDelete(item: Item) {
+    if (!item.id || actionItemId) return;
+
+    const confirmed = window.confirm(`Delete/archive "${item.title}"?`);
+    if (!confirmed) return;
+
+    setActionItemId(item.id);
+    setNotice(null);
+    setError(null);
+
+    try {
+      await deleteItem(item.id);
+      setNotice(`Deleted/archived "${item.title}".`);
+      await load(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete item.");
+    } finally {
+      setActionItemId("");
+    }
+  }
 
   return (
     <div style={styles.page}>
@@ -113,6 +155,7 @@ export default function OwnerInventoryPage() {
         </div>
       ) : null}
 
+      {notice ? <div style={styles.notice}>{notice}</div> : null}
       {loading ? <div style={styles.card}>Loading inventory...</div> : null}
       {error ? <div style={styles.error}>{error}</div> : null}
 
@@ -124,37 +167,71 @@ export default function OwnerInventoryPage() {
       ) : null}
 
       <div style={styles.grid}>
-        {items.map((item) => (
-          <article key={item.id} style={styles.card}>
-            <h3 style={styles.cardTitle}>{item.title}</h3>
-            <div style={styles.price}>{formatPrice(item.price)}</div>
+        {items.map((item) => {
+          const isActioning = actionItemId === item.id;
+          const isSold = String(item.status || "").toUpperCase() === "SOLD";
 
-            <div style={styles.metaRow}>
-              <span style={{ ...styles.metaPill, ...getItemStatusTone(item.status) }}>
-                {item.status}
-              </span>
-              {item.category ? <span style={styles.metaPill}>{item.category}</span> : null}
-              {item.condition ? <span style={styles.metaPill}>{item.condition}</span> : null}
-            </div>
+          return (
+            <article key={item.id} style={styles.card}>
+              <h3 style={styles.cardTitle}>{item.title}</h3>
+              <div style={styles.price}>{formatPrice(item.price)}</div>
 
-            <div style={styles.meta}>Shop: {item.shop?.name || item.pawnShopId}</div>
+              <div style={styles.metaRow}>
+                <span style={{ ...styles.metaPill, ...getItemStatusTone(item.status) }}>
+                  {item.status}
+                </span>
+                {item.category ? <span style={styles.metaPill}>{item.category}</span> : null}
+                {item.condition ? <span style={styles.metaPill}>{item.condition}</span> : null}
+              </div>
 
-            {item.description ? (
-              <p style={styles.description}>{item.description}</p>
-            ) : null}
+              <div style={styles.meta}>Shop: {item.shop?.name || item.pawnShopId}</div>
 
-            <div style={styles.actionRow}>
-              <Link to={`/items/${item.id}`} style={styles.linkButton}>
-                View Item
-              </Link>
-              {item.pawnShopId ? (
-                <Link to={`/shops/${item.pawnShopId}`} style={styles.linkButton}>
-                  View Shop
-                </Link>
+              {item.description ? (
+                <p style={styles.description}>{item.description}</p>
               ) : null}
-            </div>
-          </article>
-        ))}
+
+              <div style={styles.actionRow}>
+                <Link to={`/items/${item.id}`} style={styles.linkButton}>
+                  View Item
+                </Link>
+
+                <Link to={`/owner/items/${item.id}/edit`} style={styles.primarySmallLink}>
+                  Edit Item
+                </Link>
+
+                {item.pawnShopId ? (
+                  <Link to={`/shops/${item.pawnShopId}`} style={styles.linkButton}>
+                    View Shop
+                  </Link>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => handleMarkSold(item)}
+                  disabled={isActioning || isSold}
+                  style={{
+                    ...styles.smallButton,
+                    ...(isActioning || isSold ? styles.disabledButton : {}),
+                  }}
+                >
+                  {isActioning ? "Working..." : isSold ? "Sold" : "Mark Sold"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDelete(item)}
+                  disabled={isActioning}
+                  style={{
+                    ...styles.dangerSmallButton,
+                    ...(isActioning ? styles.disabledButton : {}),
+                  }}
+                >
+                  Delete / Archive
+                </button>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </div>
   );
@@ -195,7 +272,7 @@ const styles: Record<string, CSSProperties> = {
   grid: {
     display: "grid",
     gap: 16,
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
   },
   card: {
     background: "#121935",
@@ -253,14 +330,32 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 12,
     fontWeight: 800,
   },
+  primarySmallLink: {
+    textDecoration: "none",
+    border: "none",
+    color: "#08111f",
+    background: "#6ea8fe",
+    padding: "9px 12px",
+    borderRadius: 12,
+    fontWeight: 800,
+  },
   linkButton: {
     textDecoration: "none",
     border: "1px solid rgba(255,255,255,0.12)",
     color: "#eef2ff",
     background: "#121935",
-    padding: "10px 14px",
+    padding: "9px 12px",
     borderRadius: 12,
     fontWeight: 700,
+  },
+  smallButton: {
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#eef2ff",
+    background: "#121935",
+    padding: "9px 12px",
+    borderRadius: 12,
+    fontWeight: 700,
+    cursor: "pointer",
   },
   secondaryButton: {
     border: "1px solid rgba(255,255,255,0.12)",
@@ -271,9 +366,22 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     cursor: "pointer",
   },
+  dangerSmallButton: {
+    border: "1px solid rgba(248,113,113,0.35)",
+    color: "#fecaca",
+    background: "rgba(220,38,38,0.14)",
+    padding: "9px 12px",
+    borderRadius: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
   disabledButton: {
     opacity: 0.65,
     cursor: "not-allowed",
+  },
+  notice: {
+    color: "#c7f9d3",
+    fontWeight: 700,
   },
   error: {
     color: "#ff9ead",
