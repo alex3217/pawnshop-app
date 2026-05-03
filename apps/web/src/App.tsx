@@ -76,6 +76,7 @@ const AdminOwnersPage = lazyPage(() => import("./admin/pages/AdminOwnersPage"));
 const AdminSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/AdminSubscriptionsPage"),
 );
+const AdminWorkspacePage = lazyPage(() => import("./admin/pages/AdminWorkspacePage"));
 
 const AdminItemsPage = lazyPage(() => import("./pages/AdminItemsPage"));
 const AdminUsersPage = lazyPage(() => import("./pages/AdminUsersPage"));
@@ -93,6 +94,7 @@ const SuperAdminSettlementsPage = lazyPage(() =>
 const SuperAdminPlatformSettingsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminPlatformSettingsPage"),
 );
+const SuperAdminRevenuePage = lazyPage(() => import("./admin/pages/SuperAdminRevenuePage"));
 const SuperAdminBuyerSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminBuyerSubscriptionsPage"),
 );
@@ -133,27 +135,6 @@ function RouteFallback() {
       </div>
     </div>
   );
-}
-
-function FeaturePlaceholderPage({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10">
-      <div className="rounded-2xl border bg-background p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function placeholderRoute(title: string, description: string): ReactNode {
-  return <FeaturePlaceholderPage title={title} description={description} />;
 }
 
 function withSuspense(element: ReactNode) {
@@ -252,75 +233,66 @@ const adminCoreRoutes: RouteConfig[] = [
   },
 ];
 
-const adminPlaceholderRoutes: RouteConfig[] = [
+const adminWorkspaceRoutes: RouteConfig[] = [
   {
     path: "orders",
-    element: placeholderRoute(
-      "Admin orders",
-      "Reserved for a future admin orders workspace.",
+    element: (
+      <AdminWorkspacePage />
     ),
   },
   {
     path: "reviews",
-    element: placeholderRoute(
-      "Admin reviews",
-      "Reserved for a future admin reviews workspace.",
+    element: (
+      <AdminWorkspacePage />
     ),
   },
   {
     path: "support",
-    element: placeholderRoute(
-      "Admin support",
-      "Reserved for a future admin support workspace.",
+    element: (
+      <AdminWorkspacePage />
     ),
   },
   {
     path: "revenue",
-    element: placeholderRoute(
-      "Admin revenue",
-      "Reserved for a future admin revenue workspace.",
+    element: (
+      <AdminWorkspacePage />
     ),
   },
   {
     path: "analytics",
-    element: placeholderRoute(
-      "Admin analytics",
-      "Reserved for a future admin analytics workspace.",
+    element: (
+      <AdminWorkspacePage />
     ),
   },
   {
     path: "risk",
-    element: placeholderRoute(
-      "Admin risk",
-      "Reserved for a future admin risk workspace.",
+    element: (
+      <AdminWorkspacePage />
     ),
   },
   {
     path: "audit",
-    element: placeholderRoute(
-      "Admin audit",
-      "Reserved for a future admin audit workspace.",
+    element: (
+      <AdminWorkspacePage />
     ),
   },
   {
     path: "system",
-    element: placeholderRoute(
-      "Admin system",
-      "Reserved for a future admin system workspace.",
+    element: (
+      <AdminWorkspacePage />
     ),
   },
   {
     path: "settings",
-    element: placeholderRoute(
-      "Admin settings",
-      "Reserved for a future admin settings workspace.",
+    element: (
+      <AdminWorkspacePage />
     ),
   },
 ];
 
 const adminChildRoutes: RouteConfig[] = [
   ...adminCoreRoutes,
-  ...adminPlaceholderRoutes,
+  ...adminWorkspaceRoutes,
 ];
 
 const superAdminRoutes: RouteConfig[] = [
@@ -341,13 +313,7 @@ const superAdminRoutes: RouteConfig[] = [
     element: <Navigate to="/super-admin/buyer-subscriptions" replace />,
   },
   { path: "settlements", element: <SuperAdminSettlementsPage /> },
-  {
-    path: "revenue",
-    element: placeholderRoute(
-      "Platform revenue",
-      "Platform revenue, subscription MRR, and settlement reporting will appear here.",
-    ),
-  },
+  { path: "revenue", element: <SuperAdminRevenuePage /> },
   { path: "audit", element: <SuperAdminAuditPage /> },
   { path: "platform-settings", element: <SuperAdminPlatformSettingsPage /> },
   {
