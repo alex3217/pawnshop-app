@@ -48,6 +48,7 @@ echo "===== 2. REAL UI PLACEHOLDERS / STUBS =====" | tee "$OUT/02-real-ui-stubs.
     --glob '!coverage/**' \
     --glob '!reports/**' \
     --glob '!package-lock.json' \
+    --glob '!scripts/check-dashboards.sh' \
     --glob '!reports/**' \
     --glob '!scripts/check-pawnshop-real-remaining.sh' \
     --glob '!scripts/check-pawnshop-progress.sh' \
@@ -70,6 +71,7 @@ echo "===== 3. TODO / FIXME ONLY =====" | tee "$OUT/03-todo-fixme.txt"
     --glob '!coverage/**' \
     --glob '!reports/**' \
     --glob '!package-lock.json' \
+    --glob '!scripts/check-dashboards.sh' \
     --glob '!reports/**' \
     --glob '!scripts/check-pawnshop-real-remaining.sh' \
     --glob '!scripts/check-pawnshop-progress.sh' \
@@ -92,6 +94,7 @@ echo "===== 4. LEGACY APP LEFTOVERS — WORD-BOUNDARY SAFE =====" | tee "$OUT/04
     --glob '!coverage/**' \
     --glob '!reports/**' \
     --glob '!package-lock.json' \
+    --glob '!scripts/check-dashboards.sh' \
     --glob '!reports/**' \
     --glob '!scripts/check-pawnshop-real-remaining.sh' \
     --glob '!scripts/check-pawnshop-progress.sh' \
