@@ -80,3 +80,15 @@ apps/api/backend/build/
 apps/api/backend/.env
 apps/api/backend/.env.*
 apps/api/backend/*.log
+
+# Local backup snapshots
+*.bak
+*.bak.*
+*.backup
+*.backup.*
+
+# Local backup snapshots
+*.bak
+*.bak.*
+*.backup
+*.backup.*
