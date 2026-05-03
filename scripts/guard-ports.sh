@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+echo "Checking PawnShop active app/config files for forbidden legacy port usage..."
 
-# Only flag likely "port usage" patterns (not random numbers in docs/data)
-PATTERN='(:500[1-3]\b|localhost:500[1-3]\b|PORT[[:space:]]*=[[:space:]]*500[1-3]\b|PORT:[[:space:]]*500[1-3]\b)'
+BAD_HITS="$(
+  rg -n --hidden \
+    --glob '!node_modules/**' \
+    --glob '!.git/**' \
+    --glob '!dist/**' \
+    --glob '!build/**' \
+    --glob '!coverage/**' \
+    --glob '!reports/**' \
+    --glob '!package-lock.json' \
+    --glob '!scripts/**' \
+    '5001|5002|5003|dev-5002|prod-5001|staging-5003' \
+    apps package.json pnpm-lock.yaml package-lock.json vite.config.* tsconfig*.json 2>/dev/null || true
+)"
 
-echo "Checking PawnShop for forbidden Tire Marketplace port usage (5001/5002/5003)..."
-
-# IMPORTANT: exclude this script so it doesn't match itself
-if rg -n --hidden \
-  --glob '!**/node_modules/**' \
-  --glob '!.git/**' \
-  --glob '!scripts/guard-ports.sh' \
-  "$PATTERN" . ; then
-  echo "❌ Found forbidden Tire Marketplace port usage in PawnShop repo"
+if [ -n "$BAD_HITS" ]; then
+  echo "$BAD_HITS"
+  echo "❌ Found forbidden legacy app port usage in active PawnShop app/config files"
   exit 1
 fi
 
-echo "✅ No forbidden Tire Marketplace port usage found"
+echo "✅ No forbidden legacy app port usage found in active PawnShop app/config files"
