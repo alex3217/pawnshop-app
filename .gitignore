@@ -65,3 +65,18 @@ backups/
 *.sql.gz
 reports/
 *.log
+
+# Keep backend source tracked while ignoring generated/sensitive backend files.
+!apps/
+!apps/api/
+!apps/api/backend/
+!apps/api/backend/src/
+!apps/api/backend/src/**
+!apps/api/backend/prisma/
+!apps/api/backend/prisma/**
+apps/api/backend/node_modules/
+apps/api/backend/dist/
+apps/api/backend/build/
+apps/api/backend/.env
+apps/api/backend/.env.*
+apps/api/backend/*.log
