@@ -10,14 +10,29 @@ echo "===== FULL DASHBOARD AUDIT ====="
 
 echo ""
 echo "===== CLEAN LEGACY 5002 IF PRESENT ====="
+
+pkill -TERM -f '/Users/brandonwash/tire-marketplace/backend/node_modules/.bin/nodemon' 2>/dev/null || true
+pkill -TERM -f '/Users/brandonwash/tire-marketplace/backend/.*express-server.js' 2>/dev/null || true
+pkill -TERM -f '/Users/brandonwash/tire-marketplace/frontend/node_modules/.bin/vite' 2>/dev/null || true
+pkill -TERM -f '/Users/brandonwash/tire-marketplace/frontend/node_modules/@esbuild' 2>/dev/null || true
+
 PID="$(/usr/sbin/lsof -tiTCP:5002 -sTCP:LISTEN -n -P | head -1 || true)"
 
 if [ -n "$PID" ]; then
   echo "Found legacy process on 5002: $PID"
   /usr/sbin/lsof -iTCP:5002 -sTCP:LISTEN -n -P || true
-  echo "Killing legacy process on 5002..."
-  kill "$PID" || true
-  sleep 2
+
+  PGID_5002="$(ps -p "$PID" -o pgid= | tr -d ' ' || true)"
+
+  if [ -n "$PGID_5002" ]; then
+    echo "Killing legacy 5002 process group: -$PGID_5002"
+    kill -TERM "-$PGID_5002" 2>/dev/null || true
+  else
+    echo "Killing legacy 5002 process only"
+    kill -TERM "$PID" 2>/dev/null || true
+  fi
+
+  sleep 3
 else
   echo "✅ No legacy process listening on 5002"
 fi
