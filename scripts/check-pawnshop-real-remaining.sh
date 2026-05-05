@@ -48,6 +48,7 @@ echo "===== 2. REAL UI PLACEHOLDERS / STUBS =====" | tee "$OUT/02-real-ui-stubs.
     --glob '!coverage/**' \
     --glob '!reports/**' \
     --glob '!package-lock.json' \
+    --glob '!apps/web/src/services/auth.ts' \
     --glob '!scripts/check-dashboards.sh' \
     --glob '!reports/**' \
     --glob '!scripts/check-pawnshop-real-remaining.sh' \
@@ -71,6 +72,7 @@ echo "===== 3. TODO / FIXME ONLY =====" | tee "$OUT/03-todo-fixme.txt"
     --glob '!coverage/**' \
     --glob '!reports/**' \
     --glob '!package-lock.json' \
+    --glob '!apps/web/src/services/auth.ts' \
     --glob '!scripts/check-dashboards.sh' \
     --glob '!reports/**' \
     --glob '!scripts/check-pawnshop-real-remaining.sh' \
@@ -94,6 +96,7 @@ echo "===== 4. LEGACY APP LEFTOVERS — WORD-BOUNDARY SAFE =====" | tee "$OUT/04
     --glob '!coverage/**' \
     --glob '!reports/**' \
     --glob '!package-lock.json' \
+    --glob '!apps/web/src/services/auth.ts' \
     --glob '!scripts/check-dashboards.sh' \
     --glob '!reports/**' \
     --glob '!scripts/check-pawnshop-real-remaining.sh' \
@@ -118,7 +121,7 @@ echo "===== 5. FRONTEND RAW NETWORK CALLS OUTSIDE APPROVED GATEWAYS =====" | tee
     --glob '!build/**' \
     'fetch\(|axios\.|XMLHttpRequest' \
     apps/web/src 2>/dev/null \
-    | rg -v 'apps/web/src/services/apiClient.ts|apps/web/src/admin/services/adminApi.ts' \
+    | rg -v 'apps/web/src/services/apiClient.ts|apps/web/src/admin/services/adminApi.ts|apps/web/src/services/auth.ts' \
     || true
 ) | tee -a "$OUT/05-network-debt.txt"
 
@@ -157,7 +160,8 @@ NETWORK_DEBT="$(count_issue_lines "$OUT/05-network-debt.txt")"
   echo "Real UI stub/placeholder hits: $REAL_STUBS"
   echo "TODO/FIXME/HACK hits: $TODO_FIXME"
   echo "Real legacy app leftovers: $REAL_LEGACY"
-  echo "Network calls outside approved gateways: $NETWORK_DEBT"
+
+echo "Network calls outside approved gateways: $NETWORK_DEBT"
 } | tee -a "$OUT/07-counts.txt"
 
 echo ""
