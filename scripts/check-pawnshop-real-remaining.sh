@@ -143,12 +143,15 @@ echo "===== 7. COUNTS =====" | tee "$OUT/07-counts.txt"
 
 count_issue_lines() {
   local file="$1"
+
   if [ ! -f "$file" ]; then
     echo "0"
     return
   fi
 
-  grep -Ev '^$|^=====|^```' "$file" | wc -l | tr -d ' '
+  # grep exits 1 when there are no matching issue lines.
+  # Empty report files should count as 0, not abort the audit under strict mode.
+  { grep -Ev '^$|^=====|^```' "$file" || true; } | wc -l | tr -d ' '
 }
 
 REAL_STUBS="$(count_issue_lines "$OUT/02-real-ui-stubs.txt")"

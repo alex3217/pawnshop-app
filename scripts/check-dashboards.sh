@@ -9,6 +9,11 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PAT
 echo "===== FULL DASHBOARD AUDIT ====="
 
 echo ""
+echo "===== CLEAN LEGACY PM2 PROCESSES IF PRESENT ====="
+pm2 delete dev-5002 prod-5001 staging-5003 tire-marketplace tire-dev tire-prod 2>/dev/null || true
+pm2 save --force >/dev/null 2>&1 || true
+
+echo ""
 echo "===== CLEAN LEGACY 5002 IF PRESENT ====="
 
 pkill -TERM -f '/Users/brandonwash/tire-marketplace/backend/node_modules/.bin/nodemon' 2>/dev/null || true
