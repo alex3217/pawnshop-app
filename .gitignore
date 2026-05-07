@@ -12,20 +12,16 @@ PM2
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
 # env files
 .env
 .env.*
 !.env.example
-
 # archives / exports / review bundles
 *.zip
 *.tar
 *.tgz
-
 # generated tree / audit dumps
 tree*.txt
-
 # backups
 *.bak
 *.bak.*
@@ -33,7 +29,6 @@ tree*.txt
 .bak/
 backup/
 backups/
-
 # build outputs
 dist/
 build/
@@ -42,10 +37,8 @@ coverage/
 .next/
 .expo/
 .cache/
-
 # dependencies
 node_modules/
-
 # misc accidental files
 # cleanup tracked junk
 apps/api/backend/prisma/schema.prisma.save
@@ -57,15 +50,12 @@ diagnostics/
 infra/
 vite.config.js
 apps/mobile/
-
 # Database backups
-backups/
 *.dump
 *.sql
 *.sql.gz
 reports/
 *.log
-
 # Keep backend source tracked while ignoring generated/sensitive backend files.
 !apps/
 !apps/api/
@@ -80,15 +70,21 @@ apps/api/backend/build/
 apps/api/backend/.env
 apps/api/backend/.env.*
 apps/api/backend/*.log
-
 # Local backup snapshots
-*.bak
-*.bak.*
 *.backup
 *.backup.*
-
-# Local backup snapshots
-*.bak
-*.bak.*
-*.backup
-*.backup.*
+# Local environment files
+apps/**/.env
+apps/**/.env.*
+!apps/**/.env.example
+# Generated reports and diagnostics
+# Database backups / dumps
+# Local platform files
+# Generated audit reports
+# Local diagnostics
+# macOS
+# Local backup snapshots anywhere in repo
+**/*.bak
+**/*.bak.*
+**/*.backup
+**/*.backup.*
