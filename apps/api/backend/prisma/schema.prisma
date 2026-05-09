@@ -26,6 +26,7 @@ model User {
   wonSettlements          Settlement[]         @relation("SettlementWinner")
   watchlistEntries        Watchlist[]          @relation("UserWatchlist")
   updatedPlatformSettings PlatformSetting[]    @relation("PlatformSettingUpdatedByUser")
+  staffMemberships        Staff[]              @relation("StaffUser")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -83,12 +84,38 @@ model PawnShop {
   auctions                     Auction[]
   inventoryImportJobs          InventoryImportJob[] @relation("ShopInventoryImportJobs")
   items                        Item[]
+  staffMembers                 Staff[]              @relation("ShopStaffMembers")
   owner                        User                 @relation(fields: [ownerId], references: [id])
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
   @@index([subscriptionPlan, subscriptionStatus])
   @@index([subscriptionStatus, subscriptionCurrentPeriodEnd])
+}
+
+model Staff {
+  id          String      @id @default(cuid())
+  shopId      String
+  userId      String?
+  email       String
+  name        String?
+  phone       String?
+  role        StaffRole   @default(STAFF)
+  status      StaffStatus @default(INVITED)
+  permissions String[]    @default([])
+  invitedAt   DateTime    @default(now())
+  acceptedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  shop        PawnShop    @relation("ShopStaffMembers", fields: [shopId], references: [id], onDelete: Cascade)
+  user        User?       @relation("StaffUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([shopId, email])
+  @@index([shopId, status])
+  @@index([shopId, role])
+  @@index([userId])
+  @@index([email])
+  @@index([createdAt])
 }
 
 model Item {
@@ -360,3 +387,18 @@ model SuperAdminAuditLog {
   @@index([success, createdAt])
 }
 
+enum StaffRole {
+  MANAGER
+  STAFF
+  CASHIER
+  INVENTORY
+  AUCTION
+  VIEWER
+}
+
+enum StaffStatus {
+  INVITED
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}

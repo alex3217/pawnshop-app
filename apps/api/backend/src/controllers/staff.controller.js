@@ -2,11 +2,51 @@
 
 import { prisma } from "../lib/prisma.js";
 
-const STAFF_TABLE_CANDIDATES = ["Staff", "ShopStaff"];
-const PAWNSHOP_TABLE = "PawnShop";
+const STAFF_ROLES = new Set([
+  "MANAGER",
+  "STAFF",
+  "CASHIER",
+  "INVENTORY",
+  "AUCTION",
+  "VIEWER",
+]);
 
-let tableExistsCache = new Map();
-let columnCache = new Map();
+const STAFF_STATUSES = new Set(["INVITED", "ACTIVE", "INACTIVE", "ARCHIVED"]);
+
+const STAFF_PERMISSIONS = new Set([
+  "inventory:read",
+  "inventory:write",
+  "auctions:read",
+  "auctions:write",
+  "offers:read",
+  "offers:write",
+  "locations:read",
+  "locations:write",
+  "staff:read",
+  "staff:write",
+  "settlements:read",
+]);
+
+const DEFAULT_ROLE_PERMISSIONS = {
+  MANAGER: [
+    "inventory:read",
+    "inventory:write",
+    "auctions:read",
+    "auctions:write",
+    "offers:read",
+    "offers:write",
+    "locations:read",
+    "locations:write",
+    "staff:read",
+    "staff:write",
+    "settlements:read",
+  ],
+  STAFF: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
+  CASHIER: ["inventory:read", "offers:read", "offers:write", "settlements:read"],
+  INVENTORY: ["inventory:read", "inventory:write", "locations:read"],
+  AUCTION: ["inventory:read", "auctions:read", "auctions:write"],
+  VIEWER: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
+};
 
 function sendError(res, error, fallbackMessage = "Internal server error") {
   const status =
@@ -17,108 +57,27 @@ function sendError(res, error, fallbackMessage = "Internal server error") {
   return res.status(status).json({
     success: false,
     error: error?.message || fallbackMessage,
+    ...(error?.details ? { details: error.details } : {}),
   });
 }
 
-function badRequest(message, details = undefined) {
+function httpError(statusCode, message, details = undefined) {
   const error = new Error(message);
-  error.statusCode = 400;
+  error.statusCode = statusCode;
   if (details) error.details = details;
   return error;
 }
 
+function badRequest(message, details = undefined) {
+  return httpError(400, message, details);
+}
+
 function forbidden(message = "Forbidden") {
-  const error = new Error(message);
-  error.statusCode = 403;
-  return error;
+  return httpError(403, message);
 }
 
 function notFound(message = "Not found") {
-  const error = new Error(message);
-  error.statusCode = 404;
-  return error;
-}
-
-function notImplemented(message) {
-  const error = new Error(message);
-  error.statusCode = 501;
-  return error;
-}
-
-async function tableExists(tableName) {
-  if (tableExistsCache.has(tableName)) {
-    return tableExistsCache.get(tableName);
-  }
-
-  const rows = await prisma.$queryRawUnsafe(
-    `
-      SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = 'public'
-          AND table_name = $1
-      ) AS exists
-    `,
-    tableName,
-  );
-
-  const exists = !!rows?.[0]?.exists;
-  tableExistsCache.set(tableName, exists);
-  return exists;
-}
-
-async function getTableColumns(tableName) {
-  if (columnCache.has(tableName)) {
-    return columnCache.get(tableName);
-  }
-
-  const rows = await prisma.$queryRawUnsafe(
-    `
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = $1
-      ORDER BY ordinal_position
-    `,
-    tableName,
-  );
-
-  const columns = new Set(
-    Array.isArray(rows) ? rows.map((row) => row.column_name) : [],
-  );
-
-  columnCache.set(tableName, columns);
-  return columns;
-}
-
-async function resolveStaffBackend() {
-  for (const tableName of STAFF_TABLE_CANDIDATES) {
-    if (await tableExists(tableName)) {
-      return {
-        tableName,
-        columns: await getTableColumns(tableName),
-      };
-    }
-  }
-
-  return null;
-}
-
-async function getOwnedShopIds(userId) {
-  if (!userId) return [];
-
-  const rows = await prisma.$queryRawUnsafe(
-    `
-      SELECT id
-      FROM "public"."${PAWNSHOP_TABLE}"
-      WHERE "ownerId" = $1
-        AND COALESCE("isDeleted", false) = false
-      ORDER BY "createdAt" DESC NULLS LAST
-    `,
-    userId,
-  );
-
-  return Array.isArray(rows) ? rows.map((row) => row.id).filter(Boolean) : [];
+  return httpError(404, message);
 }
 
 function normalizeString(value, fallback = "") {
@@ -131,123 +90,74 @@ function normalizeEmail(value) {
   return normalizeString(value).toLowerCase();
 }
 
-function normalizeRole(value, fallback = "TEAM_MEMBER") {
-  return normalizeString(value, fallback).toUpperCase();
+function normalizeRole(value, fallback = "STAFF") {
+  const role = normalizeString(value, fallback).toUpperCase();
+  return STAFF_ROLES.has(role) ? role : fallback;
 }
 
-function normalizeStatus(value, fallback = "ACTIVE") {
-  return normalizeString(value, fallback).toUpperCase();
+function normalizeStatus(value, fallback = "INVITED") {
+  const status = normalizeString(value, fallback).toUpperCase();
+  return STAFF_STATUSES.has(status) ? status : fallback;
 }
 
-function normalizeStaffRow(row, index = 0) {
-  return {
-    id: normalizeString(row.id, `staff-${index}`),
-    name: normalizeString(row.name || row.fullName, `Staff ${index + 1}`),
-    email: normalizeEmail(row.email || row.userEmail || "—"),
-    role: normalizeRole(row.role || row.staffRole),
-    locationName: normalizeString(
-      row.locationName || row.shopName || row.pawnShopName,
-      "Unassigned",
+function normalizePermissions(value, role = "STAFF") {
+  const source = Array.isArray(value) ? value : DEFAULT_ROLE_PERMISSIONS[role] || [];
+
+  return Array.from(
+    new Set(
+      source
+        .map((permission) => normalizeString(permission).toLowerCase())
+        .filter((permission) => STAFF_PERMISSIONS.has(permission)),
     ),
-    status: normalizeStatus(row.status),
+  );
+}
+
+function normalizeStaffRow(row) {
+  return {
+    id: row.id,
+    shopId: row.shopId,
+    userId: row.userId,
+    name: row.name || row.user?.name || null,
+    email: row.email,
+    role: row.role,
+    status: row.status,
+    permissions: Array.isArray(row.permissions) ? row.permissions : [],
+    phone: row.phone || null,
+    invitedAt: row.invitedAt,
+    acceptedAt: row.acceptedAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    shopName: row.shop?.name || null,
+    pawnShopName: row.shop?.name || null,
+    locationName: row.shop?.name || null,
+    userEmail: row.user?.email || null,
   };
 }
 
-async function listFromStaffTable({ backend, shopIds }) {
-  const { tableName, columns } = backend;
+async function getOwnedShopIds(userId) {
+  if (!userId) return [];
 
-  const hasId = columns.has("id");
-  const hasName = columns.has("name");
-  const hasFullName = columns.has("fullName");
-  const hasEmail = columns.has("email");
-  const hasRole = columns.has("role");
-  const hasStaffRole = columns.has("staffRole");
-  const hasStatus = columns.has("status");
-  const hasShopId = columns.has("shopId");
-  const hasLocationName = columns.has("locationName");
-  const hasShopName = columns.has("shopName");
-  const hasPawnShopName = columns.has("pawnShopName");
+  const rows = await prisma.pawnShop.findMany({
+    where: {
+      ownerId: userId,
+      isDeleted: false,
+    },
+    select: {
+      id: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
 
-  if (!hasId) return [];
-
-  if (tableName === "Staff") {
-    const selects = [
-      `"id"`,
-      hasName ? `"name"` : `NULL AS "name"`,
-      hasFullName ? `"fullName"` : `NULL AS "fullName"`,
-      hasEmail ? `"email"` : `NULL AS "email"`,
-      hasRole ? `"role"` : `NULL AS "role"`,
-      hasStaffRole ? `"staffRole"` : `NULL AS "staffRole"`,
-      hasStatus ? `"status"` : `'ACTIVE' AS "status"`,
-      hasLocationName ? `"locationName"` : `NULL AS "locationName"`,
-      hasShopName ? `"shopName"` : `NULL AS "shopName"`,
-      hasPawnShopName ? `"pawnShopName"` : `NULL AS "pawnShopName"`,
-      hasShopId ? `"shopId"` : `NULL AS "shopId"`,
-    ];
-
-    let sql = `
-      SELECT ${selects.join(", ")}
-      FROM "public"."Staff"
-    `;
-
-    const params = [];
-
-    if (hasShopId && shopIds.length > 0) {
-      sql += ` WHERE "shopId" = ANY($1::text[])`;
-      params.push(shopIds);
-    } else if (hasShopId && shopIds.length === 0) {
-      return [];
-    }
-
-    sql += ` ORDER BY "id" ASC`;
-
-    const rows = await prisma.$queryRawUnsafe(sql, ...params);
-    return Array.isArray(rows) ? rows : [];
-  }
-
-  if (tableName === "ShopStaff") {
-    const selects = [
-      `"id"`,
-      hasName ? `"name"` : `NULL AS "name"`,
-      hasFullName ? `"fullName"` : `NULL AS "fullName"`,
-      hasEmail ? `"email"` : `NULL AS "email"`,
-      hasRole ? `"role"` : `NULL AS "role"`,
-      hasStaffRole ? `"staffRole"` : `NULL AS "staffRole"`,
-      hasStatus ? `"status"` : `'ACTIVE' AS "status"`,
-      hasLocationName ? `"locationName"` : `NULL AS "locationName"`,
-      hasShopName ? `"shopName"` : `NULL AS "shopName"`,
-      hasPawnShopName ? `"pawnShopName"` : `NULL AS "pawnShopName"`,
-      hasShopId ? `"shopId"` : `NULL AS "shopId"`,
-    ];
-
-    let sql = `
-      SELECT ${selects.join(", ")}
-      FROM "public"."ShopStaff"
-    `;
-
-    const params = [];
-
-    if (hasShopId && shopIds.length > 0) {
-      sql += ` WHERE "shopId" = ANY($1::text[])`;
-      params.push(shopIds);
-    } else if (hasShopId && shopIds.length === 0) {
-      return [];
-    }
-
-    sql += ` ORDER BY "id" ASC`;
-
-    const rows = await prisma.$queryRawUnsafe(sql, ...params);
-    return Array.isArray(rows) ? rows : [];
-  }
-
-  return [];
+  return rows.map((row) => row.id);
 }
 
 async function assertOwnerOrAdminAccessToShop(req, shopId) {
   const role = req?.user?.role;
   const userId = req?.user?.sub;
 
-  if (role === "ADMIN") return;
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return;
 
   if (role !== "OWNER") {
     throw forbidden();
@@ -259,18 +169,75 @@ async function assertOwnerOrAdminAccessToShop(req, shopId) {
   }
 }
 
-function validateStaffWriteBody(body = {}) {
-  if (body.name !== undefined && !normalizeString(body.name)) {
-    throw badRequest("name cannot be empty.");
+async function assertAccessToStaffRecord(req, staffId) {
+  const staff = await prisma.staff.findUnique({
+    where: { id: staffId },
+    include: {
+      shop: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  if (!staff) {
+    throw notFound("Staff member not found.");
   }
 
+  await assertOwnerOrAdminAccessToShop(req, staff.shopId);
+  return staff;
+}
+
+function validateStaffWriteBody(body = {}) {
+  const errors = [];
+
   if (body.email !== undefined && !normalizeEmail(body.email)) {
-    throw badRequest("email cannot be empty.");
+    errors.push("email cannot be empty");
   }
 
   if (body.shopId !== undefined && !normalizeString(body.shopId)) {
-    throw badRequest("shopId cannot be empty.");
+    errors.push("shopId cannot be empty");
   }
+
+  if (body.role !== undefined && !STAFF_ROLES.has(normalizeRole(body.role))) {
+    errors.push("invalid role");
+  }
+
+  if (body.status !== undefined && !STAFF_STATUSES.has(normalizeStatus(body.status))) {
+    errors.push("invalid status");
+  }
+
+  if (Array.isArray(body.permissions)) {
+    const invalid = body.permissions
+      .map((permission) => normalizeString(permission).toLowerCase())
+      .filter((permission) => permission && !STAFF_PERMISSIONS.has(permission));
+
+    if (invalid.length > 0) {
+      errors.push(`invalid permissions: ${invalid.join(", ")}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw badRequest("Invalid staff payload.", errors);
+  }
+}
+
+async function findUserByEmail(email) {
+  if (!email || email === "—") return null;
+
+  return prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  });
 }
 
 export async function listMyStaff(req, res) {
@@ -282,23 +249,31 @@ export async function listMyStaff(req, res) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
-    const backend = await resolveStaffBackend();
+    const where = {};
 
-    if (!backend) {
-      return res.json([]);
-    }
-
-    let shopIds = [];
     if (role === "OWNER") {
-      shopIds = await getOwnedShopIds(userId);
+      const shopIds = await getOwnedShopIds(userId);
+      where.shopId = { in: shopIds };
+    } else if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+      throw forbidden();
     }
 
-    const rows =
-      role === "ADMIN"
-        ? await listFromStaffTable({ backend, shopIds: [] })
-        : await listFromStaffTable({ backend, shopIds });
+    const rows = await prisma.staff.findMany({
+      where,
+      include: {
+        shop: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    });
 
-    return res.json(rows.map((row, index) => normalizeStaffRow(row, index)));
+    return res.json(rows.map(normalizeStaffRow));
   } catch (error) {
     return sendError(res, error);
   }
@@ -314,18 +289,22 @@ export async function listStaffByShop(req, res) {
 
     await assertOwnerOrAdminAccessToShop(req, shopId);
 
-    const backend = await resolveStaffBackend();
-
-    if (!backend) {
-      return res.json([]);
-    }
-
-    const rows = await listFromStaffTable({
-      backend,
-      shopIds: [shopId],
+    const rows = await prisma.staff.findMany({
+      where: { shopId },
+      include: {
+        shop: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     });
 
-    return res.json(rows.map((row, index) => normalizeStaffRow(row, index)));
+    return res.json(rows.map(normalizeStaffRow));
   } catch (error) {
     return sendError(res, error);
   }
@@ -333,26 +312,63 @@ export async function listStaffByShop(req, res) {
 
 export async function createStaffMember(req, res) {
   try {
-    const backend = await resolveStaffBackend();
-
-    if (!backend) {
-      throw notImplemented(
-        "Staff management schema is not configured yet. Add a Staff or ShopStaff table before enabling staff creation.",
-      );
-    }
-
     validateStaffWriteBody(req.body);
 
     const shopId = normalizeString(req.body?.shopId);
-    if (!shopId) {
-      throw badRequest("shopId is required.");
-    }
+    const email = normalizeEmail(req.body?.email);
+    const role = normalizeRole(req.body?.role, "STAFF");
+    const permissions = normalizePermissions(req.body?.permissions, role);
+
+    if (!shopId) throw badRequest("shopId is required.");
+    if (!email) throw badRequest("email is required.");
 
     await assertOwnerOrAdminAccessToShop(req, shopId);
 
-    throw notImplemented(
-      "Staff create support requires a finalized staff schema contract. Read/list endpoints are safe now, but write endpoints should be enabled only after the schema is confirmed.",
-    );
+    const linkedUser = await findUserByEmail(email);
+
+    const staff = await prisma.staff.upsert({
+      where: {
+        shopId_email: {
+          shopId,
+          email,
+        },
+      },
+      create: {
+        shopId,
+        email,
+        userId: linkedUser?.id || null,
+        name: normalizeString(req.body?.name, linkedUser?.name || ""),
+        phone: normalizeString(req.body?.phone) || null,
+        role,
+        status: linkedUser ? "ACTIVE" : "INVITED",
+        permissions,
+        invitedAt: new Date(),
+        acceptedAt: linkedUser ? new Date() : null,
+      },
+      update: {
+        userId: linkedUser?.id || undefined,
+        name: normalizeString(req.body?.name, linkedUser?.name || "") || undefined,
+        phone:
+          req.body?.phone !== undefined
+            ? normalizeString(req.body?.phone) || null
+            : undefined,
+        role,
+        status: linkedUser ? "ACTIVE" : "INVITED",
+        permissions,
+      },
+      include: {
+        shop: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return res.status(201).json(normalizeStaffRow(staff));
   } catch (error) {
     return sendError(res, error);
   }
@@ -365,19 +381,62 @@ export async function updateStaffMember(req, res) {
       throw badRequest("Staff id is required.");
     }
 
-    const backend = await resolveStaffBackend();
-
-    if (!backend) {
-      throw notImplemented(
-        "Staff management schema is not configured yet. Add a Staff or ShopStaff table before enabling staff updates.",
-      );
-    }
-
     validateStaffWriteBody(req.body);
 
-    throw notImplemented(
-      "Staff update support requires a finalized staff schema contract. Read/list endpoints are safe now, but write endpoints should be enabled only after the schema is confirmed.",
-    );
+    const current = await assertAccessToStaffRecord(req, staffId);
+
+    const nextRole =
+      req.body?.role !== undefined ? normalizeRole(req.body.role, current.role) : current.role;
+
+    const nextEmail =
+      req.body?.email !== undefined ? normalizeEmail(req.body.email) : current.email;
+
+    const linkedUser =
+      req.body?.email !== undefined ? await findUserByEmail(nextEmail) : undefined;
+
+    const data = {
+      name:
+        req.body?.name !== undefined
+          ? normalizeString(req.body.name) || null
+          : undefined,
+      email: req.body?.email !== undefined ? nextEmail : undefined,
+      userId:
+        req.body?.email !== undefined
+          ? linkedUser?.id || null
+          : undefined,
+      phone:
+        req.body?.phone !== undefined
+          ? normalizeString(req.body.phone) || null
+          : undefined,
+      role: req.body?.role !== undefined ? nextRole : undefined,
+      status:
+        req.body?.status !== undefined
+          ? normalizeStatus(req.body.status, current.status)
+          : undefined,
+      permissions:
+        req.body?.permissions !== undefined
+          ? normalizePermissions(req.body.permissions, nextRole)
+          : undefined,
+      acceptedAt:
+        req.body?.status === "ACTIVE" && !current.acceptedAt ? new Date() : undefined,
+    };
+
+    const staff = await prisma.staff.update({
+      where: { id: staffId },
+      data,
+      include: {
+        shop: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return res.json(normalizeStaffRow(staff));
   } catch (error) {
     return sendError(res, error);
   }
@@ -390,17 +449,26 @@ export async function removeStaffMember(req, res) {
       throw badRequest("Staff id is required.");
     }
 
-    const backend = await resolveStaffBackend();
+    await assertAccessToStaffRecord(req, staffId);
 
-    if (!backend) {
-      throw notImplemented(
-        "Staff management schema is not configured yet. Add a Staff or ShopStaff table before enabling staff removal.",
-      );
-    }
+    const staff = await prisma.staff.update({
+      where: { id: staffId },
+      data: {
+        status: "ARCHIVED",
+      },
+      include: {
+        shop: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
 
-    throw notImplemented(
-      "Staff removal support requires a finalized staff schema contract. Read/list endpoints are safe now, but write endpoints should be enabled only after the schema is confirmed.",
-    );
+    return res.json(normalizeStaffRow(staff));
   } catch (error) {
     return sendError(res, error);
   }
