@@ -8,25 +8,26 @@ datasource db {
 }
 
 model User {
-  id                      String               @id @default(cuid())
+  id                      String                 @id @default(cuid())
   name                    String
-  email                   String               @unique
+  email                   String                 @unique
   password                String
-  role                    Role                 @default(CONSUMER)
-  isActive                Boolean              @default(true)
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
+  role                    Role                   @default(CONSUMER)
+  isActive                Boolean                @default(true)
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
   Bid                     Bid[]
   buyerSubscription       BuyerSubscription?
-  inventoryImportJobs     InventoryImportJob[] @relation("UserInventoryImportJobs")
-  buyerOffers             Offer[]              @relation("OfferBuyer")
-  ownerOffers             Offer[]              @relation("OfferOwner")
+  inventoryImportJobs     InventoryImportJob[]   @relation("UserInventoryImportJobs")
+  inventoryIntegrations   InventoryIntegration[] @relation("UserInventoryIntegrations")
+  buyerOffers             Offer[]                @relation("OfferBuyer")
+  ownerOffers             Offer[]                @relation("OfferOwner")
   shops                   PawnShop[]
-  savedSearches           SavedSearch[]        @relation("UserSavedSearches")
-  wonSettlements          Settlement[]         @relation("SettlementWinner")
-  watchlistEntries        Watchlist[]          @relation("UserWatchlist")
-  updatedPlatformSettings PlatformSetting[]    @relation("PlatformSettingUpdatedByUser")
-  staffMemberships        Staff[]              @relation("StaffUser")
+  savedSearches           SavedSearch[]          @relation("UserSavedSearches")
+  wonSettlements          Settlement[]           @relation("SettlementWinner")
+  watchlistEntries        Watchlist[]            @relation("UserWatchlist")
+  updatedPlatformSettings PlatformSetting[]      @relation("PlatformSettingUpdatedByUser")
+  staffMemberships        Staff[]                @relation("StaffUser")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -59,22 +60,22 @@ model BuyerSubscription {
 }
 
 model PawnShop {
-  id                           String               @id @default(cuid())
+  id                           String                 @id @default(cuid())
   name                         String
   address                      String?
   phone                        String?
   description                  String?
   hours                        String?
   ownerId                      String
-  isDeleted                    Boolean              @default(false)
-  createdAt                    DateTime             @default(now())
-  updatedAt                    DateTime             @updatedAt
-  cancelAtPeriodEnd            Boolean              @default(false)
+  isDeleted                    Boolean                @default(false)
+  createdAt                    DateTime               @default(now())
+  updatedAt                    DateTime               @updatedAt
+  cancelAtPeriodEnd            Boolean                @default(false)
   stripeCustomerId             String?
-  stripeSubscriptionId         String?              @unique
+  stripeSubscriptionId         String?                @unique
   subscriptionCurrentPeriodEnd DateTime?
-  subscriptionPlan             String               @default("FREE")
-  subscriptionStatus           String               @default("ACTIVE")
+  subscriptionPlan             String                 @default("FREE")
+  subscriptionStatus           String                 @default("ACTIVE")
   stripeCheckoutSessionId      String?
   stripeLatestInvoiceId        String?
   stripePriceId                String?
@@ -82,10 +83,12 @@ model PawnShop {
   subscriptionCanceledAt       DateTime?
   subscriptionStartedAt        DateTime?
   auctions                     Auction[]
-  inventoryImportJobs          InventoryImportJob[] @relation("ShopInventoryImportJobs")
+  inventoryImportJobs          InventoryImportJob[]   @relation("ShopInventoryImportJobs")
+  inventoryIntegrations        InventoryIntegration[] @relation("ShopInventoryIntegrations")
   items                        Item[]
-  staffMembers                 Staff[]              @relation("ShopStaffMembers")
-  owner                        User                 @relation(fields: [ownerId], references: [id])
+  staffMembers                 Staff[]                @relation("ShopStaffMembers")
+  owner                        User                   @relation(fields: [ownerId], references: [id])
+  inventorySyncJobs            InventorySyncJob[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -280,6 +283,103 @@ model InventoryImportJob {
 
   @@index([userId, createdAt])
   @@index([shopId, createdAt])
+}
+
+model InventoryIntegration {
+  id                   String                     @id @default(cuid())
+  ownerId              String
+  shopId               String
+  name                 String
+  type                 String                     @default("CSV_UPLOAD")
+  provider             String?
+  status               String                     @default("NEEDS_SETUP")
+  baseUrl              String?
+  inventoryEndpoint    String?
+  authType             String                     @default("NONE")
+  credentialHint       String?
+  syncFrequencyMinutes Int?
+  lastSyncAt           DateTime?
+  nextSyncAt           DateTime?
+  metadata             Json?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  owner                User                       @relation("UserInventoryIntegrations", fields: [ownerId], references: [id], onDelete: Cascade)
+  shop                 PawnShop                   @relation("ShopInventoryIntegrations", fields: [shopId], references: [id], onDelete: Cascade)
+  syncJobs             InventorySyncJob[]
+  externalMappings     ExternalInventoryMapping[]
+  fieldMappings        InventoryFieldMapping[]
+  webhookEvents        IntegrationWebhookEvent[]
+
+  @@index([ownerId, createdAt])
+  @@index([shopId, status])
+  @@index([type, status])
+}
+
+model InventorySyncJob {
+  id            String               @id @default(cuid())
+  integrationId String
+  shopId        String
+  status        String               @default("PENDING")
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdCount  Int                  @default(0)
+  updatedCount  Int                  @default(0)
+  skippedCount  Int                  @default(0)
+  errorCount    Int                  @default(0)
+  errorSummary  Json?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  integration   InventoryIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  shop          PawnShop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId, createdAt])
+  @@index([shopId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ExternalInventoryMapping {
+  id            String               @id @default(cuid())
+  integrationId String
+  externalId    String
+  itemId        String?
+  lastSeenAt    DateTime             @default(now())
+  sourceHash    String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  integration   InventoryIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, externalId])
+  @@index([itemId])
+  @@index([lastSeenAt])
+}
+
+model InventoryFieldMapping {
+  id            String               @id @default(cuid())
+  integrationId String
+  externalField String
+  internalField String
+  transformRule String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  integration   InventoryIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@unique([integrationId, externalField, internalField])
+  @@index([integrationId])
+}
+
+model IntegrationWebhookEvent {
+  id             String               @id @default(cuid())
+  integrationId  String
+  eventType      String
+  payload        Json
+  signatureValid Boolean              @default(false)
+  status         String               @default("PENDING")
+  processedAt    DateTime?
+  createdAt      DateTime             @default(now())
+  integration    InventoryIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId, createdAt])
+  @@index([status, createdAt])
 }
 
 enum Role {
