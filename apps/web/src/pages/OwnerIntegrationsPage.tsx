@@ -1,21 +1,84 @@
 // File: apps/web/src/pages/OwnerIntegrationsPage.tsx
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import { Link } from "react-router-dom";
 import {
+  archiveInventoryIntegration,
+  createInventoryIntegration,
+  getInventoryIntegrationJobs,
   getOwnerIntegrationOverview,
+  syncInventoryIntegration,
+  testInventoryIntegration,
+  type CreateInventoryIntegrationInput,
+  type IntegrationAuthType,
+  type IntegrationKind,
+  type IntegrationStatus,
+  type InventorySyncJob,
   type OwnerIntegrationConnector,
   type OwnerIntegrationOverview,
+  type SavedInventoryIntegration,
 } from "../services/integrations";
 
-function statusLabel(status: OwnerIntegrationConnector["status"]) {
+type IntegrationFormState = {
+  shopId: string;
+  name: string;
+  type: IntegrationKind;
+  provider: string;
+  baseUrl: string;
+  inventoryEndpoint: string;
+  authType: IntegrationAuthType;
+  apiKey: string;
+  bearerToken: string;
+  syncFrequencyMinutes: string;
+};
+
+const EMPTY_FORM: IntegrationFormState = {
+  shopId: "",
+  name: "",
+  type: "CSV_UPLOAD",
+  provider: "",
+  baseUrl: "",
+  inventoryEndpoint: "",
+  authType: "NONE",
+  apiKey: "",
+  bearerToken: "",
+  syncFrequencyMinutes: "15",
+};
+
+const INTEGRATION_TYPES: IntegrationKind[] = [
+  "CSV_UPLOAD",
+  "API_PULL",
+  "WEBHOOK_PUSH",
+  "SFTP_FEED",
+  "POS_SYSTEM",
+  "MOBILE_SCAN",
+];
+
+const AUTH_TYPES: IntegrationAuthType[] = [
+  "NONE",
+  "API_KEY",
+  "BEARER_TOKEN",
+  "BASIC",
+  "CUSTOM_HEADER",
+];
+
+function statusLabel(status: IntegrationStatus | string) {
   if (status === "READY") return "Ready";
   if (status === "CONNECTED") return "Connected";
   if (status === "NEEDS_SETUP") return "Needs setup";
+  if (status === "PAUSED") return "Paused";
+  if (status === "ERROR") return "Error";
+  if (status === "ARCHIVED") return "Archived";
   return "Planned";
 }
 
-function statusStyle(status: OwnerIntegrationConnector["status"]): CSSProperties {
+function statusStyle(status: IntegrationStatus | string): CSSProperties {
   const base: CSSProperties = {
     alignSelf: "flex-start",
     borderRadius: 999,
@@ -25,7 +88,7 @@ function statusStyle(status: OwnerIntegrationConnector["status"]): CSSProperties
     border: "1px solid rgba(255,255,255,0.14)",
   };
 
-  if (status === "READY" || status === "CONNECTED") {
+  if (["READY", "CONNECTED"].includes(String(status))) {
     return {
       ...base,
       background: "rgba(34,197,94,0.12)",
@@ -34,12 +97,21 @@ function statusStyle(status: OwnerIntegrationConnector["status"]): CSSProperties
     };
   }
 
-  if (status === "NEEDS_SETUP") {
+  if (String(status) === "NEEDS_SETUP") {
     return {
       ...base,
       background: "rgba(245,158,11,0.12)",
       color: "#fde68a",
       borderColor: "rgba(251,191,36,0.28)",
+    };
+  }
+
+  if (String(status) === "ERROR") {
+    return {
+      ...base,
+      background: "rgba(248,113,113,0.12)",
+      color: "#fecaca",
+      borderColor: "rgba(248,113,113,0.28)",
     };
   }
 
@@ -51,35 +123,56 @@ function statusStyle(status: OwnerIntegrationConnector["status"]): CSSProperties
   };
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString();
+}
+
+function getJobSummary(job: InventorySyncJob) {
+  const message = job.errorSummary?.message;
+  return typeof message === "string" ? message : "Sync job recorded.";
+}
+
 export default function OwnerIntegrationsPage() {
   const [overview, setOverview] = useState<OwnerIntegrationOverview | null>(null);
+  const [form, setForm] = useState<IntegrationFormState>(EMPTY_FORM);
+  const [jobsByIntegration, setJobsByIntegration] = useState<
+    Record<string, InventorySyncJob[]>
+  >({});
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function loadOverview(signal?: AbortSignal) {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await getOwnerIntegrationOverview(signal);
+      setOverview(data);
+      setForm((current) => ({
+        ...current,
+        shopId: current.shopId || data.shops[0]?.id || "",
+      }));
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load owner integrations.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
-
-    async function loadOverview() {
-      setLoading(true);
-      setError("");
-
-      try {
-        const data = await getOwnerIntegrationOverview(controller.signal);
-        setOverview(data);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load owner integrations.",
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void loadOverview();
-
+    void loadOverview(controller.signal);
     return () => controller.abort();
   }, []);
 
@@ -91,6 +184,115 @@ export default function OwnerIntegrationsPage() {
   }, [overview]);
 
   const connectors = overview?.connectors || [];
+  const integrations = overview?.integrations || [];
+
+  function updateForm<K extends keyof IntegrationFormState>(
+    key: K,
+    value: IntegrationFormState[K],
+  ) {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const payload: CreateInventoryIntegrationInput = {
+        shopId: form.shopId,
+        name: form.name,
+        type: form.type,
+        provider: form.provider,
+        baseUrl: form.baseUrl,
+        inventoryEndpoint: form.inventoryEndpoint,
+        authType: form.authType,
+        apiKey: form.apiKey,
+        bearerToken: form.bearerToken,
+        syncFrequencyMinutes: Number(form.syncFrequencyMinutes) || null,
+        metadata: {
+          createdFrom: "owner-integrations-page",
+        },
+      };
+
+      const integration = await createInventoryIntegration(payload);
+      setSuccess(`Integration created: ${integration.name}`);
+      setForm((current) => ({
+        ...EMPTY_FORM,
+        shopId: current.shopId,
+      }));
+      await loadOverview();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create integration.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function runAction(
+    integration: SavedInventoryIntegration,
+    action: "test" | "sync" | "jobs" | "archive",
+  ) {
+    setActionId(`${action}:${integration.id}`);
+    setError("");
+    setSuccess("");
+
+    try {
+      if (action === "test") {
+        const job = await testInventoryIntegration(integration.id);
+        if (job) {
+          setJobsByIntegration((current) => ({
+            ...current,
+            [integration.id]: [job, ...(current[integration.id] || [])],
+          }));
+        }
+        setSuccess(`Test completed for ${integration.name}.`);
+      }
+
+      if (action === "sync") {
+        const result = await syncInventoryIntegration(integration.id);
+        const job = result.job;
+
+        if (job) {
+          setJobsByIntegration((current) => ({
+            ...current,
+            [integration.id]: [job, ...(current[integration.id] || [])],
+          }));
+        }
+
+        setSuccess(`Sync completed for ${integration.name}.`);
+        await loadOverview();
+      }
+
+      if (action === "jobs") {
+        const jobs = await getInventoryIntegrationJobs(integration.id);
+        setJobsByIntegration((current) => ({
+          ...current,
+          [integration.id]: jobs,
+        }));
+        setSuccess(`Loaded job history for ${integration.name}.`);
+      }
+
+      if (action === "archive") {
+        await archiveInventoryIntegration(integration.id);
+        setSuccess(`Archived ${integration.name}.`);
+        await loadOverview();
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : `Failed to ${action} integration.`,
+      );
+    } finally {
+      setActionId("");
+    }
+  }
 
   return (
     <div style={styles.page}>
@@ -99,8 +301,9 @@ export default function OwnerIntegrationsPage() {
           <div style={styles.eyebrow}>Owner tools</div>
           <h1 style={styles.title}>Owner Integrations</h1>
           <p style={styles.subtitle}>
-            Connect inventory sources, import CSV files, scan items from mobile,
-            and prepare live sync connections for your pawnshop inventory.
+            Connect inventory sources, create saved connector records, test
+            configuration, run sync jobs, import CSV files, and scan items from
+            mobile.
           </p>
         </div>
 
@@ -116,8 +319,14 @@ export default function OwnerIntegrationsPage() {
 
       {error ? (
         <div style={styles.errorCard}>
-          <strong>Integrations failed to load</strong>
+          <strong>Integrations action failed</strong>
           <p style={styles.messageText}>{error}</p>
+        </div>
+      ) : null}
+
+      {success ? (
+        <div style={styles.successCard}>
+          <strong>{success}</strong>
         </div>
       ) : null}
 
@@ -129,105 +338,341 @@ export default function OwnerIntegrationsPage() {
         </div>
 
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Ready tools</div>
-          <div style={styles.statValue}>{overview?.readyCount ?? "—"}</div>
-          <div style={styles.statHelper}>CSV upload and mobile scanning.</div>
+          <div style={styles.statLabel}>Saved integrations</div>
+          <div style={styles.statValue}>{overview?.savedCount ?? "—"}</div>
+          <div style={styles.statHelper}>Database-backed connector records.</div>
         </div>
 
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Planned connectors</div>
-          <div style={styles.statValue}>{overview?.comingSoonCount ?? "—"}</div>
-          <div style={styles.statHelper}>API, webhook, SFTP, and POS connections.</div>
+          <div style={styles.statLabel}>Ready tools</div>
+          <div style={styles.statValue}>{overview?.readyCount ?? "—"}</div>
+          <div style={styles.statHelper}>CSV upload, scan, API/webhook records.</div>
+        </div>
+
+        <div style={styles.statCard}>
+          <div style={styles.statLabel}>Planned sync options</div>
+          <div style={styles.statValue}>{overview?.plannedCount ?? "—"}</div>
+          <div style={styles.statHelper}>SFTP and named POS implementation.</div>
         </div>
       </section>
 
       <section style={styles.panel}>
         <div>
-          <div style={styles.sectionLabel}>Live inventory sync</div>
-          <h2 style={styles.sectionTitle}>Connection options</h2>
+          <div style={styles.sectionLabel}>Create integration</div>
+          <h2 style={styles.sectionTitle}>Add connector record</h2>
           <p style={styles.sectionText}>
-            Start with CSV imports and mobile scanning today. API pull, webhook
-            push, SFTP feeds, and named POS integrations will build on this hub.
+            Save a connector configuration for one of your shops. This prepares
+            the system for live API/webhook/SFTP sync while keeping CSV import
+            and mobile scanning active today.
           </p>
+        </div>
+
+        <form onSubmit={handleCreate} style={styles.formGrid}>
+          <label style={styles.label}>
+            Shop
+            <select
+              value={form.shopId}
+              onChange={(event) => updateForm("shopId", event.target.value)}
+              style={styles.input}
+            >
+              <option value="">Choose shop</option>
+              {(overview?.shops || []).map((shop) => (
+                <option key={shop.id} value={shop.id}>
+                  {shop.name}
+                  {shop.address ? ` — ${shop.address}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={styles.label}>
+            Name
+            <input
+              value={form.name}
+              onChange={(event) => updateForm("name", event.target.value)}
+              placeholder="Downtown Pawn API Sync"
+              style={styles.input}
+            />
+          </label>
+
+          <label style={styles.label}>
+            Type
+            <select
+              value={form.type}
+              onChange={(event) =>
+                updateForm("type", event.target.value as IntegrationKind)
+              }
+              style={styles.input}
+            >
+              {INTEGRATION_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={styles.label}>
+            Provider
+            <input
+              value={form.provider}
+              onChange={(event) => updateForm("provider", event.target.value)}
+              placeholder="internal_csv, custom_pos, vendor_feed..."
+              style={styles.input}
+            />
+          </label>
+
+          <label style={styles.label}>
+            Base URL
+            <input
+              value={form.baseUrl}
+              onChange={(event) => updateForm("baseUrl", event.target.value)}
+              placeholder="https://example-pos.com/api"
+              style={styles.input}
+            />
+          </label>
+
+          <label style={styles.label}>
+            Inventory endpoint
+            <input
+              value={form.inventoryEndpoint}
+              onChange={(event) =>
+                updateForm("inventoryEndpoint", event.target.value)
+              }
+              placeholder="/inventory"
+              style={styles.input}
+            />
+          </label>
+
+          <label style={styles.label}>
+            Auth type
+            <select
+              value={form.authType}
+              onChange={(event) =>
+                updateForm("authType", event.target.value as IntegrationAuthType)
+              }
+              style={styles.input}
+            >
+              {AUTH_TYPES.map((authType) => (
+                <option key={authType} value={authType}>
+                  {authType}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={styles.label}>
+            API key / token
+            <input
+              value={form.authType === "BEARER_TOKEN" ? form.bearerToken : form.apiKey}
+              onChange={(event) => {
+                if (form.authType === "BEARER_TOKEN") {
+                  updateForm("bearerToken", event.target.value);
+                } else {
+                  updateForm("apiKey", event.target.value);
+                }
+              }}
+              placeholder="Stored as masked credential hint"
+              style={styles.input}
+            />
+          </label>
+
+          <label style={styles.label}>
+            Sync frequency minutes
+            <input
+              value={form.syncFrequencyMinutes}
+              onChange={(event) =>
+                updateForm("syncFrequencyMinutes", event.target.value)
+              }
+              placeholder="15"
+              style={styles.input}
+            />
+          </label>
+
+          <div style={styles.formActions}>
+            <button
+              type="submit"
+              disabled={saving || loading}
+              style={{
+                ...styles.primaryButton,
+                ...(saving || loading ? styles.disabledButton : {}),
+              }}
+            >
+              {saving ? "Creating..." : "Create integration"}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section style={styles.panel}>
+        <div>
+          <div style={styles.sectionLabel}>Saved integrations</div>
+          <h2 style={styles.sectionTitle}>Database-backed connectors</h2>
         </div>
 
         {loading ? (
           <div style={styles.loadingCard}>Loading integrations...</div>
+        ) : integrations.length === 0 ? (
+          <div style={styles.loadingCard}>
+            No saved integrations yet. Create your first connector above.
+          </div>
         ) : (
           <div style={styles.connectorGrid}>
-            {connectors.map((connector) => (
-              <article key={connector.id} style={styles.connectorCard}>
-                <div style={styles.connectorHeader}>
-                  <div>
-                    <div style={styles.connectorKind}>{connector.kind}</div>
-                    <h3 style={styles.connectorTitle}>{connector.name}</h3>
+            {integrations.map((integration) => {
+              const jobs = jobsByIntegration[integration.id] || [];
+              const isBusy = actionId.endsWith(integration.id);
+
+              return (
+                <article key={integration.id} style={styles.connectorCard}>
+                  <div style={styles.connectorHeader}>
+                    <div>
+                      <div style={styles.connectorKind}>{integration.type}</div>
+                      <h3 style={styles.connectorTitle}>{integration.name}</h3>
+                    </div>
+
+                    <span style={statusStyle(integration.status)}>
+                      {statusLabel(integration.status)}
+                    </span>
                   </div>
 
-                  <span style={statusStyle(connector.status)}>
-                    {statusLabel(connector.status)}
-                  </span>
-                </div>
+                  <div style={styles.metaGrid}>
+                    <div>
+                      <span>Shop</span>
+                      <strong>{integration.shopName || integration.shopId}</strong>
+                    </div>
+                    <div>
+                      <span>Provider</span>
+                      <strong>{integration.provider || "—"}</strong>
+                    </div>
+                    <div>
+                      <span>Auth</span>
+                      <strong>
+                        {integration.authType || "NONE"}
+                        {integration.credentialHint
+                          ? ` · ${integration.credentialHint}`
+                          : ""}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Last sync</span>
+                      <strong>{formatDate(integration.lastSyncAt)}</strong>
+                    </div>
+                  </div>
 
-                <p style={styles.connectorDescription}>
-                  {connector.description}
-                </p>
-
-                <ul style={styles.bulletList}>
-                  {connector.bullets.map((bullet) => (
-                    <li key={bullet}>{bullet}</li>
-                  ))}
-                </ul>
-
-                <div style={styles.cardActions}>
-                  <Link
-                    to={connector.primaryHref}
-                    style={
-                      connector.status === "READY"
-                        ? styles.primaryLinkSmall
-                        : styles.secondaryLinkSmall
-                    }
-                  >
-                    {connector.primaryActionLabel}
-                  </Link>
-
-                  {connector.secondaryHref && connector.secondaryActionLabel ? (
-                    <Link
-                      to={connector.secondaryHref}
-                      style={styles.secondaryLinkSmall}
+                  <div style={styles.cardActions}>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => void runAction(integration, "test")}
+                      style={styles.secondaryButton}
                     >
-                      {connector.secondaryActionLabel}
-                    </Link>
+                      Test
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => void runAction(integration, "sync")}
+                      style={styles.secondaryButton}
+                    >
+                      Sync now
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => void runAction(integration, "jobs")}
+                      style={styles.secondaryButton}
+                    >
+                      Jobs
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => void runAction(integration, "archive")}
+                      style={styles.dangerButton}
+                    >
+                      Archive
+                    </button>
+                  </div>
+
+                  {jobs.length > 0 ? (
+                    <div style={styles.jobList}>
+                      {jobs.slice(0, 3).map((job) => (
+                        <div key={job.id} style={styles.jobItem}>
+                          <strong>{job.status}</strong>
+                          <span>
+                            Created {job.createdCount || 0} · Updated{" "}
+                            {job.updatedCount || 0} · Errors {job.errorCount || 0}
+                          </span>
+                          <small>{getJobSummary(job)}</small>
+                        </div>
+                      ))}
+                    </div>
                   ) : null}
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
 
       <section style={styles.panel}>
         <div>
-          <div style={styles.sectionLabel}>Recommended rollout</div>
-          <h2 style={styles.sectionTitle}>Build path</h2>
+          <div style={styles.sectionLabel}>Connection options</div>
+          <h2 style={styles.sectionTitle}>Integration tools</h2>
+          <p style={styles.sectionText}>
+            CSV imports and mobile scanning are active now. API/webhook
+            connector records can now be saved, tested, synced, and audited.
+          </p>
         </div>
 
-        <div style={styles.timeline}>
-          <div style={styles.timelineStep}>
-            <strong>Phase 1</strong>
-            <span>CSV upload, bulk import, mobile scanning.</span>
-          </div>
-          <div style={styles.timelineStep}>
-            <strong>Phase 2</strong>
-            <span>Generic API pull connector with scheduled sync.</span>
-          </div>
-          <div style={styles.timelineStep}>
-            <strong>Phase 3</strong>
-            <span>Webhook push endpoint for real-time item updates.</span>
-          </div>
-          <div style={styles.timelineStep}>
-            <strong>Phase 4</strong>
-            <span>SFTP/vendor feeds and named POS integrations.</span>
-          </div>
+        <div style={styles.connectorGrid}>
+          {connectors.map((connector: OwnerIntegrationConnector) => (
+            <article key={connector.id} style={styles.connectorCard}>
+              <div style={styles.connectorHeader}>
+                <div>
+                  <div style={styles.connectorKind}>{connector.kind}</div>
+                  <h3 style={styles.connectorTitle}>{connector.name}</h3>
+                </div>
+
+                <span style={statusStyle(connector.status)}>
+                  {statusLabel(connector.status)}
+                </span>
+              </div>
+
+              <p style={styles.connectorDescription}>{connector.description}</p>
+
+              <ul style={styles.bulletList}>
+                {connector.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+
+              <div style={styles.cardActions}>
+                <Link
+                  to={connector.primaryHref}
+                  style={
+                    connector.status === "READY"
+                      ? styles.primaryLinkSmall
+                      : styles.secondaryLinkSmall
+                  }
+                >
+                  {connector.primaryActionLabel}
+                </Link>
+
+                {connector.secondaryHref && connector.secondaryActionLabel ? (
+                  <Link
+                    to={connector.secondaryHref}
+                    style={styles.secondaryLinkSmall}
+                  >
+                    {connector.secondaryActionLabel}
+                  </Link>
+                ) : null}
+              </div>
+            </article>
+          ))}
         </div>
       </section>
     </div>
@@ -235,10 +680,7 @@ export default function OwnerIntegrationsPage() {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: {
-    display: "grid",
-    gap: 20,
-  },
+  page: { display: "grid", gap: 20 },
   hero: {
     display: "flex",
     justifyContent: "space-between",
@@ -261,19 +703,13 @@ const styles: Record<string, CSSProperties> = {
   },
   subtitle: {
     margin: "10px 0 0",
-    maxWidth: 820,
+    maxWidth: 860,
     color: "rgba(238,242,255,0.78)",
     lineHeight: 1.6,
   },
-  heroActions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
+  heroActions: { display: "flex", gap: 10, flexWrap: "wrap" },
   primaryLink: {
     display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
     textDecoration: "none",
     border: "1px solid rgba(255,255,255,0.18)",
     background: "#eef2ff",
@@ -284,8 +720,6 @@ const styles: Record<string, CSSProperties> = {
   },
   secondaryLink: {
     display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
     textDecoration: "none",
     border: "1px solid rgba(255,255,255,0.14)",
     background: "rgba(255,255,255,0.06)",
@@ -310,11 +744,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 800,
   },
-  statValue: {
-    marginTop: 8,
-    fontSize: 34,
-    fontWeight: 900,
-  },
+  statValue: { marginTop: 8, fontSize: 34, fontWeight: 900 },
   statHelper: {
     marginTop: 6,
     color: "rgba(238,242,255,0.66)",
@@ -335,17 +765,62 @@ const styles: Record<string, CSSProperties> = {
     textTransform: "uppercase",
     color: "rgba(147,197,253,0.9)",
   },
-  sectionTitle: {
-    margin: "6px 0 0",
-    fontSize: 24,
-    fontWeight: 900,
-  },
+  sectionTitle: { margin: "6px 0 0", fontSize: 24, fontWeight: 900 },
   sectionText: {
     margin: "8px 0 0",
-    maxWidth: 820,
+    maxWidth: 860,
     color: "rgba(238,242,255,0.72)",
     lineHeight: 1.55,
   },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+    gap: 12,
+  },
+  label: {
+    display: "grid",
+    gap: 8,
+    fontSize: 13,
+    fontWeight: 800,
+    color: "rgba(238,242,255,0.82)",
+  },
+  input: {
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(15,23,42,0.92)",
+    color: "#eef2ff",
+    borderRadius: 12,
+    padding: "11px 12px",
+    width: "100%",
+  },
+  formActions: { display: "flex", alignItems: "end", gap: 10 },
+  primaryButton: {
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "#eef2ff",
+    color: "#0f172a",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  secondaryButton: {
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    color: "#eef2ff",
+    borderRadius: 12,
+    padding: "9px 12px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  dangerButton: {
+    border: "1px solid rgba(248,113,113,0.34)",
+    background: "rgba(248,113,113,0.12)",
+    color: "#fecaca",
+    borderRadius: 12,
+    padding: "9px 12px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  disabledButton: { opacity: 0.55, cursor: "not-allowed" },
   loadingCard: {
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(15,23,42,0.48)",
@@ -377,11 +852,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     letterSpacing: "0.08em",
   },
-  connectorTitle: {
-    margin: "4px 0 0",
-    fontSize: 19,
-    fontWeight: 900,
-  },
+  connectorTitle: { margin: "4px 0 0", fontSize: 19, fontWeight: 900 },
   connectorDescription: {
     margin: 0,
     color: "rgba(238,242,255,0.72)",
@@ -393,11 +864,7 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(238,242,255,0.74)",
     lineHeight: 1.7,
   },
-  cardActions: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
-  },
+  cardActions: { display: "flex", flexWrap: "wrap", gap: 10 },
   primaryLinkSmall: {
     display: "inline-flex",
     textDecoration: "none",
@@ -417,18 +884,25 @@ const styles: Record<string, CSSProperties> = {
     color: "#eef2ff",
     fontWeight: 800,
   },
-  timeline: {
+  metaGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: 10,
+    color: "rgba(238,242,255,0.72)",
   },
-  timelineStep: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(15,23,42,0.48)",
-    borderRadius: 14,
-    padding: 14,
+  jobList: {
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    paddingTop: 12,
     display: "grid",
-    gap: 6,
+    gap: 8,
+  },
+  jobItem: {
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    padding: 10,
+    display: "grid",
+    gap: 4,
     color: "rgba(238,242,255,0.76)",
   },
   errorCard: {
@@ -438,7 +912,12 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 18,
     padding: 16,
   },
-  messageText: {
-    margin: "6px 0 0",
+  successCard: {
+    border: "1px solid rgba(74,222,128,0.28)",
+    background: "rgba(34,197,94,0.1)",
+    color: "#bbf7d0",
+    borderRadius: 18,
+    padding: 16,
   },
+  messageText: { margin: "6px 0 0" },
 };
