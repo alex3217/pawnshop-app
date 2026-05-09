@@ -130,6 +130,20 @@ router.get(
 
 /**
  * Owner/Admin
+ * POST /api/staff/invite
+ *
+ * Invite/create a staff record for a shop owned by the authenticated owner/admin.
+ */
+router.post(
+  "/invite",
+  authRequired,
+  requireRole(...STAFF_ROLES),
+  normalizeStaffBody,
+  asyncRoute(createStaffMember),
+);
+
+/**
+ * Owner/Admin
  * POST /api/staff
  *
  * Creates a new staff record for a shop owned by the authenticated owner/admin.
@@ -189,6 +203,7 @@ router.delete(
 export const STAFF_ROUTE_MAP = Object.freeze({
   mine: "GET /api/staff/mine",
   byShop: "GET /api/staff/shop/:shopId",
+  invite: "POST /api/staff/invite",
   create: "POST /api/staff",
   updatePut: "PUT /api/staff/:id",
   updatePatch: "PATCH /api/staff/:id",
