@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { canAccessShopWithStaffPermission, getStaffAccessibleShopIds } from "../middleware/staffAccess.middleware.js";
 import { assertCanCreateListingForShop } from "../services/sellerPlan.service.js";
 
 const VALID_CATEGORIES = [
@@ -341,6 +342,40 @@ export async function listItems(req, res) {
   }
 }
 
+
+function canWriteInventoryForShop(req, shopId, ownerId) {
+  const role = String(req?.user?.role || "").toUpperCase();
+
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return true;
+  if (role === "OWNER" && ownerId === req?.user?.sub) return true;
+
+  return canAccessShopWithStaffPermission(req, "inventory:write", shopId);
+}
+
+async function getInventoryReadableShopIds(req) {
+  const role = String(req?.user?.role || "").toUpperCase();
+
+  if (role === "ADMIN" || role === "SUPER_ADMIN") {
+    const shops = await prisma.pawnShop.findMany({
+      where: await buildPawnShopWhere(),
+      select: { id: true },
+    });
+
+    return shops.map((shop) => shop.id);
+  }
+
+  if (role === "OWNER") {
+    const shops = await prisma.pawnShop.findMany({
+      where: await buildPawnShopWhere({ ownerId: req.user.sub }),
+      select: { id: true },
+    });
+
+    return shops.map((shop) => shop.id);
+  }
+
+  return getStaffAccessibleShopIds(req, "inventory:read");
+}
+
 export async function getItem(req, res) {
   try {
     const id = String(req.params.id || "").trim();
@@ -365,12 +400,7 @@ export async function getItem(req, res) {
 
 export async function listMyItems(req, res) {
   try {
-    const shops = await prisma.pawnShop.findMany({
-      where: await buildPawnShopWhere({ ownerId: req.user.sub }),
-      select: { id: true },
-    });
-
-    const shopIds = shops.map((shop) => shop.id);
+    const shopIds = await getInventoryReadableShopIds(req);
 
     if (shopIds.length === 0) {
       return res.json([]);
@@ -432,11 +462,7 @@ export async function createItem(req, res) {
       return res.status(404).json({ error: "Shop not found" });
     }
 
-    if (
-      req.user.role !== "ADMIN" &&
-      req.user.role !== "SUPER_ADMIN" &&
-      shop.ownerId !== req.user.sub
-    ) {
+    if (!canWriteInventoryForShop(req, shop.id || shopId, shop.ownerId)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -482,7 +508,7 @@ export async function updateItem(req, res) {
       select: {
         id: true,
         isDeleted: true,
-        shop: { select: { ownerId: true } },
+        shop: { select: { id: true, ownerId: true } },
       },
     });
 
@@ -490,11 +516,7 @@ export async function updateItem(req, res) {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    if (
-      req.user.role !== "ADMIN" &&
-      req.user.role !== "SUPER_ADMIN" &&
-      item.shop?.ownerId !== req.user.sub
-    ) {
+    if (!canWriteInventoryForShop(req, item.shop?.id, item.shop?.ownerId)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -578,7 +600,7 @@ export async function deleteItem(req, res) {
       select: {
         id: true,
         isDeleted: true,
-        shop: { select: { ownerId: true } },
+        shop: { select: { id: true, ownerId: true } },
       },
     });
 
@@ -586,11 +608,7 @@ export async function deleteItem(req, res) {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    if (
-      req.user.role !== "ADMIN" &&
-      req.user.role !== "SUPER_ADMIN" &&
-      item.shop?.ownerId !== req.user.sub
-    ) {
+    if (!canWriteInventoryForShop(req, item.shop?.id, item.shop?.ownerId)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -636,11 +654,7 @@ export async function scanItem(req, res) {
       return res.status(404).json({ error: "Shop not found" });
     }
 
-    if (
-      req.user.role !== "ADMIN" &&
-      req.user.role !== "SUPER_ADMIN" &&
-      shop.ownerId !== req.user.sub
-    ) {
+    if (!canWriteInventoryForShop(req, shop.id || shopId, shop.ownerId)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -709,7 +723,7 @@ export async function sellItem(req, res) {
       select: {
         id: true,
         isDeleted: true,
-        shop: { select: { ownerId: true } },
+        shop: { select: { id: true, ownerId: true } },
       },
     });
 
@@ -717,11 +731,7 @@ export async function sellItem(req, res) {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    if (
-      req.user.role !== "ADMIN" &&
-      req.user.role !== "SUPER_ADMIN" &&
-      item.shop?.ownerId !== req.user.sub
-    ) {
+    if (!canWriteInventoryForShop(req, item.shop?.id, item.shop?.ownerId)) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
