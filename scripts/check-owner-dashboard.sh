@@ -46,7 +46,7 @@ section "1. Runtime and app safety checks"
 
 section "2. Owner routes in App.tsx"
 {
-  rg -n "ownerRoutes|OWNER_ROLES|/owner|/owner/inventory|/owner/locations|/owner/staff|/owner/auctions|/owner/subscription|/owner/items/new|/owner/bulk-upload|/owner/scan-console" \
+  rg -n "ownerRoutes|OWNER_ROLES|/owner|/owner/inventory|/owner/locations|/owner/staff|/owner/auctions|/owner/subscription|/owner/items/new|/owner/integrations|/owner/bulk-upload|/owner/scan-console" \
     apps/web/src/App.tsx || true
 } | tee "$OUT/02-owner-routes.txt"
 
@@ -167,6 +167,7 @@ section "8. Owner frontend routes"
   for web_route in \
     "/owner" \
     "/owner/inventory" \
+    "/owner/integrations" \
     "/owner/locations" \
     "/owner/staff" \
     "/owner/auctions" \
