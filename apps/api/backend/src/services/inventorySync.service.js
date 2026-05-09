@@ -2,6 +2,7 @@
 
 import crypto from "node:crypto";
 import { prisma } from "../lib/prisma.js";
+import { decryptIntegrationCredentials } from "./integrationCrypto.service.js";
 
 const VALID_STATUSES = new Set(["AVAILABLE", "PENDING", "SOLD"]);
 const VALID_CATEGORIES = new Set([
@@ -126,14 +127,34 @@ function buildFetchHeaders(integration) {
     Accept: "application/json",
   };
 
-  if (integration.authType === "API_KEY" && integration.metadata?.apiKeyHeader) {
-    headers[String(integration.metadata.apiKeyHeader)] = String(
-      integration.metadata.apiKeyValue || "",
-    );
+  const credentials = decryptIntegrationCredentials(integration.encryptedCredentials);
+
+  if (integration.authType === "API_KEY" && credentials.apiKey) {
+    const headerName = normalizeString(credentials.customHeaderName, "x-api-key");
+    headers[headerName] = String(credentials.apiKey);
   }
 
-  if (integration.authType === "BEARER_TOKEN" && integration.metadata?.bearerToken) {
-    headers.Authorization = `Bearer ${integration.metadata.bearerToken}`;
+  if (integration.authType === "BEARER_TOKEN" && credentials.bearerToken) {
+    headers.Authorization = `Bearer ${credentials.bearerToken}`;
+  }
+
+  if (
+    integration.authType === "CUSTOM_HEADER" &&
+    credentials.customHeaderName &&
+    credentials.customHeaderValue
+  ) {
+    headers[String(credentials.customHeaderName)] = String(credentials.customHeaderValue);
+  }
+
+  if (
+    integration.authType === "BASIC" &&
+    credentials.basicUsername &&
+    credentials.basicPassword
+  ) {
+    const token = Buffer.from(
+      `${credentials.basicUsername}:${credentials.basicPassword}`,
+    ).toString("base64");
+    headers.Authorization = `Basic ${token}`;
   }
 
   return headers;
@@ -157,6 +178,45 @@ async function fetchExternalInventory(integration) {
 
   const payload = await response.json();
   return extractRows(payload);
+}
+
+function getNestedValue(row, path) {
+  const parts = String(path || "").split(".").filter(Boolean);
+  let current = row;
+
+  for (const part of parts) {
+    if (!current || typeof current !== "object") return undefined;
+    current = current[part];
+  }
+
+  return current;
+}
+
+function applyFieldMappings(row, mappings = []) {
+  if (!Array.isArray(mappings) || mappings.length === 0) return row;
+
+  const mapped = { ...row };
+
+  for (const mapping of mappings) {
+    const externalField = normalizeString(mapping.externalField);
+    const internalField = normalizeString(mapping.internalField);
+
+    if (!externalField || !internalField) continue;
+
+    const value = getNestedValue(row, externalField);
+    if (value !== undefined && value !== null && value !== "") {
+      mapped[internalField] = value;
+    }
+  }
+
+  return mapped;
+}
+
+async function getFieldMappings(integrationId) {
+  return prisma.inventoryFieldMapping.findMany({
+    where: { integrationId },
+    orderBy: { createdAt: "asc" },
+  });
 }
 
 function normalizeExternalRow(row) {
@@ -276,10 +336,12 @@ export async function runInventoryIntegrationSync(integration) {
     }
 
     const rows = await fetchExternalInventory(integration);
+    const fieldMappings = await getFieldMappings(integration.id);
 
     for (const row of rows) {
       try {
-        const normalized = normalizeExternalRow(row);
+        const mappedRow = applyFieldMappings(row, fieldMappings);
+        const normalized = normalizeExternalRow(mappedRow);
 
         if (!normalized.externalId) {
           skippedCount += 1;

@@ -2,6 +2,13 @@
 
 import { prisma } from "../lib/prisma.js";
 import { runInventoryIntegrationSync } from "../services/inventorySync.service.js";
+import {
+  buildCredentialHint,
+  encryptIntegrationCredentials,
+  getCredentialInput,
+  hasCredentialInput,
+  scrubIntegrationMetadata,
+} from "../services/integrationCrypto.service.js";
 
 const ALLOWED_TYPES = new Set([
   "CSV_UPLOAD",
@@ -206,6 +213,10 @@ export async function createIntegration(req, res) {
     const name = normalizeString(req.body?.name);
     const type = normalizeIntegrationType(req.body?.type);
     const authType = normalizeAuthType(req.body?.authType);
+    const credentials = getCredentialInput(req.body || {});
+    const encryptedCredentials = hasCredentialInput(credentials)
+      ? encryptIntegrationCredentials(credentials)
+      : null;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
@@ -233,18 +244,15 @@ export async function createIntegration(req, res) {
         inventoryEndpoint: normalizeString(req.body?.inventoryEndpoint) || null,
         authType,
         credentialHint:
-          maskSecret(req.body?.apiKey) ||
-          maskSecret(req.body?.bearerToken) ||
+          buildCredentialHint(credentials) ||
           normalizeString(req.body?.credentialHint) ||
           null,
+        encryptedCredentials,
         syncFrequencyMinutes:
           Number.isFinite(Number(req.body?.syncFrequencyMinutes))
             ? Number(req.body.syncFrequencyMinutes)
             : null,
-        metadata:
-          req.body?.metadata && typeof req.body.metadata === "object"
-            ? req.body.metadata
-            : null,
+        metadata: scrubIntegrationMetadata(req.body?.metadata),
       },
       include: {
         shop: {
@@ -276,6 +284,7 @@ export async function updateIntegration(req, res) {
     await getIntegrationForAccess(req, integrationId);
 
     const data = {};
+    const credentials = getCredentialInput(req.body || {});
 
     if (req.body?.name !== undefined) data.name = normalizeString(req.body.name);
     if (req.body?.type !== undefined) data.type = normalizeIntegrationType(req.body.type);
@@ -292,9 +301,9 @@ export async function updateIntegration(req, res) {
     if (req.body?.authType !== undefined) {
       data.authType = normalizeAuthType(req.body.authType);
     }
-    if (req.body?.apiKey !== undefined || req.body?.bearerToken !== undefined) {
-      data.credentialHint =
-        maskSecret(req.body?.apiKey) || maskSecret(req.body?.bearerToken);
+    if (hasCredentialInput(credentials)) {
+      data.encryptedCredentials = encryptIntegrationCredentials(credentials);
+      data.credentialHint = buildCredentialHint(credentials);
     }
     if (req.body?.syncFrequencyMinutes !== undefined) {
       data.syncFrequencyMinutes = Number.isFinite(Number(req.body.syncFrequencyMinutes))
@@ -302,10 +311,7 @@ export async function updateIntegration(req, res) {
         : null;
     }
     if (req.body?.metadata !== undefined) {
-      data.metadata =
-        req.body.metadata && typeof req.body.metadata === "object"
-          ? req.body.metadata
-          : null;
+      data.metadata = scrubIntegrationMetadata(req.body.metadata);
     }
 
     const integration = await prisma.inventoryIntegration.update({
