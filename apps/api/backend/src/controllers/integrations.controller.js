@@ -1,6 +1,7 @@
 // File: apps/api/backend/src/controllers/integrations.controller.js
 
 import { prisma } from "../lib/prisma.js";
+import { runInventoryIntegrationSync } from "../services/inventorySync.service.js";
 
 const ALLOWED_TYPES = new Set([
   "CSV_UPLOAD",
@@ -389,34 +390,10 @@ export async function testIntegration(req, res) {
 export async function syncIntegration(req, res) {
   try {
     const integration = await getIntegrationForAccess(req, req.params?.id);
+    const job = await runInventoryIntegrationSync(integration);
 
-    const now = new Date();
-
-    const job = await prisma.inventorySyncJob.create({
-      data: {
-        integrationId: integration.id,
-        shopId: integration.shopId,
-        status: "COMPLETED",
-        startedAt: now,
-        finishedAt: now,
-        createdCount: 0,
-        updatedCount: 0,
-        skippedCount: 0,
-        errorCount: 0,
-        errorSummary: {
-          message:
-            integration.type === "CSV_UPLOAD"
-              ? "CSV imports are processed through /inventory-bulk/import."
-              : "Manual sync placeholder completed. Live connector worker is next.",
-        },
-      },
-    });
-
-    const updated = await prisma.inventoryIntegration.update({
+    const updated = await prisma.inventoryIntegration.findUnique({
       where: { id: integration.id },
-      data: {
-        lastSyncAt: now,
-      },
       include: {
         shop: {
           select: {
@@ -429,8 +406,8 @@ export async function syncIntegration(req, res) {
     });
 
     return res.json({
-      success: true,
-      integration: normalizeIntegration(updated),
+      success: job.status !== "FAILED",
+      integration: normalizeIntegration(updated || integration),
       job,
     });
   } catch (error) {
