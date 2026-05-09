@@ -12,7 +12,7 @@ function statusLabel(status: OwnerIntegrationConnector["status"]) {
   if (status === "READY") return "Ready";
   if (status === "CONNECTED") return "Connected";
   if (status === "NEEDS_SETUP") return "Needs setup";
-  return "Coming soon";
+  return "Planned";
 }
 
 function statusStyle(status: OwnerIntegrationConnector["status"]): CSSProperties {
@@ -137,7 +137,7 @@ export default function OwnerIntegrationsPage() {
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Planned connectors</div>
           <div style={styles.statValue}>{overview?.comingSoonCount ?? "—"}</div>
-          <div style={styles.statHelper}>API, webhook, SFTP, POS systems.</div>
+          <div style={styles.statHelper}>API, webhook, SFTP, and POS connections.</div>
         </div>
       </section>
 
