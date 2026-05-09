@@ -297,6 +297,7 @@ model InventoryIntegration {
   inventoryEndpoint    String?
   authType             String                     @default("NONE")
   credentialHint       String?
+  encryptedCredentials Json?
   syncFrequencyMinutes Int?
   lastSyncAt           DateTime?
   nextSyncAt           DateTime?
