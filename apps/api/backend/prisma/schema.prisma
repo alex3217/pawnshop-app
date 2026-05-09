@@ -100,7 +100,7 @@ model Staff {
   email       String
   name        String?
   phone       String?
-  role        StaffRole   @default(STAFF)
+  role        StaffRole   @default(SHOP_STAFF)
   status      StaffStatus @default(INVITED)
   permissions String[]    @default([])
   invitedAt   DateTime    @default(now())
@@ -388,12 +388,14 @@ model SuperAdminAuditLog {
 }
 
 enum StaffRole {
-  MANAGER
-  STAFF
-  CASHIER
-  INVENTORY
-  AUCTION
-  VIEWER
+  SHOP_ADMIN
+  SHOP_MANAGER
+  SHOP_STAFF
+  SHOP_VIEWER
+  INVENTORY_MANAGER
+  AUCTION_MANAGER
+  SALES_ASSOCIATE
+  FINANCE_VIEWER
 }
 
 enum StaffStatus {

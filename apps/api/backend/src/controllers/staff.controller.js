@@ -3,12 +3,14 @@
 import { prisma } from "../lib/prisma.js";
 
 const STAFF_ROLES = new Set([
-  "MANAGER",
-  "STAFF",
-  "CASHIER",
-  "INVENTORY",
-  "AUCTION",
-  "VIEWER",
+  "SHOP_ADMIN",
+  "SHOP_MANAGER",
+  "SHOP_STAFF",
+  "SHOP_VIEWER",
+  "INVENTORY_MANAGER",
+  "AUCTION_MANAGER",
+  "SALES_ASSOCIATE",
+  "FINANCE_VIEWER",
 ]);
 
 const STAFF_STATUSES = new Set(["INVITED", "ACTIVE", "INACTIVE", "ARCHIVED"]);
@@ -28,7 +30,7 @@ const STAFF_PERMISSIONS = new Set([
 ]);
 
 const DEFAULT_ROLE_PERMISSIONS = {
-  MANAGER: [
+  SHOP_ADMIN: [
     "inventory:read",
     "inventory:write",
     "auctions:read",
@@ -41,11 +43,24 @@ const DEFAULT_ROLE_PERMISSIONS = {
     "staff:write",
     "settlements:read",
   ],
-  STAFF: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
-  CASHIER: ["inventory:read", "offers:read", "offers:write", "settlements:read"],
-  INVENTORY: ["inventory:read", "inventory:write", "locations:read"],
-  AUCTION: ["inventory:read", "auctions:read", "auctions:write"],
-  VIEWER: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
+  SHOP_MANAGER: [
+    "inventory:read",
+    "inventory:write",
+    "auctions:read",
+    "auctions:write",
+    "offers:read",
+    "offers:write",
+    "locations:read",
+    "locations:write",
+    "staff:read",
+    "settlements:read",
+  ],
+  SHOP_STAFF: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
+  SHOP_VIEWER: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
+  INVENTORY_MANAGER: ["inventory:read", "inventory:write", "locations:read"],
+  AUCTION_MANAGER: ["inventory:read", "auctions:read", "auctions:write"],
+  SALES_ASSOCIATE: ["inventory:read", "offers:read", "offers:write"],
+  FINANCE_VIEWER: ["settlements:read", "offers:read"],
 };
 
 function sendError(res, error, fallbackMessage = "Internal server error") {
@@ -90,7 +105,7 @@ function normalizeEmail(value) {
   return normalizeString(value).toLowerCase();
 }
 
-function normalizeRole(value, fallback = "STAFF") {
+function normalizeRole(value, fallback = "SHOP_STAFF") {
   const role = normalizeString(value, fallback).toUpperCase();
   return STAFF_ROLES.has(role) ? role : fallback;
 }
@@ -100,7 +115,7 @@ function normalizeStatus(value, fallback = "INVITED") {
   return STAFF_STATUSES.has(status) ? status : fallback;
 }
 
-function normalizePermissions(value, role = "STAFF") {
+function normalizePermissions(value, role = "SHOP_STAFF") {
   const source = Array.isArray(value) ? value : DEFAULT_ROLE_PERMISSIONS[role] || [];
 
   return Array.from(
@@ -316,7 +331,7 @@ export async function createStaffMember(req, res) {
 
     const shopId = normalizeString(req.body?.shopId);
     const email = normalizeEmail(req.body?.email);
-    const role = normalizeRole(req.body?.role, "STAFF");
+    const role = normalizeRole(req.body?.role, "SHOP_STAFF");
     const permissions = normalizePermissions(req.body?.permissions, role);
 
     if (!shopId) throw badRequest("shopId is required.");

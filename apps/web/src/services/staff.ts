@@ -3,12 +3,14 @@
 import { api } from "./apiClient";
 
 export type StaffRole =
-  | "OWNER"
-  | "MANAGER"
-  | "STAFF"
-  | "CASHIER"
-  | "INVENTORY"
-  | "ADMIN"
+  | "SHOP_ADMIN"
+  | "SHOP_MANAGER"
+  | "SHOP_STAFF"
+  | "SHOP_VIEWER"
+  | "INVENTORY_MANAGER"
+  | "AUCTION_MANAGER"
+  | "SALES_ASSOCIATE"
+  | "FINANCE_VIEWER"
   | string;
 
 export type StaffStatus =
@@ -71,6 +73,12 @@ export type StaffQuery = {
   pageSize?: number;
 };
 
+export type StaffShopOption = {
+  id: string;
+  name: string;
+  address?: string | null;
+};
+
 export type CreateStaffInput = {
   shopId: string;
   email: string;
@@ -118,7 +126,7 @@ function buildQuery(query?: StaffQuery) {
   return qs ? `?${qs}` : "";
 }
 
-function normalizeRole(value: unknown, fallback: StaffRole = "STAFF") {
+function normalizeRole(value: unknown, fallback: StaffRole = "SHOP_STAFF") {
   const role = String(value || fallback).trim().toUpperCase();
   return role || fallback;
 }
@@ -359,3 +367,46 @@ export async function updateStaffPermissions(
 ): Promise<StaffMember> {
   return updateStaffMember(id, { permissions });
 }
+
+function unwrapShopList(data: unknown): StaffShopOption[] {
+  const nestedData = getNestedObject(data, "data");
+
+  const rows =
+    (Array.isArray(data) ? data : undefined) ??
+    (isObject(data) && Array.isArray(data.shops) ? data.shops : undefined) ??
+    (isObject(data) && Array.isArray(data.items) ? data.items : undefined) ??
+    (isObject(data) && Array.isArray(data.rows) ? data.rows : undefined) ??
+    (isObject(data) && Array.isArray(data.data) ? data.data : undefined) ??
+    (nestedData && Array.isArray(nestedData.shops)
+      ? nestedData.shops
+      : undefined) ??
+    (nestedData && Array.isArray(nestedData.items)
+      ? nestedData.items
+      : undefined) ??
+    (nestedData && Array.isArray(nestedData.rows)
+      ? nestedData.rows
+      : undefined) ??
+    [];
+
+  return rows
+    .filter(isObject)
+    .map((row) => ({
+      id: String(row.id || ""),
+      name: String(row.name || row.locationName || row.shopName || "Shop"),
+      address:
+        typeof row.address === "string"
+          ? row.address
+          : typeof row.locationAddress === "string"
+            ? row.locationAddress
+            : null,
+    }))
+    .filter((row) => row.id);
+}
+
+export async function getStaffAssignableShops(
+  signal?: AbortSignal,
+): Promise<StaffShopOption[]> {
+  const data = await api.get<unknown>("/shops/mine", { signal });
+  return unwrapShopList(data);
+}
+
