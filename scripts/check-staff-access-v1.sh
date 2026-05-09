@@ -68,7 +68,7 @@ console.log(JSON.stringify({
   email: "$STAFF_EMAIL",
   name: "Staff Audit User",
   phone: "555-9191",
-  role: "INVENTORY",
+  role: "INVENTORY_MANAGER",
   permissions: ["inventory:read", "inventory:write", "locations:read"]
 }));
 NODE
@@ -103,7 +103,7 @@ fi
 
 echo "✅ Staff created: $STAFF_ID"
 
-UPDATE_PAYLOAD='{"role":"AUCTION","status":"ACTIVE","permissions":["auctions:read","auctions:write","inventory:read"]}'
+UPDATE_PAYLOAD='{"role":"AUCTION_MANAGER","status":"ACTIVE","permissions":["auctions:read","auctions:write","inventory:read"]}'
 
 echo "$UPDATE_PAYLOAD" > "$OUT/update-payload.json"
 
@@ -121,8 +121,8 @@ process.stdin.on("data", d => s += d);
 process.stdin.on("end", () => {
   const j = JSON.parse(s || "{}");
 
-  if (j.role !== "AUCTION") {
-    console.error("Expected role AUCTION, got", j.role);
+  if (j.role !== "AUCTION_MANAGER") {
+    console.error("Expected role AUCTION_MANAGER, got", j.role);
     process.exit(1);
   }
 
@@ -160,8 +160,8 @@ if (!found) {
   process.exit(1);
 }
 
-if (found.role !== "AUCTION") {
-  console.error("Staff role not visible as AUCTION");
+if (found.role !== "AUCTION_MANAGER") {
+  console.error("Staff role not visible as AUCTION_MANAGER");
   process.exit(1);
 }
 
