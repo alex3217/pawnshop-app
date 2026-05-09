@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { authRequired, requireRole } from "../middleware/auth.js";
+import { authRequired } from "../middleware/auth.js";
+import { requireOwnerAdminOrStaffPermission } from "../middleware/staffAccess.middleware.js";
 import {
   listItems,
   getItem,
@@ -17,16 +18,16 @@ const router = Router();
 router.get("/", listItems);
 
 // Owner/Admin special route must come before "/:id"
-router.get("/mine", authRequired, requireRole("OWNER", "ADMIN"), listMyItems);
+router.get("/mine", authRequired, requireOwnerAdminOrStaffPermission("inventory:read"), listMyItems);
 
 // Owner/Admin scan + mutations
-router.post("/scan", authRequired, requireRole("OWNER", "ADMIN"), scanItem);
-router.post("/:id/sell", authRequired, requireRole("OWNER", "ADMIN"), sellItem);
+router.post("/scan", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), scanItem);
+router.post("/:id/sell", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), sellItem);
 
 // Owner/Admin mutations
-router.post("/", authRequired, requireRole("OWNER", "ADMIN"), createItem);
-router.put("/:id", authRequired, requireRole("OWNER", "ADMIN"), updateItem);
-router.delete("/:id", authRequired, requireRole("OWNER", "ADMIN"), deleteItem);
+router.post("/", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), createItem);
+router.put("/:id", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), updateItem);
+router.delete("/:id", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), deleteItem);
 
 // Public single-item lookup
 router.get("/:id", getItem);
