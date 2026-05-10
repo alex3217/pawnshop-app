@@ -35,6 +35,18 @@ const ALLOWED_AUTH_TYPES = new Set([
   "CUSTOM_HEADER",
 ]);
 
+const ALLOWED_INTERNAL_FIELDS = new Set([
+  "externalId",
+  "title",
+  "description",
+  "price",
+  "currency",
+  "category",
+  "condition",
+  "status",
+  "images",
+]);
+
 function sendError(res, error, fallback = "Internal server error") {
   const status =
     Number.isInteger(error?.statusCode) && error.statusCode >= 400
@@ -418,6 +430,118 @@ export async function syncIntegration(req, res) {
     });
   } catch (error) {
     return sendError(res, error, "Failed to sync integration");
+  }
+}
+
+export async function listIntegrationMappings(req, res) {
+  try {
+    const integration = await getIntegrationForAccess(req, req.params?.id);
+
+    const mappings = await prisma.inventoryFieldMapping.findMany({
+      where: { integrationId: integration.id },
+      orderBy: [{ internalField: "asc" }, { externalField: "asc" }],
+    });
+
+    return res.json({
+      success: true,
+      mappings,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to load integration mappings");
+  }
+}
+
+export async function createIntegrationMapping(req, res) {
+  try {
+    const integration = await getIntegrationForAccess(req, req.params?.id);
+
+    const externalField = normalizeString(req.body?.externalField);
+    const internalField = normalizeString(req.body?.internalField);
+    const transformRule = normalizeString(req.body?.transformRule) || null;
+
+    if (!externalField) {
+      return res.status(400).json({
+        success: false,
+        error: "externalField is required",
+      });
+    }
+
+    if (!internalField) {
+      return res.status(400).json({
+        success: false,
+        error: "internalField is required",
+      });
+    }
+
+    if (!ALLOWED_INTERNAL_FIELDS.has(internalField)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid internalField. Allowed: ${Array.from(ALLOWED_INTERNAL_FIELDS).join(", ")}`,
+      });
+    }
+
+    const mapping = await prisma.inventoryFieldMapping.upsert({
+      where: {
+        integrationId_externalField_internalField: {
+          integrationId: integration.id,
+          externalField,
+          internalField,
+        },
+      },
+      create: {
+        integrationId: integration.id,
+        externalField,
+        internalField,
+        transformRule,
+      },
+      update: {
+        transformRule,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      mapping,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to create integration mapping");
+  }
+}
+
+export async function deleteIntegrationMapping(req, res) {
+  try {
+    const integration = await getIntegrationForAccess(req, req.params?.id);
+    const mappingId = normalizeString(req.params?.mappingId);
+
+    if (!mappingId) {
+      return res.status(400).json({
+        success: false,
+        error: "mappingId is required",
+      });
+    }
+
+    const mapping = await prisma.inventoryFieldMapping.findFirst({
+      where: {
+        id: mappingId,
+        integrationId: integration.id,
+      },
+      select: { id: true },
+    });
+
+    if (!mapping) {
+      return res.status(404).json({
+        success: false,
+        error: "Mapping not found",
+      });
+    }
+
+    await prisma.inventoryFieldMapping.delete({
+      where: { id: mapping.id },
+    });
+
+    return res.status(204).end();
+  } catch (error) {
+    return sendError(res, error, "Failed to delete integration mapping");
   }
 }
 

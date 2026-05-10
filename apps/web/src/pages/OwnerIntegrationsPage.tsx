@@ -11,7 +11,10 @@ import { Link } from "react-router-dom";
 import {
   archiveInventoryIntegration,
   createInventoryIntegration,
+  createInventoryIntegrationMapping,
+  deleteInventoryIntegrationMapping,
   getInventoryIntegrationJobs,
+  getInventoryIntegrationMappings,
   getOwnerIntegrationOverview,
   syncInventoryIntegration,
   testInventoryIntegration,
@@ -19,6 +22,7 @@ import {
   type IntegrationAuthType,
   type IntegrationKind,
   type IntegrationStatus,
+  type InventoryFieldMapping,
   type InventorySyncJob,
   type OwnerIntegrationConnector,
   type OwnerIntegrationOverview,
@@ -38,6 +42,12 @@ type IntegrationFormState = {
   syncFrequencyMinutes: string;
 };
 
+type MappingFormState = {
+  externalField: string;
+  internalField: string;
+  transformRule: string;
+};
+
 const EMPTY_FORM: IntegrationFormState = {
   shopId: "",
   name: "",
@@ -50,6 +60,24 @@ const EMPTY_FORM: IntegrationFormState = {
   bearerToken: "",
   syncFrequencyMinutes: "15",
 };
+
+const EMPTY_MAPPING_FORM: MappingFormState = {
+  externalField: "",
+  internalField: "title",
+  transformRule: "",
+};
+
+const INTERNAL_MAPPING_FIELDS = [
+  "externalId",
+  "title",
+  "description",
+  "price",
+  "currency",
+  "category",
+  "condition",
+  "status",
+  "images",
+];
 
 const INTEGRATION_TYPES: IntegrationKind[] = [
   "CSV_UPLOAD",
@@ -141,6 +169,10 @@ export default function OwnerIntegrationsPage() {
   const [jobsByIntegration, setJobsByIntegration] = useState<
     Record<string, InventorySyncJob[]>
   >({});
+  const [mappingsByIntegration, setMappingsByIntegration] = useState<
+    Record<string, InventoryFieldMapping[]>
+  >({});
+  const [mappingForms, setMappingForms] = useState<Record<string, MappingFormState>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [actionId, setActionId] = useState("");
@@ -194,6 +226,107 @@ export default function OwnerIntegrationsPage() {
       ...current,
       [key]: value,
     }));
+  }
+
+  function updateMappingForm(
+    integrationId: string,
+    key: keyof MappingFormState,
+    value: string,
+  ) {
+    setMappingForms((current) => ({
+      ...current,
+      [integrationId]: {
+        ...(current[integrationId] || EMPTY_MAPPING_FORM),
+        [key]: value,
+      },
+    }));
+  }
+
+  async function loadMappings(integration: SavedInventoryIntegration) {
+    const mappings = await getInventoryIntegrationMappings(integration.id);
+
+    setMappingsByIntegration((current) => ({
+      ...current,
+      [integration.id]: mappings,
+    }));
+
+    return mappings;
+  }
+
+  async function handleCreateMapping(integration: SavedInventoryIntegration) {
+    const mappingForm = mappingForms[integration.id] || EMPTY_MAPPING_FORM;
+
+    setActionId(`mapping:${integration.id}`);
+    setError("");
+    setSuccess("");
+
+    try {
+      const mapping = await createInventoryIntegrationMapping(integration.id, {
+        externalField: mappingForm.externalField,
+        internalField: mappingForm.internalField,
+        transformRule: mappingForm.transformRule,
+      });
+
+      setMappingsByIntegration((current) => ({
+        ...current,
+        [integration.id]: [
+          ...(current[integration.id] || []),
+          mapping,
+        ],
+      }));
+
+      setMappingForms((current) => ({
+        ...current,
+        [integration.id]: EMPTY_MAPPING_FORM,
+      }));
+
+      setSuccess(`Mapping added for ${integration.name}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create mapping.");
+    } finally {
+      setActionId("");
+    }
+  }
+
+  async function handleDeleteMapping(
+    integration: SavedInventoryIntegration,
+    mapping: InventoryFieldMapping,
+  ) {
+    setActionId(`delete-mapping:${mapping.id}`);
+    setError("");
+    setSuccess("");
+
+    try {
+      await deleteInventoryIntegrationMapping(integration.id, mapping.id);
+
+      setMappingsByIntegration((current) => ({
+        ...current,
+        [integration.id]: (current[integration.id] || []).filter(
+          (row) => row.id !== mapping.id,
+        ),
+      }));
+
+      setSuccess(`Mapping removed for ${integration.name}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete mapping.");
+    } finally {
+      setActionId("");
+    }
+  }
+
+  async function handleLoadMappings(integration: SavedInventoryIntegration) {
+    setActionId(`mappings:${integration.id}`);
+    setError("");
+    setSuccess("");
+
+    try {
+      const mappings = await loadMappings(integration);
+      setSuccess(`Loaded ${mappings.length} mappings for ${integration.name}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load mappings.");
+    } finally {
+      setActionId("");
+    }
   }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
@@ -590,11 +723,118 @@ export default function OwnerIntegrationsPage() {
                     <button
                       type="button"
                       disabled={isBusy}
+                      onClick={() => void handleLoadMappings(integration)}
+                      style={styles.secondaryButton}
+                    >
+                      Mappings
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isBusy}
                       onClick={() => void runAction(integration, "archive")}
                       style={styles.dangerButton}
                     >
                       Archive
                     </button>
+                  </div>
+
+                  <div style={styles.mappingPanel}>
+                    <div style={styles.mappingHeader}>
+                      <strong>Field mappings</strong>
+                      <span>
+                        {(mappingsByIntegration[integration.id] || []).length} saved
+                      </span>
+                    </div>
+
+                    <div style={styles.mappingForm}>
+                      <input
+                        value={
+                          (mappingForms[integration.id] || EMPTY_MAPPING_FORM)
+                            .externalField
+                        }
+                        onChange={(event) =>
+                          updateMappingForm(
+                            integration.id,
+                            "externalField",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="External field: extTitle"
+                        style={styles.input}
+                      />
+
+                      <select
+                        value={
+                          (mappingForms[integration.id] || EMPTY_MAPPING_FORM)
+                            .internalField
+                        }
+                        onChange={(event) =>
+                          updateMappingForm(
+                            integration.id,
+                            "internalField",
+                            event.target.value,
+                          )
+                        }
+                        style={styles.input}
+                      >
+                        {INTERNAL_MAPPING_FIELDS.map((field) => (
+                          <option key={field} value={field}>
+                            {field}
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        value={
+                          (mappingForms[integration.id] || EMPTY_MAPPING_FORM)
+                            .transformRule
+                        }
+                        onChange={(event) =>
+                          updateMappingForm(
+                            integration.id,
+                            "transformRule",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="Optional transform"
+                        style={styles.input}
+                      />
+
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => void handleCreateMapping(integration)}
+                        style={styles.secondaryButton}
+                      >
+                        Add mapping
+                      </button>
+                    </div>
+
+                    {(mappingsByIntegration[integration.id] || []).length > 0 ? (
+                      <div style={styles.mappingList}>
+                        {(mappingsByIntegration[integration.id] || []).map(
+                          (mapping) => (
+                            <div key={mapping.id} style={styles.mappingItem}>
+                              <span>
+                                <strong>{mapping.externalField}</strong> →{" "}
+                                <strong>{mapping.internalField}</strong>
+                              </span>
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() =>
+                                  void handleDeleteMapping(integration, mapping)
+                                }
+                                style={styles.dangerMiniButton}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    ) : null}
                   </div>
 
                   {jobs.length > 0 ? (
@@ -904,6 +1144,47 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gap: 4,
     color: "rgba(238,242,255,0.76)",
+  },
+  mappingPanel: {
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    paddingTop: 12,
+    display: "grid",
+    gap: 10,
+  },
+  mappingHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    color: "rgba(238,242,255,0.78)",
+  },
+  mappingForm: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: 8,
+  },
+  mappingList: {
+    display: "grid",
+    gap: 8,
+  },
+  mappingItem: {
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    padding: 10,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    color: "rgba(238,242,255,0.76)",
+  },
+  dangerMiniButton: {
+    border: "1px solid rgba(248,113,113,0.34)",
+    background: "rgba(248,113,113,0.12)",
+    color: "#fecaca",
+    borderRadius: 10,
+    padding: "6px 9px",
+    fontWeight: 800,
+    cursor: "pointer",
   },
   errorCard: {
     border: "1px solid rgba(248,113,113,0.3)",

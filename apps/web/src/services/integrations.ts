@@ -77,6 +77,22 @@ export type InventorySyncJob = {
   updatedAt?: string;
 };
 
+export type InventoryFieldMapping = {
+  id: string;
+  integrationId: string;
+  externalField: string;
+  internalField: string;
+  transformRule?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateInventoryFieldMappingInput = {
+  externalField: string;
+  internalField: string;
+  transformRule?: string;
+};
+
 export type CreateInventoryIntegrationInput = {
   shopId: string;
   name: string;
@@ -155,6 +171,32 @@ function unwrapJobs(data: unknown): InventorySyncJob[] {
   }
 
   return [];
+}
+
+function unwrapMappings(data: unknown): InventoryFieldMapping[] {
+  if (Array.isArray(data)) return data as InventoryFieldMapping[];
+  if (!isObject(data)) return [];
+
+  if (Array.isArray(data.mappings)) {
+    return data.mappings as InventoryFieldMapping[];
+  }
+
+  if (isObject(data.data) && Array.isArray(data.data.mappings)) {
+    return data.data.mappings as InventoryFieldMapping[];
+  }
+
+  return [];
+}
+
+function unwrapMapping(data: unknown): InventoryFieldMapping {
+  if (!isObject(data)) throw new Error("Invalid mapping response.");
+
+  const nested = isObject(data.data) ? data.data : null;
+  const mapping = data.mapping ?? nested?.mapping ?? nested ?? data;
+
+  if (!isObject(mapping)) throw new Error("Invalid mapping response.");
+
+  return mapping as InventoryFieldMapping;
 }
 
 export const OWNER_INTEGRATION_CONNECTORS: OwnerIntegrationConnector[] = [
@@ -327,6 +369,57 @@ export async function syncInventoryIntegration(
     integration: unwrapIntegration(data),
     job: isObject(data) && isObject(data.job) ? (data.job as InventorySyncJob) : null,
   };
+}
+
+
+export async function getInventoryIntegrationMappings(
+  id: string,
+  signal?: AbortSignal,
+): Promise<InventoryFieldMapping[]> {
+  if (!id) throw new Error("Missing integration id.");
+
+  const data = await api.get<unknown>(
+    `/integrations/${encodeURIComponent(id)}/mappings`,
+    { signal },
+  );
+
+  return unwrapMappings(data);
+}
+
+export async function createInventoryIntegrationMapping(
+  id: string,
+  input: CreateInventoryFieldMappingInput,
+  signal?: AbortSignal,
+): Promise<InventoryFieldMapping> {
+  if (!id) throw new Error("Missing integration id.");
+  if (!input.externalField.trim()) throw new Error("Enter an external field.");
+  if (!input.internalField.trim()) throw new Error("Choose an internal field.");
+
+  const data = await api.post<unknown>(
+    `/integrations/${encodeURIComponent(id)}/mappings`,
+    {
+      externalField: input.externalField.trim(),
+      internalField: input.internalField.trim(),
+      transformRule: input.transformRule?.trim() || undefined,
+    },
+    { signal },
+  );
+
+  return unwrapMapping(data);
+}
+
+export async function deleteInventoryIntegrationMapping(
+  integrationId: string,
+  mappingId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (!integrationId) throw new Error("Missing integration id.");
+  if (!mappingId) throw new Error("Missing mapping id.");
+
+  await api.delete<unknown>(
+    `/integrations/${encodeURIComponent(integrationId)}/mappings/${encodeURIComponent(mappingId)}`,
+    { signal },
+  );
 }
 
 export async function getInventoryIntegrationJobs(

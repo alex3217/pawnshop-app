@@ -8,6 +8,9 @@ import {
   updateIntegration,
   testIntegration,
   syncIntegration,
+  listIntegrationMappings,
+  createIntegrationMapping,
+  deleteIntegrationMapping,
   listIntegrationJobs,
   listIntegrationLogs,
   deleteIntegration,
@@ -59,6 +62,28 @@ router.post(
   authRequired,
   requireRole(...OWNER_ADMIN_ROLES),
   asyncRoute(syncIntegration),
+);
+
+
+router.get(
+  "/:id/mappings",
+  authRequired,
+  requireRole(...OWNER_ADMIN_ROLES),
+  asyncRoute(listIntegrationMappings),
+);
+
+router.post(
+  "/:id/mappings",
+  authRequired,
+  requireRole(...OWNER_ADMIN_ROLES),
+  asyncRoute(createIntegrationMapping),
+);
+
+router.delete(
+  "/:id/mappings/:mappingId",
+  authRequired,
+  requireRole(...OWNER_ADMIN_ROLES),
+  asyncRoute(deleteIntegrationMapping),
 );
 
 router.get(
