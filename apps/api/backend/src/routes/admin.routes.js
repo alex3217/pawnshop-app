@@ -1,6 +1,7 @@
 // File: apps/api/backend/src/routes/admin.routes.js
 
 import { Router } from "express";
+import { prisma } from "../lib/prisma.js";
 import { authRequired, requireRole } from "../middleware/auth.js";
 import {
   listUsers,
@@ -16,6 +17,86 @@ import {
 } from "../controllers/admin.controller.js";
 
 const router = Router();
+
+function getAdminAuditActorEmail(req) {
+  return req?.user?.email || req?.user?.username || null;
+}
+
+function buildAdminInventoryAuditActions(req) {
+  const path = String(req?.route?.path || req?.path || "");
+  const method = String(req?.method || "").toUpperCase();
+  const actions = [];
+
+  if (path.includes("/items/:id") && method === "DELETE") {
+    actions.push({
+      action: "MODERATE_ITEM_REMOVE",
+      targetType: "ITEM",
+      targetId: req.params?.id,
+      metadata: {
+        moderationType: "soft_delete",
+      },
+    });
+  }
+
+  if (path.includes("/items/:id/restore") && method === "PATCH") {
+    actions.push({
+      action: "MODERATE_ITEM_RESTORE",
+      targetType: "ITEM",
+      targetId: req.params?.id,
+      metadata: {
+        moderationType: "restore",
+      },
+    });
+  }
+
+  return actions.filter((entry) => entry.targetId);
+}
+
+function auditAdminInventoryModeration(req, res, next) {
+  const actions = buildAdminInventoryAuditActions(req);
+
+  if (!actions.length) {
+    next();
+    return;
+  }
+
+  res.on("finish", () => {
+    const statusCode = Number(res.statusCode || 0);
+    const success = statusCode >= 200 && statusCode < 400;
+
+    void Promise.all(
+      actions.map((entry) =>
+        prisma.superAdminAuditLog.create({
+          data: {
+            actorId: req?.user?.sub ?? null,
+            actorEmail: getAdminAuditActorEmail(req),
+            actorRole: req?.user?.role ?? null,
+            action: entry.action,
+            method: req?.method ?? "UNKNOWN",
+            path: req?.originalUrl ?? req?.url ?? "",
+            routeKey: req?.route?.path ? String(req.route.path) : null,
+            targetType: entry.targetType,
+            targetId: entry.targetId,
+            statusCode,
+            success,
+            requestId: req?.id ?? req?.requestId ?? null,
+            ipAddress: req?.ip ?? null,
+            userAgent: typeof req?.get === "function" ? req.get("user-agent") : null,
+            metadata: entry.metadata || {},
+          },
+        }),
+      ),
+    ).catch((error) => {
+      console.warn("[admin:inventory-audit] Failed to write inventory moderation audit log", {
+        error: error?.message || error,
+      });
+    });
+  });
+
+  next();
+}
+
+
 
 function asyncRoute(handler) {
   return function wrappedRoute(req, res, next) {
@@ -66,12 +147,12 @@ router.patch(
 
 router.get("/items", asyncRoute(adminListItems));
 router.delete(
-  "/items/:id",
+  "/items/:id", auditAdminInventoryModeration,
   validateIdParam("id", "Item id"),
   asyncRoute(softDeleteItem),
 );
 router.patch(
-  "/items/:id/restore",
+  "/items/:id/restore", auditAdminInventoryModeration,
   validateIdParam("id", "Item id"),
   asyncRoute(restoreItem),
 );
