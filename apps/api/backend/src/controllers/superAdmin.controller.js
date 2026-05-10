@@ -616,6 +616,136 @@ export async function updateSuperAdminUser(req, res) {
   }
 }
 
+
+function normalizeSuperAdminString(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const next = String(value).trim();
+  return next.length ? next : null;
+}
+
+function toSuperAdminShopRow(shop, owner) {
+  return {
+    id: shop.id,
+    name: shop.name,
+    address: shop.address ?? null,
+    phone: shop.phone ?? null,
+    description: shop.description ?? null,
+    hours: shop.hours ?? null,
+    ownerId: shop.ownerId ?? owner?.id ?? null,
+    ownerName: owner?.name ?? null,
+    ownerEmail: owner?.email ?? null,
+    subscriptionPlan: shop.subscriptionPlan ?? null,
+    subscriptionStatus: shop.subscriptionStatus ?? null,
+    subscriptionCurrentPeriodEnd: shop.subscriptionCurrentPeriodEnd ?? null,
+    cancelAtPeriodEnd: shop.cancelAtPeriodEnd ?? false,
+    stripeCustomerId: shop.stripeCustomerId ?? null,
+    stripeSubscriptionId: shop.stripeSubscriptionId ?? null,
+    createdAt: shop.createdAt ?? null,
+    updatedAt: shop.updatedAt ?? null,
+    isDeleted: shop.isDeleted ?? false,
+  };
+}
+
+export async function createSuperAdminShop(req, res) {
+  try {
+    const ownerId = normalizeSuperAdminString(req.body?.ownerId);
+    const name = normalizeSuperAdminString(req.body?.name);
+    const address = normalizeSuperAdminString(req.body?.address);
+    const phone = normalizeSuperAdminString(req.body?.phone);
+    const description = normalizeSuperAdminString(req.body?.description);
+    const hours = normalizeSuperAdminString(req.body?.hours);
+    const subscriptionPlan = normalizeSuperAdminString(req.body?.subscriptionPlan) || "FREE";
+    const subscriptionStatus = normalizeSuperAdminString(req.body?.subscriptionStatus) || "ACTIVE";
+
+    if (!ownerId) {
+      return res.status(400).json({
+        success: false,
+        error: "ownerId is required.",
+      });
+    }
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop name is required.",
+      });
+    }
+
+    const owner = await prisma.user.findUnique({
+      where: { id: ownerId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+      },
+    });
+
+    if (!owner) {
+      return res.status(404).json({
+        success: false,
+        error: "Owner user not found.",
+      });
+    }
+
+    if (owner.role !== "OWNER") {
+      return res.status(400).json({
+        success: false,
+        error: "Selected user must have OWNER role.",
+      });
+    }
+
+    if (owner.isActive === false) {
+      return res.status(400).json({
+        success: false,
+        error: "Selected owner user is inactive.",
+      });
+    }
+
+    const shop = await prisma.pawnShop.create({
+      data: {
+        ownerId,
+        name,
+        address,
+        phone,
+        description,
+        hours,
+        subscriptionPlan,
+        subscriptionStatus,
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        description: true,
+        hours: true,
+        ownerId: true,
+        subscriptionPlan: true,
+        subscriptionStatus: true,
+        subscriptionCurrentPeriodEnd: true,
+        cancelAtPeriodEnd: true,
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
+        createdAt: true,
+        updatedAt: true,
+        isDeleted: true,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      shop: toSuperAdminShopRow(shop, owner),
+    });
+  } catch (err) {
+    return handleSuperAdminError(res, err, "Failed to create shop.");
+  }
+}
+
+
 export async function listSuperAdminShops(req, res) {
   try {
     assertSuperAdmin(req);

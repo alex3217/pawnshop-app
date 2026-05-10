@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { exportCsv } from "../utils/exportCsv";
-import { adminApi, type AdminShopRow } from "../services/adminApi";
+import {
+  adminApi,
+  type AdminShopRow,
+  type AdminUserRow,
+} from "../services/adminApi";
 
 const PLAN_OPTIONS = ["FREE", "PRO", "PREMIUM"];
 const STATUS_OPTIONS = [
@@ -13,25 +17,65 @@ const STATUS_OPTIONS = [
   "UNKNOWN",
 ];
 
+type CreateShopForm = {
+  ownerId: string;
+  name: string;
+  address: string;
+  phone: string;
+  description: string;
+  hours: string;
+  subscriptionPlan: string;
+  subscriptionStatus: string;
+};
+
+const EMPTY_CREATE_FORM: CreateShopForm = {
+  ownerId: "",
+  name: "",
+  address: "",
+  phone: "",
+  description: "",
+  hours: "",
+  subscriptionPlan: "FREE",
+  subscriptionStatus: "ACTIVE",
+};
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleString();
 }
 
+function getOwnerLabel(owner: AdminUserRow) {
+  return `${owner.name || "Unnamed owner"} · ${owner.email}`;
+}
+
 export default function SuperAdminShopsPage() {
   const [shops, setShops] = useState<AdminShopRow[]>([]);
+  const [owners, setOwners] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateShopForm>(EMPTY_CREATE_FORM);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function loadShops() {
     setLoading(true);
     setError("");
 
     try {
-      const result = await adminApi.getSuperAdminShopsPaged({ limit: 100 });
-      setShops(result.rows);
+      const [shopResult, userResult] = await Promise.all([
+        adminApi.getSuperAdminShopsPaged({ limit: 100 }),
+        adminApi.getUsersPaged({ limit: 250 }),
+      ]);
+
+      setShops(shopResult.rows);
+      setOwners(
+        userResult.rows.filter(
+          (user) => user.role === "OWNER" && user.isActive !== false,
+        ),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load shops.");
     } finally {
@@ -61,26 +105,67 @@ export default function SuperAdminShopsPage() {
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(q)
+        .includes(q),
     );
   }, [query, shops]);
+
+  async function createShop(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+
+    if (!createForm.ownerId) {
+      setError("Choose an owner before creating a shop.");
+      return;
+    }
+
+    if (!createForm.name.trim()) {
+      setError("Shop name is required.");
+      return;
+    }
+
+    setCreating(true);
+
+    try {
+      const response = await adminApi.createSuperAdminShop({
+        ownerId: createForm.ownerId,
+        name: createForm.name.trim(),
+        address: createForm.address.trim() || undefined,
+        phone: createForm.phone.trim() || undefined,
+        description: createForm.description.trim() || undefined,
+        hours: createForm.hours.trim() || undefined,
+        subscriptionPlan: createForm.subscriptionPlan,
+        subscriptionStatus: createForm.subscriptionStatus,
+      });
+
+      setShops((current) => [response.shop, ...current]);
+      setCreateForm(EMPTY_CREATE_FORM);
+      setShowCreateForm(false);
+      setNotice(`Created shop "${response.shop.name}" for ${response.shop.ownerEmail || "owner"}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create shop.");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   async function updateShop(id: string, input: Partial<AdminShopRow>) {
     if ("isDeleted" in input) {
       const confirmed = window.confirm(
-        input.isDeleted ? "Disable this shop?" : "Restore this shop?"
+        input.isDeleted ? "Disable this shop?" : "Restore this shop?",
       );
       if (!confirmed) return;
     }
 
     setSavingId(id);
     setError("");
+    setNotice("");
 
     try {
       const response = await adminApi.updateSuperAdminShop(id, input);
 
       setShops((current) =>
-        current.map((shop) => (shop.id === id ? response.shop : shop))
+        current.map((shop) => (shop.id === id ? response.shop : shop)),
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update shop.");
@@ -95,11 +180,18 @@ export default function SuperAdminShopsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Platform Shops</h1>
           <p className="text-sm text-muted-foreground">
-            Manage shop status, seller plans, and subscription access.
+            Create shops for owners, assign plans, and manage shop access.
           </p>
         </div>
 
         <div className="flex gap-2">
+          <button
+            className="button"
+            onClick={() => setShowCreateForm((value) => !value)}
+          >
+            {showCreateForm ? "Cancel" : "+ Create Shop"}
+          </button>
+
           <button
             className="button"
             onClick={() =>
@@ -114,7 +206,7 @@ export default function SuperAdminShopsPage() {
                   subscriptionStatus: shop.subscriptionStatus,
                   isDeleted: shop.isDeleted,
                   createdAt: shop.createdAt,
-                }))
+                })),
               )
             }
           >
@@ -127,10 +219,173 @@ export default function SuperAdminShopsPage() {
         </div>
       </div>
 
+      {notice ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+          {notice}
+        </div>
+      ) : null}
+
       {error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
+      ) : null}
+
+      {showCreateForm ? (
+        <form
+          onSubmit={createShop}
+          className="grid gap-3 rounded-2xl border bg-background p-4 shadow-sm"
+        >
+          <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_1fr]">
+            <label className="grid gap-1 text-sm">
+              Owner
+              <select
+                value={createForm.ownerId}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    ownerId: event.target.value,
+                  }))
+                }
+                required
+                className="rounded-lg border px-3 py-2 text-sm"
+              >
+                <option value="">Choose owner</option>
+                {owners.map((owner) => (
+                  <option key={owner.id} value={owner.id}>
+                    {getOwnerLabel(owner)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="grid gap-1 text-sm">
+              Shop name
+              <input
+                value={createForm.name}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="Downtown Pawn"
+                required
+                className="rounded-lg border px-3 py-2 text-sm"
+              />
+            </label>
+
+            <label className="grid gap-1 text-sm">
+              Phone
+              <input
+                value={createForm.phone}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    phone: event.target.value,
+                  }))
+                }
+                placeholder="Shop phone"
+                className="rounded-lg border px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
+            <label className="grid gap-1 text-sm">
+              Address
+              <input
+                value={createForm.address}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    address: event.target.value,
+                  }))
+                }
+                placeholder="Shop address"
+                className="rounded-lg border px-3 py-2 text-sm"
+              />
+            </label>
+
+            <label className="grid gap-1 text-sm">
+              Hours
+              <input
+                value={createForm.hours}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    hours: event.target.value,
+                  }))
+                }
+                placeholder="Mon-Fri 9am-6pm"
+                className="rounded-lg border px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+
+          <label className="grid gap-1 text-sm">
+            Description
+            <input
+              value={createForm.description}
+              onChange={(event) =>
+                setCreateForm((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              placeholder="Short shop description"
+              className="rounded-lg border px-3 py-2 text-sm"
+            />
+          </label>
+
+          <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
+            <label className="grid gap-1 text-sm">
+              Seller plan
+              <select
+                value={createForm.subscriptionPlan}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    subscriptionPlan: event.target.value,
+                  }))
+                }
+                className="rounded-lg border px-3 py-2 text-sm"
+              >
+                {PLAN_OPTIONS.map((plan) => (
+                  <option key={plan} value={plan}>
+                    {plan}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="grid gap-1 text-sm">
+              Subscription status
+              <select
+                value={createForm.subscriptionStatus}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    subscriptionStatus: event.target.value,
+                  }))
+                }
+                className="rounded-lg border px-3 py-2 text-sm"
+              >
+                {STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex items-end">
+              <button className="button" type="submit" disabled={creating}>
+                {creating ? "Creating..." : "Create Shop"}
+              </button>
+            </div>
+          </div>
+        </form>
       ) : null}
 
       <div className="rounded-2xl border bg-background p-4 shadow-sm">

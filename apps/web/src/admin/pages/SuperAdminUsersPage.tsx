@@ -31,7 +31,7 @@ export default function SuperAdminUsersPage() {
     name: "",
     email: "",
     password: "",
-    role: "ADMIN" as "ADMIN" | "SUPER_ADMIN",
+    role: "OWNER" as AdminUserRole,
   });
 
   async function loadUsers() {
@@ -77,7 +77,7 @@ export default function SuperAdminUsersPage() {
         name: "",
         email: "",
         password: "",
-        role: "ADMIN",
+        role: "OWNER" as AdminUserRole,
       });
       setShowCreateForm(false);
     } catch (err) {
@@ -146,7 +146,7 @@ export default function SuperAdminUsersPage() {
             className="button"
             onClick={() => setShowCreateForm((value) => !value)}
           >
-            {showCreateForm ? "Cancel" : "+ Create Admin User"}
+            {showCreateForm ? "Cancel" : "+ Create Platform User"}
           </button>
 
           <button
@@ -233,13 +233,16 @@ export default function SuperAdminUsersPage() {
             onChange={(event) =>
               setCreateForm((current) => ({
                 ...current,
-                role: event.target.value as "ADMIN" | "SUPER_ADMIN",
+                role: event.target.value as AdminUserRole,
               }))
             }
             className="rounded-lg border px-3 py-2 text-sm"
           >
-            <option value="ADMIN">ADMIN</option>
-            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+            {ROLE_OPTIONS.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
           </select>
 
           <button className="button" type="submit">

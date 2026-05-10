@@ -11,6 +11,7 @@ import {
   listSuperAdminUsers,
   updateSuperAdminUser,
   listSuperAdminShops,
+  createSuperAdminShop,
   updateSuperAdminShop,
   getSuperAdminSellerPlans,
   getSuperAdminBuyerPlans,
@@ -201,6 +202,7 @@ router.patch(
   asyncRoute(updateSuperAdminUser)
 );
 
+router.post("/shops", asyncRoute(createSuperAdminShop));
 router.get("/shops", asyncRoute(listSuperAdminShops));
 
 router.patch(

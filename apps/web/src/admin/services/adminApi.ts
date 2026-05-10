@@ -274,11 +274,22 @@ export type UpdateShopSubscriptionInput = {
 };
 
 
+export type CreateSuperAdminShopInput = {
+  ownerId: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  description?: string;
+  hours?: string;
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
+};
+
 export type CreateSuperAdminUserInput = {
   name: string;
   email: string;
   password: string;
-  role: "ADMIN" | "SUPER_ADMIN";
+  role: AdminUserRole;
 };
 
 export type AdminOverviewData = {
@@ -640,6 +651,22 @@ export const adminApi = {
       `/super-admin/shops/${encodeURIComponent(id)}`,
       input,
       signal
+    ),
+
+  createSuperAdminShop: (
+    input: CreateSuperAdminShopInput,
+    signal?: AbortSignal
+  ) =>
+    adminRequest<{ success: boolean; shop: AdminShopRow }>(
+      "/super-admin/shops",
+      {
+        method: "POST",
+        signal,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      }
     ),
 
   softDeleteShop: (id: string, signal?: AbortSignal) =>
