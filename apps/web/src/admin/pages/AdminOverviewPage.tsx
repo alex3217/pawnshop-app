@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
 import { adminApi } from "../services/adminApi";
@@ -57,30 +57,10 @@ function isInactiveUser(row: AnyRow) {
   return row.isActive === false || row.isBlocked === true;
 }
 
-function statusBadgeClass(value?: string | null) {
-  const normalized = String(value || "").toUpperCase();
-
-  if (["ACTIVE", "AVAILABLE", "LIVE", "ACCEPTED", "COMPLETED", "CHARGED"].includes(normalized)) {
-    return "bg-green-100 text-green-700";
-  }
-
-  if (["FAILED", "CANCELED", "DELETED", "BLOCKED", "INACTIVE", "PAST_DUE"].includes(normalized)) {
-    return "bg-red-100 text-red-700";
-  }
-
-  if (["PENDING", "COUNTERED", "TRIALING", "PAUSED"].includes(normalized)) {
-    return "bg-yellow-100 text-yellow-700";
-  }
-
-  return "bg-muted text-muted-foreground";
-}
-
 function formatDate(value: unknown) {
   if (!value) return "—";
-
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return "—";
-
   return date.toLocaleString();
 }
 
@@ -99,12 +79,30 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to load";
 }
 
+function statusTone(value?: string | null): "green" | "red" | "yellow" | "blue" | "muted" {
+  const normalized = String(value || "").toUpperCase();
+
+  if (["ACTIVE", "AVAILABLE", "LIVE", "ACCEPTED", "COMPLETED", "CHARGED"].includes(normalized)) {
+    return "green";
+  }
+
+  if (["FAILED", "CANCELED", "DELETED", "BLOCKED", "INACTIVE", "PAST_DUE"].includes(normalized)) {
+    return "red";
+  }
+
+  if (["PENDING", "COUNTERED", "TRIALING", "PAUSED"].includes(normalized)) {
+    return "yellow";
+  }
+
+  if (["OPEN", "REVIEW"].includes(normalized)) {
+    return "blue";
+  }
+
+  return "muted";
+}
+
 function ResultBadge({ value }: { value: string }) {
-  return (
-    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusBadgeClass(value)}`}>
-      {value}
-    </span>
-  );
+  return <span style={{ ...styles.badge, ...badgeToneStyles[statusTone(value)] }}>{value}</span>;
 }
 
 function MetricCard({
@@ -112,24 +110,27 @@ function MetricCard({
   value,
   helper,
   to,
+  tone = "blue",
 }: {
   label: string;
   value: string | number;
   helper: string;
   to?: string;
+  tone?: "blue" | "green" | "yellow" | "red" | "purple";
 }) {
   const content = (
-    <div className="rounded-2xl border bg-background p-4 shadow-sm transition hover:shadow-md">
-      <div className="text-2xl font-semibold">{value}</div>
-      <div className="mt-1 text-sm font-medium">{label}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{helper}</div>
+    <div style={styles.metricCard}>
+      <div style={{ ...styles.metricIcon, ...metricToneStyles[tone] }} />
+      <div style={styles.metricValue}>{value}</div>
+      <div style={styles.metricLabel}>{label}</div>
+      <div style={styles.metricHelper}>{helper}</div>
     </div>
   );
 
   if (!to) return content;
 
   return (
-    <Link to={to} className="block text-inherit no-underline">
+    <Link to={to} style={styles.cardLink}>
       {content}
     </Link>
   );
@@ -148,26 +149,14 @@ function QueueCard({
   to: string;
   tone?: "neutral" | "warning" | "danger" | "success";
 }) {
-  const toneClass =
-    tone === "danger"
-      ? "border-red-200 bg-red-50"
-      : tone === "warning"
-        ? "border-yellow-200 bg-yellow-50"
-        : tone === "success"
-          ? "border-green-200 bg-green-50"
-          : "border-border bg-background";
-
   return (
-    <Link
-      to={to}
-      className={`block rounded-2xl border p-4 text-inherit no-underline shadow-sm transition hover:shadow-md ${toneClass}`}
-    >
-      <div className="flex items-start justify-between gap-3">
+    <Link to={to} style={{ ...styles.queueCard, ...queueToneStyles[tone] }}>
+      <div style={styles.queueHeader}>
         <div>
-          <div className="font-semibold">{title}</div>
-          <div className="mt-1 text-xs text-muted-foreground">{description}</div>
+          <div style={styles.queueTitle}>{title}</div>
+          <div style={styles.queueDescription}>{description}</div>
         </div>
-        <div className="text-xl font-semibold">{value}</div>
+        <div style={styles.queueValue}>{value}</div>
       </div>
     </Link>
   );
@@ -191,20 +180,20 @@ function MiniTable({
   }>;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border bg-background shadow-sm">
-      <div className="flex items-center justify-between border-b bg-muted/40 p-3">
-        <h3 className="font-semibold">{title}</h3>
-        <Link to={to} className="text-sm font-medium">
+    <section style={styles.tableCard}>
+      <div style={styles.tableHeader}>
+        <h3 style={styles.tableTitle}>{title}</h3>
+        <Link to={to} style={styles.viewAllLink}>
           View all
         </Link>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[620px] border-collapse text-sm">
+      <div style={styles.tableScroller}>
+        <table style={styles.table}>
           <thead>
-            <tr className="border-b text-left">
+            <tr>
               {columns.map((column) => (
-                <th key={column.key} className="p-3 font-medium">
+                <th key={column.key} style={styles.th}>
                   {column.label}
                 </th>
               ))}
@@ -214,15 +203,15 @@ function MiniTable({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="p-4 text-center text-muted-foreground">
+                <td colSpan={columns.length} style={styles.emptyCell}>
                   {empty}
                 </td>
               </tr>
             ) : (
               rows.map((row, index) => (
-                <tr key={String(row.id || index)} className="border-b last:border-b-0">
+                <tr key={String(row.id || index)}>
                   {columns.map((column) => (
-                    <td key={column.key} className="p-3 align-top">
+                    <td key={column.key} style={styles.td}>
                       {column.render(row)}
                     </td>
                   ))}
@@ -270,9 +259,10 @@ export default function AdminOverviewPage() {
       if (result.status === "fulfilled") return result.value;
 
       const message = getErrorMessage(result.reason);
-      optionalNotes.push(`${label} data is not available for this admin role yet.`);
 
-      if (!message.toLowerCase().includes("forbidden")) {
+      if (message.toLowerCase().includes("forbidden")) {
+        optionalNotes.push(`${label} data requires elevated access. Showing available admin-safe panels.`);
+      } else {
         optionalNotes.push(`${label}: ${message}`);
       }
 
@@ -337,211 +327,541 @@ export default function AdminOverviewPage() {
         </button>
       }
     >
-      {state.coreErrors.length ? (
-        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <div className="font-semibold">Core admin panels could not load.</div>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            {state.coreErrors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <div style={styles.stack}>
+        {state.coreErrors.length ? (
+          <div style={{ ...styles.notice, ...styles.errorNotice }}>
+            <div style={styles.noticeTitle}>Core admin panels could not load.</div>
+            <ul style={styles.noticeList}>
+              {state.coreErrors.map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
-      {state.optionalNotes.length ? (
-        <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-          <div className="font-semibold">Admin data availability</div>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            {[...new Set(state.optionalNotes)].map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+        {state.optionalNotes.length ? (
+          <div style={{ ...styles.notice, ...styles.infoNotice }}>
+            <div style={styles.noticeTitle}>Admin data availability</div>
+            <ul style={styles.noticeList}>
+              {[...new Set(state.optionalNotes)].map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Users" value={state.users.length} helper="All platform accounts" to="/admin/users" />
-        <MetricCard label="Owners" value={derived.owners.length} helper="Shop owner accounts" to="/admin/owners" />
-        <MetricCard label="Consumers" value={derived.consumers.length} helper="Buyer accounts" to="/admin/users" />
-        <MetricCard label="Admins" value={derived.admins.length} helper="Admin-level accounts" to="/admin/users" />
-        <MetricCard label="Shops" value={state.shops.length} helper="Marketplace shops" to="/admin/shops" />
-        <MetricCard label="Inventory" value={state.items.length} helper="Marketplace listings" to="/admin/inventory" />
-        <MetricCard label="Live Auctions" value={derived.liveAuctions.length} helper="Currently active auctions" to="/admin/auctions" />
-        <MetricCard label="Settlements" value={state.settlements.length} helper="Payment/settlement records" to="/admin/orders" />
-      </div>
+        <section style={styles.section}>
+          <div style={styles.sectionHeader}>
+            <div>
+              <h2 style={styles.sectionTitle}>Operations Overview</h2>
+              <p style={styles.sectionSubtitle}>Fast view of marketplace users, owners, shops, listings, and auctions.</p>
+            </div>
+          </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <QueueCard
-          title="Inventory Moderation"
-          value={derived.deletedItems.length}
-          description="Deleted or moderated marketplace listings."
-          to="/admin/inventory"
-          tone={derived.deletedItems.length ? "warning" : "success"}
-        />
-        <QueueCard
-          title="User Review"
-          value={derived.inactiveUsers.length}
-          description="Inactive or blocked user accounts."
-          to="/admin/users"
-          tone={derived.inactiveUsers.length ? "warning" : "success"}
-        />
-        <QueueCard
-          title="Shop Review"
-          value={derived.deletedShops.length}
-          description="Disabled or archived shop records."
-          to="/admin/shops"
-          tone={derived.deletedShops.length ? "warning" : "success"}
-        />
-        <QueueCard
-          title="Auction Queue"
-          value={derived.liveAuctions.length}
-          description="Live auctions needing operational awareness."
-          to="/admin/auctions"
-          tone={derived.liveAuctions.length ? "neutral" : "success"}
-        />
-        <QueueCard
-          title="Payment Issues"
-          value={derived.failedSettlements.length}
-          description="Failed or canceled settlement records."
-          to="/admin/orders"
-          tone={derived.failedSettlements.length ? "danger" : "success"}
-        />
-        <QueueCard
-          title="Risk & Support"
-          value="Open"
-          description="Operational queue for disputes, risk review, and support."
-          to="/admin/risk"
-        />
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
-        <Link className="btn btn-secondary" to="/admin/users">Manage Users</Link>
-        <Link className="btn btn-secondary" to="/admin/owners">Review Owners</Link>
-        <Link className="btn btn-secondary" to="/admin/shops">Manage Shops</Link>
-        <Link className="btn btn-secondary" to="/admin/inventory">Moderate Inventory</Link>
-        <Link className="btn btn-secondary" to="/admin/auctions">Review Auctions</Link>
-        <Link className="btn btn-secondary" to="/admin/offers">Manage Offers</Link>
-        <Link className="btn btn-secondary" to="/admin/orders">Settlement Queue</Link>
-        <Link className="btn btn-secondary" to="/admin/subscriptions">Subscriptions</Link>
-        <Link className="btn btn-secondary" to="/admin/support">Support Center</Link>
-        <Link className="btn btn-secondary" to="/admin/risk">Risk Center</Link>
-        <Link className="btn btn-secondary" to="/admin/audit">Audit Review</Link>
-        <Link className="btn btn-secondary" to="/admin/system">System Status</Link>
-      </div>
-
-      <div className="mt-6 grid gap-4 xl:grid-cols-2">
-        <MiniTable
-          title="Recent Users"
-          rows={derived.recentUsers}
-          empty="No users found."
-          to="/admin/users"
-          columns={[
-            {
-              key: "user",
-              label: "User",
-              render: (row) => (
-                <div>
-                  <div className="font-medium">{getString(row, "email")}</div>
-                  <div className="text-xs text-muted-foreground">{getString(row, "name", "Unnamed user")}</div>
-                </div>
-              ),
-            },
-            { key: "role", label: "Role", render: (row) => <ResultBadge value={getString(row, "role", "UNKNOWN")} /> },
-            {
-              key: "status",
-              label: "Status",
-              render: (row) => <ResultBadge value={isInactiveUser(row) ? "INACTIVE" : "ACTIVE"} />,
-            },
-            { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
-          ]}
-        />
-
-        <MiniTable
-          title="Recent Shops"
-          rows={derived.recentShops}
-          empty="No shops found."
-          to="/admin/shops"
-          columns={[
-            {
-              key: "shop",
-              label: "Shop",
-              render: (row) => (
-                <div>
-                  <div className="font-medium">{getString(row, "name")}</div>
-                  <div className="text-xs text-muted-foreground">{getString(row, "ownerEmail")}</div>
-                </div>
-              ),
-            },
-            { key: "phone", label: "Phone", render: (row) => getString(row, "phone") },
-            { key: "status", label: "Status", render: (row) => <ResultBadge value={isDeleted(row) ? "DELETED" : "ACTIVE"} /> },
-            { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
-          ]}
-        />
-
-        <MiniTable
-          title="Recent Inventory"
-          rows={derived.recentItems}
-          empty="No inventory found."
-          to="/admin/inventory"
-          columns={[
-            {
-              key: "item",
-              label: "Item",
-              render: (row) => (
-                <div>
-                  <div className="font-medium">{getString(row, "title")}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {getNestedString(row, "shop", "name", "Unknown shop")}
-                  </div>
-                </div>
-              ),
-            },
-            { key: "price", label: "Price", render: (row) => formatMoney(row.price, getString(row, "currency", "USD")) },
-            { key: "status", label: "Status", render: (row) => <ResultBadge value={isDeleted(row) ? "DELETED" : getStatus(row)} /> },
-            { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
-          ]}
-        />
-
-        <MiniTable
-          title="Recent Auctions"
-          rows={derived.recentAuctions}
-          empty="No auctions found."
-          to="/admin/auctions"
-          columns={[
-            { key: "auction", label: "Auction", render: (row) => getString(row, "title", getString(row, "id")) },
-            { key: "status", label: "Status", render: (row) => <ResultBadge value={getStatus(row)} /> },
-            { key: "currentBid", label: "Current", render: (row) => formatMoney(row.currentBidCents ? Number(row.currentBidCents) / 100 : row.currentBid) },
-            { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
-          ]}
-        />
-
-        <MiniTable
-          title="Recent Settlements"
-          rows={derived.recentSettlements}
-          empty="Settlement data is not available for this admin role yet."
-          to="/admin/orders"
-          columns={[
-            { key: "id", label: "Settlement", render: (row) => getString(row, "id") },
-            { key: "status", label: "Status", render: (row) => <ResultBadge value={getStatus(row)} /> },
-            { key: "amount", label: "Amount", render: (row) => formatMoney(row.amountCents ? Number(row.amountCents) / 100 : row.amount) },
-            { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
-          ]}
-        />
-
-        <section className="rounded-2xl border bg-background p-4 shadow-sm">
-          <h3 className="font-semibold">Operational Notes</h3>
-          <div className="mt-3 grid gap-3 text-sm text-muted-foreground">
-            <p>
-              Admin handles day-to-day marketplace operations. Super Admin handles platform governance,
-              settings, system health, and sensitive ownership controls.
-            </p>
-            <p>
-              Next recommended admin additions: real support tickets, risk review records, limited audit review,
-              and settlement issue triage.
-            </p>
+          <div style={styles.metricGrid}>
+            <MetricCard label="Users" value={state.users.length} helper="All platform accounts" to="/admin/users" tone="blue" />
+            <MetricCard label="Owners" value={derived.owners.length} helper="Shop owner accounts" to="/admin/owners" tone="purple" />
+            <MetricCard label="Consumers" value={derived.consumers.length} helper="Buyer accounts" to="/admin/users" tone="green" />
+            <MetricCard label="Admins" value={derived.admins.length} helper="Admin-level accounts" to="/admin/users" tone="yellow" />
+            <MetricCard label="Shops" value={state.shops.length} helper="Marketplace shops" to="/admin/shops" tone="blue" />
+            <MetricCard label="Inventory" value={state.items.length} helper="Marketplace listings" to="/admin/inventory" tone="green" />
+            <MetricCard label="Live Auctions" value={derived.liveAuctions.length} helper="Currently active auctions" to="/admin/auctions" tone="purple" />
+            <MetricCard label="Settlements" value={state.settlements.length} helper="Payment records visible to admin" to="/admin/orders" tone="yellow" />
           </div>
         </section>
+
+        <section style={styles.section}>
+          <div style={styles.sectionHeader}>
+            <div>
+              <h2 style={styles.sectionTitle}>Operational Queues</h2>
+              <p style={styles.sectionSubtitle}>Prioritized areas that may need marketplace operator attention.</p>
+            </div>
+          </div>
+
+          <div style={styles.queueGrid}>
+            <QueueCard
+              title="Inventory Moderation"
+              value={derived.deletedItems.length}
+              description="Deleted or moderated marketplace listings."
+              to="/admin/inventory"
+              tone={derived.deletedItems.length ? "warning" : "success"}
+            />
+            <QueueCard
+              title="User Review"
+              value={derived.inactiveUsers.length}
+              description="Inactive or blocked user accounts."
+              to="/admin/users"
+              tone={derived.inactiveUsers.length ? "warning" : "success"}
+            />
+            <QueueCard
+              title="Shop Review"
+              value={derived.deletedShops.length}
+              description="Disabled or archived shop records."
+              to="/admin/shops"
+              tone={derived.deletedShops.length ? "warning" : "success"}
+            />
+            <QueueCard
+              title="Auction Queue"
+              value={derived.liveAuctions.length}
+              description="Live auctions needing operational awareness."
+              to="/admin/auctions"
+            />
+            <QueueCard
+              title="Payment Issues"
+              value={derived.failedSettlements.length}
+              description="Failed or canceled settlement records."
+              to="/admin/orders"
+              tone={derived.failedSettlements.length ? "danger" : "success"}
+            />
+            <QueueCard
+              title="Risk & Support"
+              value="Open"
+              description="Disputes, risk review, and support workflows."
+              to="/admin/risk"
+            />
+          </div>
+        </section>
+
+        <section style={styles.section}>
+          <div style={styles.sectionHeader}>
+            <div>
+              <h2 style={styles.sectionTitle}>Quick Actions</h2>
+              <p style={styles.sectionSubtitle}>Jump into the most common admin workflows.</p>
+            </div>
+          </div>
+
+          <div style={styles.actionGrid}>
+            <Link style={styles.actionButton} to="/admin/users">Manage Users</Link>
+            <Link style={styles.actionButton} to="/admin/owners">Review Owners</Link>
+            <Link style={styles.actionButton} to="/admin/shops">Manage Shops</Link>
+            <Link style={styles.actionButton} to="/admin/inventory">Moderate Inventory</Link>
+            <Link style={styles.actionButton} to="/admin/auctions">Review Auctions</Link>
+            <Link style={styles.actionButton} to="/admin/offers">Manage Offers</Link>
+            <Link style={styles.actionButton} to="/admin/orders">Settlement Queue</Link>
+            <Link style={styles.actionButton} to="/admin/subscriptions">Subscriptions</Link>
+            <Link style={styles.actionButton} to="/admin/support">Support Center</Link>
+            <Link style={styles.actionButton} to="/admin/risk">Risk Center</Link>
+            <Link style={styles.actionButton} to="/admin/audit">Audit Review</Link>
+            <Link style={styles.actionButton} to="/admin/system">System Status</Link>
+          </div>
+        </section>
+
+        <div style={styles.tableGrid}>
+          <MiniTable
+            title="Recent Users"
+            rows={derived.recentUsers}
+            empty="No users found."
+            to="/admin/users"
+            columns={[
+              {
+                key: "user",
+                label: "User",
+                render: (row) => (
+                  <div>
+                    <div style={styles.primaryText}>{getString(row, "email")}</div>
+                    <div style={styles.secondaryText}>{getString(row, "name", "Unnamed user")}</div>
+                  </div>
+                ),
+              },
+              { key: "role", label: "Role", render: (row) => <ResultBadge value={getString(row, "role", "UNKNOWN")} /> },
+              { key: "status", label: "Status", render: (row) => <ResultBadge value={isInactiveUser(row) ? "INACTIVE" : "ACTIVE"} /> },
+              { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
+            ]}
+          />
+
+          <MiniTable
+            title="Recent Shops"
+            rows={derived.recentShops}
+            empty="No shops found."
+            to="/admin/shops"
+            columns={[
+              {
+                key: "shop",
+                label: "Shop",
+                render: (row) => (
+                  <div>
+                    <div style={styles.primaryText}>{getString(row, "name")}</div>
+                    <div style={styles.secondaryText}>{getString(row, "ownerEmail")}</div>
+                  </div>
+                ),
+              },
+              { key: "phone", label: "Phone", render: (row) => getString(row, "phone") },
+              { key: "status", label: "Status", render: (row) => <ResultBadge value={isDeleted(row) ? "DELETED" : "ACTIVE"} /> },
+              { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
+            ]}
+          />
+
+          <MiniTable
+            title="Recent Inventory"
+            rows={derived.recentItems}
+            empty="No inventory found."
+            to="/admin/inventory"
+            columns={[
+              {
+                key: "item",
+                label: "Item",
+                render: (row) => (
+                  <div>
+                    <div style={styles.primaryText}>{getString(row, "title")}</div>
+                    <div style={styles.secondaryText}>{getNestedString(row, "shop", "name", "Unknown shop")}</div>
+                  </div>
+                ),
+              },
+              { key: "price", label: "Price", render: (row) => formatMoney(row.price, getString(row, "currency", "USD")) },
+              { key: "status", label: "Status", render: (row) => <ResultBadge value={isDeleted(row) ? "DELETED" : getStatus(row)} /> },
+              { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
+            ]}
+          />
+
+          <MiniTable
+            title="Recent Auctions"
+            rows={derived.recentAuctions}
+            empty="No auctions found."
+            to="/admin/auctions"
+            columns={[
+              { key: "auction", label: "Auction", render: (row) => getString(row, "title", getString(row, "id")) },
+              { key: "status", label: "Status", render: (row) => <ResultBadge value={getStatus(row)} /> },
+              { key: "currentBid", label: "Current", render: (row) => formatMoney(row.currentBidCents ? Number(row.currentBidCents) / 100 : row.currentBid) },
+              { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
+            ]}
+          />
+
+          <MiniTable
+            title="Recent Settlements"
+            rows={derived.recentSettlements}
+            empty="Settlement data is not available for this admin role yet."
+            to="/admin/orders"
+            columns={[
+              { key: "id", label: "Settlement", render: (row) => getString(row, "id") },
+              { key: "status", label: "Status", render: (row) => <ResultBadge value={getStatus(row)} /> },
+              { key: "amount", label: "Amount", render: (row) => formatMoney(row.amountCents ? Number(row.amountCents) / 100 : row.amount) },
+              { key: "created", label: "Created", render: (row) => formatDate(row.createdAt) },
+            ]}
+          />
+
+          <section style={styles.notesCard}>
+            <h3 style={styles.tableTitle}>Operational Notes</h3>
+            <div style={styles.notesBody}>
+              <p>
+                Admin handles day-to-day marketplace operations. Super Admin handles platform governance,
+                settings, system health, and sensitive ownership controls.
+              </p>
+              <p>
+                Next recommended admin additions: real support tickets, risk review records, limited audit review,
+                and settlement issue triage.
+              </p>
+            </div>
+          </section>
+        </div>
       </div>
     </AdminPageShell>
   );
 }
+
+const colors = {
+  panel: "#111827",
+  panelSoft: "#172033",
+  panelBorder: "rgba(148, 163, 184, 0.22)",
+  text: "#f8fafc",
+  muted: "#aab6d3",
+  faint: "#7f8ca8",
+  blue: "#60a5fa",
+  green: "#34d399",
+  yellow: "#fbbf24",
+  red: "#fb7185",
+  purple: "#a78bfa",
+};
+
+const styles: Record<string, CSSProperties> = {
+  stack: {
+    display: "grid",
+    gap: 20,
+  },
+  section: {
+    border: `1px solid ${colors.panelBorder}`,
+    borderRadius: 22,
+    background: "linear-gradient(180deg, rgba(17,24,39,0.98), rgba(15,23,42,0.98))",
+    padding: 20,
+    boxShadow: "0 18px 45px rgba(0,0,0,0.20)",
+  },
+  sectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    margin: 0,
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: 900,
+  },
+  sectionSubtitle: {
+    margin: "4px 0 0",
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 1.5,
+  },
+  metricGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+    gap: 14,
+  },
+  metricCard: {
+    minHeight: 132,
+    border: `1px solid ${colors.panelBorder}`,
+    borderRadius: 18,
+    background: "rgba(15,23,42,0.88)",
+    padding: 16,
+    display: "grid",
+    alignContent: "start",
+    gap: 6,
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+  },
+  metricIcon: {
+    width: 34,
+    height: 4,
+    borderRadius: 999,
+    marginBottom: 8,
+  },
+  metricValue: {
+    color: colors.text,
+    fontSize: 30,
+    lineHeight: 1,
+    fontWeight: 950,
+    letterSpacing: "-0.04em",
+  },
+  metricLabel: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: 850,
+  },
+  metricHelper: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 1.35,
+  },
+  cardLink: {
+    color: "inherit",
+    textDecoration: "none",
+  },
+  queueGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: 14,
+  },
+  queueCard: {
+    borderRadius: 18,
+    border: `1px solid ${colors.panelBorder}`,
+    padding: 16,
+    textDecoration: "none",
+    color: colors.text,
+    display: "block",
+    minHeight: 112,
+    background: "rgba(15,23,42,0.88)",
+  },
+  queueHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+  },
+  queueTitle: {
+    fontWeight: 900,
+    color: colors.text,
+    marginBottom: 6,
+  },
+  queueDescription: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 1.45,
+  },
+  queueValue: {
+    color: colors.text,
+    fontSize: 24,
+    fontWeight: 950,
+  },
+  actionGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: 10,
+  },
+  actionButton: {
+    border: `1px solid ${colors.panelBorder}`,
+    borderRadius: 14,
+    background: "rgba(30,41,59,0.82)",
+    color: colors.text,
+    padding: "12px 14px",
+    fontWeight: 850,
+    textDecoration: "none",
+    textAlign: "center",
+  },
+  tableGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+    gap: 16,
+  },
+  tableCard: {
+    overflow: "hidden",
+    border: `1px solid ${colors.panelBorder}`,
+    borderRadius: 20,
+    background: "rgba(15,23,42,0.92)",
+    boxShadow: "0 16px 40px rgba(0,0,0,0.18)",
+  },
+  tableHeader: {
+    borderBottom: `1px solid ${colors.panelBorder}`,
+    background: "rgba(30,41,59,0.68)",
+    padding: "14px 16px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  tableTitle: {
+    margin: 0,
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: 900,
+  },
+  viewAllLink: {
+    color: "#bfdbfe",
+    fontSize: 13,
+    fontWeight: 850,
+    textDecoration: "none",
+  },
+  tableScroller: {
+    overflowX: "auto",
+  },
+  table: {
+    width: "100%",
+    minWidth: 620,
+    borderCollapse: "collapse",
+    fontSize: 13,
+  },
+  th: {
+    color: colors.muted,
+    fontWeight: 850,
+    padding: "12px 14px",
+    borderBottom: `1px solid ${colors.panelBorder}`,
+    textAlign: "left",
+    whiteSpace: "nowrap",
+  },
+  td: {
+    color: "#e5e7eb",
+    padding: "12px 14px",
+    borderBottom: "1px solid rgba(148,163,184,0.12)",
+    verticalAlign: "top",
+  },
+  emptyCell: {
+    color: colors.muted,
+    padding: 18,
+    textAlign: "center",
+  },
+  primaryText: {
+    color: colors.text,
+    fontWeight: 800,
+  },
+  secondaryText: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  badge: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 999,
+    padding: "4px 9px",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.02em",
+  },
+  notice: {
+    borderRadius: 18,
+    border: `1px solid ${colors.panelBorder}`,
+    padding: 16,
+  },
+  noticeTitle: {
+    fontWeight: 900,
+    marginBottom: 8,
+  },
+  noticeList: {
+    margin: 0,
+    paddingLeft: 18,
+    lineHeight: 1.6,
+  },
+  errorNotice: {
+    background: "rgba(127,29,29,0.22)",
+    color: "#fecaca",
+    borderColor: "rgba(248,113,113,0.32)",
+  },
+  infoNotice: {
+    background: "rgba(30,64,175,0.18)",
+    color: "#bfdbfe",
+    borderColor: "rgba(96,165,250,0.30)",
+  },
+  notesCard: {
+    border: `1px solid ${colors.panelBorder}`,
+    borderRadius: 20,
+    background: "rgba(15,23,42,0.92)",
+    padding: 18,
+    boxShadow: "0 16px 40px rgba(0,0,0,0.18)",
+  },
+  notesBody: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 1.6,
+    display: "grid",
+    gap: 8,
+    marginTop: 12,
+  },
+};
+
+const metricToneStyles: Record<string, CSSProperties> = {
+  blue: { background: colors.blue },
+  green: { background: colors.green },
+  yellow: { background: colors.yellow },
+  red: { background: colors.red },
+  purple: { background: colors.purple },
+};
+
+const queueToneStyles: Record<string, CSSProperties> = {
+  neutral: {
+    background: "rgba(15,23,42,0.88)",
+    borderColor: colors.panelBorder,
+  },
+  success: {
+    background: "rgba(6,78,59,0.20)",
+    borderColor: "rgba(52,211,153,0.30)",
+  },
+  warning: {
+    background: "rgba(113,63,18,0.22)",
+    borderColor: "rgba(251,191,36,0.32)",
+  },
+  danger: {
+    background: "rgba(127,29,29,0.22)",
+    borderColor: "rgba(251,113,133,0.34)",
+  },
+};
+
+const badgeToneStyles: Record<string, CSSProperties> = {
+  green: {
+    background: "rgba(6,78,59,0.32)",
+    color: "#86efac",
+  },
+  red: {
+    background: "rgba(127,29,29,0.32)",
+    color: "#fecaca",
+  },
+  yellow: {
+    background: "rgba(113,63,18,0.32)",
+    color: "#fde68a",
+  },
+  blue: {
+    background: "rgba(30,64,175,0.32)",
+    color: "#bfdbfe",
+  },
+  muted: {
+    background: "rgba(100,116,139,0.24)",
+    color: "#cbd5e1",
+  },
+};
