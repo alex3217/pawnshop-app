@@ -921,6 +921,246 @@ export async function reassignSuperAdminShopOwner(req, res) {
 }
 
 
+
+function scrubIntegrationForSuperAdmin(row = {}) {
+  const unsafeKeys = new Set([
+    "credential",
+    "credentials",
+    "encryptedCredential",
+    "encryptedCredentials",
+    "credentialCiphertext",
+    "credentialIv",
+    "credentialTag",
+    "apiKey",
+    "token",
+    "secret",
+    "password",
+  ]);
+
+  const out = {};
+
+  for (const [key, value] of Object.entries(row || {})) {
+    const lower = key.toLowerCase();
+
+    if (
+      unsafeKeys.has(key) ||
+      lower.includes("credential") ||
+      lower.includes("secret") ||
+      lower.includes("token") ||
+      lower.includes("password") ||
+      lower.includes("apikey")
+    ) {
+      continue;
+    }
+
+    out[key] = value;
+  }
+
+  return out;
+}
+
+function hasIntegrationCredential(row = {}) {
+  return Object.entries(row || {}).some(([key, value]) => {
+    const lower = String(key).toLowerCase();
+    return (
+      value !== null &&
+      value !== undefined &&
+      value !== "" &&
+      (lower.includes("credential") ||
+        lower.includes("secret") ||
+        lower.includes("token") ||
+        lower.includes("password") ||
+        lower.includes("apikey"))
+    );
+  });
+}
+
+function normalizeIntegrationRowsPayload(rows, shopsById, ownersById, mappingsByIntegration, jobsByIntegration) {
+  return rows.map((integration) => {
+    const safe = scrubIntegrationForSuperAdmin(integration);
+    const shopId = integration.shopId || integration.pawnShopId || integration.storeId || null;
+    const shop = shopId ? shopsById.get(shopId) : null;
+    const owner = shop?.ownerId ? ownersById.get(shop.ownerId) : null;
+    const jobs = jobsByIntegration.get(integration.id) || [];
+    const latestJob = jobs[0] || null;
+
+    return {
+      ...safe,
+      id: integration.id,
+      shopId,
+      shopName: shop?.name || null,
+      ownerId: shop?.ownerId || null,
+      ownerName: owner?.name || null,
+      ownerEmail: owner?.email || null,
+      mappingsCount: mappingsByIntegration.get(integration.id) || 0,
+      jobsCount: jobs.length,
+      latestJob: latestJob
+        ? {
+            id: latestJob.id,
+            status: latestJob.status || null,
+            createdAt: latestJob.createdAt || null,
+            updatedAt: latestJob.updatedAt || null,
+            error: latestJob.error || latestJob.errorMessage || null,
+          }
+        : null,
+      hasCredential: hasIntegrationCredential(integration),
+    };
+  });
+}
+
+export async function listSuperAdminIntegrations(req, res) {
+  try {
+    const limit = Math.min(Math.max(Number(req.query?.limit || 100), 1), 250);
+
+    const integrations = await prisma.inventoryIntegration.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+
+    const integrationIds = integrations.map((row) => row.id).filter(Boolean);
+    const shopIds = [
+      ...new Set(
+        integrations
+          .map((row) => row.shopId || row.pawnShopId || row.storeId)
+          .filter(Boolean),
+      ),
+    ];
+
+    const [shops, mappings, jobs] = await Promise.all([
+      shopIds.length
+        ? prisma.pawnShop.findMany({
+            where: { id: { in: shopIds } },
+            select: {
+              id: true,
+              name: true,
+              ownerId: true,
+              isDeleted: true,
+            },
+          })
+        : Promise.resolve([]),
+      integrationIds.length
+        ? prisma.inventoryFieldMapping.findMany({
+            where: { integrationId: { in: integrationIds } },
+            select: {
+              id: true,
+              integrationId: true,
+            },
+          })
+        : Promise.resolve([]),
+      integrationIds.length
+        ? prisma.inventorySyncJob.findMany({
+            where: { integrationId: { in: integrationIds } },
+            orderBy: { createdAt: "desc" },
+            take: Math.max(integrationIds.length * 5, 50),
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const ownerIds = [...new Set(shops.map((shop) => shop.ownerId).filter(Boolean))];
+
+    const owners = ownerIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: ownerIds } },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+          },
+        })
+      : [];
+
+    const shopsById = new Map(shops.map((shop) => [shop.id, shop]));
+    const ownersById = new Map(owners.map((owner) => [owner.id, owner]));
+
+    const mappingsByIntegration = new Map();
+    for (const mapping of mappings) {
+      mappingsByIntegration.set(
+        mapping.integrationId,
+        (mappingsByIntegration.get(mapping.integrationId) || 0) + 1,
+      );
+    }
+
+    const jobsByIntegration = new Map();
+    for (const job of jobs) {
+      const list = jobsByIntegration.get(job.integrationId) || [];
+      list.push(job);
+      jobsByIntegration.set(job.integrationId, list);
+    }
+
+    const rows = normalizeIntegrationRowsPayload(
+      integrations,
+      shopsById,
+      ownersById,
+      mappingsByIntegration,
+      jobsByIntegration,
+    );
+
+    return res.json({
+      success: true,
+      rows,
+      total: rows.length,
+      page: 1,
+      limit,
+    });
+  } catch (err) {
+    return handleSuperAdminError(res, err, "Failed to load integrations.");
+  }
+}
+
+export async function archiveSuperAdminIntegration(req, res) {
+  try {
+    const id = normalizeSuperAdminString(req.params?.id);
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Integration id is required.",
+      });
+    }
+
+    const existing = await prisma.inventoryIntegration.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        error: "Integration not found.",
+      });
+    }
+
+    const updated = await prisma.inventoryIntegration.update({
+      where: { id },
+      data: { status: "ARCHIVED" },
+    });
+
+    if (typeof writeSuperAdminGovernanceAudit === "function") {
+      await writeSuperAdminGovernanceAudit(req, {
+        action: "ARCHIVE_INTEGRATION",
+        targetType: "INTEGRATION",
+        targetId: id,
+        statusCode: 200,
+        metadata: {
+          previousStatus: existing.status || null,
+          newStatus: "ARCHIVED",
+          shopId: existing.shopId || existing.pawnShopId || null,
+          name: existing.name || null,
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      integration: scrubIntegrationForSuperAdmin(updated),
+    });
+  } catch (err) {
+    return handleSuperAdminError(res, err, "Failed to archive integration.");
+  }
+}
+
+
 export async function listSuperAdminShops(req, res) {
   try {
     assertSuperAdmin(req);

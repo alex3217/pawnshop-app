@@ -12,6 +12,8 @@ import {
   listSuperAdminUsers,
   updateSuperAdminUser,
   listSuperAdminShops,
+  listSuperAdminIntegrations,
+  archiveSuperAdminIntegration,
   createSuperAdminShop,
   reassignSuperAdminShopOwner,
   updateSuperAdminShop,
@@ -323,6 +325,9 @@ router.patch(
 
 router.post("/shops", asyncRoute(createSuperAdminShop));
 router.patch("/shops/:id/owner", asyncRoute(reassignSuperAdminShopOwner));
+router.get("/integrations", asyncRoute(listSuperAdminIntegrations));
+router.patch("/integrations/:id/archive", asyncRoute(archiveSuperAdminIntegration));
+
 router.get("/shops", asyncRoute(listSuperAdminShops));
 
 router.patch(

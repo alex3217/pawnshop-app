@@ -215,6 +215,14 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
   }),
 
   route({
+    key: "superAdminIntegrations",
+    path: "/super-admin/integrations",
+    label: "Integration Oversight",
+    permissions: ["admin:inventory:read"],
+    group: "super-admin-marketplace",
+  }),
+
+  route({
     key: "superAdminSellerPlans",
     path: "/super-admin/plans/seller",
     label: "Seller Plan Control",

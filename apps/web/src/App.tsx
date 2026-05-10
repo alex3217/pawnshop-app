@@ -88,6 +88,7 @@ const SuperAdminAuditPage = lazyPage(() => import("./admin/pages/SuperAdminAudit
 const SuperAdminShopsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminShopsPage"),
 );
+const SuperAdminIntegrationsPage = lazyPage(() => import("./admin/pages/SuperAdminIntegrationsPage"));
 const SuperAdminSettlementsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminSettlementsPage"),
 );
@@ -227,6 +228,7 @@ const adminCoreRoutes: RouteConfig[] = [
   { path: "owners", element: <AdminOwnersPage /> },
   { path: "shops", element: <SuperAdminShopsPage /> },
   { path: "inventory", element: <AdminItemsPage /> },
+  { path: "integrations", element: <SuperAdminIntegrationsPage /> },
   { path: "items", element: <Navigate to="/admin/inventory" replace /> },
   { path: "auctions", element: <AdminAuctionsPage /> },
   { path: "offers", element: <AdminOffersPage /> },

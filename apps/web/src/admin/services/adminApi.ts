@@ -335,6 +335,33 @@ export type SuperAdminRevenueSummary = {
   };
 };
 
+export type SuperAdminIntegrationRow = {
+  id: string;
+  shopId?: string | null;
+  shopName?: string | null;
+  ownerId?: string | null;
+  ownerName?: string | null;
+  ownerEmail?: string | null;
+  name?: string | null;
+  kind?: string | null;
+  type?: string | null;
+  status?: string | null;
+  authType?: string | null;
+  syncFrequencyMinutes?: number | null;
+  mappingsCount?: number;
+  jobsCount?: number;
+  hasCredential?: boolean;
+  latestJob?: {
+    id?: string | null;
+    status?: string | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+    error?: string | null;
+  } | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
 export type PlatformSettingRow = {
   id?: string;
   key: string;
@@ -641,6 +668,27 @@ export const adminApi = {
     );
     return normalizePaginated(payload);
   },
+
+  getSuperAdminIntegrationsPaged: async (
+    query?: Record<string, RequestQueryValue>,
+    signal?: AbortSignal
+  ): Promise<PaginatedResult<SuperAdminIntegrationRow>> => {
+    const payload = await adminRequest<PagedListResponse<SuperAdminIntegrationRow>>(
+      "/super-admin/integrations",
+      { query, signal }
+    );
+    return normalizePaginated(payload);
+  },
+
+  archiveSuperAdminIntegration: (
+    id: string,
+    signal?: AbortSignal
+  ) =>
+    patchJson<{ success: boolean; integration: SuperAdminIntegrationRow }>(
+      `/super-admin/integrations/${encodeURIComponent(id)}/archive`,
+      {},
+      signal
+    ),
 
   updateSuperAdminShop: (
     id: string,
