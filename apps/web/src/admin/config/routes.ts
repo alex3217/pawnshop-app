@@ -99,8 +99,6 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     path: "/admin/orders",
     label: "Orders & Settlements",
     permissions: ["admin:orders:read"],
-    enabled: false,
-    comingSoon: true,
     group: "admin-operations",
   }),
   route({
@@ -108,8 +106,6 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     path: "/admin/reviews",
     label: "Reviews & Feedback",
     permissions: ["admin:reviews:read"],
-    enabled: false,
-    comingSoon: true,
     group: "admin-operations",
   }),
   route({
@@ -117,8 +113,6 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     path: "/admin/support",
     label: "Support & Inquiries",
     permissions: ["admin:support:read"],
-    enabled: false,
-    comingSoon: true,
     group: "admin-operations",
   }),
 
@@ -134,8 +128,6 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     path: "/admin/revenue",
     label: "Revenue",
     permissions: ["admin:revenue:read"],
-    enabled: false,
-    comingSoon: true,
     group: "admin-growth",
   }),
   route({
@@ -143,8 +135,6 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     path: "/admin/analytics",
     label: "Analytics",
     permissions: ["admin:analytics:read"],
-    enabled: false,
-    comingSoon: true,
     group: "admin-growth",
   }),
 
@@ -153,8 +143,6 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     path: "/admin/risk",
     label: "Fraud & Risk",
     permissions: ["admin:risk:read"],
-    enabled: false,
-    comingSoon: true,
     group: "admin-system",
   }),
   route({
@@ -162,8 +150,6 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     path: "/admin/audit",
     label: "Audit Logs",
     permissions: ["admin:audit:read"],
-    enabled: false,
-    comingSoon: true,
     group: "admin-system",
   }),
   route({
@@ -171,8 +157,6 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     path: "/admin/system",
     label: "System Health",
     permissions: ["admin:system:read"],
-    enabled: false,
-    comingSoon: true,
     group: "admin-system",
   }),
   route({
@@ -180,8 +164,6 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     path: "/admin/settings",
     label: "Settings",
     permissions: ["admin:settings:read"],
-    enabled: false,
-    comingSoon: true,
     group: "admin-system",
   }),
 
