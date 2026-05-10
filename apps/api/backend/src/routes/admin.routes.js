@@ -14,6 +14,11 @@ import {
   softDeleteShop,
   restoreShop,
   adminListSubscriptions,
+  updateAdminItem,
+  updateAdminShop,
+  createAdminShop,
+  updateAdminUser,
+  createAdminUser,
 } from "../controllers/admin.controller.js";
 
 const router = Router();
@@ -134,6 +139,12 @@ function validateIdParam(paramName, label) {
 router.use(authRequired, requireRole("ADMIN", "SUPER_ADMIN"));
 
 router.get("/users", asyncRoute(listUsers));
+router.post("/users", asyncRoute(createAdminUser));
+router.patch(
+  "/users/:id",
+  validateIdParam("id", "User id"),
+  asyncRoute(updateAdminUser),
+);
 router.delete(
   "/users/:id",
   validateIdParam("id", "User id"),
@@ -146,6 +157,11 @@ router.patch(
 );
 
 router.get("/items", asyncRoute(adminListItems));
+router.patch(
+  "/items/:id",
+  validateIdParam("id", "Item id"),
+  asyncRoute(updateAdminItem),
+);
 router.delete(
   "/items/:id", auditAdminInventoryModeration,
   validateIdParam("id", "Item id"),
@@ -158,6 +174,12 @@ router.patch(
 );
 
 router.get("/shops", asyncRoute(adminListShops));
+router.post("/shops", asyncRoute(createAdminShop));
+router.patch(
+  "/shops/:id",
+  validateIdParam("id", "Shop id"),
+  asyncRoute(updateAdminShop),
+);
 router.delete(
   "/shops/:id",
   validateIdParam("id", "Shop id"),
@@ -178,12 +200,17 @@ router.get("/subscriptions", asyncRoute(adminListSubscriptions));
 
 export const ADMIN_ROUTE_MAP = Object.freeze({
   users: "GET /api/admin/users",
+  createUser: "POST /api/admin/users",
+  updateUser: "PATCH /api/admin/users/:id",
   blockUser: "DELETE /api/admin/users/:id",
   unblockUser: "PATCH /api/admin/users/:id/unblock",
   items: "GET /api/admin/items",
+  updateItem: "PATCH /api/admin/items/:id",
   deleteItem: "DELETE /api/admin/items/:id",
   restoreItem: "PATCH /api/admin/items/:id/restore",
   shops: "GET /api/admin/shops",
+  createShop: "POST /api/admin/shops",
+  updateShop: "PATCH /api/admin/shops/:id",
   deleteShop: "DELETE /api/admin/shops/:id",
   restoreShop: "PATCH /api/admin/shops/:id/restore",
   subscriptions: "GET /api/admin/subscriptions",

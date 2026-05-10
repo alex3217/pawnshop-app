@@ -285,6 +285,48 @@ export type CreateSuperAdminShopInput = {
   subscriptionStatus?: string;
 };
 
+
+export type CreateAdminUserInput = {
+  name?: string;
+  email: string;
+  password: string;
+  role: "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
+  isActive?: boolean;
+};
+
+export type UpdateAdminUserInput = {
+  name?: string;
+  email?: string;
+  role?: "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
+  isActive?: boolean;
+};
+
+export type CreateAdminShopInput = {
+  name: string;
+  ownerId: string;
+  address?: string;
+  phone?: string;
+  description?: string;
+  hours?: string;
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
+};
+
+export type UpdateAdminShopInput = Partial<CreateAdminShopInput> & {
+  isDeleted?: boolean;
+};
+
+export type UpdateAdminItemInput = {
+  title?: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  category?: string;
+  condition?: string;
+  status?: string;
+  isDeleted?: boolean;
+};
+
 export type CreateSuperAdminUserInput = {
   name: string;
   email: string;
@@ -638,6 +680,33 @@ export const adminApi = {
 
   request: adminRequest,
 
+
+  createAdminUser: (
+    input: CreateAdminUserInput,
+    signal?: AbortSignal
+  ) =>
+    adminRequest<{ success: boolean; user: AdminUserRow }>("/admin/users", {
+      method: "POST",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }),
+
+  updateAdminUser: (
+    id: string,
+    input: UpdateAdminUserInput,
+    signal?: AbortSignal
+  ) =>
+    patchJson<{ success: boolean; user: AdminUserRow }>(
+      `/admin/users/${encodeURIComponent(id)}`,
+      input,
+      signal
+    ),
+
+
+
   getUsers: async (signal?: AbortSignal): Promise<AdminUserRow[]> => {
     const payload = await adminRequest<PagedListResponse<AdminUserRow>>(
       "/admin/users",
@@ -781,6 +850,42 @@ export const adminApi = {
         },
         body: JSON.stringify(input),
       }
+    ),
+
+
+  createAdminShop: (
+    input: CreateAdminShopInput,
+    signal?: AbortSignal
+  ) =>
+    adminRequest<{ success: boolean; shop: AdminShopRow }>("/admin/shops", {
+      method: "POST",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }),
+
+  updateAdminShop: (
+    id: string,
+    input: UpdateAdminShopInput,
+    signal?: AbortSignal
+  ) =>
+    patchJson<{ success: boolean; shop: AdminShopRow }>(
+      `/admin/shops/${encodeURIComponent(id)}`,
+      input,
+      signal
+    ),
+
+  updateAdminItem: (
+    id: string,
+    input: UpdateAdminItemInput,
+    signal?: AbortSignal
+  ) =>
+    patchJson<{ success: boolean; item: AdminItemRow }>(
+      `/admin/items/${encodeURIComponent(id)}`,
+      input,
+      signal
     ),
 
   softDeleteShop: (id: string, signal?: AbortSignal) =>
