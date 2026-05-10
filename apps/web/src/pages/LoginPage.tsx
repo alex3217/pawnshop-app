@@ -21,10 +21,12 @@ export default function LoginPage() {
       const { token, user } = await login(email, password);
       persistAuth(token, user.role, user);
       
-if (user.role === "OWNER") {
-  nav("/owner");
-} else if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
+if (user.role === "SUPER_ADMIN") {
+  nav("/super-admin");
+} else if (user.role === "ADMIN") {
   nav("/admin");
+} else if (user.role === "OWNER") {
+  nav("/owner");
 } else {
   nav("/auctions");
 }
@@ -69,7 +71,7 @@ if (user.role === "OWNER") {
 
       <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
         Buyer test: buyer@pawn.local / Buyer123! — Owner test: owner1@pawn.local / Owner123! —
-        Admin test: admin1@example.com / Admin123
+        Admin test: admin1@example.com / Admin123 — Super Admin test: superadmin@pawn.local / SuperAdmin123!
       </p>
     </div>
   );
