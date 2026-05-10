@@ -1,165 +1,256 @@
-// File: apps/web/src/pages/AdminItemsPage.tsx
-
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import AdminPageShell from "../admin/components/AdminPageShell";
-import AdminTableShell from "../admin/components/AdminTableShell";
-import { adminApi, type AdminItemRow } from "../admin/services/adminApi";
-import type { AdminTableConfig } from "../admin/types/admin";
+import { adminApi } from "../admin/services/adminApi";
+import type { AdminItemRow } from "../admin/services/adminApi";
+import {
+  compareValues,
+  downloadCsv,
+  formatDate,
+  formatMoney,
+  includesSearch,
+  type SortDirection,
+} from "../admin/utils/adminControlUtils";
 
-function formatMoney(value?: string | number | null, currency = "USD") {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "—";
+type StatusFilter = "ALL" | "ACTIVE" | "DELETED";
 
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(num);
+function getShopName(item: AdminItemRow) {
+  const shop = (item as Record<string, unknown>).shop;
+  if (shop && typeof shop === "object") {
+    const name = (shop as Record<string, unknown>).name;
+    return name ? String(name) : "Unknown shop";
+  }
+
+  return "Unknown shop";
+}
+
+function getItemStatus(item: AdminItemRow) {
+  return item.isDeleted ? "DELETED" : String(item.status || "ACTIVE");
 }
 
 export default function AdminItemsPage() {
-  const [rows, setRows] = useState<AdminItemRow[]>([]);
+  const [items, setItems] = useState<AdminItemRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState("");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [sortKey, setSortKey] = useState<keyof AdminItemRow>("createdAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  const load = useCallback(async () => {
+  async function load() {
     setLoading(true);
-    setError(null);
+    setError("");
 
     try {
-      const items = await adminApi.getItems();
-      setRows(items);
-    } catch (err: unknown) {
-      setRows([]);
+      setItems(await adminApi.getItems());
+    } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load inventory.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, []);
 
-  const toggleDeleted = useCallback(async (item: AdminItemRow) => {
+  const filteredItems = useMemo(() => {
+    return items
+      .filter((item) =>
+        includesSearch(item as Record<string, unknown>, query, [
+          "id",
+          "title",
+          "category",
+          "condition",
+          "status",
+          "description",
+        ]) || getShopName(item).toLowerCase().includes(query.trim().toLowerCase()),
+      )
+      .filter((item) => {
+        if (statusFilter === "ALL") return true;
+        if (statusFilter === "DELETED") return item.isDeleted === true;
+        return item.isDeleted !== true;
+      })
+      .sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDirection));
+  }, [items, query, sortDirection, sortKey, statusFilter]);
+
+  async function toggleItem(item: AdminItemRow) {
+    if (!item.id || busyId) return;
+
+    const currentlyDeleted = item.isDeleted === true;
+    const confirmed = window.confirm(
+      `${currentlyDeleted ? "Restore" : "Delete"} "${item.title || item.id}"?`,
+    );
+
+    if (!confirmed) return;
+
     setBusyId(item.id);
-    setError(null);
+    setError("");
+    setNotice("");
 
     try {
-      if (item.isDeleted) {
+      if (currentlyDeleted) {
         await adminApi.restoreItem(item.id);
       } else {
         await adminApi.softDeleteItem(item.id);
       }
 
-      setRows((prev) =>
-        prev.map((row) =>
-          row.id === item.id ? { ...row, isDeleted: !item.isDeleted } : row
-        )
+      setItems((current) =>
+        current.map((entry) =>
+          entry.id === item.id ? { ...entry, isDeleted: !currentlyDeleted } : entry,
+        ),
       );
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Failed inventory moderation action."
-      );
+
+      setNotice(`${currentlyDeleted ? "Restored" : "Deleted"} ${item.title || "item"}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update item.");
     } finally {
-      setBusyId(null);
+      setBusyId("");
     }
-  }, []);
+  }
 
-  const tableConfig = useMemo<AdminTableConfig<AdminItemRow>>(
-    () => ({
-      key: "admin-inventory",
-      title: "Inventory",
-      emptyMessage: "There are no admin-visible listings right now.",
-      rowKey: (row) => row.id,
-      columns: [
-        {
-          key: "title",
-          header: "Item",
-          render: (row) => (
-            <div style={{ display: "grid", gap: 6 }}>
-              <strong>{row.title}</strong>
-              <div className="muted">Shop: {row.shop?.name || "Unknown"}</div>
-            </div>
-          ),
-        },
-        {
-          key: "price",
-          header: "Price",
-          render: (row) => formatMoney(row.price, row.currency || "USD"),
-        },
-        {
-          key: "category",
-          header: "Category",
-          render: (row) => row.category || "—",
-        },
-        {
-          key: "condition",
-          header: "Condition",
-          render: (row) => row.condition || "—",
-        },
-        {
-          key: "status",
-          header: "Status",
-          render: (row) => row.status || "—",
-        },
-        {
-          key: "deleted",
-          header: "Deleted",
-          render: (row) => String(Boolean(row.isDeleted)),
-        },
-        {
-          key: "actions",
-          header: "Actions",
-          render: (row) => (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Link to={`/items/${row.id}`} className="btn btn-secondary">
-                View
-              </Link>
-
-              <button
-                type="button"
-                className={row.isDeleted ? "btn btn-secondary" : "btn btn-ghost"}
-                onClick={() => void toggleDeleted(row)}
-                disabled={busyId === row.id}
-              >
-                {busyId === row.id
-                  ? "Working..."
-                  : row.isDeleted
-                    ? "Restore"
-                    : "Delete"}
-              </button>
-            </div>
-          ),
-        },
-      ],
-    }),
-    [busyId, toggleDeleted]
-  );
+  function exportItems() {
+    downloadCsv(
+      "admin-inventory.csv",
+      filteredItems.map((item) => ({
+        id: item.id,
+        title: item.title,
+        price: item.price,
+        category: item.category,
+        condition: item.condition,
+        status: getItemStatus(item),
+        shop: getShopName(item),
+        createdAt: item.createdAt,
+      })),
+    );
+  }
 
   return (
     <AdminPageShell
-      title="Inventory"
-      subtitle="Inspect marketplace listings and soft delete or restore them."
+      title="Admin Inventory Control"
+      subtitle="Search, filter, export, delete, and restore marketplace listings."
       actions={
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => void load()}
-          disabled={loading}
-        >
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button className="btn btn-secondary" onClick={exportItems}>
+            Export CSV
+          </button>
+          <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
       }
     >
-      <AdminTableShell
-        config={tableConfig}
-        rows={rows}
-        loading={loading}
-        error={error}
-      />
+      <div className="admin-control-bar">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search inventory by title, category, shop, condition, or id..."
+          className="admin-control-input"
+        />
+
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+          className="admin-control-select"
+        >
+          <option value="ALL">All listings</option>
+          <option value="ACTIVE">Active only</option>
+          <option value="DELETED">Deleted only</option>
+        </select>
+
+        <select
+          value={String(sortKey)}
+          onChange={(event) => setSortKey(event.target.value as keyof AdminItemRow)}
+          className="admin-control-select"
+        >
+          <option value="createdAt">Sort by created</option>
+          <option value="title">Sort by title</option>
+          <option value="price">Sort by price</option>
+          <option value="category">Sort by category</option>
+          <option value="status">Sort by status</option>
+        </select>
+
+        <select
+          value={sortDirection}
+          onChange={(event) => setSortDirection(event.target.value as SortDirection)}
+          className="admin-control-select"
+        >
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
+      </div>
+
+      {notice ? <div className="admin-notice success">{notice}</div> : null}
+      {error ? <div className="admin-notice danger">{error}</div> : null}
+
+      <div className="admin-table-card">
+        <div className="admin-table-meta">
+          Showing {filteredItems.length} of {items.length} listings
+        </div>
+
+        <div className="admin-table-scroll">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Listing</th>
+                <th>Shop</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6}>Loading inventory...</td>
+                </tr>
+              ) : filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>No listings match your filters.</td>
+                </tr>
+              ) : (
+                filteredItems.map((item) => {
+                  const status = getItemStatus(item);
+
+                  return (
+                    <tr key={item.id}>
+                      <td>
+                        <strong>{item.title}</strong>
+                        <div className="admin-muted">{item.category || "Uncategorized"} · {item.condition || "Unknown condition"}</div>
+                        <div className="admin-muted small">{item.id}</div>
+                      </td>
+                      <td>{getShopName(item)}</td>
+                      <td>{formatMoney(item.price, item.currency || "USD")}</td>
+                      <td>
+                        <span className={`badge ${item.isDeleted ? "badge-danger" : "badge-success"}`}>
+                          {status}
+                        </span>
+                      </td>
+                      <td>{formatDate(item.createdAt)}</td>
+                      <td style={{ textAlign: "right" }}>
+                        <button
+                          className="btn btn-secondary"
+                          disabled={busyId === item.id}
+                          onClick={() => void toggleItem(item)}
+                        >
+                          {busyId === item.id
+                            ? "Saving..."
+                            : item.isDeleted
+                              ? "Restore"
+                              : "Delete"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </AdminPageShell>
   );
 }
