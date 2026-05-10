@@ -362,6 +362,61 @@ export type SuperAdminIntegrationRow = {
   updatedAt?: string | null;
 };
 
+export type SuperAdminSystemHealth = {
+  success?: boolean;
+  ok?: boolean;
+  generatedAt?: string;
+  env?: {
+    nodeEnv?: string | null;
+    port?: string | null;
+    appVersion?: string | null;
+    runtime?: {
+      node?: string;
+      platform?: string;
+      arch?: string;
+      pid?: number;
+      uptimeSeconds?: number;
+      memory?: Record<string, number>;
+    };
+  };
+  providers?: {
+    stripe?: {
+      secretKey?: {
+        configured?: boolean;
+        length?: number;
+        preview?: string | null;
+      };
+      webhookSecretConfigured?: boolean;
+    };
+    openai?: {
+      apiKey?: {
+        configured?: boolean;
+        length?: number;
+        preview?: string | null;
+      };
+      listingModel?: string | null;
+      listingAssistantEnabled?: boolean;
+    };
+    redis?: {
+      urlConfigured?: boolean;
+    };
+  };
+  checks?: Record<
+    string,
+    {
+      ok?: boolean;
+      label?: string;
+      value?: unknown;
+      error?: string | null;
+    }
+  >;
+  recent?: {
+    failedSyncJobs?: Array<Record<string, unknown>>;
+    auditRecords?: Array<Record<string, unknown>>;
+  };
+  warnings?: string[];
+};
+
 export type PlatformSettingRow = {
   id?: string;
   key: string;
@@ -861,6 +916,14 @@ export const adminApi = {
       { signal }
     );
     return payload.overview ?? {};
+  },
+
+  getSuperAdminSystemHealth: async (
+    signal?: AbortSignal
+  ): Promise<SuperAdminSystemHealth> => {
+    return adminRequest<SuperAdminSystemHealth>("/super-admin/system", {
+      signal,
+    });
   },
 
   getSuperAdminRevenue: async (

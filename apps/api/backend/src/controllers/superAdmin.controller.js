@@ -1161,6 +1161,199 @@ export async function archiveSuperAdminIntegration(req, res) {
 }
 
 
+
+async function safeSystemMetric(label, fn, fallback = null) {
+  try {
+    return {
+      ok: true,
+      label,
+      value: await fn(),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      label,
+      value: fallback,
+      error: error?.message || String(error),
+    };
+  }
+}
+
+function safeBooleanEnv(key) {
+  return Boolean(String(process.env[key] || "").trim());
+}
+
+function maskProviderConfigured(key) {
+  const value = String(process.env[key] || "").trim();
+  return {
+    configured: Boolean(value),
+    length: value.length,
+  };
+}
+
+export async function getSuperAdminSystemHealth(req, res) {
+  try {
+    const now = new Date();
+
+    const [
+      databaseMetric,
+      usersMetric,
+      shopsMetric,
+      itemsMetric,
+      integrationsMetric,
+      syncJobsMetric,
+      failedSyncJobsMetric,
+      failedAuditMetric,
+      recentAuditMetric,
+      settlementsMetric,
+    ] = await Promise.all([
+      safeSystemMetric("database", async () => {
+        await prisma.$queryRaw`SELECT 1`;
+        return {
+          connected: true,
+          provider: "postgresql",
+        };
+      }),
+
+      safeSystemMetric("users", () => prisma.user.count(), 0),
+
+      safeSystemMetric("shops", () => prisma.pawnShop.count(), 0),
+
+      safeSystemMetric("items", () => prisma.item.count(), 0),
+
+      safeSystemMetric("integrations", () => prisma.inventoryIntegration.count(), 0),
+
+      safeSystemMetric("syncJobs", () => prisma.inventorySyncJob.count(), 0),
+
+      safeSystemMetric(
+        "failedSyncJobs",
+        () =>
+          prisma.inventorySyncJob.findMany({
+            where: {
+              status: {
+                in: ["FAILED", "ERROR"],
+              },
+            },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          }),
+        [],
+      ),
+
+      safeSystemMetric(
+        "failedAuditRecords",
+        () =>
+          prisma.superAdminAuditLog.count({
+            where: { success: false },
+          }),
+        0,
+      ),
+
+      safeSystemMetric(
+        "recentAuditRecords",
+        () =>
+          prisma.superAdminAuditLog.findMany({
+            orderBy: { createdAt: "desc" },
+            take: 10,
+            select: {
+              id: true,
+              action: true,
+              actorEmail: true,
+              actorRole: true,
+              targetType: true,
+              targetId: true,
+              success: true,
+              statusCode: true,
+              createdAt: true,
+            },
+          }),
+        [],
+      ),
+
+      safeSystemMetric("settlements", () => prisma.settlement.count(), 0),
+    ]);
+
+    const env = {
+      nodeEnv: process.env.NODE_ENV || "development",
+      port: process.env.PORT || null,
+      appVersion: process.env.APP_VERSION || process.env.npm_package_version || null,
+      runtime: {
+        node: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        pid: process.pid,
+        uptimeSeconds: Math.round(process.uptime()),
+        memory: process.memoryUsage(),
+      },
+    };
+
+    const providers = {
+      stripe: {
+        secretKey: maskProviderConfigured("STRIPE_SECRET_KEY"),
+        webhookSecretConfigured:
+          safeBooleanEnv("STRIPE_WEBHOOK_SECRET") ||
+          safeBooleanEnv("STRIPE_WEBHOOK_SIGNING_SECRET"),
+      },
+      openai: {
+        apiKey: maskProviderConfigured("OPENAI_API_KEY"),
+        listingModel: process.env.OPENAI_LISTING_MODEL || null,
+        listingAssistantEnabled:
+          String(process.env.AI_LISTING_ASSISTANT_ENABLED || "").toLowerCase() === "true",
+      },
+      redis: {
+        urlConfigured: safeBooleanEnv("REDIS_URL"),
+      },
+    };
+
+    const checks = {
+      api: {
+        ok: true,
+        service: "pawnshop-api",
+        timestamp: now.toISOString(),
+      },
+      database: databaseMetric,
+      users: usersMetric,
+      shops: shopsMetric,
+      items: itemsMetric,
+      integrations: integrationsMetric,
+      syncJobs: syncJobsMetric,
+      settlements: settlementsMetric,
+      failedAuditRecords: failedAuditMetric,
+    };
+
+    const warnings = [];
+
+    if (!databaseMetric.ok) warnings.push("Database health check failed.");
+    if (!providers.stripe.secretKey.configured) warnings.push("Stripe secret key is not configured.");
+    if (!providers.stripe.webhookSecretConfigured) warnings.push("Stripe webhook secret is not configured.");
+    if (!providers.openai.apiKey.configured) warnings.push("OpenAI API key is not configured.");
+    if (Array.isArray(failedSyncJobsMetric.value) && failedSyncJobsMetric.value.length > 0) {
+      warnings.push(`${failedSyncJobsMetric.value.length} recent integration sync failures found.`);
+    }
+    if (Number(failedAuditMetric.value || 0) > 0) {
+      warnings.push(`${failedAuditMetric.value} failed Super Admin audit records exist.`);
+    }
+
+    return res.json({
+      success: true,
+      ok: databaseMetric.ok,
+      env,
+      providers,
+      checks,
+      recent: {
+        failedSyncJobs: failedSyncJobsMetric.value || [],
+        auditRecords: recentAuditMetric.value || [],
+      },
+      warnings,
+      generatedAt: now.toISOString(),
+    });
+  } catch (err) {
+    return handleSuperAdminError(res, err, "Failed to load system health.");
+  }
+}
+
+
 export async function listSuperAdminShops(req, res) {
   try {
     assertSuperAdmin(req);

@@ -9,6 +9,7 @@ import {
 import { authRequired, requireRole } from "../middleware/auth.js";
 import {
   getSuperAdminOverview,
+  getSuperAdminSystemHealth,
   listSuperAdminUsers,
   updateSuperAdminUser,
   listSuperAdminShops,
@@ -314,6 +315,7 @@ router.get(
 
 router.get("/audit", asyncRoute(listSuperAdminAuditLogs));
 router.get("/overview", asyncRoute(getSuperAdminOverview));
+router.get("/system", asyncRoute(getSuperAdminSystemHealth));
 router.get("/users", asyncRoute(listSuperAdminUsers));
 
 router.patch(

@@ -265,6 +265,14 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     permissions: ["admin:audit:read"],
     group: "super-admin-governance",
   }),
+
+  route({
+    key: "superAdminSystem",
+    path: "/super-admin/system",
+    label: "System Health",
+    permissions: ["admin:system:read"],
+    group: "super-admin-governance",
+  }),
   route({
     key: "superAdminSettings",
     path: "/super-admin/platform-settings",

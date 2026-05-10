@@ -85,6 +85,7 @@ const SuperAdminUsersPage = lazyPage(() =>
 );
 const SuperAdminOverviewPage = lazyPage(() => import("./admin/pages/SuperAdminOverviewPage"));
 const SuperAdminAuditPage = lazyPage(() => import("./admin/pages/SuperAdminAuditPage"));
+const SuperAdminSystemHealthPage = lazyPage(() => import("./admin/pages/SuperAdminSystemHealthPage"));
 const SuperAdminShopsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminShopsPage"),
 );
@@ -321,6 +322,7 @@ const superAdminRoutes: RouteConfig[] = [
   { path: "settlements", element: <SuperAdminSettlementsPage /> },
   { path: "revenue", element: <SuperAdminRevenuePage /> },
   { path: "audit", element: <SuperAdminAuditPage /> },
+  { path: "system", element: <SuperAdminSystemHealthPage /> },
   { path: "platform-settings", element: <SuperAdminPlatformSettingsPage /> },
   {
     path: "settings",
