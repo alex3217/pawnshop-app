@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
 import { adminApi } from "../services/adminApi";
@@ -6,39 +6,23 @@ import { adminApi } from "../services/adminApi";
 type AnyRow = Record<string, unknown>;
 
 type DashboardState = {
-  overview: {
-    usersCount?: number;
-    ownersCount?: number;
-    consumersCount?: number;
-    adminsCount?: number;
-    itemsCount?: number;
-    shopsCount?: number;
-    liveAuctionsCount?: number;
-    endedAuctionsCount?: number;
-    canceledAuctionsCount?: number;
-    offersCount?: number;
-    pendingOffersCount?: number;
-    acceptedOffersCount?: number;
-    counteredOffersCount?: number;
-  } | null;
   users: AnyRow[];
   items: AnyRow[];
   shops: AnyRow[];
   auctions: AnyRow[];
-  offers: AnyRow[];
   settlements: AnyRow[];
-  errors: string[];
+  coreErrors: string[];
+  optionalNotes: string[];
 };
 
 const EMPTY_STATE: DashboardState = {
-  overview: null,
   users: [],
   items: [],
   shops: [],
   auctions: [],
-  offers: [],
   settlements: [],
-  errors: [],
+  coreErrors: [],
+  optionalNotes: [],
 };
 
 function asRows<T>(value: T[] | unknown): AnyRow[] {
@@ -54,8 +38,10 @@ function getString(row: AnyRow, key: string, fallback = "—") {
 function getNestedString(row: AnyRow, key: string, nestedKey: string, fallback = "—") {
   const nested = row[key];
   if (!nested || typeof nested !== "object") return fallback;
+
   const value = (nested as AnyRow)[nestedKey];
   if (value === null || value === undefined || value === "") return fallback;
+
   return String(value);
 }
 
@@ -91,8 +77,10 @@ function statusBadgeClass(value?: string | null) {
 
 function formatDate(value: unknown) {
   if (!value) return "—";
+
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) return "—";
+
   return date.toLocaleString();
 }
 
@@ -105,6 +93,10 @@ function formatMoney(value: unknown, currency = "USD") {
     currency,
     maximumFractionDigits: 2,
   }).format(number);
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unable to load";
 }
 
 function ResultBadge({ value }: { value: string }) {
@@ -185,8 +177,8 @@ function MiniTable({
   title,
   rows,
   empty,
-  columns,
   to,
+  columns,
 }: {
   title: string;
   rows: AnyRow[];
@@ -195,7 +187,7 @@ function MiniTable({
   columns: Array<{
     key: string;
     label: string;
-    render: (row: AnyRow) => React.ReactNode;
+    render: (row: AnyRow) => ReactNode;
   }>;
 }) {
   return (
@@ -251,41 +243,50 @@ export default function AdminOverviewPage() {
   async function load() {
     setLoading(true);
 
-    const errors: string[] = [];
+    const coreErrors: string[] = [];
+    const optionalNotes: string[] = [];
 
     const [
-      overviewResult,
       usersResult,
       itemsResult,
       shopsResult,
       auctionsResult,
-      offersResult,
       settlementsResult,
     ] = await Promise.allSettled([
-      adminApi.getOverview(),
       adminApi.getUsers(),
       adminApi.getItems(),
       adminApi.getShops(),
       adminApi.getAuctions("ALL"),
-      adminApi.getOffers(),
       adminApi.getSettlements(),
     ]);
 
-    function read<T>(result: PromiseSettledResult<T>, fallback: T, label: string): T {
+    function readCore<T>(result: PromiseSettledResult<T>, fallback: T, label: string): T {
       if (result.status === "fulfilled") return result.value;
-      errors.push(`${label}: ${result.reason instanceof Error ? result.reason.message : "Unable to load"}`);
+      coreErrors.push(`${label}: ${getErrorMessage(result.reason)}`);
+      return fallback;
+    }
+
+    function readOptional<T>(result: PromiseSettledResult<T>, fallback: T, label: string): T {
+      if (result.status === "fulfilled") return result.value;
+
+      const message = getErrorMessage(result.reason);
+      optionalNotes.push(`${label} data is not available for this admin role yet.`);
+
+      if (!message.toLowerCase().includes("forbidden")) {
+        optionalNotes.push(`${label}: ${message}`);
+      }
+
       return fallback;
     }
 
     setState({
-      overview: read(overviewResult, null, "Overview"),
-      users: asRows(read(usersResult, [], "Users")),
-      items: asRows(read(itemsResult, [], "Inventory")),
-      shops: asRows(read(shopsResult, [], "Shops")),
-      auctions: asRows(read(auctionsResult, [], "Auctions")),
-      offers: asRows(read(offersResult, [], "Offers")),
-      settlements: asRows(read(settlementsResult, [], "Settlements")),
-      errors,
+      users: asRows(readCore(usersResult, [], "Users")),
+      items: asRows(readCore(itemsResult, [], "Inventory")),
+      shops: asRows(readCore(shopsResult, [], "Shops")),
+      auctions: asRows(readCore(auctionsResult, [], "Auctions")),
+      settlements: asRows(readOptional(settlementsResult, [], "Settlements")),
+      coreErrors,
+      optionalNotes,
     });
 
     setLoading(false);
@@ -296,21 +297,27 @@ export default function AdminOverviewPage() {
   }, []);
 
   const derived = useMemo(() => {
+    const owners = state.users.filter((row) => getString(row, "role", "").toUpperCase() === "OWNER");
+    const consumers = state.users.filter((row) => getString(row, "role", "").toUpperCase() === "CONSUMER");
+    const admins = state.users.filter((row) =>
+      ["ADMIN", "SUPER_ADMIN"].includes(getString(row, "role", "").toUpperCase()),
+    );
     const deletedItems = state.items.filter(isDeleted);
     const inactiveUsers = state.users.filter(isInactiveUser);
     const deletedShops = state.shops.filter(isDeleted);
     const liveAuctions = state.auctions.filter((row) => getStatus(row).toUpperCase() === "LIVE");
-    const pendingOffers = state.offers.filter((row) => getStatus(row).toUpperCase() === "PENDING");
     const failedSettlements = state.settlements.filter((row) =>
       ["FAILED", "PAST_DUE", "CANCELED"].includes(getStatus(row).toUpperCase()),
     );
 
     return {
+      owners,
+      consumers,
+      admins,
       deletedItems,
       inactiveUsers,
       deletedShops,
       liveAuctions,
-      pendingOffers,
       failedSettlements,
       recentUsers: state.users.slice(0, 6),
       recentShops: state.shops.slice(0, 6),
@@ -320,38 +327,47 @@ export default function AdminOverviewPage() {
     };
   }, [state]);
 
-  const overview = state.overview || {};
-
   return (
     <AdminPageShell
       title="Admin Command Center"
-      subtitle="Daily marketplace operations for users, shops, inventory, auctions, offers, settlements, and support workflows."
+      subtitle="Daily marketplace operations for users, shops, inventory, auctions, settlements, and support workflows."
       actions={
         <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
         </button>
       }
     >
-      {state.errors.length ? (
-        <div className="mb-4 rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-          <div className="font-semibold">Some admin panels could not load.</div>
+      {state.coreErrors.length ? (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <div className="font-semibold">Core admin panels could not load.</div>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            {state.errors.map((error) => (
+            {state.coreErrors.map((error) => (
               <li key={error}>{error}</li>
             ))}
           </ul>
         </div>
       ) : null}
 
+      {state.optionalNotes.length ? (
+        <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          <div className="font-semibold">Admin data availability</div>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {[...new Set(state.optionalNotes)].map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Users" value={overview.usersCount ?? state.users.length} helper="All platform accounts" to="/admin/users" />
-        <MetricCard label="Owners" value={overview.ownersCount ?? 0} helper="Shop owner accounts" to="/admin/owners" />
-        <MetricCard label="Shops" value={overview.shopsCount ?? state.shops.length} helper="Marketplace shops" to="/admin/shops" />
-        <MetricCard label="Inventory" value={overview.itemsCount ?? state.items.length} helper="Marketplace listings" to="/admin/inventory" />
-        <MetricCard label="Live Auctions" value={overview.liveAuctionsCount ?? derived.liveAuctions.length} helper="Currently active auctions" to="/admin/auctions" />
-        <MetricCard label="Pending Offers" value={overview.pendingOffersCount ?? derived.pendingOffers.length} helper="Offers requiring attention" to="/admin/offers" />
+        <MetricCard label="Users" value={state.users.length} helper="All platform accounts" to="/admin/users" />
+        <MetricCard label="Owners" value={derived.owners.length} helper="Shop owner accounts" to="/admin/owners" />
+        <MetricCard label="Consumers" value={derived.consumers.length} helper="Buyer accounts" to="/admin/users" />
+        <MetricCard label="Admins" value={derived.admins.length} helper="Admin-level accounts" to="/admin/users" />
+        <MetricCard label="Shops" value={state.shops.length} helper="Marketplace shops" to="/admin/shops" />
+        <MetricCard label="Inventory" value={state.items.length} helper="Marketplace listings" to="/admin/inventory" />
+        <MetricCard label="Live Auctions" value={derived.liveAuctions.length} helper="Currently active auctions" to="/admin/auctions" />
         <MetricCard label="Settlements" value={state.settlements.length} helper="Payment/settlement records" to="/admin/orders" />
-        <MetricCard label="Subscriptions" value={state.shops.length} helper="Shop subscription oversight" to="/admin/subscriptions" />
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -377,11 +393,11 @@ export default function AdminOverviewPage() {
           tone={derived.deletedShops.length ? "warning" : "success"}
         />
         <QueueCard
-          title="Offer Queue"
-          value={derived.pendingOffers.length}
-          description="Pending offers across the marketplace."
-          to="/admin/offers"
-          tone={derived.pendingOffers.length ? "warning" : "success"}
+          title="Auction Queue"
+          value={derived.liveAuctions.length}
+          description="Live auctions needing operational awareness."
+          to="/admin/auctions"
+          tone={derived.liveAuctions.length ? "neutral" : "success"}
         />
         <QueueCard
           title="Payment Issues"
@@ -502,7 +518,7 @@ export default function AdminOverviewPage() {
         <MiniTable
           title="Recent Settlements"
           rows={derived.recentSettlements}
-          empty="No settlement records found."
+          empty="Settlement data is not available for this admin role yet."
           to="/admin/orders"
           columns={[
             { key: "id", label: "Settlement", render: (row) => getString(row, "id") },
@@ -520,8 +536,8 @@ export default function AdminOverviewPage() {
               settings, system health, and sensitive ownership controls.
             </p>
             <p>
-              Next recommended admin additions: risk queue, support queue, limited audit review, and
-              settlement issue triage.
+              Next recommended admin additions: real support tickets, risk review records, limited audit review,
+              and settlement issue triage.
             </p>
           </div>
         </section>
