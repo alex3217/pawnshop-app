@@ -174,6 +174,35 @@ export default function SuperAdminShopsPage() {
     }
   }
 
+  async function reassignShopOwner(shop: AdminShopRow, ownerId: string) {
+    if (!shop.id || !ownerId || ownerId === shop.ownerId) return;
+
+    const owner = owners.find((item) => item.id === ownerId);
+    const confirmed = window.confirm(
+      `Reassign "${shop.name}" to ${owner?.email || "selected owner"}?`,
+    );
+
+    if (!confirmed) return;
+
+    setSavingId(shop.id);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await adminApi.reassignSuperAdminShopOwner(shop.id, ownerId);
+
+      setShops((current) =>
+        current.map((item) => (item.id === shop.id ? response.shop : item)),
+      );
+
+      setNotice(`Reassigned "${response.shop.name}" to ${response.shop.ownerEmail || "owner"}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reassign shop owner.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -446,8 +475,22 @@ export default function SuperAdminShopsPage() {
                       </td>
 
                       <td className="p-3">
-                        <div className="font-medium">{shop.ownerName || "—"}</div>
-                        <div className="text-muted-foreground">
+                        <select
+                          value={shop.ownerId || ""}
+                          disabled={isSaving}
+                          onChange={(event) =>
+                            void reassignShopOwner(shop, event.target.value)
+                          }
+                          className="rounded-lg border px-2 py-1 text-sm"
+                        >
+                          <option value="">Unassigned</option>
+                          {owners.map((owner) => (
+                            <option key={owner.id} value={owner.id}>
+                              {owner.name || "Unnamed owner"} · {owner.email}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="mt-1 text-muted-foreground">
                           {shop.ownerEmail || "—"}
                         </div>
                         <div className="text-xs text-muted-foreground">

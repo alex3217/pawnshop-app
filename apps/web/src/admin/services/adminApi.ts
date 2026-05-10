@@ -653,6 +653,17 @@ export const adminApi = {
       signal
     ),
 
+  reassignSuperAdminShopOwner: (
+    id: string,
+    ownerId: string,
+    signal?: AbortSignal
+  ) =>
+    patchJson<{ success: boolean; shop: AdminShopRow }>(
+      `/super-admin/shops/${encodeURIComponent(id)}/owner`,
+      { ownerId },
+      signal
+    ),
+
   createSuperAdminShop: (
     input: CreateSuperAdminShopInput,
     signal?: AbortSignal

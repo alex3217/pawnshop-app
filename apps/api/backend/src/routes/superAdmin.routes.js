@@ -12,6 +12,7 @@ import {
   updateSuperAdminUser,
   listSuperAdminShops,
   createSuperAdminShop,
+  reassignSuperAdminShopOwner,
   updateSuperAdminShop,
   getSuperAdminSellerPlans,
   getSuperAdminBuyerPlans,
@@ -203,6 +204,7 @@ router.patch(
 );
 
 router.post("/shops", asyncRoute(createSuperAdminShop));
+router.patch("/shops/:id/owner", asyncRoute(reassignSuperAdminShopOwner));
 router.get("/shops", asyncRoute(listSuperAdminShops));
 
 router.patch(

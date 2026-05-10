@@ -617,6 +617,47 @@ export async function updateSuperAdminUser(req, res) {
 }
 
 
+async function writeSuperAdminGovernanceAudit(
+  req,
+  {
+    action,
+    targetType,
+    targetId,
+    statusCode = 200,
+    success = true,
+    metadata = {},
+  }
+) {
+  try {
+    await prisma.superAdminAuditLog.create({
+      data: {
+        actorId: req?.user?.sub ?? null,
+        actorEmail: req?.user?.email ?? req?.user?.username ?? null,
+        actorRole: req?.user?.role ?? null,
+        action,
+        method: req?.method ?? "UNKNOWN",
+        path: req?.originalUrl ?? req?.url ?? "",
+        routeKey: req?.route?.path ? String(req.route.path) : null,
+        targetType,
+        targetId,
+        statusCode,
+        success,
+        requestId: req?.id ?? req?.requestId ?? null,
+        ipAddress: req?.ip ?? null,
+        userAgent: typeof req?.get === "function" ? req.get("user-agent") : null,
+        metadata,
+      },
+    });
+  } catch (auditError) {
+    console.warn("[super-admin:audit] Failed to write audit log", {
+      action,
+      targetType,
+      targetId,
+      error: auditError?.message || auditError,
+    });
+  }
+}
+
 function normalizeSuperAdminString(value) {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -736,12 +777,146 @@ export async function createSuperAdminShop(req, res) {
       },
     });
 
+    const shopRow = toSuperAdminShopRow(shop, owner);
+
+    await writeSuperAdminGovernanceAudit(req, {
+      action: "CREATE_SHOP",
+      targetType: "SHOP",
+      targetId: shop.id,
+      statusCode: 201,
+      metadata: {
+        shopName: shop.name,
+        ownerId,
+        ownerEmail: owner.email,
+        subscriptionPlan,
+        subscriptionStatus,
+      },
+    });
+
     return res.status(201).json({
       success: true,
-      shop: toSuperAdminShopRow(shop, owner),
+      shop: shopRow,
     });
   } catch (err) {
     return handleSuperAdminError(res, err, "Failed to create shop.");
+  }
+}
+
+
+
+export async function reassignSuperAdminShopOwner(req, res) {
+  try {
+    const shopId = normalizeSuperAdminString(req.params?.id);
+    const ownerId = normalizeSuperAdminString(req.body?.ownerId);
+
+    if (!shopId) {
+      return res.status(400).json({
+        success: false,
+        error: "Shop id is required.",
+      });
+    }
+
+    if (!ownerId) {
+      return res.status(400).json({
+        success: false,
+        error: "ownerId is required.",
+      });
+    }
+
+    const [shop, owner] = await Promise.all([
+      prisma.pawnShop.findUnique({
+        where: { id: shopId },
+        select: {
+          id: true,
+          name: true,
+          ownerId: true,
+          isDeleted: true,
+        },
+      }),
+      prisma.user.findUnique({
+        where: { id: ownerId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+        },
+      }),
+    ]);
+
+    if (!shop || shop.isDeleted === true) {
+      return res.status(404).json({
+        success: false,
+        error: "Shop not found.",
+      });
+    }
+
+    if (!owner) {
+      return res.status(404).json({
+        success: false,
+        error: "Owner user not found.",
+      });
+    }
+
+    if (owner.role !== "OWNER") {
+      return res.status(400).json({
+        success: false,
+        error: "Selected user must have OWNER role.",
+      });
+    }
+
+    if (owner.isActive === false) {
+      return res.status(400).json({
+        success: false,
+        error: "Selected owner user is inactive.",
+      });
+    }
+
+    const updated = await prisma.pawnShop.update({
+      where: { id: shopId },
+      data: { ownerId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        description: true,
+        hours: true,
+        ownerId: true,
+        subscriptionPlan: true,
+        subscriptionStatus: true,
+        subscriptionCurrentPeriodEnd: true,
+        cancelAtPeriodEnd: true,
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
+        createdAt: true,
+        updatedAt: true,
+        isDeleted: true,
+      },
+    });
+
+    const shopRow = toSuperAdminShopRow(updated, owner);
+
+    await writeSuperAdminGovernanceAudit(req, {
+      action: "REASSIGN_SHOP_OWNER",
+      targetType: "SHOP",
+      targetId: shopId,
+      statusCode: 200,
+      metadata: {
+        shopName: updated.name,
+        previousOwnerId: shop.ownerId,
+        newOwnerId: ownerId,
+        newOwnerEmail: owner.email,
+      },
+    });
+
+    return res.json({
+      success: true,
+      shop: shopRow,
+    });
+  } catch (err) {
+    return handleSuperAdminError(res, err, "Failed to reassign shop owner.");
   }
 }
 
