@@ -12,6 +12,8 @@ export type AdminRequestOptions = RequestInit & {
   signal?: AbortSignal;
 };
 
+export type AdminRoleValue = "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
+
 export type AdminUserRole =
   | "CONSUMER"
   | "OWNER"
@@ -290,14 +292,14 @@ export type CreateAdminUserInput = {
   name?: string;
   email: string;
   password: string;
-  role: "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
+  role: AdminRoleValue;
   isActive?: boolean;
 };
 
 export type UpdateAdminUserInput = {
   name?: string;
   email?: string;
-  role?: "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
+  role?: AdminRoleValue;
   isActive?: boolean;
 };
 
@@ -634,7 +636,9 @@ async function adminRequest<T>(
     signal,
     headers: {
       ...getAuthHeaders(),
-      ...(rest.body ? { "Content-Type": "application/json" } : {}),
+      ...(rest.body && !(rest.body instanceof FormData)
+        ? { "Content-Type": "application/json" }
+        : {}),
       ...(headers || {}),
     },
     cache: "no-store",
@@ -649,6 +653,15 @@ async function adminRequest<T>(
   return unwrapEnvelope<T>(parsed);
 }
 
+function jsonBody(body: unknown): Pick<RequestInit, "body" | "headers"> {
+  return {
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  };
+}
+
 function patchJson<T>(
   path: string,
   body: unknown,
@@ -657,7 +670,7 @@ function patchJson<T>(
   return adminRequest<T>(path, {
     method: "PATCH",
     signal,
-    body: JSON.stringify(body),
+    ...jsonBody(body),
   });
 }
 
@@ -671,10 +684,7 @@ export const adminApi = {
       {
         method: "POST",
         signal,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
+        ...jsonBody(input),
       }
     ),
 
@@ -688,10 +698,7 @@ export const adminApi = {
     adminRequest<{ success: boolean; user: AdminUserRow }>("/admin/users", {
       method: "POST",
       signal,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(input),
+      ...jsonBody(input),
     }),
 
   updateAdminUser: (
@@ -845,10 +852,7 @@ export const adminApi = {
       {
         method: "POST",
         signal,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(input),
+        ...jsonBody(input),
       }
     ),
 
@@ -860,10 +864,7 @@ export const adminApi = {
     adminRequest<{ success: boolean; shop: AdminShopRow }>("/admin/shops", {
       method: "POST",
       signal,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(input),
+      ...jsonBody(input),
     }),
 
   updateAdminShop: (

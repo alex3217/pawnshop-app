@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import AdminPageShell from "../admin/components/AdminPageShell";
 import { adminApi } from "../admin/services/adminApi";
-import type { AdminUserRow } from "../admin/services/adminApi";
+import type {
+  AdminUserRow,
+  CreateAdminUserInput,
+  UpdateAdminUserInput,
+} from "../admin/services/adminApi";
 import {
   compareValues,
   downloadCsv,
@@ -11,7 +15,26 @@ import {
 } from "../admin/utils/adminControlUtils";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
-type RoleFilter = "ALL" | "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
+type RoleFilter = "ALL" | UserRole;
+type UserRole = "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
+type ModalMode = "create" | "edit";
+
+type UserFormState = {
+  id?: string;
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  isActive: boolean;
+};
+
+const EMPTY_USER_FORM: UserFormState = {
+  name: "",
+  email: "",
+  password: "",
+  role: "CONSUMER",
+  isActive: true,
+};
 
 function getUserStatus(user: AdminUserRow) {
   return user.isActive === false ? "INACTIVE" : "ACTIVE";
@@ -23,10 +46,36 @@ function badgeClass(status: string) {
   return "badge";
 }
 
+function toUserRole(value: unknown): UserRole {
+  const role = String(value || "").toUpperCase();
+
+  if (role === "OWNER") return "OWNER";
+  if (role === "ADMIN") return "ADMIN";
+  if (role === "SUPER_ADMIN") return "SUPER_ADMIN";
+
+  return "CONSUMER";
+}
+
+function getUserName(user: AdminUserRow) {
+  return user.name || "";
+}
+
+function buildEditForm(user: AdminUserRow): UserFormState {
+  return {
+    id: user.id,
+    name: getUserName(user),
+    email: user.email || "",
+    password: "",
+    role: toUserRole(user.role),
+    isActive: user.isActive !== false,
+  };
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
+  const [savingForm, setSavingForm] = useState(false);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
@@ -34,6 +83,8 @@ export default function AdminUsersPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+  const [form, setForm] = useState<UserFormState>(EMPTY_USER_FORM);
 
   async function load() {
     setLoading(true);
@@ -55,12 +106,124 @@ export default function AdminUsersPage() {
   const filteredUsers = useMemo(() => {
     return users
       .filter((user) =>
-        includesSearch(user as Record<string, unknown>, query, ["email", "name", "role", "id"]),
+        includesSearch(user as Record<string, unknown>, query, [
+          "email",
+          "name",
+          "role",
+          "id",
+        ]),
       )
       .filter((user) => roleFilter === "ALL" || user.role === roleFilter)
       .filter((user) => statusFilter === "ALL" || getUserStatus(user) === statusFilter)
       .sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDirection));
   }, [query, roleFilter, sortDirection, sortKey, statusFilter, users]);
+
+  function openCreateModal() {
+    setError("");
+    setNotice("");
+    setForm(EMPTY_USER_FORM);
+    setModalMode("create");
+  }
+
+  function openEditModal(user: AdminUserRow) {
+    setError("");
+    setNotice("");
+    setForm(buildEditForm(user));
+    setModalMode("edit");
+  }
+
+  function closeModal() {
+    if (savingForm) return;
+
+    setModalMode(null);
+    setForm(EMPTY_USER_FORM);
+  }
+
+  function updateForm<K extends keyof UserFormState>(key: K, value: UserFormState[K]) {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  async function submitUserForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setError("");
+    setNotice("");
+
+    const name = form.name.trim();
+    const email = form.email.trim().toLowerCase();
+
+    if (!email) {
+      setError("Email is required.");
+      return;
+    }
+
+    if (modalMode === "create" && form.password.length < 8) {
+      setError("Temporary password must be at least 8 characters.");
+      return;
+    }
+
+    if (modalMode === "edit" && form.id) {
+      const existing = users.find((user) => user.id === form.id);
+
+      if (existing && existing.role !== form.role) {
+        const confirmed = window.confirm(
+          `Change ${existing.email} role from ${existing.role} to ${form.role}?`,
+        );
+        if (!confirmed) return;
+      }
+
+      if (existing && existing.isActive !== form.isActive) {
+        const confirmed = window.confirm(
+          `${form.isActive ? "Activate" : "Deactivate"} ${existing.email}?`,
+        );
+        if (!confirmed) return;
+      }
+    }
+
+    setSavingForm(true);
+
+    try {
+      if (modalMode === "create") {
+        const input: CreateAdminUserInput = {
+          name,
+          email,
+          password: form.password,
+          role: form.role,
+          isActive: form.isActive,
+        };
+
+        const response = await adminApi.createAdminUser(input);
+
+        setUsers((current) => [response.user, ...current]);
+        setNotice(`Created ${response.user.email}.`);
+      }
+
+      if (modalMode === "edit" && form.id) {
+        const input: UpdateAdminUserInput = {
+          name,
+          email,
+          role: form.role,
+          isActive: form.isActive,
+        };
+
+        const response = await adminApi.updateAdminUser(form.id, input);
+
+        setUsers((current) =>
+          current.map((user) => (user.id === response.user.id ? response.user : user)),
+        );
+        setNotice(`Updated ${response.user.email}.`);
+      }
+
+      closeModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save user.");
+    } finally {
+      setSavingForm(false);
+    }
+  }
 
   async function toggleUser(user: AdminUserRow) {
     if (!user.id || busyId) return;
@@ -113,9 +276,12 @@ export default function AdminUsersPage() {
   return (
     <AdminPageShell
       title="Admin Users"
-      subtitle="Search, filter, export, activate, and deactivate platform users."
+      subtitle="Search, filter, export, create, edit, activate, and deactivate platform users."
       actions={
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button className="btn btn-primary" onClick={openCreateModal}>
+            Add User
+          </button>
           <button className="btn btn-secondary" onClick={exportUsers}>
             Export CSV
           </button>
@@ -222,17 +388,26 @@ export default function AdminUsersPage() {
                       </td>
                       <td>{formatDate(user.createdAt)}</td>
                       <td style={{ textAlign: "right" }}>
-                        <button
-                          className="btn btn-secondary"
-                          disabled={busyId === user.id}
-                          onClick={() => void toggleUser(user)}
-                        >
-                          {busyId === user.id
-                            ? "Saving..."
-                            : status === "ACTIVE"
-                              ? "Deactivate"
-                              : "Activate"}
-                        </button>
+                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                          <button
+                            className="btn btn-secondary"
+                            disabled={Boolean(busyId)}
+                            onClick={() => openEditModal(user)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            disabled={busyId === user.id}
+                            onClick={() => void toggleUser(user)}
+                          >
+                            {busyId === user.id
+                              ? "Saving..."
+                              : status === "ACTIVE"
+                                ? "Deactivate"
+                                : "Activate"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -242,6 +417,167 @@ export default function AdminUsersPage() {
           </table>
         </div>
       </div>
+
+      {modalMode ? (
+        <div style={modalStyles.backdrop} role="dialog" aria-modal="true">
+          <form onSubmit={submitUserForm} style={modalStyles.card}>
+            <div style={modalStyles.header}>
+              <div>
+                <h2 style={modalStyles.title}>
+                  {modalMode === "create" ? "Add User" : "Edit User"}
+                </h2>
+                <p style={modalStyles.subtitle}>
+                  {modalMode === "create"
+                    ? "Create a user and assign their starting role."
+                    : "Update user profile, role, and active status."}
+                </p>
+              </div>
+
+              <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                Close
+              </button>
+            </div>
+
+            <div style={modalStyles.grid}>
+              <label style={modalStyles.label}>
+                Name
+                <input
+                  value={form.name}
+                  onChange={(event) => updateForm("name", event.target.value)}
+                  className="admin-control-input"
+                  placeholder="Full name"
+                />
+              </label>
+
+              <label style={modalStyles.label}>
+                Email
+                <input
+                  value={form.email}
+                  onChange={(event) => updateForm("email", event.target.value)}
+                  className="admin-control-input"
+                  placeholder="user@example.com"
+                  type="email"
+                  required
+                />
+              </label>
+
+              {modalMode === "create" ? (
+                <label style={modalStyles.label}>
+                  Temporary password
+                  <input
+                    value={form.password}
+                    onChange={(event) => updateForm("password", event.target.value)}
+                    className="admin-control-input"
+                    placeholder="At least 8 characters"
+                    type="password"
+                    minLength={8}
+                    required
+                  />
+                </label>
+              ) : null}
+
+              <label style={modalStyles.label}>
+                Role
+                <select
+                  value={form.role}
+                  onChange={(event) => updateForm("role", event.target.value as UserRole)}
+                  className="admin-control-select"
+                >
+                  <option value="CONSUMER">Consumer</option>
+                  <option value="OWNER">Owner</option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="SUPER_ADMIN">Super Admin</option>
+                </select>
+              </label>
+
+              <label style={modalStyles.checkboxLabel}>
+                <input
+                  checked={form.isActive}
+                  onChange={(event) => updateForm("isActive", event.target.checked)}
+                  type="checkbox"
+                />
+                Active account
+              </label>
+            </div>
+
+            <div style={modalStyles.footer}>
+              <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" disabled={savingForm} type="submit">
+                {savingForm
+                  ? "Saving..."
+                  : modalMode === "create"
+                    ? "Create User"
+                    : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </AdminPageShell>
   );
 }
+
+const modalStyles = {
+  backdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 50,
+    display: "grid",
+    placeItems: "center",
+    padding: 20,
+    background: "rgba(2, 6, 23, 0.72)",
+    backdropFilter: "blur(6px)",
+  },
+  card: {
+    width: "min(760px, 100%)",
+    border: "1px solid rgba(148, 163, 184, 0.24)",
+    borderRadius: 22,
+    background: "#0f172a",
+    boxShadow: "0 28px 80px rgba(0,0,0,0.45)",
+    padding: 20,
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 18,
+  },
+  title: {
+    margin: 0,
+    color: "#f8fafc",
+    fontSize: 22,
+    fontWeight: 900,
+  },
+  subtitle: {
+    margin: "4px 0 0",
+    color: "#aab6d3",
+    fontSize: 13,
+  },
+  grid: {
+    display: "grid",
+    gap: 12,
+  },
+  label: {
+    display: "grid",
+    gap: 6,
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  footer: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 18,
+  },
+} as const;

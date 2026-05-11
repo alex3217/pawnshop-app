@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import AdminPageShell from "../admin/components/AdminPageShell";
 import { adminApi } from "../admin/services/adminApi";
-import type { AdminItemRow } from "../admin/services/adminApi";
+import type { AdminItemRow, UpdateAdminItemInput } from "../admin/services/adminApi";
 import {
   compareValues,
   downloadCsv,
@@ -12,6 +12,55 @@ import {
 } from "../admin/utils/adminControlUtils";
 
 type StatusFilter = "ALL" | "ACTIVE" | "DELETED";
+type ModalMode = "edit";
+
+type ItemFormState = {
+  id?: string;
+  title: string;
+  description: string;
+  price: string;
+  currency: string;
+  category: string;
+  condition: string;
+  status: string;
+  isDeleted: boolean;
+};
+
+const EMPTY_ITEM_FORM: ItemFormState = {
+  title: "",
+  description: "",
+  price: "",
+  currency: "USD",
+  category: "",
+  condition: "",
+  status: "AVAILABLE",
+  isDeleted: false,
+};
+
+const ITEM_STATUS_OPTIONS = [
+  "AVAILABLE",
+  "PENDING",
+  "SOLD",
+  "DRAFT",
+  "ARCHIVED",
+  "UNKNOWN",
+];
+
+const CONDITION_OPTIONS = [
+  "",
+  "NEW",
+  "LIKE_NEW",
+  "GOOD",
+  "FAIR",
+  "POOR",
+  "USED",
+  "REFURBISHED",
+];
+
+function toText(value: unknown, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+}
 
 function getShopName(item: AdminItemRow) {
   const shop = (item as Record<string, unknown>).shop;
@@ -27,16 +76,35 @@ function getItemStatus(item: AdminItemRow) {
   return item.isDeleted ? "DELETED" : String(item.status || "ACTIVE");
 }
 
+function buildEditForm(item: AdminItemRow): ItemFormState {
+  const record = item as Record<string, unknown>;
+
+  return {
+    id: item.id,
+    title: toText(item.title),
+    description: toText(record.description),
+    price: item.price === null || item.price === undefined ? "" : String(item.price),
+    currency: toText(item.currency, "USD").toUpperCase(),
+    category: toText(item.category),
+    condition: toText(item.condition),
+    status: toText(item.status, "AVAILABLE").toUpperCase(),
+    isDeleted: Boolean(item.isDeleted),
+  };
+}
+
 export default function AdminItemsPage() {
   const [items, setItems] = useState<AdminItemRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
+  const [savingForm, setSavingForm] = useState(false);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [sortKey, setSortKey] = useState<keyof AdminItemRow>("createdAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+  const [form, setForm] = useState<ItemFormState>(EMPTY_ITEM_FORM);
 
   async function load() {
     setLoading(true);
@@ -57,15 +125,17 @@ export default function AdminItemsPage() {
 
   const filteredItems = useMemo(() => {
     return items
-      .filter((item) =>
-        includesSearch(item as Record<string, unknown>, query, [
-          "id",
-          "title",
-          "category",
-          "condition",
-          "status",
-          "description",
-        ]) || getShopName(item).toLowerCase().includes(query.trim().toLowerCase()),
+      .filter(
+        (item) =>
+          includesSearch(item as Record<string, unknown>, query, [
+            "id",
+            "title",
+            "category",
+            "condition",
+            "status",
+            "description",
+            "currency",
+          ]) || getShopName(item).toLowerCase().includes(query.trim().toLowerCase()),
       )
       .filter((item) => {
         if (statusFilter === "ALL") return true;
@@ -74,6 +144,93 @@ export default function AdminItemsPage() {
       })
       .sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDirection));
   }, [items, query, sortDirection, sortKey, statusFilter]);
+
+  function openEditModal(item: AdminItemRow) {
+    setError("");
+    setNotice("");
+    setForm(buildEditForm(item));
+    setModalMode("edit");
+  }
+
+  function closeModal() {
+    if (savingForm) return;
+
+    setModalMode(null);
+    setForm(EMPTY_ITEM_FORM);
+  }
+
+  function updateForm<K extends keyof ItemFormState>(key: K, value: ItemFormState[K]) {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  async function submitItemForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setError("");
+    setNotice("");
+
+    const title = form.title.trim();
+
+    if (!form.id) {
+      setError("Item id is missing.");
+      return;
+    }
+
+    if (!title) {
+      setError("Item title is required.");
+      return;
+    }
+
+    const price = form.price.trim() === "" ? undefined : Number(form.price);
+
+    if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
+      setError("Price must be a valid non-negative number.");
+      return;
+    }
+
+    const existing = items.find((item) => item.id === form.id);
+
+    if (existing && Boolean(existing.isDeleted) !== form.isDeleted) {
+      const confirmed = window.confirm(
+        `${form.isDeleted ? "Delete" : "Restore"} "${existing.title || existing.id}"?`,
+      );
+      if (!confirmed) return;
+    }
+
+    setSavingForm(true);
+
+    try {
+      const input: UpdateAdminItemInput = {
+        title,
+        description: form.description.trim(),
+        category: form.category.trim(),
+        condition: form.condition.trim(),
+        status: form.status.trim().toUpperCase(),
+        currency: form.currency.trim().toUpperCase() || "USD",
+        isDeleted: form.isDeleted,
+      };
+
+      if (price !== undefined) {
+        input.price = price;
+      }
+
+      const response = await adminApi.updateAdminItem(form.id, input);
+
+      setItems((current) =>
+        current.map((item) => (item.id === response.item.id ? response.item : item)),
+      );
+
+      setNotice(`Updated ${response.item.title || "item"}.`);
+      closeModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save item.");
+    } finally {
+      setSavingForm(false);
+    }
+  }
 
   async function toggleItem(item: AdminItemRow) {
     if (!item.id || busyId) return;
@@ -117,6 +274,7 @@ export default function AdminItemsPage() {
         id: item.id,
         title: item.title,
         price: item.price,
+        currency: item.currency,
         category: item.category,
         condition: item.condition,
         status: getItemStatus(item),
@@ -129,7 +287,7 @@ export default function AdminItemsPage() {
   return (
     <AdminPageShell
       title="Admin Inventory Control"
-      subtitle="Search, filter, export, delete, and restore marketplace listings."
+      subtitle="Search, filter, export, edit, delete, and restore marketplace listings."
       actions={
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="btn btn-secondary" onClick={exportItems}>
@@ -145,7 +303,7 @@ export default function AdminItemsPage() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search inventory by title, category, shop, condition, or id..."
+          placeholder="Search inventory by title, category, shop, condition, status, or id..."
           className="admin-control-input"
         />
 
@@ -219,7 +377,10 @@ export default function AdminItemsPage() {
                     <tr key={item.id}>
                       <td>
                         <strong>{item.title}</strong>
-                        <div className="admin-muted">{item.category || "Uncategorized"} · {item.condition || "Unknown condition"}</div>
+                        <div className="admin-muted">
+                          {item.category || "Uncategorized"} ·{" "}
+                          {item.condition || "Unknown condition"}
+                        </div>
                         <div className="admin-muted small">{item.id}</div>
                       </td>
                       <td>{getShopName(item)}</td>
@@ -231,17 +392,26 @@ export default function AdminItemsPage() {
                       </td>
                       <td>{formatDate(item.createdAt)}</td>
                       <td style={{ textAlign: "right" }}>
-                        <button
-                          className="btn btn-secondary"
-                          disabled={busyId === item.id}
-                          onClick={() => void toggleItem(item)}
-                        >
-                          {busyId === item.id
-                            ? "Saving..."
-                            : item.isDeleted
-                              ? "Restore"
-                              : "Delete"}
-                        </button>
+                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                          <button
+                            className="btn btn-secondary"
+                            disabled={Boolean(busyId)}
+                            onClick={() => openEditModal(item)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            disabled={busyId === item.id}
+                            onClick={() => void toggleItem(item)}
+                          >
+                            {busyId === item.id
+                              ? "Saving..."
+                              : item.isDeleted
+                                ? "Restore"
+                                : "Delete"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -251,6 +421,196 @@ export default function AdminItemsPage() {
           </table>
         </div>
       </div>
+
+      {modalMode ? (
+        <div style={modalStyles.backdrop} role="dialog" aria-modal="true">
+          <form onSubmit={submitItemForm} style={modalStyles.card}>
+            <div style={modalStyles.header}>
+              <div>
+                <h2 style={modalStyles.title}>Edit Item</h2>
+                <p style={modalStyles.subtitle}>
+                  Update listing title, price, status, category, condition, and visibility.
+                </p>
+              </div>
+
+              <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                Close
+              </button>
+            </div>
+
+            <div style={modalStyles.grid}>
+              <label style={modalStyles.label}>
+                Title
+                <input
+                  value={form.title}
+                  onChange={(event) => updateForm("title", event.target.value)}
+                  className="admin-control-input"
+                  placeholder="Item title"
+                  required
+                />
+              </label>
+
+              <label style={modalStyles.label}>
+                Price
+                <input
+                  value={form.price}
+                  onChange={(event) => updateForm("price", event.target.value)}
+                  className="admin-control-input"
+                  min={0}
+                  placeholder="0.00"
+                  step="0.01"
+                  type="number"
+                />
+              </label>
+
+              <label style={modalStyles.label}>
+                Currency
+                <input
+                  value={form.currency}
+                  onChange={(event) => updateForm("currency", event.target.value)}
+                  className="admin-control-input"
+                  placeholder="USD"
+                  maxLength={3}
+                />
+              </label>
+
+              <label style={modalStyles.label}>
+                Category
+                <input
+                  value={form.category}
+                  onChange={(event) => updateForm("category", event.target.value)}
+                  className="admin-control-input"
+                  placeholder="Category"
+                />
+              </label>
+
+              <label style={modalStyles.label}>
+                Condition
+                <select
+                  value={form.condition}
+                  onChange={(event) => updateForm("condition", event.target.value)}
+                  className="admin-control-select"
+                >
+                  {CONDITION_OPTIONS.map((condition) => (
+                    <option key={condition || "blank"} value={condition}>
+                      {condition || "Unspecified"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={modalStyles.label}>
+                Status
+                <select
+                  value={form.status}
+                  onChange={(event) => updateForm("status", event.target.value)}
+                  className="admin-control-select"
+                >
+                  {ITEM_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={modalStyles.label}>
+                Description
+                <textarea
+                  value={form.description}
+                  onChange={(event) => updateForm("description", event.target.value)}
+                  className="admin-control-input"
+                  placeholder="Item description"
+                  rows={4}
+                />
+              </label>
+
+              <label style={modalStyles.checkboxLabel}>
+                <input
+                  checked={!form.isDeleted}
+                  onChange={(event) => updateForm("isDeleted", !event.target.checked)}
+                  type="checkbox"
+                />
+                Listing is active
+              </label>
+            </div>
+
+            <div style={modalStyles.footer}>
+              <button type="button" className="btn btn-secondary" onClick={closeModal}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" disabled={savingForm} type="submit">
+                {savingForm ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </AdminPageShell>
   );
 }
+
+const modalStyles = {
+  backdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 50,
+    display: "grid",
+    placeItems: "center",
+    padding: 20,
+    background: "rgba(2, 6, 23, 0.72)",
+    backdropFilter: "blur(6px)",
+  },
+  card: {
+    width: "min(820px, 100%)",
+    maxHeight: "92vh",
+    overflowY: "auto",
+    border: "1px solid rgba(148, 163, 184, 0.24)",
+    borderRadius: 22,
+    background: "#0f172a",
+    boxShadow: "0 28px 80px rgba(0,0,0,0.45)",
+    padding: 20,
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 18,
+  },
+  title: {
+    margin: 0,
+    color: "#f8fafc",
+    fontSize: 22,
+    fontWeight: 900,
+  },
+  subtitle: {
+    margin: "4px 0 0",
+    color: "#aab6d3",
+    fontSize: 13,
+  },
+  grid: {
+    display: "grid",
+    gap: 12,
+  },
+  label: {
+    display: "grid",
+    gap: 6,
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  footer: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 18,
+  },
+} as const;
