@@ -528,8 +528,24 @@ small {
   align-items: center;
 }
 
+.admin-action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-row-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .admin-control-input,
-.admin-control-select {
+.admin-control-select,
+.admin-control-textarea {
   width: 100%;
   min-height: 42px;
   border: 1px solid rgba(148, 163, 184, 0.26);
@@ -539,16 +555,38 @@ small {
   padding: 10px 12px;
   font-size: 14px;
   outline: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-.admin-control-input::placeholder {
+.admin-control-textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.admin-control-input::placeholder,
+.admin-control-textarea::placeholder {
   color: rgba(203, 213, 225, 0.62);
 }
 
+.admin-control-input:hover,
+.admin-control-select:hover,
+.admin-control-textarea:hover {
+  border-color: rgba(203, 213, 225, 0.42);
+}
+
 .admin-control-input:focus,
-.admin-control-select:focus {
+.admin-control-select:focus,
+.admin-control-textarea:focus {
   border-color: rgba(129, 140, 248, 0.9);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+  background: rgba(15, 23, 42, 0.95);
+}
+
+.admin-control-select {
+  cursor: pointer;
 }
 
 .admin-notice {
@@ -570,12 +608,18 @@ small {
   color: #fecaca;
 }
 
+.admin-notice.info {
+  border: 1px solid rgba(96, 165, 250, 0.32);
+  background: rgba(30, 64, 175, 0.2);
+  color: #bfdbfe;
+}
+
 .admin-table-card {
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 20px;
   background: rgba(15, 23, 42, 0.92);
   overflow: hidden;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.18);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
 }
 
 .admin-table-meta {
@@ -614,6 +658,10 @@ small {
   vertical-align: top;
 }
 
+.admin-table tr:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
 .admin-muted {
   color: #aab6d3;
   margin-top: 3px;
@@ -631,16 +679,142 @@ small {
   padding: 4px 9px;
   font-size: 11px;
   font-weight: 900;
-  background: rgba(100,116,139,0.24);
+  background: rgba(100, 116, 139, 0.24);
   color: #cbd5e1;
+  white-space: nowrap;
 }
 
 .badge-success {
-  background: rgba(6,78,59,0.32);
+  background: rgba(6, 78, 59, 0.32);
   color: #86efac;
 }
 
 .badge-danger {
-  background: rgba(127,29,29,0.32);
+  background: rgba(127, 29, 29, 0.32);
   color: #fecaca;
 }
+
+.badge-warning {
+  background: rgba(113, 63, 18, 0.32);
+  color: #fde68a;
+}
+
+.badge-info {
+  background: rgba(30, 64, 175, 0.32);
+  color: #bfdbfe;
+}
+
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.admin-modal-card {
+  width: min(840px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 22px;
+  background: #0f172a;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
+  padding: 20px;
+}
+
+.admin-modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.admin-modal-title {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.admin-modal-subtitle {
+  margin: 4px 0 0;
+  color: #aab6d3;
+  font-size: 13px;
+}
+
+.admin-form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-form-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-form-label {
+  display: grid;
+  gap: 6px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-checkbox-label input[type="checkbox"] {
+  width: auto;
+  min-height: auto;
+}
+
+.admin-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+  .admin-control-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-action-row,
+  .admin-row-actions,
+  .admin-modal-header,
+  .admin-modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-row-actions {
+    justify-content: stretch;
+  }
+
+  .admin-row-actions .btn,
+  .admin-action-row .btn,
+  .admin-modal-footer .btn {
+    width: 100%;
+  }
+
+  .admin-form-grid.two {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-modal-card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+}
+
