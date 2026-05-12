@@ -1,34 +1,35 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
 import { adminApi, type SuperAdminIntegrationRow } from "../services/adminApi";
+import {
+  compareValues,
+  downloadCsv,
+  formatDate,
+  includesSearch,
+  type SortDirection,
+} from "../utils/adminControlUtils";
 
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+type StatusFilter = "ALL" | "ACTIVE" | "ARCHIVED" | "FAILED" | "ERROR";
+type DetailMode = "details" | "sync" | "mappings";
+
+function getText(row: Record<string, unknown>, keys: string[], fallback = "—") {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== null && value !== undefined && value !== "") return String(value);
+  }
+  return fallback;
 }
 
-function getStatusClass(status?: string | null) {
-  const value = String(status || "").toUpperCase();
-
-  if (["ACTIVE", "SUCCESS", "COMPLETED", "READY"].includes(value)) {
-    return "bg-green-100 text-green-700";
-  }
-
-  if (["FAILED", "ERROR", "ARCHIVED", "DISABLED"].includes(value)) {
-    return "bg-red-100 text-red-700";
-  }
-
-  if (["PENDING", "RUNNING", "SYNCING"].includes(value)) {
-    return "bg-yellow-100 text-yellow-700";
-  }
-
-  return "bg-muted text-muted-foreground";
+function getIntegrationStatus(row: SuperAdminIntegrationRow) {
+  return getText(row as Record<string, unknown>, ["status"], "UNKNOWN").toUpperCase();
 }
 
-function getIntegrationType(row: SuperAdminIntegrationRow) {
-  return row.kind || row.type || "UNKNOWN";
+function badgeClass(status: string) {
+  if (["ACTIVE", "CONNECTED", "READY", "SUCCESS"].includes(status)) return "badge badge-success";
+  if (["ARCHIVED", "DISABLED"].includes(status)) return "badge badge-danger";
+  if (["FAILED", "ERROR"].includes(status)) return "badge badge-warning";
+  return "badge";
 }
 
 export default function SuperAdminIntegrationsPage() {
@@ -36,15 +37,20 @@ export default function SuperAdminIntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [query, setQuery] = useState("");
-  const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [sortKey, setSortKey] = useState<keyof SuperAdminIntegrationRow>("createdAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [selected, setSelected] = useState<SuperAdminIntegrationRow | null>(null);
+  const [detailMode, setDetailMode] = useState<DetailMode>("details");
 
-  const load = useCallback(async () => {
+  async function load() {
     setLoading(true);
     setError("");
 
     try {
-      const result = await adminApi.getSuperAdminIntegrationsPaged({ limit: 150 });
+      const result = await adminApi.getSuperAdminIntegrationsPaged({ limit: 200 });
       setRows(result.rows);
     } catch (err) {
       setRows([]);
@@ -52,246 +58,235 @@ export default function SuperAdminIntegrationsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, []);
 
   const filteredRows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rows;
+    return rows
+      .filter((row) =>
+        includesSearch(row as Record<string, unknown>, query, [
+          "id",
+          "name",
+          "provider",
+          "providerType",
+          "type",
+          "status",
+          "shopName",
+          "ownerEmail",
+          "ownerName",
+        ]),
+      )
+      .filter((row) => statusFilter === "ALL" || getIntegrationStatus(row) === statusFilter)
+      .sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDirection));
+  }, [query, rows, sortDirection, sortKey, statusFilter]);
 
-    return rows.filter((row) =>
-      [
-        row.id,
-        row.name,
-        row.status,
-        row.kind,
-        row.type,
-        row.shopId,
-        row.shopName,
-        row.ownerId,
-        row.ownerName,
-        row.ownerEmail,
-        row.latestJob?.status,
-        row.latestJob?.error,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [query, rows]);
+  function openDetails(row: SuperAdminIntegrationRow, mode: DetailMode = "details") {
+    setSelected(row);
+    setDetailMode(mode);
+  }
 
-  const activeCount = rows.filter(
-    (row) => String(row.status || "").toUpperCase() === "ACTIVE",
-  ).length;
+  async function archiveOrRestore(row: SuperAdminIntegrationRow) {
+    const status = getIntegrationStatus(row);
+    const isArchived = status === "ARCHIVED";
+    const action = isArchived ? "restore" : "archive";
 
-  const archivedCount = rows.filter(
-    (row) => String(row.status || "").toUpperCase() === "ARCHIVED",
-  ).length;
-
-  const failedJobCount = rows.filter((row) => {
-    const status = String(row.latestJob?.status || "").toUpperCase();
-    return ["FAILED", "ERROR"].includes(status) || Boolean(row.latestJob?.error);
-  }).length;
-
-  async function archiveIntegration(row: SuperAdminIntegrationRow) {
-    if (!row.id || busyId) return;
-
-    const confirmed = window.confirm(`Archive integration "${row.name || row.id}"?`);
+    const confirmed = window.confirm(`${isArchived ? "Restore" : "Archive"} this integration?`);
     if (!confirmed) return;
 
     setBusyId(row.id);
-    setError("");
     setNotice("");
+    setError("");
 
     try {
-      const response = await adminApi.archiveSuperAdminIntegration(row.id);
+      const response = isArchived
+        ? await adminApi.restoreSuperAdminIntegration(row.id)
+        : await adminApi.archiveSuperAdminIntegration(row.id);
 
       setRows((current) =>
-        current.map((item) =>
-          item.id === row.id
-            ? {
-                ...item,
-                ...response.integration,
-                status: response.integration.status || "ARCHIVED",
-              }
-            : item,
+        current.map((entry) =>
+          entry.id === response.integration.id ? response.integration : entry,
         ),
       );
 
-      setNotice(`Archived integration "${row.name || row.id}".`);
+      setNotice(`Integration ${action}d.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to archive integration.");
+      setError(err instanceof Error ? err.message : `Failed to ${action} integration.`);
     } finally {
       setBusyId("");
     }
   }
 
+  function exportRows() {
+    downloadCsv(
+      "super-admin-integrations.csv",
+      filteredRows.map((row) => {
+        const record = row as Record<string, unknown>;
+        return {
+          id: row.id,
+          name: getText(record, ["name"]),
+          status: getText(record, ["status"]),
+          provider: getText(record, ["provider", "providerType", "type"]),
+          shopName: getText(record, ["shopName"]),
+          ownerEmail: getText(record, ["ownerEmail"]),
+          mappingCount: getText(record, ["mappingCount", "mappingsCount"], "0"),
+          lastSyncStatus: getText(record, ["lastSyncStatus", "syncStatus"]),
+          createdAt: getText(record, ["createdAt"]),
+        };
+      }),
+    );
+  }
+
   return (
     <AdminPageShell
-      title="Integration Oversight"
-      subtitle="Monitor shop inventory feeds, sync health, mapping coverage, and credential safety without exposing secrets."
+      title="Integration Control"
+      subtitle="Search, inspect, archive, restore, and govern owner inventory integrations."
       actions={
-        <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
+        <div className="admin-action-row">
+          <button className="btn btn-secondary" onClick={exportRows}>
+            Export CSV
+          </button>
+          <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
       }
     >
-      <div className="grid gap-3 md:grid-cols-4">
-        <div className="rounded-2xl border bg-background p-4 shadow-sm">
-          <div className="text-2xl font-semibold">{rows.length}</div>
-          <div className="text-sm text-muted-foreground">Total integrations</div>
+      <section className="super-admin-control-panel">
+        <div className="super-admin-control-header">
+          <div>
+            <div className="super-admin-control-kicker">Super Admin Controls</div>
+            <h2 className="super-admin-control-title">Integration Control Center</h2>
+            <p className="super-admin-control-subtitle">
+              Search integrations, inspect sync health, review mappings, archive/restore integrations,
+              and jump into shop or audit context.
+            </p>
+          </div>
+          <div className="super-admin-control-actions">
+            <button className="btn btn-secondary" onClick={exportRows}>Export CSV</button>
+            <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>Refresh</button>
+            <Link className="btn btn-secondary" to="/super-admin/shops">Shop Governance</Link>
+            <Link className="btn btn-secondary" to="/super-admin/system">System Health</Link>
+          </div>
         </div>
-        <div className="rounded-2xl border bg-background p-4 shadow-sm">
-          <div className="text-2xl font-semibold">{activeCount}</div>
-          <div className="text-sm text-muted-foreground">Active</div>
-        </div>
-        <div className="rounded-2xl border bg-background p-4 shadow-sm">
-          <div className="text-2xl font-semibold">{archivedCount}</div>
-          <div className="text-sm text-muted-foreground">Archived</div>
-        </div>
-        <div className="rounded-2xl border bg-background p-4 shadow-sm">
-          <div className="text-2xl font-semibold">{failedJobCount}</div>
-          <div className="text-sm text-muted-foreground">Latest sync issues</div>
-        </div>
-      </div>
 
-      {notice ? (
-        <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-          {notice}
-        </div>
-      ) : null}
+        <ul className="super-admin-control-list">
+          <li>Use View Details to inspect integration identity, shop, owner, and status.</li>
+          <li>Use Sync Jobs to review sync status summaries already returned by the oversight endpoint.</li>
+          <li>Use Mappings to inspect field mapping counts and mapping readiness.</li>
+          <li>Use Archive / Restore for safe non-destructive integration moderation.</li>
+        </ul>
+      </section>
 
-      {error ? (
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="mt-4 rounded-2xl border bg-background p-4 shadow-sm">
+      <div className="admin-control-bar">
         <input
+          className="admin-control-input"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search integration, shop, owner, status, sync error..."
-          className="w-full rounded-lg border px-3 py-2 text-sm"
+          placeholder="Search integrations by name, provider, shop, owner, status, or id..."
         />
+
+        <select
+          className="admin-control-select"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+        >
+          <option value="ALL">All statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="ARCHIVED">Archived</option>
+          <option value="FAILED">Failed</option>
+          <option value="ERROR">Error</option>
+        </select>
+
+        <select
+          className="admin-control-select"
+          value={String(sortKey)}
+          onChange={(event) => setSortKey(event.target.value as keyof SuperAdminIntegrationRow)}
+        >
+          <option value="createdAt">Sort by created</option>
+          <option value="updatedAt">Sort by updated</option>
+          <option value="status">Sort by status</option>
+          <option value="name">Sort by name</option>
+        </select>
+
+        <select
+          className="admin-control-select"
+          value={sortDirection}
+          onChange={(event) => setSortDirection(event.target.value as SortDirection)}
+        >
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border bg-background shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1200px] border-collapse text-sm">
+      {notice ? <div className="admin-notice success">{notice}</div> : null}
+      {error ? <div className="admin-notice danger">{error}</div> : null}
+
+      <div className="admin-table-card">
+        <div className="admin-table-meta">
+          Showing {filteredRows.length} of {rows.length} integrations
+        </div>
+
+        <div className="admin-table-scroll">
+          <table className="admin-table">
             <thead>
-              <tr className="border-b bg-muted/40 text-left">
-                <th className="p-3 font-medium">Integration</th>
-                <th className="p-3 font-medium">Shop / Owner</th>
-                <th className="p-3 font-medium">Status</th>
-                <th className="p-3 font-medium">Mapping</th>
-                <th className="p-3 font-medium">Latest Sync</th>
-                <th className="p-3 font-medium">Credential</th>
-                <th className="p-3 font-medium">Created</th>
-                <th className="p-3 font-medium text-right">Actions</th>
+              <tr>
+                <th>Integration</th>
+                <th>Shop / Owner</th>
+                <th>Status</th>
+                <th>Mappings</th>
+                <th>Last Sync</th>
+                <th>Created</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
 
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="p-6 text-center text-muted-foreground">
-                    Loading integrations...
-                  </td>
-                </tr>
+                <tr><td colSpan={7}>Loading integrations...</td></tr>
               ) : filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-6 text-center text-muted-foreground">
-                    No integrations found.
-                  </td>
-                </tr>
+                <tr><td colSpan={7}>No integrations match your filters.</td></tr>
               ) : (
                 filteredRows.map((row) => {
-                  const status = row.status || "UNKNOWN";
-                  const isArchived = String(status).toUpperCase() === "ARCHIVED";
+                  const record = row as Record<string, unknown>;
+                  const status = getIntegrationStatus(row);
+                  const isArchived = status === "ARCHIVED";
+                  const shopId = getText(record, ["shopId", "pawnShopId"], "");
 
                   return (
-                    <tr key={row.id} className="border-b last:border-b-0">
-                      <td className="p-3">
-                        <div className="font-medium">{row.name || "Unnamed integration"}</div>
-                        <div className="text-muted-foreground">{getIntegrationType(row)}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{row.id}</div>
+                    <tr key={row.id}>
+                      <td>
+                        <strong>{getText(record, ["name"], "Unnamed integration")}</strong>
+                        <div className="admin-muted">{getText(record, ["provider", "providerType", "type"], "Unknown provider")}</div>
+                        <div className="admin-muted small">{row.id}</div>
                       </td>
-
-                      <td className="p-3">
-                        <div className="font-medium">{row.shopName || "Unknown shop"}</div>
-                        <div className="text-muted-foreground">{row.ownerEmail || "Unknown owner"}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{row.shopId || "—"}</div>
+                      <td>
+                        <strong>{getText(record, ["shopName"], "Unknown shop")}</strong>
+                        <div className="admin-muted">{getText(record, ["ownerEmail", "ownerName"], "Unknown owner")}</div>
                       </td>
-
-                      <td className="p-3">
-                        <span className={`rounded-full px-2 py-1 text-xs ${getStatusClass(status)}`}>
-                          {status}
-                        </span>
-                      </td>
-
-                      <td className="p-3">
-                        <div>{Number(row.mappingsCount || 0)} mappings</div>
-                        <div className="text-muted-foreground">{Number(row.jobsCount || 0)} jobs loaded</div>
-                      </td>
-
-                      <td className="p-3">
-                        {row.latestJob ? (
-                          <>
-                            <span
-                              className={`rounded-full px-2 py-1 text-xs ${getStatusClass(
-                                row.latestJob.status,
-                              )}`}
-                            >
-                              {row.latestJob.status || "UNKNOWN"}
-                            </span>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {formatDate(row.latestJob.updatedAt || row.latestJob.createdAt)}
-                            </div>
-                            {row.latestJob.error ? (
-                              <div className="mt-1 max-w-[260px] text-xs text-red-600">
-                                {row.latestJob.error}
-                              </div>
-                            ) : null}
-                          </>
-                        ) : (
-                          <span className="text-muted-foreground">No sync jobs</span>
-                        )}
-                      </td>
-
-                      <td className="p-3">
-                        <span
-                          className={`rounded-full px-2 py-1 text-xs ${
-                            row.hasCredential
-                              ? "bg-green-100 text-green-700"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {row.hasCredential ? "Stored safely" : "None"}
-                        </span>
-                      </td>
-
-                      <td className="p-3 text-muted-foreground">
-                        {formatDate(row.createdAt)}
-                      </td>
-
-                      <td className="p-3 text-right">
-                        <button
-                          type="button"
-                          className="button"
-                          disabled={busyId === row.id || isArchived}
-                          onClick={() => void archiveIntegration(row)}
-                        >
-                          {busyId === row.id
-                            ? "Archiving..."
-                            : isArchived
-                              ? "Archived"
-                              : "Archive"}
-                        </button>
+                      <td><span className={badgeClass(status)}>{status}</span></td>
+                      <td>{getText(record, ["mappingCount", "mappingsCount"], "0")}</td>
+                      <td>{getText(record, ["lastSyncStatus", "syncStatus"], "—")}</td>
+                      <td>{formatDate(getText(record, ["createdAt"], ""))}</td>
+                      <td style={{ textAlign: "right" }}>
+                        <div className="super-admin-row-actions">
+                          <button className="btn btn-secondary" onClick={() => openDetails(row, "details")}>View Details</button>
+                          <button className="btn btn-secondary" onClick={() => openDetails(row, "sync")}>Sync Jobs</button>
+                          <button className="btn btn-secondary" onClick={() => openDetails(row, "mappings")}>Mappings</button>
+                          {shopId ? (
+                            <Link className="btn btn-secondary" to={`/super-admin/shops?q=${encodeURIComponent(shopId)}`}>Shop</Link>
+                          ) : null}
+                          <Link className="btn btn-secondary" to={`/super-admin/audit?targetType=INTEGRATION&targetId=${row.id}`}>Audit</Link>
+                          <button
+                            className="btn btn-secondary"
+                            disabled={busyId === row.id}
+                            onClick={() => void archiveOrRestore(row)}
+                          >
+                            {busyId === row.id ? "Saving..." : isArchived ? "Restore" : "Archive"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -301,6 +296,35 @@ export default function SuperAdminIntegrationsPage() {
           </table>
         </div>
       </div>
+
+      {selected ? (
+        <div className="admin-modal-backdrop" role="dialog" aria-modal="true">
+          <section className="admin-modal-card">
+            <div className="admin-modal-header">
+              <div>
+                <h2 className="admin-modal-title">
+                  {detailMode === "details" ? "Integration Details" : detailMode === "sync" ? "Sync Jobs" : "Field Mappings"}
+                </h2>
+                <p className="admin-modal-subtitle">
+                  {getText(selected as Record<string, unknown>, ["name"], selected.id)}
+                </p>
+              </div>
+              <button className="btn btn-secondary" onClick={() => setSelected(null)}>Close</button>
+            </div>
+
+            <div className="stack">
+              {Object.entries(selected as Record<string, unknown>).map(([key, value]) => (
+                <div key={key} className="panel" style={{ padding: 12 }}>
+                  <strong>{key}</strong>
+                  <div className="admin-muted" style={{ wordBreak: "break-word" }}>
+                    {typeof value === "object" ? JSON.stringify(value, null, 2) : String(value ?? "—")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </AdminPageShell>
   );
 }

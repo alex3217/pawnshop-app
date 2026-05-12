@@ -833,6 +833,16 @@ export const adminApi = {
       signal
     ),
 
+  restoreSuperAdminIntegration: (
+    id: string,
+    signal?: AbortSignal
+  ) =>
+    patchJson<{ success: boolean; integration: SuperAdminIntegrationRow }>(
+      `/super-admin/integrations/${encodeURIComponent(id)}/restore`,
+      {},
+      signal
+    ),
+
   updateSuperAdminShop: (
     id: string,
     input: Partial<AdminShopRow>,

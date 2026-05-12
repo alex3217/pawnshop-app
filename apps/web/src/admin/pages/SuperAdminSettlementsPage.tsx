@@ -1,574 +1,366 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import AdminPageShell from "../components/AdminPageShell";
 import { adminApi, type AdminSettlementRow } from "../services/adminApi";
+import {
+  compareValues,
+  downloadCsv,
+  formatDate,
+  formatMoney,
+  includesSearch,
+  type SortDirection,
+} from "../utils/adminControlUtils";
 
-const STATUS_OPTIONS = ["PENDING", "CHARGED", "FAILED", "CANCELED", "REFUNDED"];
-const FILTER_OPTIONS = ["ALL", ...STATUS_OPTIONS];
+type StatusFilter = "ALL" | "PENDING" | "CHARGED" | "FAILED" | "CANCELED";
+type ModalMode = "view" | "edit";
 
-type SettlementNotice = {
-  type: "success" | "warning" | "danger";
-  text: string;
+type SettlementFormState = {
+  id: string;
+  status: string;
+  currency: string;
+  finalAmountCents: string;
+  stripePaymentIntent: string;
 };
 
-function normalizeStatus(value?: string | null) {
-  return String(value || "PENDING").trim().toUpperCase();
+const EMPTY_FORM: SettlementFormState = {
+  id: "",
+  status: "PENDING",
+  currency: "USD",
+  finalAmountCents: "",
+  stripePaymentIntent: "",
+};
+
+const SETTLEMENT_STATUS_OPTIONS = ["PENDING", "CHARGED", "FAILED", "CANCELED"];
+
+
+function getSettlementStatus(row: AdminSettlementRow) {
+  return String(row.status || "UNKNOWN").toUpperCase();
 }
 
-function toNumber(value: unknown) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
+function badgeClass(status: string) {
+  if (["CHARGED", "COMPLETED", "PAID"].includes(status)) return "badge badge-success";
+  if (["FAILED", "CANCELED"].includes(status)) return "badge badge-danger";
+  if (["PENDING"].includes(status)) return "badge badge-warning";
+  return "badge";
 }
 
-function getSettlementCents(settlement: AdminSettlementRow) {
-  if (typeof settlement.finalAmountCents === "number") {
-    return settlement.finalAmountCents;
-  }
-
-  if (settlement.finalPrice !== undefined && settlement.finalPrice !== null) {
-    return Math.round(toNumber(settlement.finalPrice) * 100);
-  }
-
-  return 0;
+function getSettlementTitle(row: AdminSettlementRow) {
+  return row.auction?.item?.title || row.auctionId || row.id;
 }
 
-function formatMoney(
-  cents?: number | null,
-  fallbackAmount?: string | number | null,
-  currency = "USD",
-) {
-  if (typeof cents === "number") {
-    return (cents / 100).toLocaleString(undefined, {
-      style: "currency",
-      currency: currency || "USD",
-    });
-  }
-
-  const amount = Number(fallbackAmount || 0);
-  return amount.toLocaleString(undefined, {
-    style: "currency",
-    currency: currency || "USD",
-  });
+function getFinalAmountCents(row: AdminSettlementRow) {
+  if (typeof row.finalAmountCents === "number") return String(row.finalAmountCents);
+  const price = Number(row.finalPrice);
+  if (Number.isFinite(price)) return String(Math.round(price * 100));
+  return "";
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-
-  return date.toLocaleString();
-}
-
-function shortId(value?: string | null, size = 10) {
-  if (!value) return "—";
-  return value.length > size ? `${value.slice(0, size)}…` : value;
-}
-
-function getAuctionId(settlement: AdminSettlementRow) {
-  return settlement.auction?.id || settlement.auctionId || "";
-}
-
-function getItemId(settlement: AdminSettlementRow) {
-  return settlement.auction?.item?.id || settlement.auction?.itemId || "";
-}
-
-function getShopId(settlement: AdminSettlementRow) {
-  return settlement.auction?.shop?.id || settlement.auction?.shopId || "";
-}
-
-function getItemTitle(settlement: AdminSettlementRow) {
-  return settlement.auction?.item?.title || "Auction item";
-}
-
-function getShopName(settlement: AdminSettlementRow) {
-  return settlement.auction?.shop?.name || "Unknown shop";
-}
-
-function statusBadgeClass(status?: string | null) {
-  const normalized = normalizeStatus(status);
-
-  if (normalized === "CHARGED") {
-    return "border-green-200 bg-green-50 text-green-700";
-  }
-
-  if (normalized === "PENDING") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (normalized === "FAILED") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  if (normalized === "CANCELED" || normalized === "REFUNDED") {
-    return "border-slate-200 bg-slate-50 text-slate-700";
-  }
-
-  return "border-slate-200 bg-slate-50 text-slate-700";
-}
-
-function StatusBadge({ status }: { status?: string | null }) {
-  return (
-    <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadgeClass(
-        status,
-      )}`}
-    >
-      {normalizeStatus(status)}
-    </span>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  help,
-}: {
-  label: string;
-  value: string | number;
-  help?: string;
-}) {
-  return (
-    <div className="rounded-2xl border bg-background p-4 shadow-sm">
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
-      {help ? <div className="mt-1 text-xs text-muted-foreground">{help}</div> : null}
-    </div>
-  );
+function buildForm(row: AdminSettlementRow): SettlementFormState {
+  return {
+    id: row.id,
+    status: getSettlementStatus(row),
+    currency: String(row.currency || "USD").toUpperCase(),
+    finalAmountCents: getFinalAmountCents(row),
+    stripePaymentIntent: row.stripePaymentIntent || "",
+  };
 }
 
 export default function SuperAdminSettlementsPage() {
-  const [settlements, setSettlements] = useState<AdminSettlementRow[]>([]);
+  const [rows, setRows] = useState<AdminSettlementRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [busyId, setBusyId] = useState("");
   const [query, setQuery] = useState("");
-  const [notice, setNotice] = useState<SettlementNotice | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [sortKey, setSortKey] = useState<keyof AdminSettlementRow>("updatedAt");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [modalMode, setModalMode] = useState<ModalMode | null>(null);
+  const [selected, setSelected] = useState<AdminSettlementRow | null>(null);
+  const [form, setForm] = useState<SettlementFormState>(EMPTY_FORM);
 
-  const loadSettlements = useCallback(async () => {
+  async function load() {
     setLoading(true);
-    setNotice(null);
+    setError("");
 
     try {
-      const result = await adminApi.getSuperAdminSettlementsPaged({
-        limit: 100,
-        ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
-      });
-
-      setSettlements(result.rows);
+      const result = await adminApi.getSuperAdminSettlementsPaged({ limit: 200 });
+      setRows(result.rows);
     } catch (err) {
-      setNotice({
-        type: "danger",
-        text: err instanceof Error ? err.message : "Failed to load settlements.",
-      });
+      setRows([]);
+      setError(err instanceof Error ? err.message : "Failed to load settlements.");
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }
 
   useEffect(() => {
-    void loadSettlements();
-  }, [loadSettlements]);
+    void load();
+  }, []);
 
-  const filteredSettlements = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return settlements;
+  const filteredRows = useMemo(() => {
+    return rows
+      .filter((row) =>
+        includesSearch(row as Record<string, unknown>, query, [
+          "id",
+          "auctionId",
+          "winnerName",
+          "winnerEmail",
+          "winnerUserId",
+          "status",
+          "stripePaymentIntent",
+        ]) ||
+        String(row.auction?.item?.title || "").toLowerCase().includes(query.trim().toLowerCase()) ||
+        String(row.auction?.shop?.name || "").toLowerCase().includes(query.trim().toLowerCase()),
+      )
+      .filter((row) => statusFilter === "ALL" || getSettlementStatus(row) === statusFilter)
+      .sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDirection));
+  }, [query, rows, sortDirection, sortKey, statusFilter]);
 
-    return settlements.filter((settlement) =>
-      [
-        settlement.id,
-        settlement.auctionId,
-        settlement.auction?.id,
-        settlement.auction?.itemId,
-        settlement.auction?.shopId,
-        settlement.auction?.item?.title,
-        settlement.auction?.shop?.name,
-        settlement.winnerUserId,
-        settlement.winnerName,
-        settlement.winnerEmail,
-        settlement.status,
-        settlement.stripePaymentIntent,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [query, settlements]);
+  function openModal(row: AdminSettlementRow, mode: ModalMode) {
+    setSelected(row);
+    setModalMode(mode);
+    setForm(buildForm(row));
+    setNotice("");
+    setError("");
+  }
 
-  const totals = useMemo(() => {
-    const byStatus = STATUS_OPTIONS.reduce<Record<string, number>>((acc, status) => {
-      acc[status] = settlements.filter(
-        (item) => normalizeStatus(item.status) === status,
-      ).length;
-      return acc;
-    }, {});
+  function closeModal() {
+    if (busyId) return;
+    setSelected(null);
+    setModalMode(null);
+    setForm(EMPTY_FORM);
+  }
 
-    const charged = settlements.filter(
-      (item) => normalizeStatus(item.status) === "CHARGED",
-    );
-    const pending = settlements.filter(
-      (item) => normalizeStatus(item.status) === "PENDING",
-    );
-    const failed = settlements.filter(
-      (item) => normalizeStatus(item.status) === "FAILED",
-    );
+  function updateForm<K extends keyof SettlementFormState>(key: K, value: SettlementFormState[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
 
-    const chargedGrossCents = charged.reduce(
-      (sum, item) => sum + getSettlementCents(item),
-      0,
-    );
-
-    const pendingGrossCents = pending.reduce(
-      (sum, item) => sum + getSettlementCents(item),
-      0,
-    );
-
-    return {
-      total: settlements.length,
-      byStatus,
-      chargedGrossCents,
-      pendingGrossCents,
-      failedCount: failed.length,
-    };
-  }, [settlements]);
-
-  async function updateSettlement(
-    settlement: AdminSettlementRow,
-    input: Partial<AdminSettlementRow>,
-  ) {
-    const nextStatus = normalizeStatus(input.status || settlement.status);
-
-    const confirmed = window.confirm(
-      `Apply settlement update?\n\nSettlement: ${settlement.id}\nNew status: ${nextStatus}`,
-    );
-
+  async function updateSettlementStatus(row: AdminSettlementRow, status: string) {
+    const confirmed = window.confirm(`Update settlement ${row.id} to ${status}?`);
     if (!confirmed) return;
 
-    setSavingId(settlement.id);
-    setNotice(null);
+    setBusyId(row.id);
+    setError("");
+    setNotice("");
 
     try {
-      const response = await adminApi.updateSuperAdminSettlement(
-        settlement.id,
-        input,
+      const response = await adminApi.updateSuperAdminSettlement(row.id, { status });
+
+      setRows((current) =>
+        current.map((entry) => (entry.id === response.settlement.id ? response.settlement : entry)),
       );
 
-      setSettlements((current) =>
-        current.map((item) =>
-          item.id === settlement.id ? response.settlement : item,
-        ),
-      );
-
-      setNotice({
-        type: "success",
-        text: `Settlement ${shortId(settlement.id)} updated to ${nextStatus}.`,
-      });
+      setNotice(`Settlement updated to ${status}.`);
     } catch (err) {
-      setNotice({
-        type: "danger",
-        text: err instanceof Error ? err.message : "Failed to update settlement.",
-      });
+      setError(err instanceof Error ? err.message : "Failed to update settlement.");
     } finally {
-      setSavingId(null);
+      setBusyId("");
     }
   }
 
-  async function copyPaymentIntent(value?: string | null) {
-    if (!value) return;
+  async function submitSettlementForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected) return;
+
+    setBusyId(selected.id);
+    setError("");
+    setNotice("");
 
     try {
-      await navigator.clipboard.writeText(value);
-      setNotice({
-        type: "success",
-        text: "Stripe PaymentIntent copied.",
+      const finalAmountCents =
+        form.finalAmountCents.trim() === "" ? undefined : Number(form.finalAmountCents);
+
+      if (finalAmountCents !== undefined && (!Number.isFinite(finalAmountCents) || finalAmountCents < 0)) {
+        throw new Error("Final amount cents must be a valid non-negative number.");
+      }
+
+      const response = await adminApi.updateSuperAdminSettlement(selected.id, {
+        status: form.status,
+        currency: form.currency,
+        ...(finalAmountCents !== undefined ? { finalAmountCents } : {}),
+        stripePaymentIntent: form.stripePaymentIntent.trim() || null,
       });
-    } catch {
-      setNotice({
-        type: "warning",
-        text: "Unable to copy PaymentIntent in this browser.",
-      });
+
+      setRows((current) =>
+        current.map((entry) => (entry.id === response.settlement.id ? response.settlement : entry)),
+      );
+
+      setNotice("Settlement updated.");
+      closeModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save settlement.");
+    } finally {
+      setBusyId("");
     }
+  }
+
+  function exportRows() {
+    downloadCsv(
+      "super-admin-settlements.csv",
+      filteredRows.map((row) => ({
+        id: row.id,
+        auctionId: row.auctionId,
+        item: getSettlementTitle(row),
+        winnerName: row.winnerName,
+        winnerEmail: row.winnerEmail,
+        status: row.status,
+        finalPrice: row.finalPrice,
+        finalAmountCents: row.finalAmountCents,
+        currency: row.currency,
+        stripePaymentIntent: row.stripePaymentIntent,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Settlements Control
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Review settlement status, auction context, winner details, Stripe
-            payment state, and manual admin actions.
-          </p>
+    <AdminPageShell
+      title="Settlement Control"
+      subtitle="Search, review, reconcile, and govern settlement/payment handoff records."
+      actions={
+        <div className="admin-action-row">
+          <button className="btn btn-secondary" onClick={exportRows}>Export CSV</button>
+          <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+      }
+    >
+      <section className="super-admin-control-panel">
+        <div className="super-admin-control-header">
+          <div>
+            <div className="super-admin-control-kicker">Super Admin Controls</div>
+            <h2 className="super-admin-control-title">Settlement Control Center</h2>
+            <p className="super-admin-control-subtitle">
+              Search settlements, review payment state, reconcile charged records,
+              update Stripe references, export records, and jump to audit history.
+            </p>
+          </div>
+          <div className="super-admin-control-actions">
+            <button className="btn btn-secondary" onClick={exportRows}>Export CSV</button>
+            <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>Refresh</button>
+            <Link className="btn btn-secondary" to="/super-admin/revenue">Revenue</Link>
+            <Link className="btn btn-secondary" to="/super-admin/audit">Audit Logs</Link>
+          </div>
         </div>
 
-        <button
-          className="button"
-          onClick={() => void loadSettlements()}
-          disabled={loading || Boolean(savingId)}
-        >
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
-      </div>
+        <ul className="super-admin-control-list">
+          <li>Use Review to inspect details before changing a settlement record.</li>
+          <li>Use Reconcile / Mark Charged only when the payment handoff is verified.</li>
+          <li>Use Edit to update status, currency, amount, or Stripe PaymentIntent references.</li>
+        </ul>
+      </section>
 
-      {notice ? (
-        <div
-          className={`rounded-xl border p-4 text-sm ${
-            notice.type === "success"
-              ? "border-green-200 bg-green-50 text-green-700"
-              : notice.type === "warning"
-                ? "border-amber-200 bg-amber-50 text-amber-700"
-                : "border-red-200 bg-red-50 text-red-700"
-          }`}
-        >
-          {notice.text}
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-5">
-        <StatCard label="Total" value={totals.total} />
-        <StatCard label="Pending" value={totals.byStatus.PENDING || 0} />
-        <StatCard label="Charged" value={totals.byStatus.CHARGED || 0} />
-        <StatCard label="Failed" value={totals.failedCount} />
-        <StatCard
-          label="Charged Gross"
-          value={formatMoney(totals.chargedGrossCents)}
-          help={`Pending ${formatMoney(totals.pendingGrossCents)}`}
-        />
-      </div>
-
-      <div className="grid gap-3 rounded-2xl border bg-background p-4 shadow-sm md:grid-cols-[220px_1fr]">
-        <select
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          className="rounded-lg border px-3 py-2 text-sm"
-          disabled={loading || Boolean(savingId)}
-        >
-          {FILTER_OPTIONS.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </select>
-
+      <div className="admin-control-bar">
         <input
+          className="admin-control-input"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search settlement, auction, item, shop, winner, email, or payment intent..."
-          className="rounded-lg border px-3 py-2 text-sm"
+          placeholder="Search settlements by id, winner, item, auction, payment intent, or status..."
         />
+
+        <select
+          className="admin-control-select"
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+        >
+          <option value="ALL">All statuses</option>
+          <option value="PENDING">Pending</option>
+          <option value="CHARGED">Charged</option>
+          <option value="FAILED">Failed</option>
+          <option value="CANCELED">Canceled</option>
+        </select>
+
+        <select
+          className="admin-control-select"
+          value={String(sortKey)}
+          onChange={(event) => setSortKey(event.target.value as keyof AdminSettlementRow)}
+        >
+          <option value="updatedAt">Sort by updated</option>
+          <option value="createdAt">Sort by created</option>
+          <option value="status">Sort by status</option>
+          <option value="finalPrice">Sort by amount</option>
+        </select>
+
+        <select
+          className="admin-control-select"
+          value={sortDirection}
+          onChange={(event) => setSortDirection(event.target.value as SortDirection)}
+        >
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-background shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1250px] border-collapse text-sm">
+      {notice ? <div className="admin-notice success">{notice}</div> : null}
+      {error ? <div className="admin-notice danger">{error}</div> : null}
+
+      <div className="admin-table-card">
+        <div className="admin-table-meta">
+          Showing {filteredRows.length} of {rows.length} settlements
+        </div>
+
+        <div className="admin-table-scroll">
+          <table className="admin-table">
             <thead>
-              <tr className="border-b bg-muted/40 text-left">
-                <th className="p-3 font-medium">Settlement</th>
-                <th className="p-3 font-medium">Auction</th>
-                <th className="p-3 font-medium">Winner</th>
-                <th className="p-3 font-medium">Amount</th>
-                <th className="p-3 font-medium">Status</th>
-                <th className="p-3 font-medium">Payment Intent</th>
-                <th className="p-3 font-medium">Dates</th>
-                <th className="p-3 font-medium text-right">Actions</th>
+              <tr>
+                <th>Settlement</th>
+                <th>Winner</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>PaymentIntent</th>
+                <th>Updated</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
 
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={8} className="p-6 text-center text-muted-foreground">
-                    Loading settlements...
-                  </td>
-                </tr>
-              ) : filteredSettlements.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-6 text-center text-muted-foreground">
-                    No settlements found.
-                  </td>
-                </tr>
+                <tr><td colSpan={7}>Loading settlements...</td></tr>
+              ) : filteredRows.length === 0 ? (
+                <tr><td colSpan={7}>No settlements match your filters.</td></tr>
               ) : (
-                filteredSettlements.map((settlement) => {
-                  const isSaving = savingId === settlement.id;
-                  const auctionId = getAuctionId(settlement);
-                  const itemId = getItemId(settlement);
-                  const shopId = getShopId(settlement);
-                  const status = normalizeStatus(settlement.status);
-                  const paymentIntent = settlement.stripePaymentIntent || "";
+                filteredRows.map((row) => {
+                  const status = getSettlementStatus(row);
 
                   return (
-                    <tr key={settlement.id} className="border-b last:border-b-0">
-                      <td className="p-3 align-top">
-                        <div className="font-medium">{shortId(settlement.id, 14)}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {settlement.id}
-                        </div>
+                    <tr key={row.id}>
+                      <td>
+                        <strong>{getSettlementTitle(row)}</strong>
+                        <div className="admin-muted">Auction: {row.auctionId || "—"}</div>
+                        <div className="admin-muted small">{row.id}</div>
                       </td>
-
-                      <td className="p-3 align-top">
-                        <div className="font-medium">{getItemTitle(settlement)}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          Shop: {getShopName(settlement)}
-                        </div>
-
-                        <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                          {auctionId ? (
-                            <Link
-                              to={`/auctions/${auctionId}`}
-                              className="font-medium text-blue-600 hover:underline"
-                            >
-                              Auction
-                            </Link>
-                          ) : null}
-
-                          {itemId ? (
-                            <Link
-                              to={`/items/${itemId}`}
-                              className="font-medium text-blue-600 hover:underline"
-                            >
-                              Item
-                            </Link>
-                          ) : null}
-
-                          {shopId ? (
-                            <Link
-                              to={`/shops/${shopId}`}
-                              className="font-medium text-blue-600 hover:underline"
-                            >
-                              Shop
-                            </Link>
-                          ) : null}
-                        </div>
-
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          Auction ID: {auctionId || "—"}
-                        </div>
+                      <td>
+                        <strong>{row.winnerEmail || "Unknown winner"}</strong>
+                        <div className="admin-muted">{row.winnerName || row.winnerUserId || "—"}</div>
                       </td>
-
-                      <td className="p-3 align-top">
-                        <div className="font-medium">
-                          {settlement.winnerName || "—"}
-                        </div>
-                        <div className="text-muted-foreground">
-                          {settlement.winnerEmail || "—"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {settlement.winnerUserId || "—"}
-                        </div>
-                      </td>
-
-                      <td className="p-3 align-top font-medium">
-                        {formatMoney(
-                          settlement.finalAmountCents,
-                          settlement.finalPrice,
-                          settlement.currency || "USD",
-                        )}
-                        <div className="text-xs text-muted-foreground">
-                          {(settlement.currency || "USD").toUpperCase()}
-                        </div>
-                      </td>
-
-                      <td className="p-3 align-top">
-                        <div className="grid gap-2">
-                          <StatusBadge status={status} />
-
-                          <select
-                            value={status}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              void updateSettlement(settlement, {
-                                status: event.target.value,
-                              })
-                            }
-                            className="rounded-lg border px-2 py-1 text-sm"
-                          >
-                            {STATUS_OPTIONS.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </td>
-
-                      <td className="p-3 align-top">
-                        <div className="max-w-[240px] truncate text-xs text-muted-foreground">
-                          {paymentIntent || "—"}
-                        </div>
-
-                        {paymentIntent ? (
+                      <td>{formatMoney(row.finalPrice, row.currency || "USD")}</td>
+                      <td><span className={badgeClass(status)}>{status}</span></td>
+                      <td>{row.stripePaymentIntent || "—"}</td>
+                      <td>{formatDate(row.updatedAt || row.createdAt)}</td>
+                      <td style={{ textAlign: "right" }}>
+                        <div className="super-admin-row-actions">
+                          <button className="btn btn-secondary" onClick={() => openModal(row, "view")}>Review</button>
+                          <button className="btn btn-secondary" onClick={() => openModal(row, "edit")}>Edit</button>
                           <button
-                            type="button"
-                            className="mt-2 text-xs font-medium text-blue-600 hover:underline"
-                            onClick={() => void copyPaymentIntent(paymentIntent)}
+                            className="btn btn-secondary"
+                            disabled={busyId === row.id || status === "CHARGED"}
+                            onClick={() => void updateSettlementStatus(row, "CHARGED")}
                           >
-                            Copy
+                            Reconcile
                           </button>
-                        ) : (
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            No PaymentIntent yet
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="p-3 align-top text-muted-foreground">
-                        <div>
-                          <span className="font-medium text-foreground">Created:</span>{" "}
-                          {formatDate(settlement.createdAt)}
-                        </div>
-                        <div className="mt-1">
-                          <span className="font-medium text-foreground">Updated:</span>{" "}
-                          {formatDate(settlement.updatedAt)}
-                        </div>
-                        {settlement.auction?.endsAt ? (
-                          <div className="mt-1">
-                            <span className="font-medium text-foreground">
-                              Auction ended:
-                            </span>{" "}
-                            {formatDate(settlement.auction.endsAt)}
-                          </div>
-                        ) : null}
-                      </td>
-
-                      <td className="p-3 align-top text-right">
-                        <div className="flex flex-col items-end gap-2">
                           <button
-                            disabled={isSaving || status === "CHARGED"}
-                            onClick={() =>
-                              void updateSettlement(settlement, {
-                                status: "CHARGED",
-                              })
-                            }
-                            className="button"
-                          >
-                            {isSaving ? "Saving..." : "Mark Charged"}
-                          </button>
-
-                          <button
-                            disabled={isSaving || status === "PENDING"}
-                            onClick={() =>
-                              void updateSettlement(settlement, {
-                                status: "PENDING",
-                              })
-                            }
-                            className="rounded-lg border px-3 py-2 text-sm font-medium"
+                            className="btn btn-secondary"
+                            disabled={busyId === row.id || status === "PENDING"}
+                            onClick={() => void updateSettlementStatus(row, "PENDING")}
                           >
                             Mark Pending
                           </button>
-
-                          <button
-                            disabled={isSaving || status === "FAILED"}
-                            onClick={() =>
-                              void updateSettlement(settlement, {
-                                status: "FAILED",
-                              })
-                            }
-                            className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700"
-                          >
-                            Mark Failed
-                          </button>
+                          <Link className="btn btn-secondary" to={`/super-admin/audit?targetType=SETTLEMENT&targetId=${row.id}`}>
+                            Audit
+                          </Link>
                         </div>
                       </td>
                     </tr>
@@ -579,6 +371,96 @@ export default function SuperAdminSettlementsPage() {
           </table>
         </div>
       </div>
-    </div>
+
+      {selected && modalMode ? (
+        <div className="admin-modal-backdrop" role="dialog" aria-modal="true">
+          {modalMode === "view" ? (
+            <section className="admin-modal-card">
+              <div className="admin-modal-header">
+                <div>
+                  <h2 className="admin-modal-title">Settlement Review</h2>
+                  <p className="admin-modal-subtitle">{selected.id}</p>
+                </div>
+                <button className="btn btn-secondary" onClick={closeModal}>Close</button>
+              </div>
+
+              <div className="stack">
+                {Object.entries(selected as Record<string, unknown>).map(([key, value]) => (
+                  <div key={key} className="panel" style={{ padding: 12 }}>
+                    <strong>{key}</strong>
+                    <div className="admin-muted" style={{ wordBreak: "break-word" }}>
+                      {typeof value === "object" ? JSON.stringify(value, null, 2) : String(value ?? "—")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <form className="admin-modal-card" onSubmit={submitSettlementForm}>
+              <div className="admin-modal-header">
+                <div>
+                  <h2 className="admin-modal-title">Edit Settlement</h2>
+                  <p className="admin-modal-subtitle">{selected.id}</p>
+                </div>
+                <button type="button" className="btn btn-secondary" onClick={closeModal}>Close</button>
+              </div>
+
+              <div className="admin-form-grid">
+                <label className="admin-form-label">
+                  Status
+                  <select
+                    className="admin-control-select"
+                    value={form.status}
+                    onChange={(event) => updateForm("status", event.target.value)}
+                  >
+                    {SETTLEMENT_STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="admin-form-label">
+                  Currency
+                  <input
+                    className="admin-control-input"
+                    value={form.currency}
+                    onChange={(event) => updateForm("currency", event.target.value)}
+                    maxLength={3}
+                  />
+                </label>
+
+                <label className="admin-form-label">
+                  Final amount cents
+                  <input
+                    className="admin-control-input"
+                    value={form.finalAmountCents}
+                    onChange={(event) => updateForm("finalAmountCents", event.target.value)}
+                    type="number"
+                    min={0}
+                  />
+                </label>
+
+                <label className="admin-form-label">
+                  Stripe PaymentIntent
+                  <input
+                    className="admin-control-input"
+                    value={form.stripePaymentIntent}
+                    onChange={(event) => updateForm("stripePaymentIntent", event.target.value)}
+                    placeholder="pi_..."
+                  />
+                </label>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={busyId === selected.id}>
+                  {busyId === selected.id ? "Saving..." : "Save Settlement"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      ) : null}
+    </AdminPageShell>
   );
 }

@@ -15,6 +15,7 @@ import {
   listSuperAdminShops,
   listSuperAdminIntegrations,
   archiveSuperAdminIntegration,
+  restoreSuperAdminIntegration,
   createSuperAdminShop,
   reassignSuperAdminShopOwner,
   updateSuperAdminShop,
@@ -167,6 +168,9 @@ export const SUPER_ADMIN_ROUTE_MAP = Object.freeze({
   settlements: "GET /api/super-admin/settlements",
   updateSettlement: "PATCH /api/super-admin/settlements/:id",
   revenue: "GET /api/super-admin/revenue",
+  integrations: "GET /api/super-admin/integrations",
+  archiveIntegration: "PATCH /api/super-admin/integrations/:id/archive",
+  restoreIntegration: "PATCH /api/super-admin/integrations/:id/restore",
   platformSettings: "GET /api/super-admin/platform-settings",
   updatePlatformSettings: "PATCH /api/super-admin/platform-settings",
 });
@@ -329,6 +333,7 @@ router.post("/shops", asyncRoute(createSuperAdminShop));
 router.patch("/shops/:id/owner", asyncRoute(reassignSuperAdminShopOwner));
 router.get("/integrations", asyncRoute(listSuperAdminIntegrations));
 router.patch("/integrations/:id/archive", asyncRoute(archiveSuperAdminIntegration));
+router.patch("/integrations/:id/restore", asyncRoute(restoreSuperAdminIntegration));
 
 router.get("/shops", asyncRoute(listSuperAdminShops));
 

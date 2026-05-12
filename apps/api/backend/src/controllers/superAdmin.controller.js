@@ -1162,6 +1162,59 @@ export async function archiveSuperAdminIntegration(req, res) {
 
 
 
+
+export async function restoreSuperAdminIntegration(req, res) {
+  try {
+    const id = normalizeSuperAdminString(req.params?.id);
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Integration id is required.",
+      });
+    }
+
+    const existing = await prisma.inventoryIntegration.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        error: "Integration not found.",
+      });
+    }
+
+    const updated = await prisma.inventoryIntegration.update({
+      where: { id },
+      data: { status: "ACTIVE" },
+    });
+
+    if (typeof writeSuperAdminGovernanceAudit === "function") {
+      await writeSuperAdminGovernanceAudit(req, {
+        action: "RESTORE_INTEGRATION",
+        targetType: "INTEGRATION",
+        targetId: id,
+        statusCode: 200,
+        metadata: {
+          previousStatus: existing.status || null,
+          newStatus: "ACTIVE",
+          shopId: existing.shopId || existing.pawnShopId || null,
+          name: existing.name || null,
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      integration: scrubIntegrationForSuperAdmin(updated),
+    });
+  } catch (err) {
+    return handleSuperAdminError(res, err, "Failed to restore integration.");
+  }
+}
+
+
 async function safeSystemMetric(label, fn, fallback = null) {
   try {
     return {
