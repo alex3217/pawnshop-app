@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
 import {
   adminApi,
@@ -341,6 +341,35 @@ export default function AdminShopsPage() {
         </div>
       }
     >
+      {isSuperAdminSurface ? (
+        <section className="super-admin-master-toolbar">
+          <div>
+            <h3 className="super-admin-master-toolbar-title">Shop Master Controls</h3>
+            <p className="super-admin-master-toolbar-subtitle">
+              Use row actions to view, edit, inspect inventory, inspect integrations, review settlements,
+              audit activity, or disable/restore shops.
+            </p>
+          </div>
+          <div className="super-admin-master-actions">
+            <button className="btn btn-primary" onClick={openCreateModal}>
+              Add Shop
+            </button>
+            <button className="btn btn-secondary" onClick={exportShops}>
+              Export CSV
+            </button>
+            <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
+              Refresh
+            </button>
+            <Link className="btn btn-secondary" to="/super-admin/integrations">
+              Integration Oversight
+            </Link>
+            <Link className="btn btn-secondary" to="/super-admin/settlements">
+              Settlement Control
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <div className="admin-control-bar">
         <input
           value={query}
@@ -471,7 +500,26 @@ export default function AdminShopsPage() {
                       </td>
                       <td>{formatDate(shop.createdAt)}</td>
                       <td style={{ textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                        <div className="super-admin-row-actions">
+                          {isSuperAdminSurface ? (
+                            <>
+                              <Link className="btn btn-secondary" to={`/shops/${shop.id}`}>
+                                View
+                              </Link>
+                              <Link className="btn btn-secondary" to={`/super-admin/inventory?shopId=${shop.id}`}>
+                                Inventory
+                              </Link>
+                              <Link className="btn btn-secondary" to={`/super-admin/integrations?shopId=${shop.id}`}>
+                                Integrations
+                              </Link>
+                              <Link className="btn btn-secondary" to={`/super-admin/settlements?shopId=${shop.id}`}>
+                                Settlements
+                              </Link>
+                              <Link className="btn btn-secondary" to={`/super-admin/audit?targetType=SHOP&targetId=${shop.id}`}>
+                                Audit
+                              </Link>
+                            </>
+                          ) : null}
                           <button
                             className="btn btn-secondary"
                             disabled={Boolean(busyId)}
@@ -488,7 +536,9 @@ export default function AdminShopsPage() {
                               ? "Saving..."
                               : shop.isDeleted
                                 ? "Restore"
-                                : "Disable"}
+                                : isSuperAdminSurface
+                                  ? "Delete / Disable"
+                                  : "Disable"}
                           </button>
                         </div>
                       </td>

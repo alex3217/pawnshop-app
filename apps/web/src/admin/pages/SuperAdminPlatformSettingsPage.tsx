@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { adminApi, type PlatformSettingRow } from "../services/adminApi";
+import { Link } from "react-router-dom";
 
 type SettingDraft = {
   key: string;
@@ -143,6 +144,64 @@ export default function SuperAdminPlatformSettingsPage() {
 
   return (
     <div className="space-y-6">
+      <section className="super-admin-control-panel">
+        <div className="super-admin-control-header">
+          <div>
+            <div className="super-admin-control-kicker">Soft-Code Control Center</div>
+            <h2 className="super-admin-control-title">Platform Settings & Feature Rules</h2>
+            <p className="super-admin-control-subtitle">
+              This is where the app should become configurable without hard-coding:
+              feature flags, commission rules, listing rules, auction rules, and plan controls.
+            </p>
+          </div>
+          <div className="super-admin-control-actions">
+            <button className="btn btn-primary" type="button">
+              Add Setting
+            </button>
+            <button className="btn btn-secondary" type="button">
+              Export Settings
+            </button>
+            <Link className="btn btn-secondary" to="/super-admin/audit">
+              View Audit
+            </Link>
+          </div>
+        </div>
+
+        <ul className="super-admin-control-list">
+          <li>Feature flags: turn features on/off without changing code.</li>
+          <li>Commission rules: configure platform fees and seller plan rules.</li>
+          <li>Listing rules: control categories, statuses, conditions, and moderation behavior.</li>
+          <li>Auction and offer rules: configure bidding windows, extensions, statuses, and review flows.</li>
+        </ul>
+      </section>
+
+      <section className="super-admin-command-grid">
+        <article className="super-admin-command-card primary">
+          <h3 className="super-admin-command-title">Feature Flags</h3>
+          <p className="super-admin-command-description">Control which app features are enabled globally.</p>
+          <button className="btn btn-secondary" type="button">Manage Feature Flags</button>
+        </article>
+
+        <article className="super-admin-command-card primary">
+          <h3 className="super-admin-command-title">Commission Rules</h3>
+          <p className="super-admin-command-description">Configure marketplace fee rules and future commission logic.</p>
+          <button className="btn btn-secondary" type="button">Manage Commission Rules</button>
+        </article>
+
+        <article className="super-admin-command-card primary">
+          <h3 className="super-admin-command-title">Listing Rules</h3>
+          <p className="super-admin-command-description">Control listing categories, statuses, conditions, and moderation rules.</p>
+          <button className="btn btn-secondary" type="button">Manage Listing Rules</button>
+        </article>
+
+        <article className="super-admin-command-card primary">
+          <h3 className="super-admin-command-title">Auction Rules</h3>
+          <p className="super-admin-command-description">Configure auction statuses, review rules, and bidding behavior.</p>
+          <button className="btn btn-secondary" type="button">Manage Auction Rules</button>
+        </article>
+      </section>
+
+
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">

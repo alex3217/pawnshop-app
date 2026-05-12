@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import AdminPageShell from "../admin/components/AdminPageShell";
 import { adminApi } from "../admin/services/adminApi";
 import type { AdminItemRow, UpdateAdminItemInput } from "../admin/services/adminApi";
@@ -235,6 +235,31 @@ export default function AdminItemsPage() {
     }
   }
 
+  async function markItemSold(item: AdminItemRow) {
+    if (!item.id || busyId) return;
+
+    const confirmed = window.confirm(`Mark "${item.title || item.id}" as SOLD?`);
+    if (!confirmed) return;
+
+    setBusyId(item.id);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await adminApi.updateAdminItem(item.id, { status: "SOLD" });
+
+      setItems((current) =>
+        current.map((entry) => (entry.id === response.item.id ? response.item : entry)),
+      );
+
+      setNotice(`Marked ${response.item.title || "item"} as sold.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark item sold.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
   async function toggleItem(item: AdminItemRow) {
     if (!item.id || busyId) return;
 
@@ -302,6 +327,29 @@ export default function AdminItemsPage() {
         </div>
       }
     >
+      {isSuperAdminSurface ? (
+        <section className="super-admin-master-toolbar">
+          <div>
+            <h3 className="super-admin-master-toolbar-title">Inventory Master Controls</h3>
+            <p className="super-admin-master-toolbar-subtitle">
+              Use row actions to view listings, edit listing details, mark items sold,
+              audit activity, or delete/restore records.
+            </p>
+          </div>
+          <div className="super-admin-master-actions">
+            <Link className="btn btn-primary" to="/create-item">
+              Add Item
+            </Link>
+            <button className="btn btn-secondary" onClick={exportItems}>
+              Export CSV
+            </button>
+            <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
+              Refresh
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <div className="admin-control-bar">
         <input
           value={query}
@@ -423,7 +471,24 @@ export default function AdminItemsPage() {
                       </td>
                       <td>{formatDate(item.createdAt)}</td>
                       <td style={{ textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                        <div className="super-admin-row-actions">
+                          {isSuperAdminSurface ? (
+                            <>
+                              <Link className="btn btn-secondary" to={`/items/${item.id}`}>
+                                View
+                              </Link>
+                              <button
+                                className="btn btn-secondary"
+                                disabled={busyId === item.id}
+                                onClick={() => void markItemSold(item)}
+                              >
+                                Mark Sold
+                              </button>
+                              <Link className="btn btn-secondary" to={`/super-admin/audit?targetType=ITEM&targetId=${item.id}`}>
+                                Audit
+                              </Link>
+                            </>
+                          ) : null}
                           <button
                             className="btn btn-secondary"
                             disabled={Boolean(busyId)}
