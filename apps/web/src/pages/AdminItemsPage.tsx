@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import AdminPageShell from "../admin/components/AdminPageShell";
 import { adminApi } from "../admin/services/adminApi";
-import type { AdminItemRow, UpdateAdminItemInput } from "../admin/services/adminApi";
+import type {
+  AdminItemRow,
+  AdminShopRow,
+  CreateAdminItemInput,
+  UpdateAdminItemInput,
+} from "../admin/services/adminApi";
 import {
   compareValues,
   downloadCsv,
@@ -13,10 +18,11 @@ import {
 } from "../admin/utils/adminControlUtils";
 
 type StatusFilter = "ALL" | "ACTIVE" | "DELETED";
-type ModalMode = "edit";
+type ModalMode = "create" | "edit";
 
 type ItemFormState = {
   id?: string;
+  shopId: string;
   title: string;
   description: string;
   price: string;
@@ -28,6 +34,7 @@ type ItemFormState = {
 };
 
 const EMPTY_ITEM_FORM: ItemFormState = {
+  shopId: "",
   title: "",
   description: "",
   price: "",
@@ -38,25 +45,8 @@ const EMPTY_ITEM_FORM: ItemFormState = {
   isDeleted: false,
 };
 
-const ITEM_STATUS_OPTIONS = [
-  "AVAILABLE",
-  "PENDING",
-  "SOLD",
-  "DRAFT",
-  "ARCHIVED",
-  "UNKNOWN",
-];
-
-const CONDITION_OPTIONS = [
-  "",
-  "NEW",
-  "LIKE_NEW",
-  "GOOD",
-  "FAIR",
-  "POOR",
-  "USED",
-  "REFURBISHED",
-];
+const ITEM_STATUS_OPTIONS = ["AVAILABLE", "PENDING", "SOLD", "DRAFT", "ARCHIVED", "UNKNOWN"];
+const CONDITION_OPTIONS = ["", "NEW", "LIKE_NEW", "GOOD", "FAIR", "POOR", "USED", "REFURBISHED"];
 
 function toText(value: unknown, fallback = "") {
   if (value === null || value === undefined) return fallback;
@@ -73,6 +63,21 @@ function getShopName(item: AdminItemRow) {
   return "Unknown shop";
 }
 
+function getItemShopId(item: AdminItemRow) {
+  const record = item as Record<string, unknown>;
+  const nested = record.shop;
+
+  if (record.shopId) return String(record.shopId);
+  if (record.pawnShopId) return String(record.pawnShopId);
+
+  if (nested && typeof nested === "object") {
+    const id = (nested as Record<string, unknown>).id;
+    if (id) return String(id);
+  }
+
+  return "";
+}
+
 function getItemStatus(item: AdminItemRow) {
   return item.isDeleted ? "DELETED" : String(item.status || "ACTIVE");
 }
@@ -82,6 +87,7 @@ function buildEditForm(item: AdminItemRow): ItemFormState {
 
   return {
     id: item.id,
+    shopId: getItemShopId(item),
     title: toText(item.title),
     description: toText(record.description),
     price: item.price === null || item.price === undefined ? "" : String(item.price),
@@ -93,10 +99,16 @@ function buildEditForm(item: AdminItemRow): ItemFormState {
   };
 }
 
+function shopLabel(shop: AdminShopRow) {
+  const owner = shop.ownerEmail ? ` · ${shop.ownerEmail}` : "";
+  return `${shop.name}${owner}`;
+}
+
 export default function AdminItemsPage() {
   const location = useLocation();
   const isSuperAdminSurface = location.pathname.startsWith("/super-admin");
   const [items, setItems] = useState<AdminItemRow[]>([]);
+  const [shops, setShops] = useState<AdminShopRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [savingForm, setSavingForm] = useState(false);
@@ -114,7 +126,13 @@ export default function AdminItemsPage() {
     setError("");
 
     try {
-      setItems(await adminApi.getItems());
+      const [nextItems, nextShops] = await Promise.all([
+        adminApi.getItems(),
+        adminApi.getShops(),
+      ]);
+
+      setItems(nextItems);
+      setShops(nextShops);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load inventory.");
     } finally {
@@ -148,6 +166,16 @@ export default function AdminItemsPage() {
       .sort((a, b) => compareValues(a[sortKey], b[sortKey], sortDirection));
   }, [items, query, sortDirection, sortKey, statusFilter]);
 
+  function openCreateModal() {
+    setError("");
+    setNotice("");
+    setForm({
+      ...EMPTY_ITEM_FORM,
+      shopId: shops[0]?.id || "",
+    });
+    setModalMode("create");
+  }
+
   function openEditModal(item: AdminItemRow) {
     setError("");
     setNotice("");
@@ -176,27 +204,27 @@ export default function AdminItemsPage() {
     setNotice("");
 
     const title = form.title.trim();
-
-    if (!form.id) {
-      setError("Item id is missing.");
-      return;
-    }
+    const shopId = form.shopId.trim();
+    const price = form.price.trim() === "" ? undefined : Number(form.price);
 
     if (!title) {
       setError("Item title is required.");
       return;
     }
 
-    const price = form.price.trim() === "" ? undefined : Number(form.price);
+    if (!shopId) {
+      setError("Shop is required.");
+      return;
+    }
 
     if (price !== undefined && (!Number.isFinite(price) || price < 0)) {
       setError("Price must be a valid non-negative number.");
       return;
     }
 
-    const existing = items.find((item) => item.id === form.id);
+    const existing = form.id ? items.find((item) => item.id === form.id) : null;
 
-    if (existing && Boolean(existing.isDeleted) !== form.isDeleted) {
+    if (modalMode === "edit" && existing && Boolean(existing.isDeleted) !== form.isDeleted) {
       const confirmed = window.confirm(
         `${form.isDeleted ? "Delete" : "Restore"} "${existing.title || existing.id}"?`,
       );
@@ -206,7 +234,8 @@ export default function AdminItemsPage() {
     setSavingForm(true);
 
     try {
-      const input: UpdateAdminItemInput = {
+      const baseInput = {
+        shopId,
         title,
         description: form.description.trim(),
         category: form.category.trim(),
@@ -214,19 +243,28 @@ export default function AdminItemsPage() {
         status: form.status.trim().toUpperCase(),
         currency: form.currency.trim().toUpperCase() || "USD",
         isDeleted: form.isDeleted,
+        ...(price !== undefined ? { price } : {}),
       };
 
-      if (price !== undefined) {
-        input.price = price;
+      if (modalMode === "create") {
+        const response = await adminApi.createAdminItem(baseInput as CreateAdminItemInput);
+
+        setItems((current) => [response.item, ...current]);
+        setNotice(`Created ${response.item.title || "item"}.`);
       }
 
-      const response = await adminApi.updateAdminItem(form.id, input);
+      if (modalMode === "edit" && form.id) {
+        const response = await adminApi.updateAdminItem(
+          form.id,
+          baseInput as UpdateAdminItemInput,
+        );
 
-      setItems((current) =>
-        current.map((item) => (item.id === response.item.id ? response.item : item)),
-      );
+        setItems((current) =>
+          current.map((item) => (item.id === response.item.id ? response.item : item)),
+        );
+        setNotice(`Updated ${response.item.title || "item"}.`);
+      }
 
-      setNotice(`Updated ${response.item.title || "item"}.`);
       closeModal();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save item.");
@@ -297,7 +335,7 @@ export default function AdminItemsPage() {
 
   function exportItems() {
     downloadCsv(
-      isSuperAdminSurface ? "super-admin-inventory.csv" : isSuperAdminSurface ? "super-admin-inventory.csv" : isSuperAdminSurface ? "super-admin-inventory.csv" : "admin-inventory.csv",
+      isSuperAdminSurface ? "super-admin-inventory.csv" : "admin-inventory.csv",
       filteredItems.map((item) => ({
         id: item.id,
         title: item.title,
@@ -315,9 +353,18 @@ export default function AdminItemsPage() {
   return (
     <AdminPageShell
       title={isSuperAdminSurface ? "Super Admin Inventory Control" : "Admin Inventory Control"}
-      subtitle={isSuperAdminSurface ? "Search, edit, change status, delete, restore, and govern marketplace listings." : "Search, filter, export, edit, delete, and restore marketplace listings."}
+      subtitle={
+        isSuperAdminSurface
+          ? "Search, add, edit, change status, delete, restore, and govern marketplace listings."
+          : "Search, filter, export, edit, delete, and restore marketplace listings."
+      }
       actions={
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {isSuperAdminSurface ? (
+            <button className="btn btn-primary" onClick={openCreateModal}>
+              Add Item
+            </button>
+          ) : null}
           <button className="btn btn-secondary" onClick={exportItems}>
             Export CSV
           </button>
@@ -332,14 +379,14 @@ export default function AdminItemsPage() {
           <div>
             <h3 className="super-admin-master-toolbar-title">Inventory Master Controls</h3>
             <p className="super-admin-master-toolbar-subtitle">
-              Use row actions to view listings, edit listing details, mark items sold,
+              Add items, view listings, edit listing details, mark items sold,
               audit activity, or delete/restore records.
             </p>
           </div>
           <div className="super-admin-master-actions">
-            <Link className="btn btn-primary" to="/create-item">
+            <button className="btn btn-primary" onClick={openCreateModal}>
               Add Item
-            </Link>
+            </button>
             <button className="btn btn-secondary" onClick={exportItems}>
               Export CSV
             </button>
@@ -392,34 +439,6 @@ export default function AdminItemsPage() {
 
       {notice ? <div className="admin-notice success">{notice}</div> : null}
       {error ? <div className="admin-notice danger">{error}</div> : null}
-
-      {isSuperAdminSurface ? (
-        <section className="super-admin-control-panel">
-          <div className="super-admin-control-header">
-            <div>
-              <div className="super-admin-control-kicker">Super Admin Controls</div>
-              <h2 className="super-admin-control-title">Inventory Control Command Center</h2>
-              <p className="super-admin-control-subtitle">
-                Search listings, edit title/price/category/condition/status, delete or restore listings,
-                and export inventory records.
-              </p>
-            </div>
-            <div className="super-admin-control-actions">
-              <button className="btn btn-secondary" onClick={exportItems}>
-                Export CSV
-              </button>
-              <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
-                Refresh
-              </button>
-            </div>
-          </div>
-          <ul className="super-admin-control-list">
-            <li>Use the search box below to find listings by title, category, shop, status, or id.</li>
-            <li>Use Edit to update listing fields and marketplace status.</li>
-            <li>Use Delete / Restore to moderate listings without permanently removing records.</li>
-          </ul>
-        </section>
-      ) : null}
 
       <div className="admin-table-card">
         <div className="admin-table-meta">
@@ -523,9 +542,13 @@ export default function AdminItemsPage() {
           <form onSubmit={submitItemForm} style={modalStyles.card}>
             <div style={modalStyles.header}>
               <div>
-                <h2 style={modalStyles.title}>Edit Item</h2>
+                <h2 style={modalStyles.title}>
+                  {modalMode === "create" ? "Add Item" : "Edit Item"}
+                </h2>
                 <p style={modalStyles.subtitle}>
-                  Update listing title, price, status, category, condition, and visibility.
+                  {modalMode === "create"
+                    ? "Create an item directly from the Super Admin inventory page."
+                    : "Update listing title, price, status, category, condition, shop, and visibility."}
                 </p>
               </div>
 
@@ -535,6 +558,23 @@ export default function AdminItemsPage() {
             </div>
 
             <div style={modalStyles.grid}>
+              <label style={modalStyles.label}>
+                Shop
+                <select
+                  value={form.shopId}
+                  onChange={(event) => updateForm("shopId", event.target.value)}
+                  className="admin-control-select"
+                  required
+                >
+                  <option value="">Select shop</option>
+                  {shops.map((shop) => (
+                    <option key={shop.id} value={shop.id}>
+                      {shopLabel(shop)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <label style={modalStyles.label}>
                 Title
                 <input
@@ -636,7 +676,11 @@ export default function AdminItemsPage() {
                 Cancel
               </button>
               <button className="btn btn-primary" disabled={savingForm} type="submit">
-                {savingForm ? "Saving..." : "Save Changes"}
+                {savingForm
+                  ? "Saving..."
+                  : modalMode === "create"
+                    ? "Create Item"
+                    : "Save Changes"}
               </button>
             </div>
           </form>

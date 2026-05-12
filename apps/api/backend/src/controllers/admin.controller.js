@@ -204,6 +204,10 @@ function pickAdminItemData(body = {}) {
   if (body.currency !== undefined) data.currency = normalizeString(body.currency, "USD").toUpperCase();
   if (body.isDeleted !== undefined) data.isDeleted = Boolean(body.isDeleted);
 
+  if (body.shopId !== undefined || body.pawnShopId !== undefined) {
+    data.pawnShopId = normalizeString(body.shopId ?? body.pawnShopId, "");
+  }
+
   if (body.price !== undefined) {
     const price = Number(body.price);
     if (!Number.isFinite(price) || price < 0) {
@@ -447,6 +451,92 @@ export async function updateAdminShop(req, res) {
   }
 }
 
+
+export async function createAdminItem(req, res) {
+  try {
+    const data = pickAdminItemData(req.body);
+    const shopId = normalizeString(req.body?.shopId ?? req.body?.pawnShopId ?? data.pawnShopId, "");
+
+    if (!shopId) {
+      const error = new Error("Shop id is required.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (!data.title) {
+      const error = new Error("Item title is required.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const shop = await prisma.pawnShop.findUnique({
+      where: { id: shopId },
+      select: { id: true },
+    });
+
+    if (!shop) {
+      const error = new Error("Shop not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const createData = {
+      title: data.title,
+      description: data.description ?? "",
+      price: data.price ?? 0,
+      currency: data.currency || "USD",
+      category: data.category || "UNCATEGORIZED",
+      condition: data.condition || "USED",
+      status: data.status || "AVAILABLE",
+      isDeleted: data.isDeleted === true,
+      pawnShopId: shopId,
+    };
+
+    let item;
+
+    try {
+      item = await prisma.item.create({
+        data: createData,
+        include: { shop: true },
+      });
+    } catch (error) {
+      const message = String(error?.message || "");
+
+      if (!message.includes("Unknown argument `pawnShopId`")) {
+        throw error;
+      }
+
+      const fallbackData = { ...createData };
+      delete fallbackData.pawnShopId;
+      fallbackData.shopId = shopId;
+
+      item = await prisma.item.create({
+        data: fallbackData,
+        include: { shop: true },
+      });
+    }
+
+    await writeAdminActionAudit(req, {
+      action: "ADMIN_CREATE_ITEM",
+      targetType: "ITEM",
+      targetId: item.id,
+      metadata: {
+        title: item.title,
+        shopId,
+        status: item.status,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      item: serializeAdminItem(item),
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to create item.");
+  }
+}
+
+
 export async function updateAdminItem(req, res) {
   try {
     const { id } = req.params;
@@ -458,11 +548,44 @@ export async function updateAdminItem(req, res) {
       throw error;
     }
 
-    const item = await prisma.item.update({
-      where: { id },
-      data,
-      include: { shop: true },
-    });
+    if (data.pawnShopId) {
+      const shop = await prisma.pawnShop.findUnique({
+        where: { id: data.pawnShopId },
+        select: { id: true },
+      });
+
+      if (!shop) {
+        const error = new Error("Shop not found.");
+        error.statusCode = 404;
+        throw error;
+      }
+    }
+
+    let item;
+
+    try {
+      item = await prisma.item.update({
+        where: { id },
+        data,
+        include: { shop: true },
+      });
+    } catch (error) {
+      const message = String(error?.message || "");
+
+      if (!data.pawnShopId || !message.includes("Unknown argument `pawnShopId`")) {
+        throw error;
+      }
+
+      const fallbackData = { ...data };
+      fallbackData.shopId = fallbackData.pawnShopId;
+      delete fallbackData.pawnShopId;
+
+      item = await prisma.item.update({
+        where: { id },
+        data: fallbackData,
+        include: { shop: true },
+      });
+    }
 
     await writeAdminActionAudit(req, {
       action: "ADMIN_UPDATE_ITEM",

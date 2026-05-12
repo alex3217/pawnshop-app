@@ -318,6 +318,18 @@ export type UpdateAdminShopInput = Partial<CreateAdminShopInput> & {
   isDeleted?: boolean;
 };
 
+export type CreateAdminItemInput = {
+  shopId: string;
+  title: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  category?: string;
+  condition?: string;
+  status?: string;
+  isDeleted?: boolean;
+};
+
 export type UpdateAdminItemInput = {
   title?: string;
   description?: string;
@@ -877,6 +889,16 @@ export const adminApi = {
       input,
       signal
     ),
+
+  createAdminItem: (
+    input: CreateAdminItemInput,
+    signal?: AbortSignal
+  ) =>
+    adminRequest<{ success: boolean; item: AdminItemRow }>("/admin/items", {
+      method: "POST",
+      signal,
+      ...jsonBody(input),
+    }),
 
   updateAdminItem: (
     id: string,

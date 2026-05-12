@@ -8,6 +8,7 @@ import {
   blockUser,
   unblockUser,
   adminListItems,
+  createAdminItem,
   softDeleteItem,
   restoreItem,
   adminListShops,
@@ -157,6 +158,7 @@ router.patch(
 );
 
 router.get("/items", asyncRoute(adminListItems));
+router.post("/items", asyncRoute(createAdminItem));
 router.patch(
   "/items/:id",
   validateIdParam("id", "Item id"),
@@ -205,6 +207,7 @@ export const ADMIN_ROUTE_MAP = Object.freeze({
   blockUser: "DELETE /api/admin/users/:id",
   unblockUser: "PATCH /api/admin/users/:id/unblock",
   items: "GET /api/admin/items",
+  createItem: "POST /api/admin/items",
   updateItem: "PATCH /api/admin/items/:id",
   deleteItem: "DELETE /api/admin/items/:id",
   restoreItem: "PATCH /api/admin/items/:id/restore",
