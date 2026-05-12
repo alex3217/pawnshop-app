@@ -1,363 +1,306 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../../services/apiClient";
+import AdminPageShell from "../components/AdminPageShell";
 
-type UnknownRecord = Record<string, unknown>;
-
-function asRecord(value: unknown): UnknownRecord {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as UnknownRecord)
-    : {};
-}
-
-function readNumber(source: unknown, paths: string[], fallback = 0) {
-  const root = asRecord(source);
-
-  for (const path of paths) {
-    const value = path.split(".").reduce<unknown>((current, key) => {
-      if (!current || typeof current !== "object") return undefined;
-      return (current as UnknownRecord)[key];
-    }, root);
-
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-
-    if (typeof value === "string") {
-      const parsed = Number(value);
-      if (Number.isFinite(parsed)) return parsed;
-    }
-  }
-
-  return fallback;
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function KpiCard({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string | number;
-  helper: string;
-}) {
-  return (
-    <div style={styles.kpiCard}>
-      <div style={styles.kpiLabel}>{label}</div>
-      <div style={styles.kpiValue}>{value}</div>
-      <div style={styles.kpiHelper}>{helper}</div>
-    </div>
-  );
-}
-
-function QuickLink({
-  to,
-  title,
-  body,
-}: {
-  to: string;
+type CommandCard = {
   title: string;
-  body: string;
-}) {
+  description: string;
+  to: string;
+  primaryAction: string;
+  controls: string[];
+  tone?: "primary" | "standard" | "warning";
+};
+
+const PRIMARY_CONTROLS: CommandCard[] = [
+  {
+    title: "Users & Roles",
+    description: "Create users, edit profiles, change roles, and manage active status.",
+    to: "/super-admin/users",
+    primaryAction: "Search / Add / Edit Users",
+    tone: "primary",
+    controls: [
+      "Search users",
+      "Add user",
+      "Edit user",
+      "Change role",
+      "Activate / Deactivate",
+      "Export CSV",
+    ],
+  },
+  {
+    title: "Shop Management",
+    description: "Create shops, reassign owners, update shop profiles, and manage status.",
+    to: "/super-admin/shops",
+    primaryAction: "Search / Add / Edit Shops",
+    tone: "primary",
+    controls: [
+      "Search shops",
+      "Add shop",
+      "Edit shop",
+      "Reassign owner",
+      "Update plan/status",
+      "Disable / Restore",
+      "Export CSV",
+    ],
+  },
+  {
+    title: "Inventory Control",
+    description: "Edit listings, update status, change price/category, and moderate records.",
+    to: "/super-admin/inventory",
+    primaryAction: "Search / Edit / Moderate Inventory",
+    tone: "primary",
+    controls: [
+      "Search listings",
+      "Edit item",
+      "Change price/category/status",
+      "Delete / Restore",
+      "Export CSV",
+    ],
+  },
+];
+
+const OPERATIONS_CONTROLS: CommandCard[] = [
+  {
+    title: "Integration Oversight",
+    description: "Monitor owner integrations, credential safety, mappings, and sync state.",
+    to: "/super-admin/integrations",
+    primaryAction: "Open Integrations",
+    controls: [
+      "Search integrations",
+      "View details",
+      "Archive integration",
+      "Review mappings",
+      "Review sync health",
+    ],
+  },
+  {
+    title: "Settlement Control",
+    description: "Review payment settlement records and operational payment issues.",
+    to: "/super-admin/settlements",
+    primaryAction: "Open Settlements",
+    controls: [
+      "Search settlements",
+      "Review records",
+      "Reconcile",
+      "Escalate payment issues",
+      "Export data",
+    ],
+  },
+  {
+    title: "Platform Settings",
+    description: "Manage platform-level settings and operational feature controls.",
+    to: "/super-admin/platform-settings",
+    primaryAction: "Open Settings",
+    controls: [
+      "Search settings",
+      "Edit settings",
+      "Add setting later",
+      "Disable/archive setting later",
+    ],
+  },
+  {
+    title: "Seller Plan Control",
+    description: "Review seller/shop-owner plan catalog and plan governance.",
+    to: "/super-admin/plans/seller",
+    primaryAction: "Open Seller Plans",
+    controls: [
+      "Search plans",
+      "Review plan features",
+      "Prepare add/edit controls",
+      "Archive/reactivate later",
+    ],
+  },
+  {
+    title: "Buyer Plan Control",
+    description: "Review buyer plan catalog and buyer subscription readiness.",
+    to: "/super-admin/plans/buyer",
+    primaryAction: "Open Buyer Plans",
+    controls: [
+      "Search plans",
+      "Review plan features",
+      "Prepare add/edit controls",
+      "Archive/reactivate later",
+    ],
+  },
+  {
+    title: "Buyer Subscriptions",
+    description: "Monitor buyer subscriptions and subscription statuses.",
+    to: "/super-admin/buyer-subscriptions",
+    primaryAction: "Open Buyer Subscriptions",
+    controls: [
+      "Search subscriptions",
+      "Edit status later",
+      "Cancel/reactivate later",
+      "Export data",
+    ],
+  },
+];
+
+const REVIEW_ONLY_CONTROLS: CommandCard[] = [
+  {
+    title: "Audit Logs",
+    description: "Review sensitive platform activity. No delete controls belong here.",
+    to: "/super-admin/audit",
+    primaryAction: "View Audit Logs",
+    tone: "warning",
+    controls: [
+      "Search audit logs",
+      "Filter actions",
+      "View details",
+      "Export logs",
+      "No delete",
+    ],
+  },
+  {
+    title: "Revenue Dashboard",
+    description: "Review platform revenue and financial metrics.",
+    to: "/super-admin/revenue",
+    primaryAction: "View Revenue",
+    tone: "warning",
+    controls: [
+      "Filter by period",
+      "Refresh",
+      "Export report later",
+      "No edit/delete",
+    ],
+  },
+  {
+    title: "System Health",
+    description: "Review API, database, provider, and runtime health.",
+    to: "/super-admin/system",
+    primaryAction: "View System Health",
+    tone: "warning",
+    controls: [
+      "Refresh",
+      "Review warnings",
+      "Export diagnostics later",
+      "No add/edit/delete",
+    ],
+  },
+];
+
+function CommandCardView({ card }: { card: CommandCard }) {
   return (
-    <Link to={to} style={styles.quickLink}>
-      <span style={styles.quickTitle}>{title}</span>
-      <span style={styles.quickBody}>{body}</span>
-    </Link>
+    <article className={`super-admin-command-card ${card.tone || "standard"}`}>
+      <div>
+        <div className="super-admin-control-kicker">Super Admin Control</div>
+        <h3 className="super-admin-command-title">{card.title}</h3>
+        <p className="super-admin-command-description">{card.description}</p>
+      </div>
+
+      <ul className="super-admin-command-list">
+        {card.controls.map((control) => (
+          <li key={control}>{control}</li>
+        ))}
+      </ul>
+
+      <Link className={card.tone === "primary" ? "btn btn-primary" : "btn btn-secondary"} to={card.to}>
+        {card.primaryAction}
+      </Link>
+    </article>
   );
 }
 
 export default function SuperAdminOverviewPage() {
-  const [data, setData] = useState<unknown>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  async function loadOverview() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await api.get<unknown>("/super-admin/overview");
-      setData(response);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load Super Admin overview.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadOverview();
-  }, []);
-
-  const stats = useMemo(() => {
-    const users = readNumber(data, [
-      "users.total",
-      "totals.users",
-      "counts.users",
-      "users",
-      "totalUsers",
-    ]);
-
-    const shops = readNumber(data, [
-      "shops.total",
-      "totals.shops",
-      "counts.shops",
-      "shops",
-      "totalShops",
-    ]);
-
-    const inventory = readNumber(data, [
-      "inventory.total",
-      "items.total",
-      "totals.inventory",
-      "counts.inventory",
-      "totalItems",
-    ]);
-
-    const liveAuctions = readNumber(data, [
-      "auctions.live",
-      "liveAuctions",
-      "totals.liveAuctions",
-      "counts.liveAuctions",
-    ]);
-
-    const pendingSettlements = readNumber(data, [
-      "settlements.pending",
-      "pendingSettlements",
-      "totals.pendingSettlements",
-      "counts.pendingSettlements",
-    ]);
-
-    const revenue = readNumber(data, [
-      "revenue.total",
-      "revenue.gross",
-      "totals.revenue",
-      "grossRevenue",
-      "totalRevenue",
-    ]);
-
-    return {
-      users,
-      shops,
-      inventory,
-      liveAuctions,
-      pendingSettlements,
-      revenue,
-    };
-  }, [data]);
-
   return (
-    <div style={styles.page}>
-      <section style={styles.hero}>
-        <div>
-          <div style={styles.eyebrow}>Super Admin Command Center</div>
-          <h1 style={styles.title}>Platform Control</h1>
-          <p style={styles.subtitle}>
-            Monitor users, shops, plans, subscriptions, revenue, settlements, and
-            platform settings from one clean workspace.
-          </p>
+    <AdminPageShell
+      title="Platform Control"
+      subtitle="Control users, shops, plans, billing, settings, and platform oversight from one place."
+      actions={
+        <div className="admin-action-row">
+          <Link className="btn btn-secondary" to="/super-admin/system">
+            System Health
+          </Link>
+          <Link className="btn btn-secondary" to="/super-admin/audit">
+            Audit Logs
+          </Link>
+          <Link className="btn btn-secondary" to="/super-admin/revenue">
+            Revenue
+          </Link>
+        </div>
+      }
+    >
+      <section className="super-admin-control-panel">
+        <div className="super-admin-control-header">
+          <div>
+            <div className="super-admin-control-kicker">Super Admin Command Center</div>
+            <h2 className="super-admin-control-title">Platform Control Command Center</h2>
+            <p className="super-admin-control-subtitle">
+              This is your control hub. Jump directly into the pages where you can search,
+              add, edit, disable, delete/restore, review, export, and govern marketplace records.
+            </p>
+          </div>
+
+          <div className="super-admin-control-actions">
+            <Link className="btn btn-primary" to="/super-admin/users">
+              Search / Add / Edit Users
+            </Link>
+            <Link className="btn btn-primary" to="/super-admin/shops">
+              Search / Add / Edit Shops
+            </Link>
+            <Link className="btn btn-primary" to="/super-admin/inventory">
+              Search / Edit / Moderate Inventory
+            </Link>
+          </div>
         </div>
 
-        <button type="button" className="btn btn-secondary" onClick={loadOverview}>
-          Refresh
-        </button>
+        <ul className="super-admin-control-list">
+          <li>Users: add users, edit roles, activate/deactivate accounts, and export users.</li>
+          <li>Shops: add shops, edit shop details, reassign owners, update plan/status, disable/restore shops.</li>
+          <li>Inventory: search listings, edit price/category/status, and delete/restore marketplace listings.</li>
+          <li>Audit, revenue, and system health are review-only areas with search, refresh, view, and export controls.</li>
+        </ul>
       </section>
 
-      {error ? (
-        <div style={styles.error}>
-          <strong>Unable to load overview.</strong>
-          <span>{error}</span>
+      <section className="page-card">
+        <div className="toolbar">
+          <div>
+            <h2 className="section-title">Primary Control Surfaces</h2>
+            <p className="section-subtitle">
+              These are the pages where Super Admin has direct add/edit/moderation controls.
+            </p>
+          </div>
         </div>
-      ) : null}
 
-      {loading ? (
-        <div style={styles.card}>Loading Super Admin overview...</div>
-      ) : (
-        <>
-          <section style={styles.kpiGrid}>
-            <KpiCard label="Users" value={stats.users} helper="Registered platform accounts" />
-            <KpiCard label="Shops" value={stats.shops} helper="Marketplace shop records" />
-            <KpiCard label="Inventory" value={stats.inventory} helper="Listings across shops" />
-            <KpiCard label="Live Auctions" value={stats.liveAuctions} helper="Currently active auctions" />
-            <KpiCard label="Pending Settlements" value={stats.pendingSettlements} helper="Settlement actions pending" />
-            <KpiCard label="Revenue" value={formatCurrency(stats.revenue)} helper="Platform revenue snapshot" />
-          </section>
+        <div className="super-admin-command-grid">
+          {PRIMARY_CONTROLS.map((card) => (
+            <CommandCardView key={card.title} card={card} />
+          ))}
+        </div>
+      </section>
 
-          <section style={styles.section}>
-            <div>
-              <h2 style={styles.sectionTitle}>Quick Actions</h2>
-              <p style={styles.sectionSubtitle}>
-                Jump directly into the most important platform controls.
-              </p>
-            </div>
+      <section className="page-card">
+        <div className="toolbar">
+          <div>
+            <h2 className="section-title">Operations & Governance</h2>
+            <p className="section-subtitle">
+              These areas need search, review, export, and controlled operational actions.
+            </p>
+          </div>
+        </div>
 
-            <div style={styles.quickGrid}>
-              <QuickLink
-                to="/super-admin/users"
-                title="Users & Roles"
-                body="Review users, roles, access, and account status."
-              />
-              <QuickLink
-                to="/super-admin/shops"
-                title="Shop Management"
-                body="Review shops, owners, status, and plan assignments."
-              />
-              <QuickLink
-                to="/super-admin/inventory"
-                title="Inventory Control"
-                body="Inspect marketplace listings and item visibility."
-              />
-              <QuickLink
-                to="/super-admin/buyer-subscriptions"
-                title="Buyer Subscriptions"
-                body="Manage buyer plans, intervals, and renewal state."
-              />
-              <QuickLink
-                to="/super-admin/settlements"
-                title="Settlement Control"
-                body="Review settlement status and payment state."
-              />
-              <QuickLink
-                to="/super-admin/platform-settings"
-                title="Platform Settings"
-                body="Manage feature flags and marketplace configuration."
-              />
-            </div>
-          </section>
-        </>
-      )}
-    </div>
+        <div className="super-admin-command-grid">
+          {OPERATIONS_CONTROLS.map((card) => (
+            <CommandCardView key={card.title} card={card} />
+          ))}
+        </div>
+      </section>
+
+      <section className="page-card">
+        <div className="toolbar">
+          <div>
+            <h2 className="section-title">Review-Only Surfaces</h2>
+            <p className="section-subtitle">
+              These pages should not have destructive add/edit/delete controls.
+            </p>
+          </div>
+        </div>
+
+        <div className="super-admin-command-grid">
+          {REVIEW_ONLY_CONTROLS.map((card) => (
+            <CommandCardView key={card.title} card={card} />
+          ))}
+        </div>
+      </section>
+    </AdminPageShell>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  page: {
-    display: "grid",
-    gap: 18,
-  },
-  hero: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    alignItems: "flex-start",
-    padding: 22,
-    borderRadius: 20,
-    border: "1px solid rgba(129, 140, 248, 0.22)",
-    background:
-      "linear-gradient(135deg, rgba(79,70,229,0.24), rgba(15,23,42,0.82))",
-  },
-  eyebrow: {
-    color: "#a5b4fc",
-    fontSize: 12,
-    fontWeight: 900,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase",
-  },
-  title: {
-    margin: "8px 0 0",
-    color: "#ffffff",
-    fontSize: 32,
-    fontWeight: 900,
-    letterSpacing: "-0.04em",
-  },
-  subtitle: {
-    margin: "8px 0 0",
-    maxWidth: 760,
-    color: "#cbd5e1",
-    lineHeight: 1.55,
-  },
-  kpiGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-    gap: 14,
-  },
-  kpiCard: {
-    padding: 18,
-    borderRadius: 18,
-    border: "1px solid rgba(148, 163, 184, 0.18)",
-    background: "rgba(15, 23, 42, 0.78)",
-  },
-  kpiLabel: {
-    color: "#94a3b8",
-    fontSize: 12,
-    fontWeight: 800,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-  },
-  kpiValue: {
-    marginTop: 8,
-    color: "#ffffff",
-    fontSize: 30,
-    fontWeight: 900,
-  },
-  kpiHelper: {
-    marginTop: 5,
-    color: "#94a3b8",
-    fontSize: 12,
-  },
-  section: {
-    display: "grid",
-    gap: 14,
-    padding: 20,
-    borderRadius: 20,
-    border: "1px solid rgba(148, 163, 184, 0.16)",
-    background: "rgba(2, 6, 23, 0.48)",
-  },
-  sectionTitle: {
-    margin: 0,
-    color: "#ffffff",
-    fontSize: 20,
-    fontWeight: 900,
-  },
-  sectionSubtitle: {
-    margin: "4px 0 0",
-    color: "#94a3b8",
-  },
-  quickGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
-  },
-  quickLink: {
-    display: "grid",
-    gap: 6,
-    padding: 16,
-    borderRadius: 16,
-    border: "1px solid rgba(129, 140, 248, 0.22)",
-    background: "rgba(30, 41, 59, 0.58)",
-    color: "#dbeafe",
-    textDecoration: "none",
-  },
-  quickTitle: {
-    color: "#ffffff",
-    fontWeight: 900,
-  },
-  quickBody: {
-    color: "#94a3b8",
-    fontSize: 13,
-    lineHeight: 1.45,
-  },
-  card: {
-    padding: 18,
-    borderRadius: 16,
-    background: "rgba(15,23,42,0.72)",
-    border: "1px solid rgba(148,163,184,0.18)",
-    color: "#e2e8f0",
-  },
-  error: {
-    display: "grid",
-    gap: 4,
-    padding: 16,
-    borderRadius: 16,
-    color: "#fecaca",
-    background: "rgba(239, 68, 68, 0.1)",
-    border: "1px solid rgba(239, 68, 68, 0.22)",
-  },
-};

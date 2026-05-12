@@ -32,6 +32,7 @@ fi
 echo "✅ Super Admin login"
 
 for path in \
+  /super-admin \
   /super-admin/users \
   /super-admin/shops \
   /super-admin/inventory
@@ -45,6 +46,9 @@ do
 
   echo "✅ $path reachable"
 done
+
+rg -n "Platform Control Command Center|Primary Control Surfaces|Operations & Governance|Review-Only Surfaces|Search / Add / Edit Users|Search / Add / Edit Shops|Search / Edit / Moderate Inventory" \
+  apps/web/src/admin/pages/SuperAdminOverviewPage.tsx
 
 rg -n "User & Role Command Center|Shop Governance Command Center|Inventory Control Command Center|Super Admin Users & Roles|Super Admin Shop Management|Super Admin Inventory Control|Add User|Add Shop|Edit|Export CSV|Delete|Restore|Disable|Deactivate|Activate" \
   apps/web/src/pages/AdminUsersPage.tsx \
