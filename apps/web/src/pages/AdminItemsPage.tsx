@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useLocation } from "react-router-dom";
 import AdminPageShell from "../admin/components/AdminPageShell";
 import { adminApi } from "../admin/services/adminApi";
 import type { AdminItemRow, UpdateAdminItemInput } from "../admin/services/adminApi";
@@ -93,6 +94,8 @@ function buildEditForm(item: AdminItemRow): ItemFormState {
 }
 
 export default function AdminItemsPage() {
+  const location = useLocation();
+  const isSuperAdminSurface = location.pathname.startsWith("/super-admin");
   const [items, setItems] = useState<AdminItemRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
@@ -269,7 +272,7 @@ export default function AdminItemsPage() {
 
   function exportItems() {
     downloadCsv(
-      "admin-inventory.csv",
+      isSuperAdminSurface ? "super-admin-inventory.csv" : isSuperAdminSurface ? "super-admin-inventory.csv" : "admin-inventory.csv",
       filteredItems.map((item) => ({
         id: item.id,
         title: item.title,
@@ -286,8 +289,8 @@ export default function AdminItemsPage() {
 
   return (
     <AdminPageShell
-      title="Admin Inventory Control"
-      subtitle="Search, filter, export, edit, delete, and restore marketplace listings."
+      title={isSuperAdminSurface ? "Super Admin Inventory Control" : "Admin Inventory Control"}
+      subtitle={isSuperAdminSurface ? "Search, edit, change status, delete, restore, and govern marketplace listings." : "Search, filter, export, edit, delete, and restore marketplace listings."}
       actions={
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="btn btn-secondary" onClick={exportItems}>
@@ -341,6 +344,34 @@ export default function AdminItemsPage() {
 
       {notice ? <div className="admin-notice success">{notice}</div> : null}
       {error ? <div className="admin-notice danger">{error}</div> : null}
+
+      {isSuperAdminSurface ? (
+        <section className="super-admin-control-panel">
+          <div className="super-admin-control-header">
+            <div>
+              <div className="super-admin-control-kicker">Super Admin Controls</div>
+              <h2 className="super-admin-control-title">Inventory Control Command Center</h2>
+              <p className="super-admin-control-subtitle">
+                Search listings, edit title/price/category/condition/status, delete or restore listings,
+                and export inventory records.
+              </p>
+            </div>
+            <div className="super-admin-control-actions">
+              <button className="btn btn-secondary" onClick={exportItems}>
+                Export CSV
+              </button>
+              <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
+                Refresh
+              </button>
+            </div>
+          </div>
+          <ul className="super-admin-control-list">
+            <li>Use the search box below to find listings by title, category, shop, status, or id.</li>
+            <li>Use Edit to update listing fields and marketplace status.</li>
+            <li>Use Delete / Restore to moderate listings without permanently removing records.</li>
+          </ul>
+        </section>
+      ) : null}
 
       <div className="admin-table-card">
         <div className="admin-table-meta">

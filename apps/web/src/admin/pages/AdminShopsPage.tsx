@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useLocation } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
 import {
   adminApi,
@@ -88,6 +89,8 @@ function ownerLabel(owner: AdminUserRow) {
 }
 
 export default function AdminShopsPage() {
+  const location = useLocation();
+  const isSuperAdminSurface = location.pathname.startsWith("/super-admin");
   const [shops, setShops] = useState<AdminShopRow[]>([]);
   const [owners, setOwners] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -303,7 +306,7 @@ export default function AdminShopsPage() {
 
   function exportShops() {
     downloadCsv(
-      "admin-shops.csv",
+      isSuperAdminSurface ? "super-admin-shops.csv" : isSuperAdminSurface ? "super-admin-shops.csv" : "admin-shops.csv",
       filteredShops.map((shop) => ({
         id: shop.id,
         name: shop.name,
@@ -322,8 +325,8 @@ export default function AdminShopsPage() {
 
   return (
     <AdminPageShell
-      title="Admin Shops"
-      subtitle="Search, filter, export, create, edit, assign owners, disable, and restore marketplace shops."
+      title={isSuperAdminSurface ? "Super Admin Shop Management" : "Admin Shops"}
+      subtitle={isSuperAdminSurface ? "Search, add, edit, reassign owners, update plan/status, disable, and restore shops." : "Search, filter, export, create, edit, assign owners, disable, and restore marketplace shops."}
       actions={
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="btn btn-primary" onClick={openCreateModal}>
@@ -381,6 +384,37 @@ export default function AdminShopsPage() {
 
       {notice ? <div className="admin-notice success">{notice}</div> : null}
       {error ? <div className="admin-notice danger">{error}</div> : null}
+
+      {isSuperAdminSurface ? (
+        <section className="super-admin-control-panel">
+          <div className="super-admin-control-header">
+            <div>
+              <div className="super-admin-control-kicker">Super Admin Controls</div>
+              <h2 className="super-admin-control-title">Shop Governance Command Center</h2>
+              <p className="super-admin-control-subtitle">
+                Add shops, edit shop profiles, reassign owners, update plan/status,
+                disable or restore shops, search records, and export shop data.
+              </p>
+            </div>
+            <div className="super-admin-control-actions">
+              <button className="btn btn-primary" onClick={openCreateModal}>
+                Add Shop
+              </button>
+              <button className="btn btn-secondary" onClick={exportShops}>
+                Export CSV
+              </button>
+              <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
+                Refresh
+              </button>
+            </div>
+          </div>
+          <ul className="super-admin-control-list">
+            <li>Use the search box below to find shops by name, owner, phone, plan, status, or id.</li>
+            <li>Use Edit to reassign owner, update shop profile, and change subscription controls.</li>
+            <li>Use Disable / Restore instead of hard deleting shops.</li>
+          </ul>
+        </section>
+      ) : null}
 
       <div className="admin-table-card">
         <div className="admin-table-meta">

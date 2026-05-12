@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useLocation } from "react-router-dom";
 import AdminPageShell from "../admin/components/AdminPageShell";
 import { adminApi } from "../admin/services/adminApi";
 import type {
@@ -72,6 +73,8 @@ function buildEditForm(user: AdminUserRow): UserFormState {
 }
 
 export default function AdminUsersPage() {
+  const location = useLocation();
+  const isSuperAdminSurface = location.pathname.startsWith("/super-admin");
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
@@ -261,7 +264,7 @@ export default function AdminUsersPage() {
 
   function exportUsers() {
     downloadCsv(
-      "admin-users.csv",
+      isSuperAdminSurface ? "super-admin-users.csv" : isSuperAdminSurface ? "super-admin-users.csv" : "admin-users.csv",
       filteredUsers.map((user) => ({
         id: user.id,
         name: user.name,
@@ -275,8 +278,8 @@ export default function AdminUsersPage() {
 
   return (
     <AdminPageShell
-      title="Admin Users"
-      subtitle="Search, filter, export, create, edit, activate, and deactivate platform users."
+      title={isSuperAdminSurface ? "Super Admin Users & Roles" : "Admin Users"}
+      subtitle={isSuperAdminSurface ? "Search, add, edit, activate, deactivate, and govern platform users and roles." : "Search, filter, export, create, edit, activate, and deactivate platform users."}
       actions={
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="btn btn-primary" onClick={openCreateModal}>
@@ -344,6 +347,37 @@ export default function AdminUsersPage() {
 
       {notice ? <div className="admin-notice success">{notice}</div> : null}
       {error ? <div className="admin-notice danger">{error}</div> : null}
+
+      {isSuperAdminSurface ? (
+        <section className="super-admin-control-panel">
+          <div className="super-admin-control-header">
+            <div>
+              <div className="super-admin-control-kicker">Super Admin Controls</div>
+              <h2 className="super-admin-control-title">User & Role Command Center</h2>
+              <p className="super-admin-control-subtitle">
+                Add users, edit user profiles, change roles, activate/deactivate accounts,
+                search all users, and export user records.
+              </p>
+            </div>
+            <div className="super-admin-control-actions">
+              <button className="btn btn-primary" onClick={openCreateModal}>
+                Add User
+              </button>
+              <button className="btn btn-secondary" onClick={exportUsers}>
+                Export CSV
+              </button>
+              <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
+                Refresh
+              </button>
+            </div>
+          </div>
+          <ul className="super-admin-control-list">
+            <li>Use the search box below to find users by name, email, role, or id.</li>
+            <li>Use Edit to modify role, email, name, and account status.</li>
+            <li>Use Activate / Deactivate instead of hard deleting users.</li>
+          </ul>
+        </section>
+      ) : null}
 
       <div className="admin-table-card">
         <div className="admin-table-meta">

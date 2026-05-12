@@ -81,15 +81,9 @@ const AdminWorkspacePage = lazyPage(() => import("./admin/pages/AdminWorkspacePa
 
 const AdminItemsPage = lazyPage(() => import("./pages/AdminItemsPage"));
 const AdminUsersPage = lazyPage(() => import("./pages/AdminUsersPage"));
-const SuperAdminUsersPage = lazyPage(() =>
-  import("./admin/pages/SuperAdminUsersPage"),
-);
 const SuperAdminOverviewPage = lazyPage(() => import("./admin/pages/SuperAdminOverviewPage"));
 const SuperAdminAuditPage = lazyPage(() => import("./admin/pages/SuperAdminAuditPage"));
 const SuperAdminSystemHealthPage = lazyPage(() => import("./admin/pages/SuperAdminSystemHealthPage"));
-const SuperAdminShopsPage = lazyPage(() =>
-  import("./admin/pages/SuperAdminShopsPage"),
-);
 const SuperAdminIntegrationsPage = lazyPage(() => import("./admin/pages/SuperAdminIntegrationsPage"));
 const SuperAdminSettlementsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminSettlementsPage"),
@@ -306,8 +300,8 @@ const adminChildRoutes: RouteConfig[] = [
 const superAdminRoutes: RouteConfig[] = [
   { index: true, element: <SuperAdminOverviewPage /> },
   { path: "overview", element: <Navigate to="/super-admin" replace /> },
-  { path: "users", element: <SuperAdminUsersPage /> },
-  { path: "shops", element: <SuperAdminShopsPage /> },
+  { path: "users", element: <AdminUsersPage /> },
+  { path: "shops", element: <AdminShopsPage /> },
   { path: "owners", element: <AdminOwnersPage /> },
   { path: "auctions", element: <AdminAuctionsPage /> },
   { path: "offers", element: <AdminOffersPage /> },
