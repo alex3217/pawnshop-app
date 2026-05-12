@@ -264,7 +264,7 @@ export default function AdminUsersPage() {
 
   function exportUsers() {
     downloadCsv(
-      isSuperAdminSurface ? "super-admin-users.csv" : isSuperAdminSurface ? "super-admin-users.csv" : "admin-users.csv",
+      isSuperAdminSurface ? "super-admin-users.csv" : isSuperAdminSurface ? "super-admin-users.csv" : isSuperAdminSurface ? "super-admin-users.csv" : "admin-users.csv",
       filteredUsers.map((user) => ({
         id: user.id,
         name: user.name,

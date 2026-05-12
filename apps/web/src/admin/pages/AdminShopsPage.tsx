@@ -306,7 +306,7 @@ export default function AdminShopsPage() {
 
   function exportShops() {
     downloadCsv(
-      isSuperAdminSurface ? "super-admin-shops.csv" : isSuperAdminSurface ? "super-admin-shops.csv" : "admin-shops.csv",
+      isSuperAdminSurface ? "super-admin-shops.csv" : isSuperAdminSurface ? "super-admin-shops.csv" : isSuperAdminSurface ? "super-admin-shops.csv" : "admin-shops.csv",
       filteredShops.map((shop) => ({
         id: shop.id,
         name: shop.name,

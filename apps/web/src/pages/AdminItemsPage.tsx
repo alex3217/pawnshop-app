@@ -272,7 +272,7 @@ export default function AdminItemsPage() {
 
   function exportItems() {
     downloadCsv(
-      isSuperAdminSurface ? "super-admin-inventory.csv" : isSuperAdminSurface ? "super-admin-inventory.csv" : "admin-inventory.csv",
+      isSuperAdminSurface ? "super-admin-inventory.csv" : isSuperAdminSurface ? "super-admin-inventory.csv" : isSuperAdminSurface ? "super-admin-inventory.csv" : "admin-inventory.csv",
       filteredItems.map((item) => ({
         id: item.id,
         title: item.title,
