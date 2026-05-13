@@ -37,5 +37,8 @@
     "check:super-admin-pages": "node scripts/playwright/super-admin-page-audit.mjs",
     "check:ai-listing-assistant": "bash scripts/check-ai-listing-assistant.sh",
     "check:full-e2e": "bash scripts/check-full-e2e.sh"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0"
   }
 }

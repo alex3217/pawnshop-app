@@ -7,7 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
 import {
   getOwnerItems,
@@ -98,65 +98,86 @@ function unwrapData<T = unknown>(payload: unknown): T | null {
   return payload as T;
 }
 
-function normalizeShops(payload: unknown): Shop[] {
-  const unwrapped = unwrapData(payload);
+function extractArrayPayload(payload: unknown, keys: string[]): unknown[] {
+  if (Array.isArray(payload)) return payload;
 
-  if (Array.isArray(unwrapped)) {
-    return unwrapped
-      .filter(
-        (value): value is Record<string, unknown> =>
-          Boolean(value) && typeof value === "object"
-      )
-      .map((shop) => ({
-        id: String(shop.id || ""),
-        name: String(shop.name || "Unnamed Shop"),
-        address: shop.address == null ? null : String(shop.address),
-      }))
-      .filter((shop) => Boolean(shop.id));
-  }
+  if (!payload || typeof payload !== "object") return [];
 
-  if (
-    unwrapped &&
-    typeof unwrapped === "object" &&
-    Array.isArray((unwrapped as { shops?: unknown }).shops)
-  ) {
-    return normalizeShops((unwrapped as { shops: unknown[] }).shops);
+  const record = payload as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (Array.isArray(value)) return value;
+
+    if (value && typeof value === "object") {
+      const nested = value as Record<string, unknown>;
+
+      for (const nestedKey of keys) {
+        const nestedValue = nested[nestedKey];
+
+        if (Array.isArray(nestedValue)) return nestedValue;
+
+        if (nestedValue && typeof nestedValue === "object") {
+          const deep = nestedValue as Record<string, unknown>;
+
+          for (const deepKey of keys) {
+            if (Array.isArray(deep[deepKey])) return deep[deepKey] as unknown[];
+          }
+        }
+      }
+    }
   }
 
   return [];
 }
 
+function normalizeShops(payload: unknown): Shop[] {
+  const rows = extractArrayPayload(payload, [
+    "rows",
+    "shops",
+    "data",
+    "items",
+    "results",
+  ]);
+
+  return rows
+    .filter(
+      (value): value is Record<string, unknown> =>
+        Boolean(value) && typeof value === "object",
+    )
+    .map((shop) => ({
+      id: String(shop.id || ""),
+      name: String(shop.name || "Unnamed Shop"),
+      address: shop.address == null ? null : String(shop.address),
+    }))
+    .filter((shop) => Boolean(shop.id));
+}
+
 function normalizeItems(payload: unknown): Item[] {
-  const unwrapped = unwrapData(payload);
+  const rows = extractArrayPayload(payload, [
+    "rows",
+    "items",
+    "data",
+    "results",
+  ]);
 
-  if (Array.isArray(unwrapped)) {
-    return unwrapped
-      .filter(
-        (value): value is Record<string, unknown> =>
-          Boolean(value) && typeof value === "object"
-      )
-      .map((item) => ({
-        id: String(item.id || ""),
-        title: String(item.title || "Untitled Item"),
-        price:
-          typeof item.price === "number" || typeof item.price === "string"
-            ? item.price
-            : "0",
-        status: String(item.status || "UNKNOWN"),
-        pawnShopId: String(item.pawnShopId || item.shopId || ""),
-      }))
-      .filter((item) => Boolean(item.id));
-  }
-
-  if (
-    unwrapped &&
-    typeof unwrapped === "object" &&
-    Array.isArray((unwrapped as { items?: unknown }).items)
-  ) {
-    return normalizeItems((unwrapped as { items: unknown[] }).items);
-  }
-
-  return [];
+  return rows
+    .filter(
+      (value): value is Record<string, unknown> =>
+        Boolean(value) && typeof value === "object",
+    )
+    .map((item) => ({
+      id: String(item.id || ""),
+      title: String(item.title || "Untitled Item"),
+      price:
+        typeof item.price === "number" || typeof item.price === "string"
+          ? item.price
+          : "0",
+      status: String(item.status || "UNKNOWN"),
+      pawnShopId: String(item.pawnShopId || item.shopId || ""),
+    }))
+    .filter((item) => Boolean(item.id));
 }
 
 function normalizeEntitlements(payload: unknown): Entitlements | null {
@@ -276,7 +297,6 @@ function getItemStatusTone(status: string): CSSProperties {
 }
 
 export default function OwnerDashboardPage() {
-  const navigate = useNavigate();
   const [shops, setShops] = useState<Shop[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [selectedShopId, setSelectedShopId] = useState("");
@@ -406,9 +426,12 @@ export default function OwnerDashboardPage() {
     []
   );
 
+
   useEffect(() => {
     const controller = new AbortController();
+
     void loadDashboard(controller.signal);
+
     return () => controller.abort();
   }, [loadDashboard]);
 
@@ -439,7 +462,7 @@ export default function OwnerDashboardPage() {
       setDashboardMessage("Subscription details were refreshed.");
     } else if (checkout === "success") {
       setDashboardMessage(
-        `Checkout completed${plan ? ` for ${plan}` : ""}. Dashboard refreshed.`
+        `Checkout completed${plan ? ` for ${plan}` : ""}. Dashboard refreshed.`,
       );
     } else if (checkout === "cancelled") {
       setDashboardMessage("Checkout was cancelled. No billing changes were made.");
@@ -460,13 +483,6 @@ export default function OwnerDashboardPage() {
     url.searchParams.delete("shopId");
     window.history.replaceState({}, "", url.toString());
   }, [loadEntitlements, selectedShopId]);
-
-  useEffect(() => {
-    if (pageLoading) return;
-    if (shops.length === 0) {
-      navigate("/owner/shops/new", { replace: true });
-    }
-  }, [pageLoading, shops.length, navigate]);
 
   const planSummary = useMemo(() => {
     if (!entitlements) return null;
