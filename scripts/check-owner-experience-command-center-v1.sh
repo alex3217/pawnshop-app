@@ -69,7 +69,7 @@ rg -n "Owner Command Center|Shop Health|Quick Actions|Inventory Health|Offers|Au
 
 echo "Checking owner inventory controls..."
 
-rg -n "Inventory Command Center|Search|Add Item|Edit|Mark Sold|Delete|Bulk Upload|Scan Console|Export|Filter|Sort" \
+rg -n "Inventory Command Center|Daily Inventory Controls|Search|Add Item|Edit|Mark Sold|Delete / Archive|Bulk Upload|Scan Console|Export CSV|statusFilter|sortKey|owner-inventory.csv" \
   apps/web/src/pages/OwnerInventoryPage.tsx
 
 echo "✅ OWNER EXPERIENCE COMMAND CENTER V1 CHECK PASSED"

@@ -2,10 +2,26 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 import { Link } from "react-router-dom";
 import { deleteItem, getMyItems, markItemSold, type Item } from "../services/items";
 
+type StatusFilter = "ALL" | "ACTIVE" | "PENDING" | "SOLD" | "DELETED";
+type SortKey = "createdAt" | "title" | "price" | "status" | "category";
+
 function formatPrice(value: string | number) {
   const num = Number(value);
   if (!Number.isFinite(num)) return String(value);
   return `$${num.toFixed(2)}`;
+}
+
+function getRecordValue(item: Item, key: string) {
+  return (item as unknown as Record<string, unknown>)[key];
+}
+
+function getCreatedAt(item: Item) {
+  const value = getRecordValue(item, "createdAt");
+  return value ? String(value) : "";
+}
+
+function getShopName(item: Item) {
+  return item.shop?.name || item.pawnShopId || "Unknown shop";
 }
 
 function getItemStatusTone(status: string): CSSProperties {
@@ -27,7 +43,7 @@ function getItemStatusTone(status: string): CSSProperties {
     };
   }
 
-  if (["SOLD", "INACTIVE", "REMOVED"].includes(normalized)) {
+  if (["SOLD", "INACTIVE", "REMOVED", "DELETED"].includes(normalized)) {
     return {
       color: "#ffb2bc",
       background: "rgba(255, 128, 143, 0.10)",
@@ -42,6 +58,77 @@ function getItemStatusTone(status: string): CSSProperties {
   };
 }
 
+function normalizeStatus(status: unknown) {
+  return String(status || "").trim().toUpperCase();
+}
+
+function itemMatchesStatus(item: Item, statusFilter: StatusFilter) {
+  const status = normalizeStatus(item.status);
+
+  if (statusFilter === "ALL") return true;
+  if (statusFilter === "ACTIVE") return ["AVAILABLE", "ACTIVE"].includes(status);
+  return status === statusFilter;
+}
+
+function sortItems(items: Item[], sortKey: SortKey) {
+  return [...items].sort((a, b) => {
+    if (sortKey === "price") return Number(b.price || 0) - Number(a.price || 0);
+    if (sortKey === "createdAt") return getCreatedAt(b).localeCompare(getCreatedAt(a));
+
+    const left = String(getRecordValue(a, sortKey) || "").toLowerCase();
+    const right = String(getRecordValue(b, sortKey) || "").toLowerCase();
+    return left.localeCompare(right);
+  });
+}
+
+function exportInventoryCsv(items: Item[]) {
+  const rows = items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    price: item.price,
+    status: item.status,
+    category: item.category || "",
+    condition: item.condition || "",
+    shop: getShopName(item),
+    createdAt: getCreatedAt(item),
+  }));
+
+  const headers = Object.keys(
+    rows[0] || {
+      id: "",
+      title: "",
+      price: "",
+      status: "",
+      category: "",
+      condition: "",
+      shop: "",
+      createdAt: "",
+    },
+  );
+
+  const csv = [
+    headers.join(","),
+    ...rows.map((row) =>
+      headers
+        .map((key) => {
+          const value = String((row as Record<string, unknown>)[key] ?? "");
+          return `"${value.replace(/"/g, '""')}"`;
+        })
+        .join(","),
+    ),
+  ].join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = "owner-inventory.csv";
+  anchor.click();
+
+  URL.revokeObjectURL(url);
+}
+
 export default function OwnerInventoryPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +136,10 @@ export default function OwnerInventoryPage() {
   const [actionItemId, setActionItemId] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -74,11 +165,38 @@ export default function OwnerInventoryPage() {
 
   const activeCount = useMemo(() => {
     return items.filter((item) =>
-      ["AVAILABLE", "PENDING", "ACTIVE"].includes(
-        String(item.status || "").toUpperCase(),
-      )
+      ["AVAILABLE", "PENDING", "ACTIVE"].includes(normalizeStatus(item.status)),
     ).length;
   }, [items]);
+
+  const soldCount = useMemo(() => {
+    return items.filter((item) => normalizeStatus(item.status) === "SOLD").length;
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+
+    const next = items
+      .filter((item) => itemMatchesStatus(item, statusFilter))
+      .filter((item) => {
+        if (!needle) return true;
+
+        return [
+          item.id,
+          item.title,
+          item.description,
+          item.category,
+          item.condition,
+          item.status,
+          item.pawnShopId,
+          item.shop?.name,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(needle));
+      });
+
+    return sortItems(next, sortKey);
+  }, [items, query, sortKey, statusFilter]);
 
   async function handleMarkSold(item: Item) {
     if (!item.id || actionItemId) return;
@@ -127,14 +245,28 @@ export default function OwnerInventoryPage() {
       <div style={styles.header}>
         <div>
           <h2 style={styles.title}>Owner Inventory</h2>
-          <p style={styles.subtitle}>Manage the inventory tied to your pawn shops.</p>
+          <p style={styles.subtitle}>
+            Search, add, edit, sell, archive, scan, upload, and export shop inventory.
+          </p>
         </div>
 
         <div style={styles.actions}>
           <Link to="/owner/items/new" style={styles.primaryLink}>
-            Create Item
+            Add Item
           </Link>
-
+          <Link to="/owner/bulk-upload" style={styles.linkButton}>
+            Bulk Upload
+          </Link>
+          <Link to="/owner/scan-console" style={styles.linkButton}>
+            Scan Console
+          </Link>
+          <button
+            type="button"
+            onClick={() => exportInventoryCsv(filteredItems)}
+            style={styles.secondaryButton}
+          >
+            Export CSV
+          </button>
           <button
             type="button"
             onClick={() => load(true)}
@@ -149,9 +281,72 @@ export default function OwnerInventoryPage() {
         </div>
       </div>
 
+      <section style={styles.commandPanel}>
+        <div>
+          <div style={styles.kicker}>Inventory Command Center</div>
+          <h3 style={styles.sectionTitle}>Daily Inventory Controls</h3>
+          <p style={styles.subtitle}>
+            Use these controls to find items quickly, update status, sell items,
+            archive bad records, and keep inventory moving.
+          </p>
+        </div>
+
+        <div style={styles.quickGrid}>
+          <div style={styles.card}>
+            <div style={styles.kicker}>Total Items</div>
+            <div style={styles.bigValue}>{items.length}</div>
+          </div>
+          <div style={styles.card}>
+            <div style={styles.kicker}>Active</div>
+            <div style={styles.bigValue}>{activeCount}</div>
+          </div>
+          <div style={styles.card}>
+            <div style={styles.kicker}>Sold</div>
+            <div style={styles.bigValue}>{soldCount}</div>
+          </div>
+          <div style={styles.card}>
+            <div style={styles.kicker}>Showing</div>
+            <div style={styles.bigValue}>{filteredItems.length}</div>
+          </div>
+        </div>
+      </section>
+
+      <section style={styles.controlBar}>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search by title, category, condition, status, shop, or id..."
+          style={styles.input}
+        />
+
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+          style={styles.select}
+        >
+          <option value="ALL">All statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="PENDING">Pending</option>
+          <option value="SOLD">Sold</option>
+          <option value="DELETED">Deleted</option>
+        </select>
+
+        <select
+          value={sortKey}
+          onChange={(event) => setSortKey(event.target.value as SortKey)}
+          style={styles.select}
+        >
+          <option value="createdAt">Newest first</option>
+          <option value="title">Title</option>
+          <option value="price">Price high to low</option>
+          <option value="status">Status</option>
+          <option value="category">Category</option>
+        </select>
+      </section>
+
       {!loading && !error ? (
         <div style={styles.summary}>
-          Total items: {items.length} · Active items: {activeCount}
+          Total items: {items.length} · Active items: {activeCount} · Showing: {filteredItems.length}
         </div>
       ) : null}
 
@@ -159,17 +354,17 @@ export default function OwnerInventoryPage() {
       {loading ? <div style={styles.card}>Loading inventory...</div> : null}
       {error ? <div style={styles.error}>{error}</div> : null}
 
-      {!loading && !error && items.length === 0 ? (
+      {!loading && !error && filteredItems.length === 0 ? (
         <div style={styles.card}>
-          <strong>No inventory found yet.</strong>
-          <p style={styles.subtitle}>Create your first item to get started.</p>
+          <strong>No inventory found.</strong>
+          <p style={styles.subtitle}>Adjust search/filter controls or create a new item.</p>
         </div>
       ) : null}
 
       <div style={styles.grid}>
-        {items.map((item) => {
+        {filteredItems.map((item) => {
           const isActioning = actionItemId === item.id;
-          const isSold = String(item.status || "").toUpperCase() === "SOLD";
+          const isSold = normalizeStatus(item.status) === "SOLD";
 
           return (
             <article key={item.id} style={styles.card}>
@@ -184,24 +379,22 @@ export default function OwnerInventoryPage() {
                 {item.condition ? <span style={styles.metaPill}>{item.condition}</span> : null}
               </div>
 
-              <div style={styles.meta}>Shop: {item.shop?.name || item.pawnShopId}</div>
+              <div style={styles.meta}>Shop: {getShopName(item)}</div>
 
-              {item.description ? (
-                <p style={styles.description}>{item.description}</p>
-              ) : null}
+              {item.description ? <p style={styles.description}>{item.description}</p> : null}
 
               <div style={styles.actionRow}>
                 <Link to={`/items/${item.id}`} style={styles.linkButton}>
-                  View Item
+                  View
                 </Link>
 
                 <Link to={`/owner/items/${item.id}/edit`} style={styles.primarySmallLink}>
-                  Edit Item
+                  Edit
                 </Link>
 
                 {item.pawnShopId ? (
                   <Link to={`/shops/${item.pawnShopId}`} style={styles.linkButton}>
-                    View Shop
+                    Shop
                   </Link>
                 ) : null}
 
@@ -258,12 +451,49 @@ const styles: Record<string, CSSProperties> = {
   subtitle: {
     marginTop: 8,
     color: "#a7b0d8",
+    lineHeight: 1.5,
   },
   actions: {
     display: "flex",
     gap: 12,
     flexWrap: "wrap",
     alignItems: "center",
+  },
+  commandPanel: {
+    border: "1px solid rgba(110,168,254,0.28)",
+    borderRadius: 18,
+    padding: 18,
+    background:
+      "radial-gradient(circle at top left, rgba(110,168,254,0.20), transparent 30%), #121935",
+    display: "grid",
+    gap: 16,
+  },
+  quickGrid: {
+    display: "grid",
+    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  },
+  controlBar: {
+    display: "grid",
+    gap: 12,
+    gridTemplateColumns: "minmax(240px, 1fr) repeat(auto-fit, minmax(150px, 220px))",
+    alignItems: "center",
+  },
+  input: {
+    width: "100%",
+    padding: "11px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "#121935",
+    color: "#eef2ff",
+  },
+  select: {
+    minWidth: 170,
+    padding: "11px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "#121935",
+    color: "#eef2ff",
   },
   summary: {
     color: "#c7d2fe",
@@ -280,6 +510,23 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 18,
     padding: 18,
     boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
+  },
+  sectionTitle: {
+    margin: 0,
+    fontSize: 20,
+    fontWeight: 800,
+  },
+  kicker: {
+    fontSize: 12,
+    color: "#6ea8fe",
+    textTransform: "uppercase",
+    fontWeight: 800,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  bigValue: {
+    fontWeight: 800,
+    fontSize: 24,
   },
   cardTitle: {
     margin: "0 0 8px",
