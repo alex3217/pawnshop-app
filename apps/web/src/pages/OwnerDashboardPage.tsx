@@ -548,6 +548,88 @@ export default function OwnerDashboardPage() {
       {pageError ? <div style={styles.error}>{pageError}</div> : null}
       {entitlementsError ? <div style={styles.error}>{entitlementsError}</div> : null}
 
+      {!pageLoading ? (
+        <section
+          style={{
+            ...styles.card,
+            background:
+              "radial-gradient(circle at top left, rgba(110,168,254,0.22), transparent 32%), #121935",
+            border: "1px solid rgba(110,168,254,0.28)",
+          }}
+        >
+          <div style={styles.header}>
+            <div>
+              <div style={styles.kicker}>Owner Command Center</div>
+              <h3 style={styles.sectionTitle}>Shop Operating Hub</h3>
+              <p style={styles.subtitle}>
+                Daily controls for inventory, auctions, offers, settlements, integrations,
+                staff, locations, billing, and shop health.
+              </p>
+            </div>
+
+            <div style={styles.actions}>
+              <Link to="/owner/items/new" style={styles.linkButtonPrimary}>
+                Add Item
+              </Link>
+              <Link to="/owner/bulk-upload" style={styles.linkButton}>
+                Bulk Upload
+              </Link>
+              <Link to="/owner/scan-console" style={styles.linkButton}>
+                Scan Console
+              </Link>
+              <Link to="/owner/auctions/new" style={styles.linkButton}>
+                Create Auction
+              </Link>
+              <Link to="/owner/integrations" style={styles.linkButton}>
+                Integrations
+              </Link>
+            </div>
+          </div>
+
+          <div style={styles.grid}>
+            <div style={styles.card}>
+              <div style={styles.kicker}>Shop Health</div>
+              <div style={styles.bigValue}>{shops.length}</div>
+              <div style={styles.muted}>Total shops</div>
+              <div style={styles.muted}>
+                Selected: {selectedShop?.name || "No shop selected"}
+              </div>
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.kicker}>Inventory Health</div>
+              <div style={styles.bigValue}>{activeItemCount}</div>
+              <div style={styles.muted}>Active listings for selected shop</div>
+              <div style={styles.muted}>Total selected-shop items: {filteredItems.length}</div>
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.kicker}>Revenue / Offers / Auctions</div>
+              <div style={styles.muted}>
+                Review buyer offers, live auctions, and payment handoffs.
+              </div>
+              <div style={styles.actions}>
+                <Link to="/offers" style={styles.linkButton}>Offers</Link>
+                <Link to="/owner/auctions" style={styles.linkButton}>Auctions</Link>
+                <Link to="/settlements" style={styles.linkButton}>Settlements</Link>
+              </div>
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.kicker}>Operations</div>
+              <div style={styles.muted}>
+                Manage staff, locations, subscription, and setup status.
+              </div>
+              <div style={styles.actions}>
+                <Link to="/owner/staff" style={styles.linkButton}>Staff</Link>
+                <Link to="/owner/locations" style={styles.linkButton}>Locations</Link>
+                <Link to="/owner/subscription" style={styles.linkButton}>Subscription</Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {pageLoading ? (
         <div style={styles.card}>Loading owner dashboard...</div>
       ) : (
