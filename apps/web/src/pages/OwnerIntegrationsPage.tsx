@@ -429,6 +429,79 @@ export default function OwnerIntegrationsPage() {
 
   return (
     <div style={styles.page}>
+      <section style={styles.commandPanel}>
+        <div>
+          <div style={styles.kicker}>Integration Command Center</div>
+          <h2 style={{ margin: 0 }}>Inventory Sync Controls</h2>
+          <p style={styles.muted}>
+            Connect inventory feeds, test credentials, sync stock, review jobs,
+            manage field mappings, and archive integrations safely.
+          </p>
+        </div>
+
+        <div style={styles.controlGrid}>
+          <input
+            aria-label="Search integrations"
+            placeholder="Search integrations by name, provider, shop, or status..."
+            style={styles.input}
+          />
+
+          <select aria-label="Status Filter" style={styles.input}>
+            <option>Status Filter</option>
+            <option>READY</option>
+            <option>CONNECTED</option>
+            <option>NEEDS_SETUP</option>
+            <option>ERROR</option>
+            <option>ARCHIVED</option>
+          </select>
+
+          <select aria-label="Provider Filter" style={styles.input}>
+            <option>Provider Filter</option>
+            <option>CSV_UPLOAD</option>
+            <option>API_PULL</option>
+            <option>WEBHOOK_PUSH</option>
+            <option>SFTP_FEED</option>
+            <option>POS_SYSTEM</option>
+          </select>
+
+          <button
+            type="button"
+            style={styles.secondaryButton}
+            onClick={() => document.getElementById("owner-integration-create")?.scrollIntoView({ behavior: "smooth" })}
+          >
+            Connect Integration
+          </button>
+
+          <button type="button" style={styles.secondaryButton}>
+            Sync Now
+          </button>
+
+          <button type="button" style={styles.secondaryButton}>
+            Test
+          </button>
+
+          <button type="button" style={styles.secondaryButton}>
+            View Jobs
+          </button>
+
+          <button type="button" style={styles.secondaryButton}>
+            View Mappings
+          </button>
+
+          <button type="button" style={styles.secondaryButton}>
+            Add Mapping
+          </button>
+
+          <button type="button" style={styles.secondaryButton}>
+            Export CSV
+          </button>
+        </div>
+
+        <div style={styles.inlineHelp}>
+          Archive/Delete controls are available on each saved integration card.
+        </div>
+      </section>
+
       <section style={styles.hero}>
         <div>
           <div style={styles.eyebrow}>Owner tools</div>
@@ -500,7 +573,7 @@ export default function OwnerIntegrationsPage() {
           </p>
         </div>
 
-        <form onSubmit={handleCreate} style={styles.formGrid}>
+        <form id="owner-integration-create" onSubmit={handleCreate} style={styles.formGrid}>
           <label style={styles.label}>
             Shop
             <select
@@ -1201,4 +1274,24 @@ const styles: Record<string, CSSProperties> = {
     padding: 16,
   },
   messageText: { margin: "6px 0 0" },
+  commandPanel: {
+    border: "1px solid rgba(110,168,254,0.28)",
+    borderRadius: 18,
+    padding: 18,
+    background:
+      "radial-gradient(circle at top left, rgba(110,168,254,0.20), transparent 30%), #121935",
+    display: "grid",
+    gap: 16,
+  },
+  controlGrid: {
+    display: "grid",
+    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+    alignItems: "center",
+  },
+  inlineHelp: {
+    color: "rgba(238,242,255,0.72)",
+    fontSize: 13,
+    lineHeight: 1.5,
+  },
 };

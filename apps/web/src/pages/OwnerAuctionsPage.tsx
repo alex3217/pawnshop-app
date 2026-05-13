@@ -182,49 +182,77 @@ function Metric({
 }) {
   return (
     <div
+      className="page-card"
       style={{
-        border: "1px solid rgba(148,163,184,0.25)",
-        borderRadius: 14,
-        padding: "10px 12px",
-        background: "rgba(148,163,184,0.08)",
         display: "grid",
-        gap: 4,
+        gap: 6,
+        minHeight: 92,
+        borderColor: strong ? "rgba(110, 168, 254, 0.45)" : undefined,
       }}
     >
-      <span style={smallMutedStyle}>{label}</span>
-      <strong style={{ fontSize: strong ? 18 : 14 }}>{value}</strong>
+      <div
+        className="muted"
+        style={{
+          fontSize: 12,
+          fontWeight: 800,
+          letterSpacing: 0.4,
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: strong ? 28 : 24, fontWeight: 900 }}>
+        {value}
+      </div>
     </div>
   );
 }
 
 function StatusFilterButton({
   status,
+  label,
   active,
   count,
-  disabled,
+  disabled = false,
   onClick,
 }: {
-  status: StatusFilter;
+  status?: StatusFilter;
+  label?: string;
   active: boolean;
-  count: number;
-  disabled: boolean;
+  count?: number;
+  disabled?: boolean;
   onClick: () => void;
 }) {
+  const displayLabel = label || String(status || "Filter");
+
   return (
     <button
       type="button"
       className={active ? "btn btn-primary" : "btn"}
       onClick={onClick}
+      aria-pressed={active}
       disabled={disabled}
       style={{
-        display: "flex",
-        justifyContent: "space-between",
-        gap: 10,
-        minHeight: 42,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
       }}
     >
-      <span>{status}</span>
-      <strong>{count}</strong>
+      <span>{displayLabel}</span>
+      {typeof count === "number" ? (
+        <span
+          aria-label={`${displayLabel} count`}
+          style={{
+            borderRadius: 999,
+            padding: "2px 7px",
+            fontSize: 12,
+            fontWeight: 900,
+            background: active ? "rgba(255,255,255,0.2)" : "rgba(110,168,254,0.14)",
+          }}
+        >
+          {count}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -237,6 +265,7 @@ export default function OwnerAuctionsPage() {
     role === "OWNER" || role === "ADMIN" || role === "SUPER_ADMIN";
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [query, setQuery] = useState("");
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [message, setMessage] = useState<OwnerAuctionMessage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -418,6 +447,79 @@ export default function OwnerAuctionsPage() {
     }
   }
 
+  const filteredAuctions = useMemo<Auction[]>(() => {
+    const needle = query.trim().toLowerCase();
+
+    if (!needle) return auctions;
+
+    return auctions.filter((auction: Auction) =>
+      [
+        auction.id,
+        auction.status,
+        auction.itemId,
+        auction.shopId,
+        auction.item?.title,
+        auction.shop?.name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle)),
+    );
+  }, [auctions, query]);
+
+  function exportAuctionsCsv() {
+    const rows = filteredAuctions.map((auction) => ({
+      id: auction.id,
+      status: auction.status,
+      itemId: auction.itemId,
+      item: auction.item?.title || "",
+      shopId: auction.shopId,
+      shop: auction.shop?.name || "",
+      startingPrice: auction.startingPrice,
+      currentPrice: auction.currentPrice,
+      minIncrement: auction.minIncrement,
+      startsAt: auction.startsAt,
+      endsAt: auction.endsAt,
+    }));
+
+    const headers = Object.keys(
+      rows[0] || {
+        id: "",
+        status: "",
+        itemId: "",
+        item: "",
+        shopId: "",
+        shop: "",
+        startingPrice: "",
+        currentPrice: "",
+        minIncrement: "",
+        startsAt: "",
+        endsAt: "",
+      },
+    );
+
+    const csv = [
+      headers.join(","),
+      ...rows.map((row) =>
+        headers
+          .map((key) => {
+            const value = String((row as Record<string, unknown>)[key] ?? "");
+            return `"${value.replace(/"/g, '""')}"`;
+          })
+          .join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+
+    anchor.href = url;
+    anchor.download = "owner-auctions.csv";
+    anchor.click();
+
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="page-stack">
       <div className="page-card" style={{ display: "grid", gap: 18 }}>
@@ -448,6 +550,69 @@ export default function OwnerAuctionsPage() {
             </Link>
           </div>
         </div>
+
+        <section
+          style={{
+            border: "1px solid rgba(110,168,254,0.28)",
+            borderRadius: 18,
+            padding: 18,
+            background:
+              "radial-gradient(circle at top left, rgba(110,168,254,0.20), transparent 30%), rgba(18,25,53,0.95)",
+            display: "grid",
+            gap: 14,
+          }}
+        >
+          <div>
+            <div style={{ color: "#6ea8fe", fontWeight: 900, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase" }}>
+              Auction Command Center
+            </div>
+            <h2 style={{ margin: "4px 0 0" }}>Daily Auction Controls</h2>
+            <p className="muted" style={{ margin: "6px 0 0" }}>
+              Search auctions, filter by status, create auction listings, review item/shop context,
+              cancel scheduled/live auctions, end auctions, refresh, and export CSV.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "minmax(220px, 1fr) repeat(auto-fit, minmax(150px, 210px))",
+              alignItems: "center",
+            }}
+          >
+            <input
+              aria-label="Search auctions"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search auctions by item, shop, status, or id..."
+              style={{
+                width: "100%",
+                padding: "11px 12px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "#121935",
+                color: "#eef2ff",
+              }}
+            />
+
+            <Link className="btn btn-primary" to="/owner/auctions/new">
+              Create Auction
+            </Link>
+
+            <Link className="btn" to="/owner/inventory">
+              Inventory
+            </Link>
+
+            <button type="button" className="btn" onClick={exportAuctionsCsv}>
+              Export CSV
+            </button>
+          </div>
+
+          <div className="muted">
+            View auction, view item, cancel auction, and end auction controls are available on each auction card.
+          </div>
+        </section>
 
         {message ? (
           <div className={`alert alert-${message.type}`}>{message.text}</div>
@@ -524,7 +689,7 @@ export default function OwnerAuctionsPage() {
 
         {loading ? (
           <div className="page-card">Loading owner auctions…</div>
-        ) : auctions.length === 0 ? (
+        ) : filteredAuctions.length === 0 ? (
           <div className="page-card" style={{ display: "grid", gap: 10 }}>
             <h2 style={{ margin: 0 }}>No auctions found</h2>
             <p className="muted" style={{ margin: 0 }}>
@@ -541,7 +706,7 @@ export default function OwnerAuctionsPage() {
           </div>
         ) : (
           <div style={cardGridStyle}>
-            {auctions.map((auction) => {
+            {filteredAuctions.map((auction) => {
               const label = statusLabel(auction.status);
               const cancelable = canCancelAuction(label);
               const endable = canEndAuction(label);
