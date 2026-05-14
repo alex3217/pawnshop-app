@@ -83,6 +83,25 @@ async function auditPage(page, path, expectedText, expectedRoutes) {
   );
   const controlTextLower = controlText.toLowerCase();
 
+
+  // Owner Auctions UX V2 clutter guard:
+  // ended/canceled auctions should not spam owner action buttons.
+  if (path === "/owner/auctions") {
+    const actionButtons = await page
+      .locator("button", { hasText: /Cancel Auction|End Auction/i })
+      .count();
+
+    const closedNotes = await page
+      .locator("[data-owner-auction-closed='true']")
+      .count();
+
+    console.log(`Owner Auctions UX V2 clutter guard: ${actionButtons} active action buttons, ${closedNotes} closed notes`);
+
+    if (closedNotes > 0 && actionButtons > 12) {
+      errors.push(`${path}: too many active Cancel/End buttons shown on closed auctions`);
+    }
+  }
+
   for (const expected of expectedText) {
     const needle = normalize(expected).toLowerCase();
     const ok = bodyTextLower.includes(needle) || controlTextLower.includes(needle);
@@ -163,9 +182,8 @@ try {
       "Create Auction",
       "Inventory",
       "Export CSV",
-      "Cancel Auction",
-      "End Auction",
-    ],
+    "Auction closed",
+        ],
     ["/owner/auctions/new", "/owner/inventory"],
   );
 

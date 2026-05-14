@@ -843,31 +843,44 @@ export default function OwnerAuctionsPage() {
                       paddingTop: 12,
                     }}
                   >
-                    <button
-                      className="btn btn-sm"
-                      type="button"
-                      onClick={() => void onCancelAuction(auction)}
-                      disabled={!cancelable || rowBusy}
-                      title={
-                        cancelable ? "Cancel auction" : disabledReason(label, "cancel")
-                      }
-                    >
-                      {rowAction === "cancel" ? "Canceling…" : "Cancel Auction"}
-                    </button>
+                    {cancelable ? (
+                      <button
+                        className="btn btn-sm"
+                        type="button"
+                        onClick={() => void onCancelAuction(auction)}
+                        disabled={rowBusy}
+                        title="Cancel auction"
+                      >
+                        {rowAction === "cancel" ? "Canceling…" : "Cancel Auction"}
+                      </button>
+                    ) : null}
 
-                    <button
-                      className="btn btn-sm btn-primary"
-                      type="button"
-                      onClick={() => void onEndAuction(auction)}
-                      disabled={!endable || rowBusy}
-                      title={endable ? "End auction" : disabledReason(label, "end")}
-                    >
-                      {rowAction === "end" ? "Ending…" : "End Auction"}
-                    </button>
+                    {endable ? (
+                      <button
+                        className="btn btn-sm btn-primary"
+                        type="button"
+                        onClick={() => void onEndAuction(auction)}
+                        disabled={rowBusy}
+                        title="End auction"
+                      >
+                        {rowAction === "end" ? "Ending…" : "End Auction"}
+                      </button>
+                    ) : null}
 
                     {!cancelable && !endable ? (
-                      <span style={smallMutedStyle}>
-                        Actions disabled for {label.toLowerCase()} auctions.
+                      <span
+                        data-owner-auction-closed="true"
+                        style={{
+                          ...smallMutedStyle,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          minHeight: 32,
+                          borderRadius: 999,
+                          padding: "6px 10px",
+                          background: "rgba(148,163,184,0.12)",
+                        }}
+                      >
+                        Auction closed — no active owner action needed.
                       </span>
                     ) : null}
                   </div>
