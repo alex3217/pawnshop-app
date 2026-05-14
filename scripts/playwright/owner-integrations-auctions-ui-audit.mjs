@@ -84,6 +84,29 @@ async function auditPage(page, path, expectedText, expectedRoutes) {
   const controlTextLower = controlText.toLowerCase();
 
 
+
+  // Owner Auctions Card Detail V3 guard:
+  // auction cards should expose owner-useful price/timing context.
+  if (path === "/owner/auctions") {
+    const detailPanels = await page
+      .locator("[data-owner-auction-card-detail='true']")
+      .count();
+
+    const timeStates = await page
+      .locator("[data-owner-auction-time-state='true']")
+      .count();
+
+    console.log(`Owner Auctions Card Detail V3 guard: ${detailPanels} detail panels, ${timeStates} time states`);
+
+    if (detailPanels === 0) {
+      errors.push(`${path}: missing owner auction card detail panels`);
+    }
+
+    if (timeStates === 0) {
+      errors.push(`${path}: missing owner auction time state summaries`);
+    }
+  }
+
   // Owner Auctions UX V2 clutter guard:
   // ended/canceled auctions should not spam owner action buttons.
   if (path === "/owner/auctions") {
@@ -183,6 +206,11 @@ try {
       "Inventory",
       "Export CSV",
     "Auction closed",
+    "Ends",
+    "Starts",
+    "Min increment",
+    "Starting price",
+    "Current price",
         ],
     ["/owner/auctions/new", "/owner/inventory"],
   );

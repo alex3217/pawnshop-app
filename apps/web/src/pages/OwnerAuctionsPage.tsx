@@ -257,6 +257,85 @@ function StatusFilterButton({
   );
 }
 
+
+function formatOwnerAuctionMoney(value: unknown) {
+  const amount = Number(value ?? 0);
+
+  if (!Number.isFinite(amount)) return "$0.00";
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount);
+}
+
+function formatOwnerAuctionDateTime(value: unknown) {
+  if (!value) return "Not set";
+
+  const date = new Date(String(value));
+
+  if (Number.isNaN(date.getTime())) return "Not set";
+
+  return date.toLocaleString();
+}
+
+function getOwnerAuctionTimeState(auction: Auction) {
+  const label = statusLabel(auction.status);
+  const now = Date.now();
+  const startsAt = auction.startsAt ? new Date(String(auction.startsAt)).getTime() : 0;
+  const endsAt = auction.endsAt ? new Date(String(auction.endsAt)).getTime() : 0;
+
+  if (label === "CANCELED") return "Canceled — no active owner action needed.";
+  if (label === "ENDED") return `Closed ${formatOwnerAuctionDateTime(auction.endsAt)}.`;
+  if (label === "SCHEDULED") return `Scheduled to start ${formatOwnerAuctionDateTime(auction.startsAt)}.`;
+
+  if (label === "LIVE" && endsAt > now) {
+    const minutes = Math.max(1, Math.round((endsAt - now) / 60000));
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+
+    if (hours > 0) {
+      return `Live — ${hours}h ${remainingMinutes}m remaining.`;
+    }
+
+    return `Live — ${minutes}m remaining.`;
+  }
+
+  if (startsAt && startsAt > now) {
+    return `Upcoming — starts ${formatOwnerAuctionDateTime(auction.startsAt)}.`;
+  }
+
+  if (endsAt && endsAt < now) {
+    return `Past auction — ended ${formatOwnerAuctionDateTime(auction.endsAt)}.`;
+  }
+
+  return "Auction timing needs review.";
+}
+
+function OwnerAuctionDetailCell({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(148,163,184,0.18)",
+        borderRadius: 12,
+        padding: "10px 12px",
+        background: "rgba(15,23,42,0.45)",
+        display: "grid",
+        gap: 4,
+      }}
+    >
+      <span style={smallMutedStyle}>{label}</span>
+      <strong style={{ fontSize: 13, lineHeight: 1.35 }}>{value}</strong>
+    </div>
+  );
+}
+
 export default function OwnerAuctionsPage() {
   const token = getAuthToken();
   const role = String(getAuthRole() || "").toUpperCase();
@@ -693,7 +772,7 @@ export default function OwnerAuctionsPage() {
           <div className="page-card" style={{ display: "grid", gap: 10 }}>
             <h2 style={{ margin: 0 }}>No auctions found</h2>
             <p className="muted" style={{ margin: 0 }}>
-              Create an auction from one of your inventory items.
+              Create an auction from one of your inventory items. Try clearing your search or switching filters before creating a new auction.
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Link className="btn btn-primary" to="/owner/auctions/new">
@@ -831,6 +910,61 @@ export default function OwnerAuctionsPage() {
                         Shop
                       </Link>
                     ) : null}
+                  </div>
+
+                  <div
+                    data-owner-auction-card-detail="true"
+                    style={{
+                      display: "grid",
+                      gap: 10,
+                      gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+                      marginTop: 12,
+                    }}
+                  >
+                    <OwnerAuctionDetailCell
+                      label="Item"
+                      value={auction.item?.title || `Item ${auction.itemId || "Not linked"}`}
+                    />
+                    <OwnerAuctionDetailCell
+                      label="Shop"
+                      value={auction.shop?.name || `Shop ${auction.shopId || "Not linked"}`}
+                    />
+                    <OwnerAuctionDetailCell
+                      label="Current price"
+                      value={formatOwnerAuctionMoney(auction.currentPrice ?? auction.startingPrice)}
+                    />
+                    <OwnerAuctionDetailCell
+                      label="Starting price"
+                      value={formatOwnerAuctionMoney(auction.startingPrice)}
+                    />
+                    <OwnerAuctionDetailCell
+                      label="Min increment"
+                      value={formatOwnerAuctionMoney(auction.minIncrement)}
+                    />
+                    <OwnerAuctionDetailCell
+                      label="Starts"
+                      value={formatOwnerAuctionDateTime(auction.startsAt)}
+                    />
+                    <OwnerAuctionDetailCell
+                      label="Ends"
+                      value={formatOwnerAuctionDateTime(auction.endsAt)}
+                    />
+                  </div>
+
+                  <div
+                    data-owner-auction-time-state="true"
+                    style={{
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                      background: "rgba(110,168,254,0.10)",
+                      border: "1px solid rgba(110,168,254,0.22)",
+                      color: "#dbeafe",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      marginTop: 10,
+                    }}
+                  >
+                    {getOwnerAuctionTimeState(auction)}
                   </div>
 
                   <div
