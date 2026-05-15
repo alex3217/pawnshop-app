@@ -18,6 +18,25 @@ import {
 import { getAuthRole, getAuthToken } from "../services/auth";
 
 type StatusFilter = "ALL" | "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED";
+
+type OwnerAuctionViewFilter = StatusFilter | "ENDING_SOON" | "NEEDS_ATTENTION";
+
+type OwnerAuctionSortKey =
+  | "endingSoon"
+  | "newest"
+  | "oldest"
+  | "highestPrice"
+  | "status";
+
+const OWNER_AUCTION_VIEW_FILTERS: OwnerAuctionViewFilter[] = [
+  "ALL",
+  "SCHEDULED",
+  "LIVE",
+  "ENDING_SOON",
+  "NEEDS_ATTENTION",
+  "ENDED",
+  "CANCELED",
+];
 type AuctionAction = "cancel" | "end";
 
 type OwnerAuctionMessage = {
@@ -25,13 +44,6 @@ type OwnerAuctionMessage = {
   text: string;
 };
 
-const STATUS_FILTERS: StatusFilter[] = [
-  "ALL",
-  "SCHEDULED",
-  "LIVE",
-  "ENDED",
-  "CANCELED",
-];
 
 const ACTIONABLE_STATUSES = new Set(["SCHEDULED", "LIVE"]);
 
@@ -216,14 +228,14 @@ function StatusFilterButton({
   disabled = false,
   onClick,
 }: {
-  status?: StatusFilter;
+  status?: OwnerAuctionViewFilter;
   label?: string;
   active: boolean;
   count?: number;
   disabled?: boolean;
   onClick: () => void;
 }) {
-  const displayLabel = label || String(status || "Filter");
+  const displayLabel = label || ownerAuctionViewFilterLabel(status || "ALL");
 
   return (
     <button
@@ -336,6 +348,98 @@ function OwnerAuctionDetailCell({
   );
 }
 
+
+function getAuctionTimestamp(value: unknown) {
+  if (!value) return 0;
+
+  const time = new Date(String(value)).getTime();
+
+  return Number.isFinite(time) ? time : 0;
+}
+
+function getAuctionPrice(auction: Auction) {
+  return Number(auction.currentPrice ?? auction.startingPrice ?? 0);
+}
+
+function isEndingSoonAuction(auction: Auction) {
+  const label = statusLabel(auction.status);
+
+  if (label !== "LIVE" && label !== "SCHEDULED") return false;
+
+  const endsAt = getAuctionTimestamp(auction.endsAt);
+  if (!endsAt) return false;
+
+  const now = Date.now();
+  const twentyFourHours = 24 * 60 * 60 * 1000;
+
+  return endsAt >= now && endsAt - now <= twentyFourHours;
+}
+
+function isNeedsAttentionAuction(auction: Auction) {
+  const label = statusLabel(auction.status);
+
+  if (label === "LIVE" && !auction.endsAt) return true;
+  if (label === "SCHEDULED" && !auction.startsAt) return true;
+  if (Number(auction.minIncrement ?? 0) <= 0) return true;
+  if (Number(auction.startingPrice ?? 0) <= 0) return true;
+
+  return false;
+}
+
+function ownerAuctionMatchesViewFilter(
+  auction: Auction,
+  viewFilter: OwnerAuctionViewFilter,
+) {
+  const label = statusLabel(auction.status);
+
+  if (viewFilter === "ALL") return true;
+  if (viewFilter === "ENDING_SOON") return isEndingSoonAuction(auction);
+  if (viewFilter === "NEEDS_ATTENTION") return isNeedsAttentionAuction(auction);
+
+  return label === viewFilter;
+}
+
+function sortOwnerAuctions(
+  auctions: Auction[],
+  sortKey: OwnerAuctionSortKey,
+) {
+  return [...auctions].sort((left, right) => {
+    if (sortKey === "highestPrice") {
+      return getAuctionPrice(right) - getAuctionPrice(left);
+    }
+
+    if (sortKey === "newest") {
+      return (
+        getAuctionTimestamp(right.startsAt || right.endsAt) -
+        getAuctionTimestamp(left.startsAt || left.endsAt)
+      );
+    }
+
+    if (sortKey === "oldest") {
+      return (
+        getAuctionTimestamp(left.startsAt || left.endsAt) -
+        getAuctionTimestamp(right.startsAt || right.endsAt)
+      );
+    }
+
+    if (sortKey === "status") {
+      return statusLabel(left.status).localeCompare(statusLabel(right.status));
+    }
+
+    const leftEnd = getAuctionTimestamp(left.endsAt) || Number.MAX_SAFE_INTEGER;
+    const rightEnd = getAuctionTimestamp(right.endsAt) || Number.MAX_SAFE_INTEGER;
+
+    return leftEnd - rightEnd;
+  });
+}
+
+function ownerAuctionViewFilterLabel(filter: OwnerAuctionViewFilter) {
+  if (filter === "ENDING_SOON") return "ENDING SOON";
+  if (filter === "NEEDS_ATTENTION") return "NEEDS ATTENTION";
+
+  return filter;
+}
+
 export default function OwnerAuctionsPage() {
   const token = getAuthToken();
   const role = String(getAuthRole() || "").toUpperCase();
@@ -345,6 +449,8 @@ export default function OwnerAuctionsPage() {
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [query, setQuery] = useState("");
+  const [viewFilter, setViewFilter] = useState<OwnerAuctionViewFilter>("ALL");
+  const [sortKey, setSortKey] = useState<OwnerAuctionSortKey>("endingSoon");
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [message, setMessage] = useState<OwnerAuctionMessage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -529,21 +635,46 @@ export default function OwnerAuctionsPage() {
   const filteredAuctions = useMemo<Auction[]>(() => {
     const needle = query.trim().toLowerCase();
 
-    if (!needle) return auctions;
+    const visible = auctions
+      .filter((auction) => ownerAuctionMatchesViewFilter(auction, viewFilter))
+      .filter((auction: Auction) => {
+        if (!needle) return true;
 
-    return auctions.filter((auction: Auction) =>
-      [
-        auction.id,
-        auction.status,
-        auction.itemId,
-        auction.shopId,
-        auction.item?.title,
-        auction.shop?.name,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(needle)),
-    );
-  }, [auctions, query]);
+        return [
+          auction.id,
+          auction.status,
+          auction.itemId,
+          auction.shopId,
+          auction.item?.title,
+          auction.shop?.name,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(needle));
+      });
+
+    return sortOwnerAuctions(visible, sortKey);
+  }, [auctions, query, sortKey, viewFilter]);
+
+  function getViewFilterCount(filter: OwnerAuctionViewFilter) {
+    return auctions.filter((auction) => ownerAuctionMatchesViewFilter(auction, filter)).length;
+  }
+
+  function applyViewFilter(filter: OwnerAuctionViewFilter) {
+    setViewFilter(filter);
+
+    if (
+      filter === "ALL" ||
+      filter === "SCHEDULED" ||
+      filter === "LIVE" ||
+      filter === "ENDED" ||
+      filter === "CANCELED"
+    ) {
+      setStatusFilter(filter);
+      return;
+    }
+
+    setStatusFilter("ALL");
+  }
 
   function exportAuctionsCsv() {
     const rows = filteredAuctions.map((auction) => ({
@@ -623,6 +754,26 @@ export default function OwnerAuctionsPage() {
             <Link className="btn" to="/owner/inventory">
               Inventory
             </Link>
+
+            <select
+              aria-label="Sort auctions"
+              value={sortKey}
+              onChange={(event) => setSortKey(event.target.value as OwnerAuctionSortKey)}
+              style={{
+                width: "100%",
+                padding: "11px 12px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "#121935",
+                color: "#eef2ff",
+              }}
+            >
+              <option value="endingSoon">Ending soon first</option>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="highestPrice">Highest current price</option>
+              <option value="status">Status</option>
+            </select>
 
             <Link className="btn btn-primary" to="/owner/auctions/new">
               Create Auction
@@ -712,14 +863,14 @@ export default function OwnerAuctionsPage() {
             gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
           }}
         >
-          {STATUS_FILTERS.map((status) => (
+          {OWNER_AUCTION_VIEW_FILTERS.map((status) => (
             <StatusFilterButton
               key={status}
               status={status}
-              active={statusFilter === status}
-              count={counts[status]}
+              active={viewFilter === status}
+              count={getViewFilterCount(status)}
               disabled={loading || refreshing || actionInProgress}
-              onClick={() => setStatusFilter(status)}
+              onClick={() => applyViewFilter(status)}
             />
           ))}
         </div>
@@ -736,13 +887,13 @@ export default function OwnerAuctionsPage() {
           <label style={{ display: "grid", gap: 6, minWidth: 180 }}>
             <span>Status Filter</span>
             <select
-              value={statusFilter}
+              value={viewFilter}
               onChange={(event) =>
-                setStatusFilter(event.target.value as StatusFilter)
+                applyViewFilter(event.target.value as OwnerAuctionViewFilter)
               }
               disabled={loading || refreshing || actionInProgress}
             >
-              {STATUS_FILTERS.map((status) => (
+              {OWNER_AUCTION_VIEW_FILTERS.map((status) => (
                 <option key={status} value={status}>
                   {status}
                 </option>

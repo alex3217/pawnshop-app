@@ -85,6 +85,37 @@ async function auditPage(page, path, expectedText, expectedRoutes) {
 
 
 
+
+  // Owner Auctions Filter Sort V4 guard:
+  // owners should have priority filters and sort controls for daily auction operations.
+  if (path === "/owner/auctions") {
+    const sortControls = await page
+      .locator("select[aria-label='Sort auctions']")
+      .count();
+
+    const endingSoonText = await page
+      .getByText("ENDING SOON", { exact: false })
+      .count();
+
+    const needsAttentionText = await page
+      .getByText("NEEDS ATTENTION", { exact: false })
+      .count();
+
+    console.log(`Owner Auctions Filter Sort V4 guard: ${sortControls} sort controls, ${endingSoonText} ending soon labels, ${needsAttentionText} needs attention labels`);
+
+    if (sortControls === 0) {
+      errors.push(`${path}: missing owner auction sort control`);
+    }
+
+    if (endingSoonText === 0) {
+      errors.push(`${path}: missing Ending Soon filter`);
+    }
+
+    if (needsAttentionText === 0) {
+      errors.push(`${path}: missing Needs Attention filter`);
+    }
+  }
+
   // Owner Auctions Card Detail V3 guard:
   // auction cards should expose owner-useful price/timing context.
   if (path === "/owner/auctions") {
@@ -211,6 +242,11 @@ try {
     "Min increment",
     "Starting price",
     "Current price",
+    "Highest current price",
+    "Ending soon first",
+    "Sort auctions",
+    "NEEDS ATTENTION",
+    "ENDING SOON",
         ],
     ["/owner/auctions/new", "/owner/inventory"],
   );
