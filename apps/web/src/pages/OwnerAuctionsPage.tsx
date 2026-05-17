@@ -440,6 +440,43 @@ function ownerAuctionViewFilterLabel(filter: OwnerAuctionViewFilter) {
   return filter;
 }
 
+function isClosedOwnerAuction(auction: Auction) {
+  const label = statusLabel(auction.status);
+  return label === "ENDED" || label === "CANCELED";
+}
+
+function getOwnerAuctionRelistPath(auction: Auction) {
+  const params = new URLSearchParams();
+
+  if (auction.itemId) params.set("itemId", String(auction.itemId));
+  if (auction.id) params.set("fromAuction", String(auction.id));
+
+  const query = params.toString();
+
+  return query ? `/owner/auctions/new?${query}` : "/owner/auctions/new";
+}
+
+function getOwnerAuctionOperationalWarnings(auction: Auction) {
+  const warnings: string[] = [];
+  const label = statusLabel(auction.status);
+
+  if (!auction.itemId) warnings.push("Missing linked inventory item.");
+  if (!auction.shopId) warnings.push("Missing shop context.");
+  if (Number(auction.startingPrice ?? 0) <= 0) warnings.push("Starting price needs review.");
+  if (Number(auction.minIncrement ?? 0) <= 0) warnings.push("Minimum bid increment needs review.");
+
+  if ((label === "LIVE" || label === "SCHEDULED") && !auction.endsAt) {
+    warnings.push("Auction end time needs review.");
+  }
+
+  if (label === "SCHEDULED" && !auction.startsAt) {
+    warnings.push("Scheduled auction start time needs review.");
+  }
+
+  return warnings;
+}
+
+
 export default function OwnerAuctionsPage() {
   const token = getAuthToken();
   const role = String(getAuthRole() || "").toUpperCase();
@@ -451,6 +488,9 @@ export default function OwnerAuctionsPage() {
   const [query, setQuery] = useState("");
   const [viewFilter, setViewFilter] = useState<OwnerAuctionViewFilter>("ALL");
   const [sortKey, setSortKey] = useState<OwnerAuctionSortKey>("endingSoon");
+  const [reviewedAuctionIds, setReviewedAuctionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [message, setMessage] = useState<OwnerAuctionMessage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -676,6 +716,59 @@ export default function OwnerAuctionsPage() {
     setStatusFilter("ALL");
   }
 
+  const closedAuctions = useMemo(
+    () => auctions.filter((auction) => isClosedOwnerAuction(auction)),
+    [auctions],
+  );
+
+  const reviewedClosedAuctionCount = useMemo(
+    () =>
+      closedAuctions.filter((auction) => reviewedAuctionIds.has(String(auction.id)))
+        .length,
+    [closedAuctions, reviewedAuctionIds],
+  );
+
+  const warningAuctionCount = useMemo(
+    () =>
+      auctions.filter(
+        (auction) => getOwnerAuctionOperationalWarnings(auction).length > 0,
+      ).length,
+    [auctions],
+  );
+
+  function markClosedAuctionsReviewed() {
+    if (closedAuctions.length === 0) {
+      setMessage({
+        type: "warning",
+        text: "No ended or canceled auctions are available to mark reviewed.",
+      });
+      return;
+    }
+
+    setReviewedAuctionIds((current) => {
+      const next = new Set(current);
+
+      closedAuctions.forEach((auction) => {
+        next.add(String(auction.id));
+      });
+
+      return next;
+    });
+
+    setMessage({
+      type: "success",
+      text: `Marked ${closedAuctions.length} closed auctions reviewed locally.`,
+    });
+  }
+
+  function clearReviewedAuctionMarks() {
+    setReviewedAuctionIds(new Set());
+    setMessage({
+      type: "success",
+      text: "Cleared local reviewed marks for closed auctions.",
+    });
+  }
+
   function exportAuctionsCsv() {
     const rows = filteredAuctions.map((auction) => ({
       id: auction.id,
@@ -844,6 +937,81 @@ export default function OwnerAuctionsPage() {
           </div>
         </section>
 
+        <section
+          data-owner-auction-operational-actions="true"
+          className="page-card"
+          style={{
+            display: "grid",
+            gap: 14,
+            borderColor: "rgba(34,197,94,0.22)",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                color: "#86efac",
+                fontWeight: 900,
+                fontSize: 12,
+                letterSpacing: 0.5,
+                textTransform: "uppercase",
+              }}
+            >
+              Operational Actions
+            </div>
+            <h2 style={{ margin: "4px 0 0" }}>Closed Auction Workflow</h2>
+            <p className="muted" style={{ margin: "6px 0 0" }}>
+              Mark ended/canceled auctions reviewed locally, relist closed inventory,
+              and scan for missing price/time data before creating the next auction.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 10,
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            }}
+          >
+            <Metric
+              label="Closed auctions"
+              value={String(closedAuctions.length)}
+              strong
+            />
+            <Metric
+              label="Reviewed locally"
+              value={`${reviewedClosedAuctionCount}/${closedAuctions.length}`}
+            />
+            <Metric
+              label="Needs attention warnings"
+              value={String(warningAuctionCount)}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={markClosedAuctionsReviewed}
+              disabled={closedAuctions.length === 0}
+            >
+              Mark closed auctions reviewed
+            </button>
+
+            <button
+              type="button"
+              className="btn"
+              onClick={clearReviewedAuctionMarks}
+              disabled={reviewedAuctionIds.size === 0}
+            >
+              Clear reviewed marks
+            </button>
+
+            <Link className="btn" to="/owner/auctions/new">
+              Create fresh auction
+            </Link>
+          </div>
+        </section>
+
         {message ? (
           <div className={`alert alert-${message.type}`}>{message.text}</div>
         ) : null}
@@ -941,6 +1109,9 @@ export default function OwnerAuctionsPage() {
               const cancelable = canCancelAuction(label);
               const endable = canEndAuction(label);
               const rowAction = actionLoadingById[auction.id];
+              const operationalWarnings = getOwnerAuctionOperationalWarnings(auction);
+              const closedAuction = isClosedOwnerAuction(auction);
+              const reviewedAuction = reviewedAuctionIds.has(String(auction.id));
               const rowBusy = Boolean(rowAction);
               const itemId = getItemId(auction);
               const shopId = getShopId(auction);
@@ -1063,6 +1234,26 @@ export default function OwnerAuctionsPage() {
                     ) : null}
                   </div>
 
+                  {operationalWarnings.length > 0 ? (
+                    <div
+                      data-owner-auction-warning="true"
+                      style={{
+                        border: "1px solid rgba(250,204,21,0.32)",
+                        borderRadius: 12,
+                        padding: "10px 12px",
+                        background: "rgba(250,204,21,0.10)",
+                        color: "#fef3c7",
+                        display: "grid",
+                        gap: 6,
+                      }}
+                    >
+                      <strong>Needs attention</strong>
+                      <span style={{ fontSize: 13 }}>
+                        {operationalWarnings.join(" ")}
+                      </span>
+                    </div>
+                  ) : null}
+
                   <div
                     data-owner-auction-card-detail="true"
                     style={{
@@ -1128,6 +1319,16 @@ export default function OwnerAuctionsPage() {
                       paddingTop: 12,
                     }}
                   >
+                    {closedAuction ? (
+                      <Link
+                        data-owner-auction-relist="true"
+                        className="btn btn-sm"
+                        to={getOwnerAuctionRelistPath(auction)}
+                      >
+                        Relist from ended auction
+                      </Link>
+                    ) : null}
+
                     {cancelable ? (
                       <button
                         className="btn btn-sm"
@@ -1165,7 +1366,9 @@ export default function OwnerAuctionsPage() {
                           background: "rgba(148,163,184,0.12)",
                         }}
                       >
-                        Auction closed — no active owner action needed.
+                        {reviewedAuction
+                          ? "Reviewed — no active owner action needed."
+                          : "Auction closed — no active owner action needed."}
                       </span>
                     ) : null}
                   </div>

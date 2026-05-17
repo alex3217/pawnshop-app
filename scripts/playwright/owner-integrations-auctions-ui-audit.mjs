@@ -86,6 +86,33 @@ async function auditPage(page, path, expectedText, expectedRoutes) {
 
 
 
+
+  // Owner Auctions Operational Actions V5 guard:
+  // owners should have workflow actions for closed auctions and relisting.
+  if (path === "/owner/auctions") {
+    const operationalPanels = await page
+      .locator("[data-owner-auction-operational-actions='true']")
+      .count();
+
+    const relistLinks = await page
+      .locator("[data-owner-auction-relist='true']")
+      .count();
+
+    const warningBlocks = await page
+      .locator("[data-owner-auction-warning='true']")
+      .count();
+
+    console.log(`Owner Auctions Operational Actions V5 guard: ${operationalPanels} operational panels, ${relistLinks} relist links, ${warningBlocks} warning blocks`);
+
+    if (operationalPanels === 0) {
+      errors.push(`${path}: missing owner auction operational actions panel`);
+    }
+
+    if (relistLinks === 0) {
+      errors.push(`${path}: missing relist shortcut for closed auctions`);
+    }
+  }
+
   // Owner Auctions Filter Sort V4 guard:
   // owners should have priority filters and sort controls for daily auction operations.
   if (path === "/owner/auctions") {
@@ -247,6 +274,12 @@ try {
     "Sort auctions",
     "NEEDS ATTENTION",
     "ENDING SOON",
+    "Needs attention warnings",
+    "Relist from ended auction",
+    "Clear reviewed marks",
+    "Mark closed auctions reviewed",
+    "Closed Auction Workflow",
+    "Operational Actions",
         ],
     ["/owner/auctions/new", "/owner/inventory"],
   );
