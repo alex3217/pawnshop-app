@@ -1,15 +1,167 @@
-// File: apps/web/src/pages/ShopsPage.tsx
-
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMarketplaceShops, type Shop } from "../services/shops";
+import "../styles/shops-v2.css";
+
+type ViewMode = "grid" | "list" | "map";
 
 function normalizeText(value: string | null | undefined) {
   return String(value || "").trim().toLowerCase();
 }
 
+function displayValue(value: string | null | undefined, fallback: string) {
+  const normalized = String(value || "").trim();
+  return normalized || fallback;
+}
+
 function hasValue(value: string | null | undefined) {
   return String(value || "").trim().length > 0;
+}
+
+function fakeDistance(index: number) {
+  return `${(2.1 + index * 1.15).toFixed(1)} mi`;
+}
+
+function mapPosition(index: number) {
+  const positions = [
+    [25, 36],
+    [52, 28],
+    [70, 52],
+    [36, 65],
+    [60, 74],
+    [78, 68],
+    [31, 78],
+    [48, 50],
+  ];
+
+  return positions[index % positions.length];
+}
+
+function ShopCard({
+  shop,
+  index,
+  compact = false,
+}: {
+  shop: Shop;
+  index: number;
+  compact?: boolean;
+}) {
+  return (
+    <article className={compact ? "shops2-card shops2-card-list" : "shops2-card"}>
+      <div className="shops2-card-map">
+        <span>{fakeDistance(index)}</span>
+        <strong>{displayValue(shop.name, "Pawnshop").slice(0, 2).toUpperCase()}</strong>
+      </div>
+
+      <div className="shops2-card-body">
+        <div className="shops2-card-heading">
+          <div>
+            <Link to={`/shops/${shop.id}`} className="shops2-shop-name">
+              {displayValue(shop.name, "Unnamed pawnshop")}
+            </Link>
+            <p>{displayValue(shop.address, "Address not listed")}</p>
+          </div>
+
+          <span className="shops2-open-chip">
+            {hasValue(shop.hours) ? "Hours listed" : "Call shop"}
+          </span>
+        </div>
+
+        <p className="shops2-description">
+          {displayValue(
+            shop.description,
+            "Browse this pawnshop storefront to view inventory, available items, and pickup details.",
+          )}
+        </p>
+
+        <div className="shops2-meta-row">
+          <span>{displayValue(shop.phone, "No phone listed")}</span>
+          <span>{displayValue(shop.hours, "Hours not listed")}</span>
+        </div>
+
+        <div className="shops2-actions">
+          <Link to={`/shops/${shop.id}`} className="shops2-primary-small">
+            View storefront
+          </Link>
+          <Link to="/marketplace" className="shops2-secondary-small">
+            Browse inventory
+          </Link>
+          <button type="button" className="shops2-secondary-small">
+            Follow
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ShopsMap({
+  shops,
+  selectedShopId,
+  setSelectedShopId,
+}: {
+  shops: Shop[];
+  selectedShopId: string | null;
+  setSelectedShopId: (id: string) => void;
+}) {
+  const mapShops = shops.slice(0, 8);
+
+  return (
+    <section className="shops2-map-shell">
+      <div className="shops2-map-stage">
+        <div className="shops2-map-user">You</div>
+
+        {mapShops.map((shop, index) => {
+          const [x, y] = mapPosition(index);
+          const selected = selectedShopId === shop.id;
+
+          return (
+            <button
+              key={shop.id}
+              type="button"
+              className={selected ? "shops2-map-pin selected" : "shops2-map-pin"}
+              style={{ left: `${x}%`, top: `${y}%` }}
+              onClick={() => setSelectedShopId(shop.id)}
+              title={shop.name}
+            >
+              <strong>{displayValue(shop.name, "Shop").slice(0, 2).toUpperCase()}</strong>
+              <span>{fakeDistance(index)}</span>
+            </button>
+          );
+        })}
+
+        <div className="shops2-map-card">
+          <strong>Map-ready shop discovery</strong>
+          <span>
+            Real coordinates can replace this panel once shop geo fields and nearby endpoints are added.
+          </span>
+          <Link to="/marketplace">Browse inventory</Link>
+        </div>
+      </div>
+
+      <aside className="shops2-map-list">
+        <div className="shops2-map-list-heading">
+          <h3>Pawnshops in this area</h3>
+          <span>{mapShops.length} shown</span>
+        </div>
+
+        {mapShops.map((shop, index) => (
+          <button
+            key={shop.id}
+            type="button"
+            className={selectedShopId === shop.id ? "shops2-map-row active" : "shops2-map-row"}
+            onClick={() => setSelectedShopId(shop.id)}
+          >
+            <span>
+              <strong>{displayValue(shop.name, "Unnamed pawnshop")}</strong>
+              <small>{displayValue(shop.address, "Address not listed")}</small>
+            </span>
+            <b>{fakeDistance(index)}</b>
+          </button>
+        ))}
+      </aside>
+    </section>
+  );
 }
 
 export default function ShopsPage() {
@@ -18,6 +170,10 @@ export default function ShopsPage() {
   const [locationQuery, setLocationQuery] = useState("");
   const [requirePhone, setRequirePhone] = useState(false);
   const [requireHours, setRequireHours] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [locationLabel, setLocationLabel] = useState("your area");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,8 +186,10 @@ export default function ShopsPage() {
 
       try {
         const nextShops = await getMarketplaceShops();
+
         if (!cancelled) {
           setShops(nextShops);
+          setSelectedShopId(nextShops[0]?.id || null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -66,7 +224,9 @@ export default function ShopsPage() {
         .join(" ")
         .toLowerCase();
 
-      const locationHaystack = [shop.address || "", shop.name].join(" ").toLowerCase();
+      const locationHaystack = [shop.address || "", shop.name]
+        .join(" ")
+        .toLowerCase();
 
       if (q && !searchable.includes(q)) return false;
       if (locationQ && !locationHaystack.includes(locationQ)) return false;
@@ -89,299 +249,201 @@ export default function ShopsPage() {
     };
   }, [shops, filteredShops]);
 
+  const hasActiveFilters = Boolean(
+    query.trim() || locationQuery.trim() || requirePhone || requireHours,
+  );
+
   function clearFilters() {
     setQuery("");
     setLocationQuery("");
     setRequirePhone(false);
     setRequireHours(false);
+    setLocationMessage(null);
   }
 
-  const hasActiveFilters =
-    query.trim() ||
-    locationQuery.trim() ||
-    requirePhone ||
-    requireHours;
+  function handleUseLocation() {
+    if (!navigator.geolocation) {
+      setLocationMessage("Location is not available in this browser.");
+      return;
+    }
+
+    setLocationMessage("Requesting your location...");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocationLabel(
+          `near ${position.coords.latitude.toFixed(2)}, ${position.coords.longitude.toFixed(2)}`,
+        );
+        setLocationMessage(
+          "Location enabled. Real nearby shop ranking can be wired to backend geo endpoints next.",
+        );
+      },
+      () => {
+        setLocationMessage(
+          "Location permission was not enabled. You can still search by city, area, or address.",
+        );
+      },
+      { enableHighAccuracy: false, timeout: 8000 },
+    );
+  }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
-        <div>
-          <h2 style={styles.title}>Shops</h2>
-          <p style={styles.subtitle}>
-            Browse pawnshop storefronts and explore inventory by store.
+    <main className="shops2-page">
+      <section className="shops2-hero">
+        <div className="shops2-hero-copy">
+          <span className="shops2-pill">Pawnshop discovery</span>
+          <h1>Find pawnshops and inventory near you.</h1>
+          <p>
+            Browse local storefronts, follow shops, view contact details, and open
+            each shop’s live inventory from one buyer-friendly place.
           </p>
-        </div>
-      </div>
 
-      <section style={styles.filterCard}>
-        <div style={styles.filterTopRow}>
-          <div style={styles.filterTitleWrap}>
-            <div style={styles.filterTitle}>Find stores</div>
-            <div style={styles.filterSubtitle}>
-              Search by name, address, phone, or store details.
-            </div>
+          <div className="shops2-search-row">
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search shops by name, phone, or description..."
+            />
+            <input
+              value={locationQuery}
+              onChange={(event) => setLocationQuery(event.target.value)}
+              placeholder="City, area, or address..."
+            />
+            <button type="button" onClick={handleUseLocation}>
+              Use location
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={clearFilters}
-            disabled={!hasActiveFilters}
-            style={{
-              ...styles.clearButton,
-              ...(!hasActiveFilters ? styles.disabledButton : {}),
-            }}
-          >
-            Clear Filters
+          {locationMessage ? <div className="shops2-message">{locationMessage}</div> : null}
+        </div>
+
+        <aside className="shops2-hero-panel">
+          <div>
+            <span>Showing</span>
+            <strong>{stats.filtered}</strong>
+            <small>matching shops</small>
+          </div>
+          <div>
+            <span>Total</span>
+            <strong>{stats.total}</strong>
+            <small>marketplace shops</small>
+          </div>
+          <div>
+            <span>Contact</span>
+            <strong>{stats.withPhone}</strong>
+            <small>with phone listed</small>
+          </div>
+          <div>
+            <span>Hours</span>
+            <strong>{stats.withHours}</strong>
+            <small>{locationLabel}</small>
+          </div>
+        </aside>
+      </section>
+
+      <section className="shops2-toolbar">
+        <div className="shops2-filter-heading">
+          <div>
+            <h2>Browse storefronts</h2>
+            <p>
+              Filter by shop info, location text, contact availability, or switch to
+              map-ready discovery.
+            </p>
+          </div>
+
+          <button type="button" onClick={clearFilters} disabled={!hasActiveFilters}>
+            Clear filters
           </button>
         </div>
 
-        <div style={styles.filterGrid}>
-          <label style={styles.field}>
-            <span style={styles.label}>Search</span>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search shops by name, phone, description..."
-              style={styles.input}
-            />
-          </label>
-
-          <label style={styles.field}>
-            <span style={styles.label}>Location</span>
-            <input
-              value={locationQuery}
-              onChange={(e) => setLocationQuery(e.target.value)}
-              placeholder="City, area, address..."
-              style={styles.input}
-            />
-          </label>
-        </div>
-
-        <div style={styles.toggleRow}>
-          <label style={styles.checkboxLabel}>
+        <div className="shops2-filter-grid">
+          <label className="shops2-checkbox">
             <input
               type="checkbox"
               checked={requirePhone}
-              onChange={(e) => setRequirePhone(e.target.checked)}
+              onChange={(event) => setRequirePhone(event.target.checked)}
             />
             <span>Only shops with phone listed</span>
           </label>
 
-          <label style={styles.checkboxLabel}>
+          <label className="shops2-checkbox">
             <input
               type="checkbox"
               checked={requireHours}
-              onChange={(e) => setRequireHours(e.target.checked)}
+              onChange={(event) => setRequireHours(event.target.checked)}
             />
             <span>Only shops with hours listed</span>
           </label>
+
+          <div className="shops2-view-toggle" aria-label="Shop view mode">
+            {(["grid", "list", "map"] as ViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={viewMode === mode ? "active" : ""}
+                onClick={() => setViewMode(mode)}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
-      <section style={styles.statsRow}>
-        <div style={styles.statPill}>All shops: {stats.total}</div>
-        <div style={styles.statPill}>Matching: {stats.filtered}</div>
-        <div style={styles.statPill}>With phone: {stats.withPhone}</div>
-        <div style={styles.statPill}>With hours: {stats.withHours}</div>
+      <section className="shops2-discovery-strip">
+        <Link to="/buyer/dashboard">
+          Buyer dashboard <span>Return to command center</span>
+        </Link>
+        <Link to="/marketplace">
+          Marketplace <span>Browse all inventory</span>
+        </Link>
+        <Link to="/auctions">
+          Auctions <span>Find active bids</span>
+        </Link>
+        <Link to="/saved-searches">
+          Saved searches <span>Track new matches</span>
+        </Link>
       </section>
 
-      {loading ? <div style={styles.card}>Loading shops...</div> : null}
-      {error ? <div style={styles.error}>{error}</div> : null}
-
-      {!loading && !error && filteredShops.length === 0 ? (
-        <div style={styles.card}>No shops matched your filters.</div>
+      {error ? (
+        <section className="shops2-error">
+          <h2>Shops could not load</h2>
+          <p>{error}</p>
+        </section>
       ) : null}
 
-      <div style={styles.grid}>
-        {filteredShops.map((shop) => (
-          <article key={shop.id} style={styles.card}>
-            <h3 style={styles.cardTitle}>{shop.name}</h3>
-
-            <div style={styles.meta}>
-              <div>{shop.address || "No address provided"}</div>
-              <div>{shop.phone || "No phone listed"}</div>
-              <div>{shop.hours || "Hours not listed"}</div>
-            </div>
-
-            {shop.description ? (
-              <p style={styles.description}>{shop.description}</p>
-            ) : null}
-
-            <div style={styles.actions}>
-              <Link to={`/shops/${shop.id}`} style={styles.primaryLink}>
-                View Storefront
-              </Link>
-              <Link to="/marketplace" style={styles.secondaryLink}>
-                Browse Inventory
-              </Link>
-            </div>
-          </article>
-        ))}
-      </div>
-    </div>
+      {loading ? (
+        <section className="shops2-grid">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="shops2-skeleton" />
+          ))}
+        </section>
+      ) : filteredShops.length === 0 ? (
+        <section className="shops2-empty">
+          <h2>No shops matched your filters</h2>
+          <p>Try clearing filters or searching a different city, area, or shop name.</p>
+          <button type="button" onClick={clearFilters}>
+            Clear filters
+          </button>
+        </section>
+      ) : viewMode === "map" ? (
+        <ShopsMap
+          shops={filteredShops}
+          selectedShopId={selectedShopId}
+          setSelectedShopId={setSelectedShopId}
+        />
+      ) : (
+        <section className={viewMode === "list" ? "shops2-list" : "shops2-grid"}>
+          {filteredShops.map((shop, index) => (
+            <ShopCard
+              key={shop.id}
+              shop={shop}
+              index={index}
+              compact={viewMode === "list"}
+            />
+          ))}
+        </section>
+      )}
+    </main>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  page: {
-    display: "grid",
-    gap: 20,
-    color: "#eef2ff",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  title: {
-    margin: 0,
-    fontSize: 30,
-    fontWeight: 800,
-  },
-  subtitle: {
-    marginTop: 8,
-    color: "#a7b0d8",
-  },
-  filterCard: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 18,
-    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
-    display: "grid",
-    gap: 16,
-  },
-  filterTopRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  filterTitleWrap: {
-    display: "grid",
-    gap: 6,
-  },
-  filterTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-  },
-  filterSubtitle: {
-    color: "#a7b0d8",
-    fontSize: 14,
-  },
-  filterGrid: {
-    display: "grid",
-    gap: 16,
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  },
-  field: {
-    display: "grid",
-    gap: 8,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: "#c7d2fe",
-  },
-  input: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "#0c1330",
-    color: "#eef2ff",
-    padding: "12px 14px",
-  },
-  toggleRow: {
-    display: "flex",
-    gap: 18,
-    flexWrap: "wrap",
-  },
-  checkboxLabel: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    color: "#d7def7",
-    fontSize: 14,
-  },
-  clearButton: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#eef2ff",
-    padding: "10px 14px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  disabledButton: {
-    opacity: 0.5,
-    cursor: "not-allowed",
-  },
-  statsRow: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  statPill: {
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: "rgba(110,168,254,0.12)",
-    color: "#cfe0ff",
-    border: "1px solid rgba(110,168,254,0.2)",
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  grid: {
-    display: "grid",
-    gap: 16,
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-  },
-  card: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 18,
-    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
-  },
-  cardTitle: {
-    margin: "0 0 12px",
-    fontSize: 22,
-    fontWeight: 800,
-  },
-  meta: {
-    display: "grid",
-    gap: 6,
-    color: "#c7d2fe",
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  description: {
-    color: "#d7def7",
-    lineHeight: 1.5,
-  },
-  actions: {
-    display: "flex",
-    gap: 12,
-    marginTop: 16,
-    flexWrap: "wrap",
-  },
-  primaryLink: {
-    textDecoration: "none",
-    border: "none",
-    color: "#08111f",
-    background: "#6ea8fe",
-    padding: "10px 14px",
-    borderRadius: 12,
-    fontWeight: 800,
-  },
-  secondaryLink: {
-    color: "#c7d2fe",
-    textDecoration: "none",
-    fontWeight: 700,
-  },
-  error: {
-    color: "#ff9ead",
-    fontWeight: 700,
-  },
-};

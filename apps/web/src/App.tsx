@@ -12,6 +12,12 @@ import RequireRole from "./components/RequireRole";
 import SiteLayout from "./components/SiteLayout";
 import type { Role } from "./services/auth";
 
+import BuyerDashboardPage from "./pages/BuyerDashboardPage";
+
+import BuyerItemLocatorPage from "./pages/BuyerItemLocatorPage";
+
+import BuyerSellItemPage from "./pages/BuyerSellItemPage";
+
 type RouteConfig =
   | {
       index: true;
@@ -181,6 +187,11 @@ function renderRouteGroup(
 
 const publicRoutes: RouteConfig[] = [
   { index: true, element: <HomePage /> },
+  { path: "/buyer", element: <Navigate to="/buyer/dashboard" replace /> },
+  { path: "/buyer/dashboard", element: <BuyerDashboardPage /> },
+  { path: "/buyer/item-locator", element: <BuyerItemLocatorPage /> },
+  { path: "/buyer/sell-item", element: <BuyerSellItemPage /> },
+
   { path: "/marketplace", element: <MarketplacePage /> },
   { path: "/shops", element: <ShopsPage /> },
   { path: "/shops/:id", element: <ShopDetailPage /> },

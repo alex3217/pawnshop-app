@@ -293,6 +293,42 @@ export async function counterOffer(req, res) {
   }
 }
 
+
+export async function cancelOffer(req, res) {
+  try {
+    const buyerId = normalizeString(
+      req.user?.id || req.user?.userId || req.auth?.userId,
+    );
+    const offerId = normalizeString(req.params?.id);
+
+    if (!buyerId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (!offerId) {
+      return res.status(400).json({ error: "Offer id is required" });
+    }
+
+    const offer = await getBuyerOfferOrThrow(offerId, buyerId);
+
+    if (!["PENDING", "COUNTERED"].includes(String(offer.status || "").toUpperCase())) {
+      return res.status(400).json({
+        error: "Only pending or countered offers can be canceled",
+      });
+    }
+
+    const updated = await prisma.offer.update({
+      where: { id: offerId },
+      data: { status: "CANCELED" },
+      include: offerInclude(),
+    });
+
+    return res.json(updated);
+  } catch (error) {
+    return sendError(res, error, "Failed to cancel offer");
+  }
+}
+
 export async function acceptCounterOffer(req, res) {
   try {
     const buyerId = req?.user?.sub;

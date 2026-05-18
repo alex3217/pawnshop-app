@@ -1,10 +1,146 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getMyWatchlist,
   removeFromWatchlist,
   type WatchlistEntry,
 } from "../services/watchlist";
+import "../styles/watchlist-v2.css";
+
+function normalizeLabel(value: string | null | undefined, fallback: string) {
+  const normalized = String(value || "").trim();
+  return normalized || fallback;
+}
+
+function toPriceNumber(value: string | number | null | undefined) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatPrice(value: string | number | null | undefined) {
+  const amount = toPriceNumber(value);
+
+  if (!amount) return "Price unavailable";
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function itemImage(entry: WatchlistEntry) {
+  const images = entry.item?.images;
+  return Array.isArray(images) && images.length ? images[0] : "";
+}
+
+function itemId(entry: WatchlistEntry) {
+  return entry.item?.id || entry.itemId || "";
+}
+
+function shopId(entry: WatchlistEntry) {
+  return entry.item?.shop?.id || entry.item?.pawnShopId || "";
+}
+
+function isAvailable(status: string | null | undefined) {
+  return ["AVAILABLE", "ACTIVE"].includes(String(status || "").toUpperCase());
+}
+
+function WatchlistCard({
+  entry,
+  removingId,
+  onRemove,
+}: {
+  entry: WatchlistEntry;
+  removingId: string | null;
+  onRemove: (itemId: string) => void;
+}) {
+  const id = itemId(entry);
+  const shop = shopId(entry);
+  const image = itemImage(entry);
+  const status = normalizeLabel(entry.item?.status, "Unknown");
+  const available = isAvailable(status);
+
+  return (
+    <article className="watch2-card">
+      <Link
+        to={id ? `/items/${encodeURIComponent(id)}` : "/marketplace"}
+        className="watch2-media"
+      >
+        {image ? <img src={image} alt={entry.item?.title || "Saved item"} /> : <div>PawnLoop</div>}
+
+        <span className={available ? "watch2-status available" : "watch2-status"}>
+          {status}
+        </span>
+      </Link>
+
+      <div className="watch2-body">
+        <div className="watch2-heading">
+          <div>
+            <Link
+              to={id ? `/items/${encodeURIComponent(id)}` : "/marketplace"}
+              className="watch2-title"
+            >
+              {normalizeLabel(entry.item?.title, "Unknown item")}
+            </Link>
+            <p>{normalizeLabel(entry.item?.shop?.name, "Unknown shop")}</p>
+          </div>
+
+          <strong>{formatPrice(entry.item?.price)}</strong>
+        </div>
+
+        <div className="watch2-badges">
+          <span>{normalizeLabel(entry.item?.category, "General")}</span>
+          <span>{normalizeLabel(entry.item?.condition, "Condition not listed")}</span>
+        </div>
+
+        <p className="watch2-description">
+          {normalizeLabel(
+            entry.item?.description,
+            "Saved item. Open the listing to view details, shop location, and offer options.",
+          )}
+        </p>
+
+        <div className="watch2-actions">
+          {id ? (
+            <Link to={`/items/${encodeURIComponent(id)}`} className="watch2-primary-small">
+              View item
+            </Link>
+          ) : (
+            <Link to="/marketplace" className="watch2-primary-small">
+              Browse items
+            </Link>
+          )}
+
+          {shop ? (
+            <Link to={`/shops/${encodeURIComponent(shop)}`} className="watch2-secondary-small">
+              View shop
+            </Link>
+          ) : (
+            <Link to="/shops" className="watch2-secondary-small">
+              Shops
+            </Link>
+          )}
+
+          <Link to="/offers" className="watch2-secondary-small">
+            Offer
+          </Link>
+
+          {id ? (
+            <button
+              type="button"
+              onClick={() => onRemove(id)}
+              disabled={removingId === id}
+              className="watch2-remove"
+            >
+              {removingId === id ? "Removing..." : "Remove"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  );
+}
 
 export default function WatchlistPage() {
   const [entries, setEntries] = useState<WatchlistEntry[]>([]);
@@ -30,11 +166,13 @@ export default function WatchlistPage() {
     void loadWatchlist();
   }, []);
 
-  async function handleRemove(itemId: string) {
+  async function handleRemove(nextItemId: string) {
     try {
-      setRemovingId(itemId);
-      await removeFromWatchlist(itemId);
-      await loadWatchlist();
+      setRemovingId(nextItemId);
+      await removeFromWatchlist(nextItemId);
+      setEntries((current) =>
+        current.filter((entry) => itemId(entry) !== nextItemId),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove item.");
     } finally {
@@ -42,98 +180,119 @@ export default function WatchlistPage() {
     }
   }
 
+  const stats = useMemo(() => {
+    const available = entries.filter((entry) => isAvailable(entry.item?.status)).length;
+    const shops = new Set(
+      entries
+        .map((entry) => entry.item?.shop?.id || entry.item?.pawnShopId || "")
+        .filter(Boolean),
+    ).size;
+    const totalValue = entries.reduce(
+      (sum, entry) => sum + toPriceNumber(entry.item?.price),
+      0,
+    );
+
+    return {
+      total: entries.length,
+      available,
+      shops,
+      totalValue,
+    };
+  }, [entries]);
+
   return (
-    <div style={styles.page}>
-      <h2 style={styles.title}>My Watchlist</h2>
+    <main className="watch2-page">
+      <section className="watch2-hero">
+        <div className="watch2-hero-copy">
+          <span className="watch2-pill">Buyer watchlist</span>
+          <h1>Track items you care about.</h1>
+          <p>
+            Keep an eye on saved items, return to listings quickly, open the shop,
+            and make offers from one clean buyer command page.
+          </p>
 
-      {loading ? <div style={styles.card}>Loading watchlist...</div> : null}
-      {error ? <div style={styles.error}>{error}</div> : null}
+          <div className="watch2-hero-actions">
+            <Link to="/marketplace">Browse marketplace</Link>
+            <Link to="/buyer/item-locator">Find an item</Link>
+          </div>
+        </div>
 
-      {!loading && !error && entries.length === 0 ? (
-        <div style={styles.card}>You have not saved any items yet.</div>
+        <aside className="watch2-hero-panel">
+          <div>
+            <span>Saved</span>
+            <strong>{stats.total}</strong>
+            <small>watchlist items</small>
+          </div>
+          <div>
+            <span>Available</span>
+            <strong>{stats.available}</strong>
+            <small>active listings</small>
+          </div>
+          <div>
+            <span>Shops</span>
+            <strong>{stats.shops}</strong>
+            <small>represented</small>
+          </div>
+          <div>
+            <span>Value</span>
+            <strong>{formatPrice(stats.totalValue)}</strong>
+            <small>tracked price total</small>
+          </div>
+        </aside>
+      </section>
+
+      <section className="watch2-discovery-strip">
+        <Link to="/buyer/dashboard">
+          Buyer dashboard <span>Return to command center</span>
+        </Link>
+        <Link to="/marketplace">
+          Marketplace <span>Browse all inventory</span>
+        </Link>
+        <Link to="/buyer/item-locator">
+          Item locator <span>Find who has an item</span>
+        </Link>
+        <Link to="/offers">
+          My offers <span>Review offer activity</span>
+        </Link>
+      </section>
+
+      {error ? (
+        <section className="watch2-error">
+          <h2>Watchlist could not load</h2>
+          <p>{error}</p>
+          <button type="button" onClick={() => void loadWatchlist()}>
+            Try again
+          </button>
+        </section>
       ) : null}
 
-      <div style={styles.grid}>
-        {entries.map((entry) => (
-          <article key={entry.id} style={styles.card}>
-            <h3 style={styles.cardTitle}>{entry.item?.title || "Unknown Item"}</h3>
-            <div style={styles.meta}>Shop: {entry.item?.shop?.name || "Unknown Shop"}</div>
-            <div style={styles.amount}>${Number(entry.item?.price || 0).toFixed(2)}</div>
-            <div style={styles.meta}>Status: {entry.item?.status || "UNKNOWN"}</div>
-
-            <div style={styles.actions}>
-              {entry.item?.id ? (
-                <Link to={`/items/${entry.item.id}`} style={styles.primaryLink}>
-                  View Item
-                </Link>
-              ) : null}
-
-              {entry.item?.pawnShopId ? (
-                <Link to={`/shops/${entry.item.pawnShopId}`} style={styles.secondaryLink}>
-                  View Shop
-                </Link>
-              ) : null}
-
-              {entry.item?.id ? (
-                <button
-                  type="button"
-                  onClick={() => handleRemove(entry.item!.id)}
-                  disabled={removingId === entry.item?.id}
-                  style={styles.removeButton}
-                >
-                  {removingId === entry.item?.id ? "Removing..." : "Remove"}
-                </button>
-              ) : null}
-            </div>
-          </article>
-        ))}
-      </div>
-    </div>
+      {loading ? (
+        <section className="watch2-grid">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="watch2-skeleton" />
+          ))}
+        </section>
+      ) : entries.length === 0 ? (
+        <section className="watch2-empty">
+          <h2>No saved items yet</h2>
+          <p>
+            Save items from Marketplace or Item Locator and they will appear here
+            for quick tracking.
+          </p>
+          <Link to="/marketplace">Browse marketplace</Link>
+        </section>
+      ) : (
+        <section className="watch2-grid">
+          {entries.map((entry) => (
+            <WatchlistCard
+              key={entry.id}
+              entry={entry}
+              removingId={removingId}
+              onRemove={handleRemove}
+            />
+          ))}
+        </section>
+      )}
+    </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: { display: "grid", gap: 20, color: "#eef2ff" },
-  title: { margin: 0, fontSize: 30, fontWeight: 800 },
-  grid: {
-    display: "grid",
-    gap: 16,
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  },
-  card: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 18,
-    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
-  },
-  cardTitle: { margin: "0 0 8px", fontSize: 20, fontWeight: 800 },
-  amount: { fontSize: 22, fontWeight: 800, marginTop: 8 },
-  meta: { color: "#a7b0d8", marginTop: 6 },
-  error: { color: "#ff9ead", fontWeight: 700 },
-  actions: { display: "flex", gap: 12, flexWrap: "wrap", marginTop: 14 },
-  primaryLink: {
-    textDecoration: "none",
-    border: "none",
-    color: "#08111f",
-    background: "#6ea8fe",
-    padding: "10px 14px",
-    borderRadius: 12,
-    fontWeight: 800,
-  },
-  secondaryLink: {
-    color: "#c7d2fe",
-    textDecoration: "none",
-    fontWeight: 700,
-    padding: "10px 2px",
-  },
-  removeButton: {
-    border: "none",
-    borderRadius: 12,
-    padding: "10px 14px",
-    background: "#ff9ead",
-    color: "#08111f",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-};

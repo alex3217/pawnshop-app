@@ -1,0 +1,699 @@
+.shops2-page {
+  min-height: 100vh;
+  padding: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.12), transparent 34rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  color: #0f172a;
+}
+
+.shops2-page a {
+  text-decoration: none;
+}
+
+.shops2-hero,
+.shops2-toolbar,
+.shops2-discovery-strip,
+.shops2-grid,
+.shops2-list,
+.shops2-map-shell,
+.shops2-error,
+.shops2-empty {
+  max-width: 1240px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.shops2-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.65fr);
+  gap: 22px;
+  margin-bottom: 22px;
+  padding: 28px;
+  border-radius: 32px;
+  background: #0f172a;
+  color: #fff;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+  position: relative;
+}
+
+.shops2-hero::after {
+  content: "";
+  position: absolute;
+  width: 460px;
+  height: 460px;
+  right: -170px;
+  top: -200px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.28);
+}
+
+.shops2-hero-copy,
+.shops2-hero-panel {
+  position: relative;
+  z-index: 1;
+}
+
+.shops2-pill {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(99, 102, 241, 0.18);
+  color: #c7d2fe;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.shops2-hero h1 {
+  max-width: 780px;
+  margin: 18px 0 12px;
+  font-size: clamp(36px, 5vw, 62px);
+  line-height: 0.96;
+  letter-spacing: -0.06em;
+}
+
+.shops2-hero p {
+  max-width: 720px;
+  margin: 0;
+  color: #cbd5e1;
+  line-height: 1.65;
+}
+
+.shops2-search-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 8px;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.shops2-search-row input {
+  min-height: 52px;
+  border: 0;
+  outline: 0;
+  border-radius: 16px;
+  padding: 0 16px;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.shops2-search-row button {
+  min-height: 52px;
+  border: 0;
+  border-radius: 16px;
+  padding: 0 18px;
+  background: #4f46e5;
+  color: #fff;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.shops2-message {
+  width: fit-content;
+  margin-top: 14px;
+  border-radius: 999px;
+  padding: 8px 11px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #dbeafe;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.shops2-hero-panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  align-self: stretch;
+}
+
+.shops2-hero-panel div {
+  min-height: 126px;
+  border-radius: 24px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px);
+}
+
+.shops2-hero-panel span,
+.shops2-hero-panel small {
+  display: block;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.shops2-hero-panel strong {
+  display: block;
+  margin: 10px 0 6px;
+  color: #fff;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.shops2-toolbar {
+  margin-bottom: 18px;
+  padding: 22px;
+  border-radius: 28px;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.07);
+}
+
+.shops2-filter-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.shops2-filter-heading h2 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.04em;
+}
+
+.shops2-filter-heading p {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.shops2-filter-heading button {
+  align-self: start;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #0f172a;
+  color: #fff;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.shops2-filter-heading button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.shops2-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.shops2-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  border-radius: 16px;
+  padding: 0 14px;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 850;
+}
+
+.shops2-checkbox input {
+  width: 18px;
+  height: 18px;
+}
+
+.shops2-view-toggle {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 18px;
+  background: #f1f5f9;
+}
+
+.shops2-view-toggle button {
+  flex: 1;
+  min-height: 42px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: #475569;
+  font-weight: 950;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.shops2-view-toggle button.active {
+  background: #0f172a;
+  color: #fff;
+}
+
+.shops2-discovery-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.shops2-discovery-strip a {
+  display: block;
+  border-radius: 22px;
+  padding: 16px;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  font-weight: 950;
+}
+
+.shops2-discovery-strip span {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.shops2-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.shops2-list {
+  display: grid;
+  gap: 14px;
+}
+
+.shops2-card {
+  overflow: hidden;
+  border-radius: 26px;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.07);
+}
+
+.shops2-card-list {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+}
+
+.shops2-card-map {
+  position: relative;
+  display: grid;
+  min-height: 190px;
+  place-items: center;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.1), rgba(79, 70, 229, 0.14)),
+    linear-gradient(135deg, #e2e8f0, #f8fafc);
+}
+
+.shops2-card-list .shops2-card-map {
+  min-height: 100%;
+}
+
+.shops2-card-map strong {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+
+.shops2-card-map span {
+  position: absolute;
+  left: 13px;
+  top: 13px;
+  border-radius: 999px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.shops2-card-body {
+  padding: 17px;
+}
+
+.shops2-card-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.shops2-shop-name {
+  display: block;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.shops2-card-heading p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.shops2-open-chip {
+  flex: 0 0 auto;
+  height: fit-content;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.shops2-description {
+  margin: 13px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.shops2-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.shops2-meta-row span {
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.shops2-actions {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.shops2-primary-small,
+.shops2-secondary-small {
+  border: 0;
+  border-radius: 14px;
+  padding: 11px 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.shops2-primary-small {
+  background: #0f172a;
+  color: #fff;
+}
+
+.shops2-secondary-small {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.shops2-map-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.6fr);
+  gap: 18px;
+}
+
+.shops2-map-stage,
+.shops2-map-list,
+.shops2-error,
+.shops2-empty {
+  border-radius: 28px;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.07);
+}
+
+.shops2-map-stage {
+  position: relative;
+  min-height: 620px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.26) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.26) 1px, transparent 1px),
+    linear-gradient(135deg, #dbeafe, #f8fafc 45%, #e0f2fe);
+  background-size: 80px 80px, 80px 80px, auto;
+}
+
+.shops2-map-user {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 10;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  padding: 12px 15px;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+  box-shadow: 0 16px 32px rgba(79, 70, 229, 0.32);
+}
+
+.shops2-map-pin {
+  position: absolute;
+  z-index: 14;
+  transform: translate(-50%, -50%);
+  min-width: 78px;
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  border-radius: 18px;
+  padding: 10px 11px;
+  background: #fff;
+  color: #0f172a;
+  text-align: center;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+  cursor: pointer;
+}
+
+.shops2-map-pin.selected {
+  background: #0f172a;
+  color: #fff;
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+.shops2-map-pin strong,
+.shops2-map-pin span {
+  display: block;
+}
+
+.shops2-map-pin span {
+  margin-top: 3px;
+  color: inherit;
+  opacity: 0.75;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.shops2-map-card {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  border-radius: 22px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.shops2-map-card strong,
+.shops2-map-card span {
+  display: block;
+}
+
+.shops2-map-card span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.shops2-map-card a {
+  border-radius: 14px;
+  padding: 11px 14px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.shops2-map-list {
+  padding: 18px;
+}
+
+.shops2-map-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.shops2-map-list-heading h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.shops2-map-list-heading span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.shops2-map-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: 18px;
+  padding: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shops2-map-row + .shops2-map-row {
+  margin-top: 10px;
+}
+
+.shops2-map-row.active {
+  background: #eef2ff;
+}
+
+.shops2-map-row strong,
+.shops2-map-row small {
+  display: block;
+}
+
+.shops2-map-row small {
+  margin-top: 4px;
+  color: #64748b;
+}
+
+.shops2-map-row b {
+  white-space: nowrap;
+}
+
+.shops2-skeleton {
+  min-height: 320px;
+  border-radius: 26px;
+  background: linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9);
+  background-size: 200% 100%;
+  animation: shops2-pulse 1.2s infinite linear;
+}
+
+.shops2-error,
+.shops2-empty {
+  margin-bottom: 18px;
+  padding: 34px;
+  text-align: center;
+}
+
+.shops2-error h2,
+.shops2-empty h2 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.shops2-error p,
+.shops2-empty p {
+  max-width: 560px;
+  margin: 10px auto 0;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.shops2-empty button {
+  display: inline-flex;
+  margin-top: 18px;
+  border: 0;
+  border-radius: 15px;
+  padding: 12px 16px;
+  background: #0f172a;
+  color: #fff;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+@keyframes shops2-pulse {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 1180px) {
+  .shops2-hero,
+  .shops2-map-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .shops2-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .shops2-filter-grid,
+  .shops2-discovery-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 780px) {
+  .shops2-page {
+    padding: 16px;
+  }
+
+  .shops2-hero,
+  .shops2-toolbar {
+    border-radius: 24px;
+    padding: 18px;
+  }
+
+  .shops2-search-row,
+  .shops2-hero-panel,
+  .shops2-filter-grid,
+  .shops2-discovery-strip,
+  .shops2-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shops2-filter-heading,
+  .shops2-map-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .shops2-card-list {
+    grid-template-columns: 1fr;
+  }
+
+  .shops2-map-stage {
+    min-height: 560px;
+  }
+
+  .shops2-actions {
+    grid-template-columns: 1fr;
+  }
+}

@@ -102,3 +102,9 @@ export async function acceptCounterOffer(offerId: string): Promise<Offer> {
 export async function declineCounterOffer(offerId: string): Promise<Offer> {
   return api.post<Offer>(`/offers/${encodeURIComponent(offerId)}/decline-counter`);
 }
+
+
+export async function cancelOffer(offerId: string): Promise<Offer> {
+  if (!offerId) throw new Error("Missing offer id.");
+  return api.post<Offer>(`/offers/${encodeURIComponent(offerId)}/cancel`);
+}
