@@ -251,3 +251,32 @@
     padding: 18px;
   }
 }
+
+/* ===== FINAL HOME LIGHT MODE TEXT CONTRAST LOCK ===== */
+:root:not([data-theme="dark"]) .home2-page .home2-hero .home2-hero-copy h1,
+:root:not([data-theme="dark"]) .home2-page .home2-hero .home2-hero-copy h1 *,
+:root:not([data-theme="dark"]) .home2-page .home2-section-title h2,
+:root:not([data-theme="dark"]) .home2-page .home2-feature-list strong,
+:root:not([data-theme="dark"]) .home2-page .home2-hero-panel strong {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+:root:not([data-theme="dark"]) .home2-page .home2-hero .home2-hero-copy p,
+:root:not([data-theme="dark"]) .home2-page .home2-section-title p,
+:root:not([data-theme="dark"]) .home2-page .home2-feature-list span,
+:root:not([data-theme="dark"]) .home2-page .home2-hero-panel span {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+:root:not([data-theme="dark"]) .home2-page .home2-pill,
+:root:not([data-theme="dark"]) .home2-page .home2-section-title > span {
+  color: #4338ca !important;
+  -webkit-text-fill-color: #4338ca !important;
+  opacity: 1 !important;
+}

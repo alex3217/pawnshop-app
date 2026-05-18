@@ -755,3 +755,43 @@
   background: #eef2ff !important;
   color: #312e81 !important;
 }
+
+/* ===== FINAL SHARED LAYOUT LIGHT MODE CONTRAST LOCK ===== */
+:root:not([data-theme="dark"]) header *,
+:root:not([data-theme="dark"]) nav *,
+:root:not([data-theme="dark"]) footer * {
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+:root:not([data-theme="dark"]) header,
+:root:not([data-theme="dark"]) nav,
+:root:not([data-theme="dark"]) footer {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) header a,
+:root:not([data-theme="dark"]) nav a,
+:root:not([data-theme="dark"]) footer a {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+}
+
+:root:not([data-theme="dark"]) header strong,
+:root:not([data-theme="dark"]) header h1,
+:root:not([data-theme="dark"]) header h2,
+:root:not([data-theme="dark"]) header h3,
+:root:not([data-theme="dark"]) header span,
+:root:not([data-theme="dark"]) nav strong,
+:root:not([data-theme="dark"]) nav span {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .theme-toggle {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  background: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.45) !important;
+}

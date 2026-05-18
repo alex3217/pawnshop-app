@@ -1,9 +1,10 @@
 // File: apps/web/src/components/SiteLayout.tsx
 
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAuthRole, logout, type Role } from "../services/auth";
 import ScrollToTopButton from "./ScrollToTopButton";
+import "../styles/site-layout.css";
 
 type NavItem = {
   to: string;
@@ -99,12 +100,13 @@ function getDashboardHref(role: Role | null) {
   if (role === "SUPER_ADMIN") return "/super-admin";
   if (role === "ADMIN") return "/admin";
   if (role === "OWNER") return "/owner";
-  if (role === "CONSUMER") return "/my-bids";
+  if (role === "CONSUMER") return "/buyer/dashboard";
   return "/login";
 }
 
 export default function SiteLayout() {
   const navigate = useNavigate();
+
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
 
@@ -181,33 +183,26 @@ export default function SiteLayout() {
     showSuperAdminLinks,
   ]);
 
-  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `nav-link${isActive ? " active" : ""}`;
-
   function handleLogout() {
     logout();
     navigate("/login", { replace: true });
   }
 
   return (
-    <div style={styles.shell}>
-      <header style={styles.header}>
-        <div style={styles.headerInner}>
-          <div style={styles.topRow}>
-            <Link
-              to="/"
-              className="brand"
-              style={styles.brand}
-              aria-label="PawnLoop Marketplace home"
-            >
-              <span>PawnLoop Marketplace</span>
+    <div className="site-shell">
+      <header className="site-header">
+        <div className="site-header-inner">
+          <div className="site-top-row">
+            <Link to="/" className="site-brand" aria-label="PawnLoop Marketplace home">
+              PawnLoop Marketplace
             </Link>
 
-            <div style={styles.topRowRight}>
-              <span style={styles.roleBadge}>{roleBadge}</span>
+            <div className="site-top-actions">
+              <span className="site-role-badge">{roleBadge}</span>
+
               <button
                 type="button"
-                className="theme-toggle"
+                className="site-theme-toggle"
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               >
@@ -216,25 +211,24 @@ export default function SiteLayout() {
 
               {role ? (
                 <>
-                  <Link to={dashboardHref} style={styles.headerButtonPrimary}>
+                  <Link to={dashboardHref} className="site-primary-button">
                     Dashboard
                   </Link>
 
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="site-secondary-button"
                     onClick={handleLogout}
-                    style={styles.headerButtonSecondary}
                   >
                     Logout
                   </button>
                 </>
               ) : (
                 <>
-                  <Link to="/login" style={styles.headerButtonSecondary}>
+                  <Link to="/login" className="site-secondary-button">
                     Login
                   </Link>
-                  <Link to="/register" style={styles.headerButtonPrimary}>
+                  <Link to="/register" className="site-primary-button">
                     Register
                   </Link>
                 </>
@@ -242,13 +236,15 @@ export default function SiteLayout() {
             </div>
           </div>
 
-          <nav style={styles.primaryNav} aria-label="Primary navigation">
+          <nav className="site-primary-nav" aria-label="Primary navigation">
             {primaryLinks.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                className={navLinkClass}
+                className={({ isActive }) =>
+                  isActive ? "site-nav-link active" : "site-nav-link"
+                }
               >
                 {item.label}
               </NavLink>
@@ -256,48 +252,43 @@ export default function SiteLayout() {
           </nav>
 
           {workspaceLinks.length > 0 ? (
-            <div style={styles.workspaceRow}>
-
-              <div style={styles.workspaceLinks}>
-                {workspaceLinks.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.end}
-                    style={({ isActive }) => ({
-                      ...styles.workspaceLink,
-                      ...(isActive ? styles.workspaceLinkActive : {}),
-                    })}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
+            <div className="site-workspace-row">
+              {workspaceLinks.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    isActive ? "site-workspace-link active" : "site-workspace-link"
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
             </div>
           ) : null}
         </div>
       </header>
 
-      <main style={styles.main}>
+      <main className="site-main">
         <Outlet />
       </main>
 
       <ScrollToTopButton />
 
-      <footer style={styles.footer}>
-        <div style={styles.footerInner}>
-          <div style={styles.footerBrandRow}>
-            <div className="brand" style={styles.brand}>
-              <span>PawnLoop Marketplace</span>
-            </div>
-            <div style={styles.footerMeta}>
-              Real-time pawnshop inventory, auctions, and payments in one place. Operated by Bealtair LLC.
-            </div>
+      <footer className="site-footer">
+        <div className="site-footer-inner">
+          <div>
+            <div className="site-footer-brand">PawnLoop Marketplace</div>
+            <p>
+              Real-time pawnshop inventory, auctions, and payments in one place.
+              Operated by Bealtair LLC.
+            </p>
           </div>
 
-          <div style={styles.footerLinks}>
+          <div className="site-footer-links">
             {footerLinks.map((item) => (
-              <Link key={item.to} className="footer-link" to={item.to}>
+              <Link key={item.to} to={item.to}>
                 {item.label}
               </Link>
             ))}
@@ -307,139 +298,3 @@ export default function SiteLayout() {
     </div>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  shell: {
-    minHeight: "100vh",
-    display: "grid",
-    gridTemplateRows: "auto 1fr auto",
-    background: "#0b1020",
-    color: "#eef2ff",
-  },
-  header: {
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(11,16,32,0.92)",
-  },
-  headerInner: {
-    maxWidth: 1440,
-    margin: "0 auto",
-    padding: "18px 20px",
-    display: "grid",
-    gap: 14,
-  },
-  topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  topRowRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  brand: {
-    color: "#ffffff",
-    fontWeight: 900,
-    fontSize: 20,
-    textDecoration: "none",
-  },
-  roleBadge: {
-    border: "1px solid rgba(255,255,255,0.16)",
-    borderRadius: 999,
-    padding: "6px 10px",
-    fontSize: 12,
-    fontWeight: 800,
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
-    color: "#dbeafe",
-    background: "rgba(59,130,246,0.12)",
-  },
-  headerButtonPrimary: {
-    borderRadius: 10,
-    padding: "8px 12px",
-    background: "#6366f1",
-    color: "#ffffff",
-    fontWeight: 800,
-    textDecoration: "none",
-  },
-  headerButtonSecondary: {
-    borderRadius: 10,
-    padding: "8px 12px",
-    background: "rgba(255,255,255,0.08)",
-    color: "#ffffff",
-    fontWeight: 800,
-    textDecoration: "none",
-    border: "1px solid rgba(255,255,255,0.12)",
-    cursor: "pointer",
-  },
-  primaryNav: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  workspaceRow: {
-    display: "grid",
-    gap: 8,
-    paddingTop: 10,
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-  },
-  workspaceLabel: {
-    fontSize: 12,
-    fontWeight: 900,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: "#94a3b8",
-  },
-  workspaceLinks: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  workspaceLink: {
-    color: "#cbd5e1",
-    textDecoration: "none",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 999,
-    padding: "7px 10px",
-    fontSize: 13,
-    fontWeight: 800,
-    background: "rgba(255,255,255,0.04)",
-  },
-  workspaceLinkActive: {
-    color: "#ffffff",
-    borderColor: "rgba(99,102,241,0.7)",
-    background: "rgba(99,102,241,0.22)",
-  },
-  main: {
-    width: "100%",
-  },
-  footer: {
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(11,16,32,0.92)",
-  },
-  footerInner: {
-    maxWidth: 1440,
-    margin: "0 auto",
-    padding: "20px",
-    display: "grid",
-    gap: 12,
-  },
-  footerBrandRow: {
-    display: "grid",
-    gap: 6,
-  },
-  footerMeta: {
-    color: "#94a3b8",
-    fontSize: 14,
-  },
-  footerLinks: {
-    display: "flex",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-};
