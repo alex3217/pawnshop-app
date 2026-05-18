@@ -26,6 +26,8 @@ model User {
   savedSearches           SavedSearch[]          @relation("UserSavedSearches")
   wonSettlements          Settlement[]           @relation("SettlementWinner")
   watchlistEntries        Watchlist[]            @relation("UserWatchlist")
+  buyerItemSubmissions    BuyerItemSubmission[]  @relation("BuyerItemSubmissions")
+  buyerItemSubmissionOffers BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferOwner")
   updatedPlatformSettings PlatformSetting[]      @relation("PlatformSettingUpdatedByUser")
   staffMemberships        Staff[]                @relation("StaffUser")
 
@@ -89,6 +91,7 @@ model PawnShop {
   staffMembers                 Staff[]                @relation("ShopStaffMembers")
   owner                        User                   @relation(fields: [ownerId], references: [id])
   inventorySyncJobs            InventorySyncJob[]
+  buyerItemSubmissionOffers    BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferShop")
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -175,6 +178,8 @@ model Auction {
   version            Int           @default(0)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+  ownerReviewedAt    DateTime?
+  ownerReviewedById  String?
   item               Item          @relation(fields: [itemId], references: [id])
   shop               PawnShop      @relation(fields: [shopId], references: [id])
   bids               Bid[]
@@ -183,6 +188,8 @@ model Auction {
   @@index([status, startsAt])
   @@index([status, endsAt])
   @@index([shopId, status])
+  @@index([ownerReviewedAt])
+  @@index([ownerReviewedById])
   @@index([createdAt])
 }
 
@@ -264,6 +271,56 @@ model SavedSearch {
   user      User     @relation("UserSavedSearches", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+
+model BuyerItemSubmission {
+  id             String   @id @default(cuid())
+  buyerId        String
+  title          String
+  description    String?
+  category       String?
+  condition      String?
+  estimatedValue Decimal? @db.Decimal(10, 2)
+  images         String[] @default([])
+  intent         String   @default("PAWN_OFFERS")
+  radiusMiles    Int      @default(25)
+  status         String   @default("SUBMITTED")
+  reviewMessage  String?
+  reviewedAt     DateTime?
+  reviewedById   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  buyer  User @relation("BuyerItemSubmissions", fields: [buyerId], references: [id], onDelete: Cascade)
+  offers BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOffers")
+
+  @@index([buyerId, createdAt])
+  @@index([status, createdAt])
+  @@index([intent, status])
+}
+
+
+model BuyerItemSubmissionOffer {
+  id           String   @id @default(cuid())
+  submissionId String
+  shopId       String
+  ownerId      String
+  amount       Decimal  @db.Decimal(10, 2)
+  message      String?
+  status       String   @default("PENDING")
+  respondedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submission BuyerItemSubmission @relation("BuyerItemSubmissionOffers", fields: [submissionId], references: [id], onDelete: Cascade)
+  shop       PawnShop            @relation("BuyerItemSubmissionOfferShop", fields: [shopId], references: [id], onDelete: Cascade)
+  owner      User                @relation("BuyerItemSubmissionOfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, status])
+  @@index([shopId, createdAt])
+  @@index([ownerId, createdAt])
+  @@index([status, createdAt])
 }
 
 model InventoryImportJob {

@@ -10,9 +10,13 @@ import {
 import { Link } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
 import {
+  createOwnerBuyerItemSubmissionOffer,
+  getOwnerBuyerItemSubmissions,
   getOwnerItems,
   getOwnerShops,
   getShopEntitlements,
+  reviewBuyerItemSubmission,
+  type OwnerBuyerItemSubmission,
 } from "../services/ownerWorkspace";
 
 type Shop = {
@@ -201,6 +205,61 @@ function normalizeEntitlements(payload: unknown): Entitlements | null {
   return null;
 }
 
+
+function formatSubmissionValue(value?: string | number | null) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num) || num <= 0) return "—";
+  return `$${num.toFixed(2)}`;
+}
+
+function getSubmissionStatusTone(status: string): CSSProperties {
+  const normalized = String(status || "").toUpperCase();
+
+  if (["SUBMITTED", "REVIEWING"].includes(normalized)) {
+    return {
+      color: "#1d4ed8",
+      background: "#dbeafe",
+      border: "1px solid rgba(37, 99, 235, 0.25)",
+    };
+  }
+
+  if (["OFFERED"].includes(normalized)) {
+    return {
+      color: "#166534",
+      background: "#dcfce7",
+      border: "1px solid rgba(22, 101, 52, 0.22)",
+    };
+  }
+
+  if (["NEEDS_INFO"].includes(normalized)) {
+    return {
+      color: "#92400e",
+      background: "#fef3c7",
+      border: "1px solid rgba(146, 64, 14, 0.22)",
+    };
+  }
+
+  if (["REJECTED", "WITHDRAWN"].includes(normalized)) {
+    return {
+      color: "#991b1b",
+      background: "#fee2e2",
+      border: "1px solid rgba(153, 27, 27, 0.22)",
+    };
+  }
+
+  return {
+    color: "#334155",
+    background: "#f1f5f9",
+    border: "1px solid rgba(148, 163, 184, 0.35)",
+  };
+}
+
+function getSubmissionPreview(submission: OwnerBuyerItemSubmission) {
+  return Array.isArray(submission.images) && submission.images.length
+    ? submission.images[0]
+    : "";
+}
+
 function formatMoney(cents?: number | null) {
   return `$${(Number(cents || 0) / 100).toFixed(2)}`;
 }
@@ -299,6 +358,10 @@ function getItemStatusTone(status: string): CSSProperties {
 export default function OwnerDashboardPage() {
   const [shops, setShops] = useState<Shop[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [buyerItemSubmissions, setBuyerItemSubmissions] = useState<OwnerBuyerItemSubmission[]>([]);
+  const [buyerSubmissionActionId, setBuyerSubmissionActionId] = useState<string | null>(null);
+  const [submissionOfferAmounts, setSubmissionOfferAmounts] = useState<Record<string, string>>({});
+  const [submissionOfferMessages, setSubmissionOfferMessages] = useState<Record<string, string>>({});
   const [selectedShopId, setSelectedShopId] = useState("");
   const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
 
@@ -387,9 +450,10 @@ export default function OwnerDashboardPage() {
       try {
         requireAuthToken();
 
-        const [shopsJson, itemsJson] = await Promise.all([
+        const [shopsJson, itemsJson, buyerSubmissionsJson] = await Promise.all([
           getOwnerShops(signal),
           getOwnerItems(signal),
+          getOwnerBuyerItemSubmissions(signal),
         ]);
 
         const nextShops = normalizeShops(shopsJson);
@@ -397,6 +461,7 @@ export default function OwnerDashboardPage() {
 
         setShops(nextShops);
         setItems(nextItems);
+        setBuyerItemSubmissions(buyerSubmissionsJson);
 
         if (nextShops.length > 0) {
           setSelectedShopId((prev) =>
@@ -416,6 +481,7 @@ export default function OwnerDashboardPage() {
         setPageError(message);
         setShops([]);
         setItems([]);
+        setBuyerItemSubmissions([]);
         setSelectedShopId("");
         setEntitlements(null);
       } finally {
@@ -523,6 +589,84 @@ export default function OwnerDashboardPage() {
       await loadEntitlements(selectedShopId, controller.signal, true);
     }
   }
+
+
+  async function handleReviewBuyerSubmission(
+    id: string,
+    status: "REVIEWING" | "OFFERED" | "REJECTED" | "NEEDS_INFO",
+    reviewMessage?: string,
+  ) {
+    try {
+      setBuyerSubmissionActionId(id);
+      setPageError(null);
+
+      const updated = await reviewBuyerItemSubmission(id, {
+        status,
+        reviewMessage,
+      });
+
+      setBuyerItemSubmissions((current) =>
+        current.map((submission) =>
+          submission.id === id ? { ...submission, ...updated } : submission,
+        ),
+      );
+
+      setDashboardMessage(`Buyer item request marked ${status}.`);
+    } catch (err) {
+      setPageError(
+        err instanceof Error
+          ? err.message
+          : "Failed to review buyer item request.",
+      );
+    } finally {
+      setBuyerSubmissionActionId(null);
+    }
+  }
+
+
+
+  async function handleCreateBuyerSubmissionOffer(id: string) {
+    try {
+      if (!selectedShopId) {
+        setPageError("Select a shop before sending an offer.");
+        return;
+      }
+
+      const amount = Number(submissionOfferAmounts[id] || "");
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setPageError("Enter a valid offer amount before sending.");
+        return;
+      }
+
+      setBuyerSubmissionActionId(id);
+      setPageError(null);
+
+      await createOwnerBuyerItemSubmissionOffer(id, {
+        shopId: selectedShopId,
+        amount,
+        message: submissionOfferMessages[id] || "",
+      });
+
+      setSubmissionOfferAmounts((current) => ({ ...current, [id]: "" }));
+      setSubmissionOfferMessages((current) => ({ ...current, [id]: "" }));
+
+      setBuyerItemSubmissions((current) =>
+        current.map((submission) =>
+          submission.id === id ? { ...submission, status: "OFFERED" } : submission,
+        ),
+      );
+
+      setDashboardMessage("Cash offer sent to buyer.");
+    } catch (err) {
+      setPageError(
+        err instanceof Error ? err.message : "Failed to send cash offer.",
+      );
+    } finally {
+      setBuyerSubmissionActionId(null);
+    }
+  }
+
 
   return (
     <div style={styles.page}>
@@ -632,6 +776,14 @@ export default function OwnerDashboardPage() {
             </div>
 
             <div style={styles.card}>
+              <div style={styles.kicker}>Incoming Buyer Requests</div>
+              <div style={styles.bigValue}>{buyerItemSubmissions.length}</div>
+              <div style={styles.muted}>
+                Buyer-submitted scan/photo item requests waiting for owner review.
+              </div>
+            </div>
+
+            <div style={styles.card}>
               <div style={styles.kicker}>Operations</div>
               <div style={styles.muted}>
                 Manage staff, locations, subscription, and setup status.
@@ -677,6 +829,195 @@ export default function OwnerDashboardPage() {
               <div style={styles.statBadge}>Active: {activeItemCount}</div>
             </div>
           </section>
+
+
+          <section style={styles.section}>
+            <div style={styles.header}>
+              <div>
+                <h3 style={styles.sectionTitle}>Incoming Buyer Item Requests</h3>
+                <p style={styles.subtitle}>
+                  Review buyer-submitted scan/photo requests and decide whether to review,
+                  request more info, make an offer later, or reject.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing || buyerSubmissionActionId !== null}
+                style={{
+                  ...styles.refreshButton,
+                  ...(refreshing || buyerSubmissionActionId !== null
+                    ? styles.disabledButton
+                    : {}),
+                }}
+              >
+                {refreshing ? "Refreshing..." : "Refresh Requests"}
+              </button>
+            </div>
+
+            {buyerItemSubmissions.length === 0 ? (
+              <div style={styles.card}>
+                No buyer item requests are waiting right now.
+              </div>
+            ) : (
+              <div style={styles.grid}>
+                {buyerItemSubmissions.slice(0, 6).map((submission) => {
+                  const preview = getSubmissionPreview(submission);
+                  const working = buyerSubmissionActionId === submission.id;
+
+                  return (
+                    <article key={submission.id} style={styles.card}>
+                      {preview ? (
+                        <img
+                          src={preview}
+                          alt={submission.title}
+                          style={{
+                            width: "100%",
+                            height: 160,
+                            objectFit: "cover",
+                            borderRadius: 14,
+                            marginBottom: 12,
+                          }}
+                        />
+                      ) : null}
+
+                      <div style={styles.kicker}>Buyer Request</div>
+                      <h4 style={{ margin: "6px 0", fontSize: 20 }}>
+                        {submission.title}
+                      </h4>
+
+                      <div
+                        style={{
+                          ...styles.pill,
+                          ...getSubmissionStatusTone(submission.status),
+                          width: "fit-content",
+                        }}
+                      >
+                        {submission.status}
+                      </div>
+
+                      <div style={styles.muted}>
+                        Category: {submission.category || "Not listed"}
+                      </div>
+                      <div style={styles.muted}>
+                        Condition: {submission.condition || "Not listed"}
+                      </div>
+                      <div style={styles.muted}>
+                        Estimated value: {formatSubmissionValue(submission.estimatedValue)}
+                      </div>
+                      <div style={styles.muted}>
+                        Intent: {submission.intent || "PAWN_OFFERS"}
+                      </div>
+                      <div style={styles.muted}>
+                        Radius: {submission.radiusMiles || 25} miles
+                      </div>
+
+                      {submission.description ? (
+                        <p style={styles.description}>{submission.description}</p>
+                      ) : null}
+
+                      {submission.buyer?.email ? (
+                        <div style={styles.muted}>
+                          Buyer: {submission.buyer.name || submission.buyer.email}
+                        </div>
+                      ) : null}
+
+                      <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                        <label style={styles.label}>Cash offer amount</label>
+                        <input
+                          value={submissionOfferAmounts[submission.id] || ""}
+                          onChange={(event) =>
+                            setSubmissionOfferAmounts((current) => ({
+                              ...current,
+                              [submission.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="250"
+                          inputMode="decimal"
+                          style={styles.input}
+                        />
+
+                        <label style={styles.label}>Offer message</label>
+                        <input
+                          value={submissionOfferMessages[submission.id] || ""}
+                          onChange={(event) =>
+                            setSubmissionOfferMessages((current) => ({
+                              ...current,
+                              [submission.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="We can offer $250 after inspection."
+                          style={styles.input}
+                        />
+                      </div>
+
+                      <div style={styles.actions}>
+                        <button
+                          type="button"
+                          disabled={working}
+                          onClick={() =>
+                            void handleReviewBuyerSubmission(
+                              submission.id,
+                              "REVIEWING",
+                              "Shop owner is reviewing this item request.",
+                            )
+                          }
+                          style={styles.refreshButton}
+                        >
+                          Review
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={working}
+                          onClick={() =>
+                            void handleReviewBuyerSubmission(
+                              submission.id,
+                              "NEEDS_INFO",
+                              "Please add more photos or item details.",
+                            )
+                          }
+                          style={styles.linkButton}
+                        >
+                          Needs Info
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={working}
+                          onClick={() => void handleCreateBuyerSubmissionOffer(submission.id)}
+                          style={styles.linkButtonPrimary}
+                        >
+                          Send Cash Offer
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={working}
+                          onClick={() =>
+                            void handleReviewBuyerSubmission(
+                              submission.id,
+                              "REJECTED",
+                              "Shop is not interested in this item.",
+                            )
+                          }
+                          style={{
+                            ...styles.refreshButton,
+                            background: "#fee2e2",
+                            color: "#991b1b",
+                          }}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
 
           {planSummary ? (
             <section style={styles.section}>

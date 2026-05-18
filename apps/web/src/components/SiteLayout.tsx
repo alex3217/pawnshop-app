@@ -1,6 +1,6 @@
 // File: apps/web/src/components/SiteLayout.tsx
 
-import { useMemo, type CSSProperties } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAuthRole, logout, type Role } from "../services/auth";
 import ScrollToTopButton from "./ScrollToTopButton";
@@ -14,6 +14,8 @@ type NavItem = {
 const PUBLIC_NAV: NavItem[] = [
   { to: "/", label: "Home", end: true },
   { to: "/marketplace", label: "Marketplace" },
+  { to: "/buyer/item-locator", label: "Item Locator" },
+  { to: "/buyer/sell-item", label: "Sell / Pawn Item" },
   { to: "/shops", label: "Shops" },
   { to: "/auctions", label: "Auctions" },
 ];
@@ -103,6 +105,20 @@ function getDashboardHref(role: Role | null) {
 
 export default function SiteLayout() {
   const navigate = useNavigate();
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "light";
+
+    const savedTheme = window.localStorage.getItem("pawnloop-theme-v2");
+    if (savedTheme === "dark" || savedTheme === "light") return savedTheme;
+
+    return "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem("pawnloop-theme-v2", theme);
+  }, [theme]);
+
   const role = getAuthRole();
 
   const isSuperAdmin = role === "SUPER_ADMIN";
@@ -189,6 +205,14 @@ export default function SiteLayout() {
 
             <div style={styles.topRowRight}>
               <span style={styles.roleBadge}>{roleBadge}</span>
+              <button
+                type="button"
+                className="theme-toggle"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {theme === "dark" ? "Theme: Dark" : "Theme: Light"}
+              </button>
 
               {role ? (
                 <>
@@ -233,7 +257,6 @@ export default function SiteLayout() {
 
           {workspaceLinks.length > 0 ? (
             <div style={styles.workspaceRow}>
-              <div style={styles.workspaceLabel}>Workspace</div>
 
               <div style={styles.workspaceLinks}>
                 {workspaceLinks.map((item) => (

@@ -1,0 +1,757 @@
+:root {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] body {
+  background: #020617;
+  color: #e5e7eb;
+}
+
+.theme-toggle {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.08);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.theme-toggle:hover {
+  transform: translateY(-1px);
+  background: rgba(79, 70, 229, 0.14);
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+:root[data-theme="dark"] .theme-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+:root[data-theme="dark"] .buyer-dashboard,
+:root[data-theme="dark"] .marketplace-v2,
+:root[data-theme="dark"] .shops2-page,
+:root[data-theme="dark"] .shopdetail-page,
+:root[data-theme="dark"] .item-locator-page {
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 34rem),
+    linear-gradient(180deg, #020617 0%, #0f172a 100%);
+  color: #e5e7eb;
+}
+
+:root[data-theme="dark"] :is(
+  .bd-stat-card,
+  .bd-attention-card,
+  .bd-map-card,
+  .bd-shops-card,
+  .bd-content-section,
+  .bd-panel,
+  .bd-quick-actions,
+  .bd-item-card,
+  .bd-shop-row,
+  .mp2-toolbar,
+  .mp2-discovery-strip a,
+  .mp2-item-card,
+  .mp2-map-stage,
+  .mp2-map-list,
+  .mp2-map-row,
+  .mp2-error,
+  .mp2-empty,
+  .shops2-toolbar,
+  .shops2-discovery-strip a,
+  .shops2-card,
+  .shops2-map-stage,
+  .shops2-map-list,
+  .shops2-map-row,
+  .shops2-error,
+  .shops2-empty,
+  .locator-results-main,
+  .locator-side-panel,
+  .locator-map-shell,
+  .locator-shop-panel,
+  .locator-result-card,
+  .locator-shop-list a,
+  .locator-empty,
+  .locator-error
+) {
+  background: #111827;
+  color: #e5e7eb;
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+:root[data-theme="dark"] :is(
+  .bd-section-title h2,
+  .bd-stat-card strong,
+  .bd-item-topline h3,
+  .bd-item-topline strong,
+  .bd-shop-row h3,
+  .mp2-filter-heading h2,
+  .mp2-item-title,
+  .mp2-item-heading strong,
+  .mp2-map-list-heading h3,
+  .shops2-filter-heading h2,
+  .shops2-shop-name,
+  .shops2-card-map strong,
+  .shops2-map-list-heading h3,
+  .locator-section-title h2,
+  .locator-result-heading h3,
+  .locator-result-heading strong,
+  .locator-shop-list strong
+) {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] :is(
+  .bd-stat-card span,
+  .bd-stat-card small,
+  .bd-item-topline p,
+  .bd-item-meta,
+  .bd-shop-row p,
+  .mp2-filter-heading p,
+  .mp2-item-heading p,
+  .mp2-item-description,
+  .mp2-map-list-heading span,
+  .shops2-filter-heading p,
+  .shops2-card-heading p,
+  .shops2-description,
+  .locator-result-heading p,
+  .locator-shop-address,
+  .locator-empty p,
+  .locator-error p,
+  .locator-map-note span,
+  .locator-shop-list small
+) {
+  color: #94a3b8;
+}
+
+:root[data-theme="dark"] :is(
+  .bd-search-bar,
+  .mp2-search-row,
+  .shops2-search-row,
+  .locator-search-row
+) {
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+:root[data-theme="dark"] :is(
+  .bd-search-bar input,
+  .mp2-search-row input,
+  .mp2-filter-grid input,
+  .mp2-filter-grid select,
+  .shops2-search-row input,
+  .locator-search-row input,
+  .locator-search-row select
+) {
+  background: #111827;
+  color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+:root[data-theme="dark"] :is(
+  .bd-secondary,
+  .bd-secondary-small,
+  .mp2-secondary-small,
+  .shops2-secondary-small,
+  .locator-secondary-small,
+  .shops2-checkbox,
+  .bd-link-list a,
+  .bd-actions-grid a,
+  .bd-shop-row,
+  .mp2-map-row,
+  .shops2-map-row,
+  .locator-shop-list a
+) {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+
+:root[data-theme="dark"] :is(
+  .bd-pill-light,
+  .bd-view-toggle,
+  .mp2-view-toggle,
+  .shops2-view-toggle
+) {
+  background: #1e293b;
+}
+
+:root[data-theme="dark"] :is(
+  .bd-view-toggle button,
+  .mp2-view-toggle button,
+  .shops2-view-toggle button
+) {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] :is(
+  .bd-view-toggle button.active,
+  .mp2-view-toggle button.active,
+  .shops2-view-toggle button.active
+) {
+  background: #4f46e5;
+  color: #fff;
+}
+
+:root[data-theme="dark"] :is(
+  .bd-item-image,
+  .mp2-item-media,
+  .mp2-item-placeholder,
+  .shops2-card-map,
+  .locator-result-image
+) {
+  background:
+    linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(15, 23, 42, 0.45)),
+    linear-gradient(135deg, #1e293b, #0f172a);
+}
+
+:root[data-theme="dark"] :is(
+  .bd-map-stage,
+  .mp2-map-stage,
+  .shops2-map-stage,
+  .locator-map-stage
+) {
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.14) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.14) 1px, transparent 1px),
+    linear-gradient(135deg, #0f172a, #111827 45%, #1e293b);
+}
+
+:root[data-theme="dark"] :is(
+  .bd-map-pin,
+  .mp2-map-pin,
+  .shops2-map-pin,
+  .locator-map-pin,
+  .bd-map-footer,
+  .mp2-map-card,
+  .shops2-map-card,
+  .locator-map-note
+) {
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+:root[data-theme="dark"] :is(
+  .bd-map-pin.selected,
+  .mp2-map-pin.selected,
+  .shops2-map-pin.selected,
+  .locator-map-pin.selected
+) {
+  background: #4f46e5;
+  color: #fff;
+}
+
+:root[data-theme="dark"] :is(
+  .bd-attention
+) {
+  background: rgba(120, 53, 15, 0.28);
+  border-color: rgba(251, 191, 36, 0.22);
+}
+
+:root[data-theme="dark"] :is(
+  .mp2-skeleton,
+  .shops2-skeleton,
+  .locator-skeleton
+) {
+  background: linear-gradient(90deg, #111827, #1e293b, #111827);
+  background-size: 200% 100%;
+}
+
+/* ===== Shops V2 light-mode correction ===== */
+:root:not([data-theme="dark"]) .shops2-page {
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 34rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .shops2-hero {
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 28rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fafc 54%, #eef2ff 100%);
+  color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.10);
+}
+
+:root:not([data-theme="dark"]) .shops2-hero::after {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+:root:not([data-theme="dark"]) .shops2-pill {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+:root:not([data-theme="dark"]) .shops2-hero h1 {
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .shops2-hero p {
+  color: #475569;
+}
+
+:root:not([data-theme="dark"]) .shops2-search-row {
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.30);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+}
+
+:root:not([data-theme="dark"]) .shops2-search-row input {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .shops2-search-row input::placeholder {
+  color: #94a3b8;
+}
+
+:root:not([data-theme="dark"]) .shops2-hero-panel div {
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
+}
+
+:root:not([data-theme="dark"]) .shops2-hero-panel span,
+:root:not([data-theme="dark"]) .shops2-hero-panel small {
+  color: #64748b;
+}
+
+:root:not([data-theme="dark"]) .shops2-hero-panel strong {
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .shops2-toolbar,
+:root:not([data-theme="dark"]) .shops2-discovery-strip a,
+:root:not([data-theme="dark"]) .shops2-card,
+:root:not([data-theme="dark"]) .shops2-map-stage,
+:root:not([data-theme="dark"]) .shops2-map-list,
+:root:not([data-theme="dark"]) .shops2-empty,
+:root:not([data-theme="dark"]) .shops2-error {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.26);
+}
+
+:root:not([data-theme="dark"]) .shops2-card-heading p,
+:root:not([data-theme="dark"]) .shops2-description,
+:root:not([data-theme="dark"]) .shops2-filter-heading p,
+:root:not([data-theme="dark"]) .shops2-discovery-strip span {
+  color: #64748b;
+}
+
+:root:not([data-theme="dark"]) .shops2-card-map {
+  background:
+    linear-gradient(135deg, rgba(79, 70, 229, 0.10), rgba(148, 163, 184, 0.18)),
+    linear-gradient(135deg, #f8fafc, #eef2ff);
+}
+
+:root:not([data-theme="dark"]) .shops2-card-map strong {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+/* ===== Marketplace V2 light-mode correction ===== */
+:root:not([data-theme="dark"]) .marketplace-v2 {
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 34rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero {
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 28rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fafc 54%, #eef2ff 100%);
+  color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.10);
+}
+
+:root:not([data-theme="dark"]) .mp2-hero::after {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+:root:not([data-theme="dark"]) .mp2-pill {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero h1 {
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero p {
+  color: #475569;
+}
+
+:root:not([data-theme="dark"]) .mp2-search-row {
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.30);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+}
+
+:root:not([data-theme="dark"]) .mp2-search-row input {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .mp2-search-row input::placeholder {
+  color: #94a3b8;
+}
+
+:root:not([data-theme="dark"]) .mp2-search-row button.secondary {
+  background: #eef2ff;
+  color: #312e81;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero-panel div {
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
+}
+
+:root:not([data-theme="dark"]) .mp2-hero-panel span,
+:root:not([data-theme="dark"]) .mp2-hero-panel small {
+  color: #64748b;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero-panel strong {
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .mp2-toolbar,
+:root:not([data-theme="dark"]) .mp2-discovery-strip a,
+:root:not([data-theme="dark"]) .mp2-item-card,
+:root:not([data-theme="dark"]) .mp2-map-stage,
+:root:not([data-theme="dark"]) .mp2-map-list,
+:root:not([data-theme="dark"]) .mp2-empty,
+:root:not([data-theme="dark"]) .mp2-error {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.26);
+}
+
+:root:not([data-theme="dark"]) .mp2-filter-heading p,
+:root:not([data-theme="dark"]) .mp2-discovery-strip span,
+:root:not([data-theme="dark"]) .mp2-item-heading p,
+:root:not([data-theme="dark"]) .mp2-item-description,
+:root:not([data-theme="dark"]) .mp2-map-list-heading span {
+  color: #64748b;
+}
+
+:root:not([data-theme="dark"]) .mp2-item-media,
+:root:not([data-theme="dark"]) .mp2-item-placeholder {
+  background:
+    linear-gradient(135deg, rgba(79, 70, 229, 0.10), rgba(148, 163, 184, 0.18)),
+    linear-gradient(135deg, #f8fafc, #eef2ff);
+}
+
+:root:not([data-theme="dark"]) .mp2-map-stage {
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.22) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.22) 1px, transparent 1px),
+    linear-gradient(135deg, #dbeafe, #f8fafc 45%, #e0f2fe);
+  background-size: 80px 80px, 80px 80px, auto;
+}
+
+:root:not([data-theme="dark"]) .mp2-map-pin,
+:root:not([data-theme="dark"]) .mp2-map-card {
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.26);
+}
+
+:root:not([data-theme="dark"]) .mp2-map-pin.selected {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+/* ===== Marketplace V2 light-mode correction ===== */
+:root:not([data-theme="dark"]) .marketplace-v2 {
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 34rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero {
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 28rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fafc 54%, #eef2ff 100%);
+  color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.10);
+}
+
+:root:not([data-theme="dark"]) .mp2-hero::after {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+:root:not([data-theme="dark"]) .mp2-pill {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero h1 {
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero p {
+  color: #475569;
+}
+
+:root:not([data-theme="dark"]) .mp2-search-row {
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.30);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+}
+
+:root:not([data-theme="dark"]) .mp2-search-row input {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .mp2-search-row input::placeholder {
+  color: #94a3b8;
+}
+
+:root:not([data-theme="dark"]) .mp2-search-row button.secondary {
+  background: #eef2ff;
+  color: #312e81;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero-panel div {
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
+}
+
+:root:not([data-theme="dark"]) .mp2-hero-panel span,
+:root:not([data-theme="dark"]) .mp2-hero-panel small {
+  color: #64748b;
+}
+
+:root:not([data-theme="dark"]) .mp2-hero-panel strong {
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .mp2-toolbar,
+:root:not([data-theme="dark"]) .mp2-discovery-strip a,
+:root:not([data-theme="dark"]) .mp2-item-card,
+:root:not([data-theme="dark"]) .mp2-map-stage,
+:root:not([data-theme="dark"]) .mp2-map-list,
+:root:not([data-theme="dark"]) .mp2-empty,
+:root:not([data-theme="dark"]) .mp2-error {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.26);
+}
+
+:root:not([data-theme="dark"]) .mp2-filter-heading p,
+:root:not([data-theme="dark"]) .mp2-discovery-strip span,
+:root:not([data-theme="dark"]) .mp2-item-heading p,
+:root:not([data-theme="dark"]) .mp2-item-description,
+:root:not([data-theme="dark"]) .mp2-map-list-heading span {
+  color: #64748b;
+}
+
+:root:not([data-theme="dark"]) .mp2-item-media,
+:root:not([data-theme="dark"]) .mp2-item-placeholder {
+  background:
+    linear-gradient(135deg, rgba(79, 70, 229, 0.10), rgba(148, 163, 184, 0.18)),
+    linear-gradient(135deg, #f8fafc, #eef2ff);
+}
+
+:root:not([data-theme="dark"]) .mp2-map-stage {
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.22) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.22) 1px, transparent 1px),
+    linear-gradient(135deg, #dbeafe, #f8fafc 45%, #e0f2fe);
+  background-size: 80px 80px, 80px 80px, auto;
+}
+
+:root:not([data-theme="dark"]) .mp2-map-pin,
+:root:not([data-theme="dark"]) .mp2-map-card {
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  border-color: rgba(148, 163, 184, 0.26);
+}
+
+:root:not([data-theme="dark"]) .mp2-map-pin.selected {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+/* ===== Legacy inline dark-style light-mode correction ===== */
+:root:not([data-theme="dark"]) body {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) [style*="#08111f"],
+:root:not([data-theme="dark"]) [style*="#0b1020"],
+:root:not([data-theme="dark"]) [style*="#0f172a"],
+:root:not([data-theme="dark"]) [style*="#111827"],
+:root:not([data-theme="dark"]) [style*="#121935"],
+:root:not([data-theme="dark"]) [style*="rgb(8, 17, 31)"],
+:root:not([data-theme="dark"]) [style*="rgb(11, 16, 32)"],
+:root:not([data-theme="dark"]) [style*="rgb(15, 23, 42)"],
+:root:not([data-theme="dark"]) [style*="rgb(17, 24, 39)"],
+:root:not([data-theme="dark"]) [style*="rgb(18, 25, 53)"] {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07) !important;
+}
+
+:root:not([data-theme="dark"]) [style*="#eef2ff"],
+:root:not([data-theme="dark"]) [style*="#c7d2fe"],
+:root:not([data-theme="dark"]) [style*="#a7b0d8"],
+:root:not([data-theme="dark"]) [style*="#a5b4fc"],
+:root:not([data-theme="dark"]) [style*="rgb(238, 242, 255)"],
+:root:not([data-theme="dark"]) [style*="rgb(199, 210, 254)"],
+:root:not([data-theme="dark"]) [style*="rgb(167, 176, 216)"],
+:root:not([data-theme="dark"]) [style*="rgb(165, 180, 252)"] {
+  color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) [style*="rgba(255,255,255,0.08)"],
+:root:not([data-theme="dark"]) [style*="rgba(255, 255, 255, 0.08)"] {
+  border-color: rgba(148, 163, 184, 0.28) !important;
+}
+
+:root:not([data-theme="dark"]) header,
+:root:not([data-theme="dark"]) nav,
+:root:not([data-theme="dark"]) footer {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+}
+
+/* ===== HARD LIGHT MODE FIX: shared layout + homepage readability ===== */
+:root:not([data-theme="dark"]) {
+  color-scheme: light;
+}
+
+:root:not([data-theme="dark"]) html,
+:root:not([data-theme="dark"]) body,
+:root:not([data-theme="dark"]) #root {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Shared header/nav/footer hard reset */
+:root:not([data-theme="dark"]) header,
+:root:not([data-theme="dark"]) nav,
+:root:not([data-theme="dark"]) footer,
+:root:not([data-theme="dark"]) header *,
+:root:not([data-theme="dark"]) nav *,
+:root:not([data-theme="dark"]) footer * {
+  color: #0f172a !important;
+  text-shadow: none !important;
+}
+
+:root:not([data-theme="dark"]) header,
+:root:not([data-theme="dark"]) nav,
+:root:not([data-theme="dark"]) footer {
+  background: #ffffff !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+}
+
+:root:not([data-theme="dark"]) header a,
+:root:not([data-theme="dark"]) nav a,
+:root:not([data-theme="dark"]) footer a {
+  color: #334155 !important;
+}
+
+:root:not([data-theme="dark"]) header a[aria-current="page"],
+:root:not([data-theme="dark"]) nav a[aria-current="page"] {
+  background: #eef2ff !important;
+  color: #312e81 !important;
+}
+
+/* Keep important buttons readable */
+:root:not([data-theme="dark"]) button,
+:root:not([data-theme="dark"]) .theme-toggle {
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .theme-toggle {
+  background: #f8fafc !important;
+  border: 1px solid rgba(148, 163, 184, 0.45) !important;
+}
+
+/* Home page hard reset */
+:root:not([data-theme="dark"]) .home2-page,
+:root:not([data-theme="dark"]) .home2-page * {
+  text-shadow: none !important;
+}
+
+:root:not([data-theme="dark"]) .home2-page {
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 34rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .home2-hero,
+:root:not([data-theme="dark"]) .home2-card,
+:root:not([data-theme="dark"]) .home2-hero-panel div,
+:root:not([data-theme="dark"]) .home2-feature-list div,
+:root:not([data-theme="dark"]) .home2-quick-links a {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+}
+
+:root:not([data-theme="dark"]) .home2-hero {
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 28rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fafc 54%, #eef2ff 100%) !important;
+}
+
+:root:not([data-theme="dark"]) .home2-hero h1,
+:root:not([data-theme="dark"]) .home2-section-title h2,
+:root:not([data-theme="dark"]) .home2-feature-list strong,
+:root:not([data-theme="dark"]) .home2-hero-panel strong {
+  color: #0f172a !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .home2-hero p,
+:root:not([data-theme="dark"]) .home2-section-title p,
+:root:not([data-theme="dark"]) .home2-feature-list span,
+:root:not([data-theme="dark"]) .home2-hero-panel span {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .home2-pill {
+  background: #eef2ff !important;
+  color: #4338ca !important;
+}
+
+/* Primary CTA buttons should stay intentionally dark */
+:root:not([data-theme="dark"]) .home2-actions a:first-child,
+:root:not([data-theme="dark"]) .home2-card-actions a:first-child {
+  background: #0f172a !important;
+  color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .home2-actions a:not(:first-child),
+:root:not([data-theme="dark"]) .home2-card-actions a:not(:first-child) {
+  background: #eef2ff !important;
+  color: #312e81 !important;
+}

@@ -21,6 +21,7 @@ import integrationsRoutes from "./routes/integrations.routes.js";
 import savedSearchesRoutes from "./routes/savedSearches.routes.js";
 import sellerPlansRoutes from "./routes/sellerPlans.routes.js";
 import buyerPlansRoutes from "./routes/buyerPlans.routes.js";
+import buyerItemSubmissionRoutes from "./routes/buyerItemSubmissions.routes.js";
 import locationsRoutes from "./routes/locations.routes.js";
 import staffRoutes from "./routes/staff.routes.js";
 import settlementsRoutes from "./routes/settlements.routes.js";
@@ -231,6 +232,7 @@ export function createApp() {
   mountApi(app, "/watchlist", watchlistRoutes);
   mountApi(app, "/saved-searches", savedSearchesRoutes);
   mountApi(app, "/offers", offersRoutes);
+  mountApi(app, "/buyer/item-submissions", buyerItemSubmissionRoutes);
   mountApi(app, "/staff", staffRoutes);
   mountApi(app, "/settlements", settlementsRoutes);
   mountApi(app, "/stripe", stripeRoutes);

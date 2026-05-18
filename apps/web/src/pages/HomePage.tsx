@@ -1,140 +1,144 @@
-// File: apps/web/src/pages/HomePage.tsx
-
 import { Link } from "react-router-dom";
-import { getAuthRole } from "../services/auth";
+import "../styles/home-page-v2.css";
+
+const buyerFeatures = [
+  {
+    title: "Browse marketplace inventory",
+    body: "Search items across pawnshop stores and compare inventory in one place.",
+  },
+  {
+    title: "Find items near you",
+    body: "Use Item Locator to search a keyword and see which shops have matching items.",
+  },
+  {
+    title: "Sell or pawn an item",
+    body: "Take photos, submit an item request, and receive pawnshop offers.",
+  },
+  {
+    title: "Bid in real time",
+    body: "Place bids, track price movement, and manage auctions from your buyer view.",
+  },
+];
+
+const ownerFeatures = [
+  {
+    title: "Create item listings",
+    body: "Add inventory with title, category, pricing, photos, and condition.",
+  },
+  {
+    title: "Review buyer item requests",
+    body: "See buyer-submitted photos and send real cash offers.",
+  },
+  {
+    title: "Launch auctions",
+    body: "Turn inventory into live auction listings with bidding controls.",
+  },
+  {
+    title: "Manage operations",
+    body: "Control staff, locations, subscriptions, inventory, offers, and integrations.",
+  },
+];
 
 export default function HomePage() {
-  const role = getAuthRole();
-
   return (
-    <div className="page-stack">
-      <section className="hero">
-        <div className="hero-content">
-          <div className="hero-badge">Live marketplace + auction platform</div>
-
-          <h1 className="hero-title">
-            Discover local pawn inventory and bid on live auctions in one place.
-          </h1>
-
-          <p className="hero-subtitle">
-            Browse verified shop inventory, explore active auctions, create listings,
-            and manage marketplace activity through a single web experience built to
-            expand into native mobile.
+    <main className="home2-page">
+      <section className="home2-hero">
+        <div className="home2-hero-copy">
+          <span className="home2-pill">Live marketplace + auction platform</span>
+          <h1>Discover local pawn inventory, offers, and live auctions in one place.</h1>
+          <p>
+            Browse verified shop inventory, locate items nearby, submit items for pawnshop
+            offers, and manage marketplace activity from one clean web experience.
           </p>
 
-          <div className="hero-actions">
-            <Link to="/marketplace" className="btn btn-primary">
-              Browse Marketplace
-            </Link>
-
-            <Link to="/auctions" className="btn btn-secondary">
-              Browse Auctions
-            </Link>
-
-            {!role ? (
-              <Link to="/register" className="btn btn-secondary">
-                Create Account
-              </Link>
-            ) : null}
-
-            {role === "OWNER" ? (
-              <Link to="/owner" className="btn btn-secondary">
-                Owner Dashboard
-              </Link>
-            ) : null}
-
-            {role === "ADMIN" ? (
-              <Link to="/admin/users" className="btn btn-secondary">
-                Admin Panel
-              </Link>
-            ) : null}
+          <div className="home2-actions">
+            <Link to="/marketplace">Browse Marketplace</Link>
+            <Link to="/buyer/item-locator">Find an Item</Link>
+            <Link to="/buyer/sell-item">Sell / Pawn Item</Link>
           </div>
         </div>
 
-        <div className="hero-panel">
-          <div className="stat-card">
-            <div className="stat-label">Marketplace</div>
-            <div className="stat-value">Live listings + auctions</div>
+        <aside className="home2-hero-panel">
+          <div>
+            <span>Marketplace</span>
+            <strong>Live listings + auctions</strong>
           </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Primary Flow</div>
-            <div className="stat-value">Browse · Bid · Inquire</div>
+          <div>
+            <span>Buyer flow</span>
+            <strong>Browse · Locate · Offer · Bid</strong>
           </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Operator Flow</div>
-            <div className="stat-value">List · Auction · Moderate</div>
+          <div>
+            <span>Owner flow</span>
+            <strong>List · Review · Offer · Auction</strong>
           </div>
-
-          <div className="stat-card">
-            <div className="stat-label">Platform</div>
-            <div className="stat-value">Web now · Native mobile next</div>
+          <div>
+            <span>Platform</span>
+            <strong>Web now · Native mobile next</strong>
           </div>
-        </div>
+        </aside>
       </section>
 
-      <section className="grid grid-2">
-        <div className="page-card">
-          <div className="section-title">For Buyers</div>
-          <p className="section-subtitle">
-            Browse inventory across pawnshop stores, view item details, and join live auctions.
-          </p>
-
-          <div className="stack">
-            <div className="list-card">
-              <strong>Browse marketplace inventory</strong>
-              <span className="muted">
-                Search items across pawnshop stores and compare inventory in one place.
-              </span>
-            </div>
-
-            <div className="list-card">
-              <strong>Bid in real time</strong>
-              <span className="muted">
-                Place bids, track price movement, and stay in the action.
-              </span>
-            </div>
-
-            <div className="list-card">
-              <strong>Send inquiries</strong>
-              <span className="muted">
-                Contact shops about items before you commit.
-              </span>
-            </div>
+      <section className="home2-grid">
+        <article className="home2-card">
+          <div className="home2-section-title">
+            <span>For buyers</span>
+            <h2>Everything a buyer needs to find, track, and offer.</h2>
+            <p>
+              Browse inventory, locate specific items, save listings, submit your own
+              items, and manage offers.
+            </p>
           </div>
-        </div>
 
-        <div className="page-card">
-          <div className="section-title">For Pawn Shop Owners</div>
-          <p className="section-subtitle">
-            Manage inventory and launch auctions from a single dashboard.
-          </p>
-
-          <div className="stack">
-            <div className="list-card">
-              <strong>Create item listings</strong>
-              <span className="muted">
-                Add inventory with title, category, pricing, and condition.
-              </span>
-            </div>
-
-            <div className="list-card">
-              <strong>Launch auctions</strong>
-              <span className="muted">
-                Turn inventory into live auction listings with pricing controls.
-              </span>
-            </div>
-
-            <div className="list-card">
-              <strong>Grow across platforms</strong>
-              <span className="muted">
-                Use the web platform now and expand into native mobile next.
-              </span>
-            </div>
+          <div className="home2-feature-list">
+            {buyerFeatures.map((feature) => (
+              <div key={feature.title}>
+                <strong>{feature.title}</strong>
+                <span>{feature.body}</span>
+              </div>
+            ))}
           </div>
-        </div>
+
+          <div className="home2-card-actions">
+            <Link to="/buyer/dashboard">Buyer Dashboard</Link>
+            <Link to="/buyer/sell-item">Sell / Pawn Item</Link>
+          </div>
+        </article>
+
+        <article className="home2-card">
+          <div className="home2-section-title">
+            <span>For pawnshop owners</span>
+            <h2>Run your shop inventory and buyer request flow.</h2>
+            <p>
+              Manage inventory, launch auctions, review buyer item submissions, and
+              send pawn offers from the owner dashboard.
+            </p>
+          </div>
+
+          <div className="home2-feature-list">
+            {ownerFeatures.map((feature) => (
+              <div key={feature.title}>
+                <strong>{feature.title}</strong>
+                <span>{feature.body}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="home2-card-actions">
+            <Link to="/owner">Owner Dashboard</Link>
+            <Link to="/owner/items/new">Create Listing</Link>
+          </div>
+        </article>
       </section>
-    </div>
+
+      <section className="home2-quick-links">
+        <Link to="/marketplace">Marketplace</Link>
+        <Link to="/buyer/item-locator">Item Locator</Link>
+        <Link to="/buyer/sell-item">Sell / Pawn Item</Link>
+        <Link to="/shops">Shops</Link>
+        <Link to="/auctions">Auctions</Link>
+        <Link to="/watchlist">Watchlist</Link>
+        <Link to="/offers">Offers</Link>
+      </section>
+    </main>
   );
 }
