@@ -9,6 +9,9 @@ import {
   createAuction,
   cancelAuction,
   endAuction,
+  markAuctionReviewed,
+  clearAuctionReviewed,
+  markClosedAuctionsReviewed,
   setAutoBid,
 } from "../controllers/auctions.controller.js";
 import { placeBid } from "../controllers/bids.controller.js";
@@ -20,6 +23,24 @@ router.get("/", listAuctions);
 
 // Owner/Admin
 router.get("/mine", authRequired, requireRole("OWNER", "ADMIN"), listMyAuctions);
+router.patch(
+  "/reviewed/bulk",
+  authRequired,
+  requireRole("OWNER", "ADMIN"),
+  markClosedAuctionsReviewed,
+);
+router.patch(
+  "/:id/reviewed",
+  authRequired,
+  requireRole("OWNER", "ADMIN"),
+  markAuctionReviewed,
+);
+router.patch(
+  "/:id/reviewed/clear",
+  authRequired,
+  requireRole("OWNER", "ADMIN"),
+  clearAuctionReviewed,
+);
 
 router.get("/:id", getAuction);
 

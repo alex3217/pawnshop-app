@@ -19,6 +19,8 @@ const AUCTION_SAFE_FIELDS = [
   "version",
   "createdAt",
   "updatedAt",
+  "ownerReviewedAt",
+  "ownerReviewedById",
 ];
 
 const ITEM_SAFE_FIELDS = [
@@ -877,6 +879,220 @@ export async function endAuction(req, res) {
     });
   } catch (err) {
     return handleControllerError(res, err, "Failed to end auction");
+  }
+}
+
+
+async function findManageableAuctionForOwner(req, id) {
+  const auction = await prisma.auction.findUnique({
+    where: { id },
+    select: await buildAuctionSelect({
+      includeItem: true,
+      includeShop: true,
+    }),
+  });
+
+  if (!auction) {
+    return { status: 404, error: "Auction not found", auction: null };
+  }
+
+  if (!auction.item || !auction.item.shop) {
+    return {
+      status: 404,
+      error: "Auction ownership context missing",
+      auction: null,
+    };
+  }
+
+  if (!req.user?.sub || !req.user?.role) {
+    return { status: 401, error: "Unauthorized", auction: null };
+  }
+
+  if (req.user.role !== "ADMIN" && auction.item.shop.ownerId !== req.user.sub) {
+    return { status: 403, error: "Forbidden", auction: null };
+  }
+
+  return { status: 200, error: null, auction };
+}
+
+function isClosedAuctionForOwnerReview(auction) {
+  const effectiveStatus = getEffectiveAuctionStatus(auction, new Date());
+  return effectiveStatus === "ENDED" || effectiveStatus === "CANCELED";
+}
+
+export async function markAuctionReviewed(req, res) {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing auction id" });
+
+    const auctionColumns = await getTableColumns("Auction");
+
+    if (
+      !auctionColumns.has("ownerReviewedAt") ||
+      !auctionColumns.has("ownerReviewedById")
+    ) {
+      return res.status(501).json({
+        error: "Owner auction reviewed persistence is not available yet.",
+      });
+    }
+
+    const result = await findManageableAuctionForOwner(req, id);
+
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    if (!isClosedAuctionForOwnerReview(result.auction)) {
+      return res.status(400).json({
+        error: "Only ended or canceled auctions can be marked reviewed.",
+      });
+    }
+
+    const updated = await prisma.auction.update({
+      where: { id },
+      data: {
+        ownerReviewedAt: new Date(),
+        ownerReviewedById: req.user.sub,
+      },
+      select: await buildAuctionSelect({
+        includeItem: true,
+        includeShop: true,
+      }),
+    });
+
+    return res.json({
+      success: true,
+      auction: normalizeAuctionForResponse(updated, new Date()),
+    });
+  } catch (err) {
+    return handleControllerError(res, err, "Failed to mark auction reviewed");
+  }
+}
+
+export async function clearAuctionReviewed(req, res) {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "Missing auction id" });
+
+    const auctionColumns = await getTableColumns("Auction");
+
+    if (
+      !auctionColumns.has("ownerReviewedAt") ||
+      !auctionColumns.has("ownerReviewedById")
+    ) {
+      return res.status(501).json({
+        error: "Owner auction reviewed persistence is not available yet.",
+      });
+    }
+
+    const result = await findManageableAuctionForOwner(req, id);
+
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    const updated = await prisma.auction.update({
+      where: { id },
+      data: {
+        ownerReviewedAt: null,
+        ownerReviewedById: null,
+      },
+      select: await buildAuctionSelect({
+        includeItem: true,
+        includeShop: true,
+      }),
+    });
+
+    return res.json({
+      success: true,
+      auction: normalizeAuctionForResponse(updated, new Date()),
+    });
+  } catch (err) {
+    return handleControllerError(res, err, "Failed to clear auction reviewed state");
+  }
+}
+
+export async function markClosedAuctionsReviewed(req, res) {
+  try {
+    const userId = getRequesterId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const auctionColumns = await getTableColumns("Auction");
+
+    if (
+      !auctionColumns.has("ownerReviewedAt") ||
+      !auctionColumns.has("ownerReviewedById")
+    ) {
+      return res.status(501).json({
+        error: "Owner auction reviewed persistence is not available yet.",
+      });
+    }
+
+    const ownerScope = isAdminRequest(req)
+      ? {}
+      : {
+          item: {
+            shop: {
+              ownerId: userId,
+            },
+          },
+        };
+
+    const rows = await prisma.auction.findMany({
+      where: ownerScope,
+      select: await buildAuctionSelect({
+        includeItem: true,
+        includeShop: true,
+      }),
+      take: 250,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+
+    const closedIds = rows
+      .filter((auction) => isClosedAuctionForOwnerReview(auction))
+      .map((auction) => auction.id);
+
+    if (closedIds.length > 0) {
+      await prisma.auction.updateMany({
+        where: { id: { in: closedIds } },
+        data: {
+          ownerReviewedAt: new Date(),
+          ownerReviewedById: userId,
+        },
+      });
+    }
+
+    const updatedRows =
+      closedIds.length > 0
+        ? await prisma.auction.findMany({
+            where: { id: { in: closedIds } },
+            select: await buildAuctionSelect({
+              includeItem: true,
+              includeShop: true,
+            }),
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          })
+        : [];
+
+    const normalizedRows = updatedRows.map((row) =>
+      normalizeAuctionForResponse(row, new Date()),
+    );
+
+    return res.json({
+      success: true,
+      reviewedCount: closedIds.length,
+      rows: normalizedRows,
+      auctions: normalizedRows,
+    });
+  } catch (err) {
+    return handleControllerError(
+      res,
+      err,
+      "Failed to mark closed auctions reviewed",
+    );
   }
 }
 
