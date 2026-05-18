@@ -6,6 +6,7 @@ import { io, type Socket } from "socket.io-client";
 import { SOCKET_PATH, SOCKET_URL } from "../config";
 import { getAuthRole, getAuthToken } from "../services/auth";
 import { getAuction, placeBid as placeBidApi } from "../services/auctions";
+import "../styles/auction-detail-v2.css";
 
 type AuctionStatus = "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED" | string;
 
@@ -549,29 +550,24 @@ export default function AuctionDetailPage() {
     }
   }
 
+
   if (loading) {
     return (
-      <div className="page-stack">
-        <div className="page-card">Loading auction…</div>
-      </div>
+      <main className="auction2-page">
+        <section className="auction2-state">Loading auction...</section>
+      </main>
     );
   }
 
   if (!auction) {
     return (
-      <div className="page-stack">
-        <div className="page-card" style={{ display: "grid", gap: 12 }}>
-          <h2 style={{ margin: 0 }}>Auction not available</h2>
-
-          <p className="muted" style={{ margin: 0 }}>
-            {msg ?? "Auction not found."}
-          </p>
-
-          <Link className="btn btn-primary" to="/auctions">
-            Back to Auctions
-          </Link>
-        </div>
-      </div>
+      <main className="auction2-page">
+        <section className="auction2-state auction2-error">
+          <h1>Auction not available</h1>
+          <p>{msg ?? "Auction not found."}</p>
+          <Link to="/auctions">Back to auctions</Link>
+        </section>
+      </main>
     );
   }
 
@@ -581,293 +577,213 @@ export default function AuctionDetailPage() {
       ? auction.item.images[0]
       : null;
 
+  const itemId = auction.item?.id || "";
+  const shopId = auction.shop?.id || "";
+
   return (
-    <div className="page-stack">
-      <div className="page-card" style={{ display: "grid", gap: 18 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 16,
-            alignItems: "flex-start",
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "grid", gap: 6 }}>
-            <Link to="/auctions" style={{ color: "#93c5fd", fontWeight: 800 }}>
-              ← Back to Auctions
-            </Link>
-
-            <h2 style={{ margin: 0 }}>
-              {auction.item?.title ?? "Auction Item"}
-            </h2>
-
-            <div className="muted">
-              {auction.shop?.name ?? "Shop"} ·{" "}
-              {auction.item?.condition ?? "Condition not listed"}
-            </div>
-          </div>
-
-          <span
-            style={{
-              borderRadius: 999,
-              padding: "8px 12px",
-              fontSize: 12,
-              fontWeight: 900,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: isLive ? "#bbf7d0" : "#fecaca",
-              background: isLive
-                ? "rgba(22,163,74,0.16)"
-                : "rgba(220,38,38,0.16)",
-              border: isLive
-                ? "1px solid rgba(34,197,94,0.32)"
-                : "1px solid rgba(248,113,113,0.32)",
-            }}
-          >
-            {statusLabel}
-          </span>
-        </div>
-
-        {itemImage ? (
-          <img
-            src={itemImage}
-            alt={auction.item?.title ?? "Auction item"}
-            loading="lazy"
-            style={{
-              width: "100%",
-              maxHeight: 360,
-              objectFit: "cover",
-              borderRadius: 18,
-              border: "1px solid rgba(255,255,255,0.12)",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              minHeight: 220,
-              display: "grid",
-              placeItems: "center",
-              borderRadius: 18,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.04)",
-              color: "#94a3b8",
-              fontWeight: 800,
-            }}
-          >
-            No item image available
-          </div>
-        )}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 12,
-          }}
-        >
-          <div style={statCardStyle}>
-            <div style={statLabelStyle}>Current Price</div>
-            <div style={statValueStyle}>{formatMoney(auction.currentPrice)}</div>
-          </div>
-
-          <div style={statCardStyle}>
-            <div style={statLabelStyle}>Minimum Increment</div>
-            <div style={statValueStyle}>{formatMoney(auction.minIncrement)}</div>
-          </div>
-
-          <div style={statCardStyle}>
-            <div style={statLabelStyle}>Time Left</div>
-            <div style={statValueStyle}>{isLive ? timeLeft : "—"}</div>
-          </div>
-
-          <div style={statCardStyle}>
-            <div style={statLabelStyle}>Suggested Bid</div>
-            <div style={statValueStyle}>
-              {suggestedBid ? formatMoney(suggestedBid) : "—"}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ fontSize: 13, opacity: 0.82 }}>
-          Ends at: {endTime ? endTime.toLocaleString() : "—"}
-          {auction.extendedEndsAt ? " (extended)" : ""}
-          {refreshing ? " · Refreshing…" : ""}
-          {" · "}
-          Live updates: {socketConnected ? "connected" : "connecting"}
-        </div>
-
-        {auction.item?.description ? (
-          <p className="muted" style={{ margin: 0 }}>
-            {auction.item.description}
-          </p>
-        ) : null}
-
-        <div
-          style={{
-            display: "grid",
-            gap: 12,
-            padding: 16,
-            borderRadius: 18,
-            border: "1px solid rgba(99,102,241,0.35)",
-            background: "rgba(99,102,241,0.09)",
-          }}
-        >
-          <div style={{ display: "grid", gap: 10 }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <h3 style={{ margin: 0 }}>Live Bid Activity</h3>
-
-              <span
-                style={{
-                  color: socketConnected ? "#86efac" : "#fca5a5",
-                  fontWeight: 800,
-                }}
-              >
-                {socketConnected ? "Live" : "Reconnecting"}
-              </span>
-            </div>
-
-            {bidEvents.length === 0 ? (
-              <div className="muted">No live bid events yet.</div>
+    <main className="auction2-page">
+      <section className="auction2-hero">
+        <div className="auction2-gallery-card">
+          <div className="auction2-image-frame">
+            {itemImage ? (
+              <img
+                src={itemImage}
+                alt={auction.item?.title ?? "Auction item"}
+                loading="lazy"
+              />
             ) : (
-              <div style={{ display: "grid", gap: 8 }}>
-                {bidEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      background: "rgba(15, 23, 42, 0.65)",
-                      border: "1px solid rgba(148, 163, 184, 0.25)",
-                    }}
-                  >
-                    <span>
-                      <strong>{event.bidderName || "New bidder"}</strong> bid{" "}
-                      {formatMoney(event.amount)}
-                    </span>
-
-                    <span className="muted">
-                      {formatBidTime(event.createdAt)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <div className="auction2-image-placeholder">No item image available</div>
             )}
+
+            <span className={isLive ? "auction2-status live" : "auction2-status"}>
+              {statusLabel}
+            </span>
           </div>
 
-          <h3 style={{ margin: 0 }}>Place a Bid</h3>
-
-          <div className="muted" style={{ fontSize: 13 }}>
-            Enter at least{" "}
-            {suggestedBid ? formatMoney(suggestedBid) : "the next minimum bid"}.
+          <div className="auction2-quick-links">
+            <Link to="/auctions">← Back to auctions</Link>
+            {itemId ? <Link to={`/items/${encodeURIComponent(itemId)}`}>View item</Link> : null}
+            {shopId ? <Link to={`/shops/${encodeURIComponent(shopId)}`}>View shop</Link> : null}
+            <Link to="/my-bids">My bids</Link>
           </div>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <input
-              value={bidAmount}
-              onChange={(event) => {
-                userEditedBidRef.current = true;
-                setBidAmount(normalizeAmountInput(event.target.value));
-              }}
-              style={{
-                padding: "12px 14px",
-                width: 180,
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.06)",
-                color: "#eef2ff",
-                fontWeight: 800,
-              }}
-              inputMode="decimal"
-              disabled={bidDisabled}
-              placeholder={suggestedBid || "Bid amount"}
-            />
-
-            <button
-              type="button"
-              onClick={placeBid}
-              disabled={bidDisabled}
-              style={{
-                padding: "12px 16px",
-                borderRadius: 12,
-                border: "none",
-                background: bidDisabled ? "#475569" : "#22c55e",
-                color: "#ffffff",
-                fontWeight: 900,
-                cursor: bidDisabled ? "not-allowed" : "pointer",
-              }}
-            >
-              {submitting ? "Placing Bid..." : "Place Bid"}
-            </button>
-
-            <Link to="/my-bids" style={{ color: "#bfdbfe", fontWeight: 800 }}>
-              View My Bids
-            </Link>
-          </div>
-
-          {!token ? (
-            <div style={noticeStyle}>Login as a buyer to place bids.</div>
-          ) : null}
-
-          {token && !canBid ? (
-            <div style={noticeStyle}>
-              This account role cannot place buyer bids.
-            </div>
-          ) : null}
-
-          {token && canBid && !isLive ? (
-            <div style={noticeStyle}>Bidding is closed for this auction.</div>
-          ) : null}
-
-          {hasEnded ? (
-            <div style={noticeStyle}>This auction has ended.</div>
-          ) : null}
-
-          {msg ? (
-            <div style={{ color: success ? "#22c55e" : "#f87171" }}>
-              {msg}
-            </div>
-          ) : null}
         </div>
-      </div>
-    </div>
+
+        <aside className="auction2-bid-card">
+          <span className="auction2-pill">Live auction detail</span>
+
+          <h1>{auction.item?.title ?? "Auction Item"}</h1>
+
+          <p>
+            {auction.shop?.name ?? "Shop"} ·{" "}
+            {auction.item?.condition ?? "Condition not listed"}
+          </p>
+
+          <div className="auction2-price-grid">
+            <div>
+              <span>Current price</span>
+              <strong>{formatMoney(auction.currentPrice)}</strong>
+            </div>
+            <div>
+              <span>Time left</span>
+              <strong>{isLive ? timeLeft : "—"}</strong>
+            </div>
+            <div>
+              <span>Minimum increment</span>
+              <strong>{formatMoney(auction.minIncrement)}</strong>
+            </div>
+            <div>
+              <span>Suggested bid</span>
+              <strong>{suggestedBid ? formatMoney(suggestedBid) : "—"}</strong>
+            </div>
+          </div>
+
+          <div className="auction2-live-row">
+            <span className={socketConnected ? "auction2-live-dot connected" : "auction2-live-dot"} />
+            <strong>{socketConnected ? "Live updates connected" : "Live updates reconnecting"}</strong>
+          </div>
+
+          <div className="auction2-end-time">
+            Ends at: {endTime ? endTime.toLocaleString() : "—"}
+            {auction.extendedEndsAt ? " · Extended" : ""}
+            {refreshing ? " · Refreshing..." : ""}
+          </div>
+
+          <section className="auction2-place-bid">
+            <div>
+              <h2>Place a bid</h2>
+              <p>
+                Enter at least{" "}
+                {suggestedBid ? formatMoney(suggestedBid) : "the next minimum bid"}.
+              </p>
+            </div>
+
+            <div className="auction2-bid-controls">
+              <input
+                value={bidAmount}
+                onChange={(event) => {
+                  userEditedBidRef.current = true;
+                  setBidAmount(normalizeAmountInput(event.target.value));
+                }}
+                inputMode="decimal"
+                disabled={bidDisabled}
+                placeholder={suggestedBid || "Bid amount"}
+              />
+
+              {suggestedBid ? (
+                <button
+                  type="button"
+                  className="auction2-secondary-button"
+                  disabled={bidDisabled}
+                  onClick={() => {
+                    userEditedBidRef.current = false;
+                    setBidAmount(suggestedBid);
+                  }}
+                >
+                  Use suggested
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={placeBid}
+                disabled={bidDisabled}
+                className="auction2-primary-button"
+              >
+                {submitting ? "Placing bid..." : "Place bid"}
+              </button>
+            </div>
+
+            {!token ? <div className="auction2-warning">Login as a buyer to place bids.</div> : null}
+
+            {token && !canBid ? (
+              <div className="auction2-warning">This account role cannot place buyer bids.</div>
+            ) : null}
+
+            {token && canBid && !isLive ? (
+              <div className="auction2-warning">Bidding is closed for this auction.</div>
+            ) : null}
+
+            {hasEnded ? <div className="auction2-warning">This auction has ended.</div> : null}
+
+            {msg ? (
+              <div className={success ? "auction2-message success" : "auction2-message"}>
+                {msg}
+              </div>
+            ) : null}
+          </section>
+        </aside>
+      </section>
+
+      <section className="auction2-content-grid">
+        <article className="auction2-panel">
+          <div className="auction2-section-title">
+            <span>Item details</span>
+            <h2>Description</h2>
+          </div>
+
+          <p>
+            {auction.item?.description ||
+              "This auction item does not have a full description yet."}
+          </p>
+
+          <div className="auction2-detail-list">
+            <div>
+              <span>Category</span>
+              <strong>{auction.item?.category || "Not listed"}</strong>
+            </div>
+            <div>
+              <span>Condition</span>
+              <strong>{auction.item?.condition || "Not listed"}</strong>
+            </div>
+            <div>
+              <span>Shop</span>
+              <strong>{auction.shop?.name || "Shop not listed"}</strong>
+            </div>
+            <div>
+              <span>Phone</span>
+              <strong>{auction.shop?.phone || "Not listed"}</strong>
+            </div>
+          </div>
+        </article>
+
+        <article className="auction2-panel">
+          <div className="auction2-section-title">
+            <span>Live feed</span>
+            <h2>Bid activity</h2>
+          </div>
+
+          {bidEvents.length === 0 ? (
+            <div className="auction2-empty-feed">No live bid events yet.</div>
+          ) : (
+            <div className="auction2-feed">
+              {bidEvents.map((event) => (
+                <div key={event.id} className="auction2-feed-row">
+                  <div>
+                    <strong>{event.bidderName || "New bidder"}</strong>
+                    <span> bid {formatMoney(event.amount)}</span>
+                  </div>
+
+                  <small>{formatBidTime(event.createdAt)}</small>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="auction2-next-card">
+          <div className="auction2-section-title">
+            <span>Next steps</span>
+            <h2>Keep control</h2>
+          </div>
+
+          <div className="auction2-next-links">
+            <Link to="/my-bids">My bids</Link>
+            <Link to="/my-wins">My wins</Link>
+            <Link to="/auctions">Browse auctions</Link>
+            <Link to="/watchlist">Watchlist</Link>
+          </div>
+        </article>
+      </section>
+    </main>
   );
 }
-
-const statCardStyle = {
-  display: "grid",
-  gap: 6,
-  padding: 14,
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.1)",
-};
-
-const statLabelStyle = {
-  fontSize: 12,
-  color: "#94a3b8",
-  fontWeight: 800,
-  textTransform: "uppercase" as const,
-  letterSpacing: "0.08em",
-};
-
-const statValueStyle = {
-  fontSize: 22,
-  fontWeight: 900,
-  color: "#eef2ff",
-};
-
-const noticeStyle = {
-  color: "#fbbf24",
-  fontSize: 13,
-  fontWeight: 700,
-};
