@@ -1,0 +1,543 @@
+.wins2-page {
+  min-height: 100vh;
+  padding: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 34rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  color: #0f172a;
+}
+
+.wins2-page a {
+  text-decoration: none;
+}
+
+.wins2-hero,
+.wins2-control-panel,
+.wins2-discovery-strip,
+.wins2-grid,
+.wins2-state,
+.wins2-payment-panel,
+.wins2-notice,
+.wins2-warning,
+.wins2-error {
+  max-width: 1240px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.wins2-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.65fr);
+  gap: 22px;
+  margin-bottom: 22px;
+  padding: 28px;
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 28rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fafc 54%, #eef2ff 100%);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.10);
+}
+
+.wins2-pill {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.wins2-hero h1 {
+  max-width: 820px;
+  margin: 18px 0 12px;
+  color: #0f172a;
+  font-size: clamp(38px, 5vw, 66px);
+  line-height: 0.96;
+  letter-spacing: -0.06em;
+}
+
+.wins2-hero p {
+  max-width: 760px;
+  margin: 0;
+  color: #475569;
+  line-height: 1.65;
+}
+
+.wins2-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.wins2-hero-actions a,
+.wins2-hero-actions button,
+.wins2-state a {
+  border: 0;
+  border-radius: 16px;
+  padding: 13px 16px;
+  background: #0f172a;
+  color: #fff;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.wins2-hero-actions a:nth-child(2),
+.wins2-hero-actions button {
+  background: #eef2ff;
+  color: #312e81;
+}
+
+.wins2-hero-panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.wins2-hero-panel div {
+  min-height: 126px;
+  border-radius: 24px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
+}
+
+.wins2-hero-panel span,
+.wins2-hero-panel small {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.wins2-hero-panel strong {
+  display: block;
+  margin: 10px 0 6px;
+  color: #0f172a;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.wins2-control-panel {
+  margin-bottom: 18px;
+  padding: 20px;
+  border-radius: 26px;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.07);
+}
+
+.wins2-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wins2-filter-tabs button {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  padding: 10px 13px;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.wins2-filter-tabs button.active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+.wins2-discovery-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.wins2-discovery-strip a {
+  display: block;
+  border-radius: 22px;
+  padding: 16px;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  font-weight: 950;
+}
+
+.wins2-discovery-strip span {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.wins2-notice,
+.wins2-warning,
+.wins2-error {
+  margin-bottom: 18px;
+  border-radius: 20px;
+  padding: 14px 16px;
+  font-weight: 950;
+}
+
+.wins2-notice {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.wins2-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.wins2-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.wins2-payment-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 20px;
+  border-radius: 26px;
+  background: #ecfdf5;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #0f172a;
+}
+
+.wins2-payment-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.wins2-payment-header span {
+  color: #166534;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.wins2-payment-header h2 {
+  margin: 6px 0;
+}
+
+.wins2-payment-header p {
+  margin: 0;
+  color: #475569;
+  font-weight: 800;
+}
+
+.wins2-payment-form {
+  display: grid;
+  gap: 12px;
+}
+
+.wins2-card-element {
+  padding: 14px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+}
+
+.wins2-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.wins2-card,
+.wins2-state {
+  border-radius: 26px;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.07);
+}
+
+.wins2-card {
+  padding: 18px;
+}
+
+.wins2-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.wins2-card h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.wins2-card p {
+  margin: 7px 0 0;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.wins2-amount {
+  border-radius: 999px;
+  padding: 9px 12px;
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.wins2-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.wins2-detail-grid div {
+  border-radius: 18px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.wins2-detail-grid span,
+.wins2-detail-grid strong {
+  display: block;
+}
+
+.wins2-detail-grid span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.wins2-detail-grid strong {
+  margin-top: 5px;
+  color: #0f172a;
+}
+
+.wins2-status {
+  display: inline-flex !important;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.wins2-status-charged {
+  background: #dcfce7;
+  color: #166534 !important;
+}
+
+.wins2-status-failed {
+  background: #fee2e2;
+  color: #991b1b !important;
+}
+
+.wins2-status-pending {
+  background: #fef3c7;
+  color: #92400e !important;
+}
+
+.wins2-payment-intent {
+  margin-top: 12px;
+  border-radius: 16px;
+  padding: 12px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.wins2-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.wins2-card-actions a,
+.wins2-secondary-button {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.wins2-pay-button {
+  border: 0;
+  border-radius: 14px;
+  padding: 11px 13px;
+  background: #16a34a;
+  color: #ffffff;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.wins2-pay-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wins2-paid-label {
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 950;
+}
+
+.wins2-state {
+  padding: 34px;
+  text-align: center;
+}
+
+.wins2-state h2 {
+  margin: 0;
+}
+
+.wins2-state p {
+  color: #64748b;
+}
+
+:root[data-theme="dark"] .wins2-page {
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 34rem),
+    linear-gradient(180deg, #020617 0%, #0f172a 100%);
+  color: #e5e7eb;
+}
+
+:root[data-theme="dark"] .wins2-hero,
+:root[data-theme="dark"] .wins2-control-panel,
+:root[data-theme="dark"] .wins2-card,
+:root[data-theme="dark"] .wins2-state,
+:root[data-theme="dark"] .wins2-discovery-strip a,
+:root[data-theme="dark"] .wins2-hero-panel div {
+  background: #111827;
+  color: #e5e7eb;
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+:root[data-theme="dark"] .wins2-hero h1,
+:root[data-theme="dark"] .wins2-hero-panel strong,
+:root[data-theme="dark"] .wins2-card h2,
+:root[data-theme="dark"] .wins2-detail-grid strong {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .wins2-hero p,
+:root[data-theme="dark"] .wins2-hero-panel span,
+:root[data-theme="dark"] .wins2-hero-panel small,
+:root[data-theme="dark"] .wins2-card p,
+:root[data-theme="dark"] .wins2-detail-grid span,
+:root[data-theme="dark"] .wins2-discovery-strip span {
+  color: #94a3b8;
+}
+
+:root[data-theme="dark"] .wins2-detail-grid div,
+:root[data-theme="dark"] .wins2-payment-intent,
+:root[data-theme="dark"] .wins2-card-actions a,
+:root[data-theme="dark"] .wins2-secondary-button,
+:root[data-theme="dark"] .wins2-filter-tabs button {
+  background: #1e293b;
+  color: #e5e7eb;
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+:root[data-theme="dark"] .wins2-filter-tabs button.active {
+  background: #4f46e5;
+  color: #ffffff;
+  border-color: #4f46e5;
+}
+
+@media (max-width: 980px) {
+  .wins2-hero,
+  .wins2-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wins2-discovery-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .wins2-page {
+    padding: 16px;
+  }
+
+  .wins2-hero,
+  .wins2-card,
+  .wins2-control-panel,
+  .wins2-payment-panel {
+    border-radius: 24px;
+    padding: 18px;
+  }
+
+  .wins2-hero-panel,
+  .wins2-detail-grid,
+  .wins2-discovery-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== FINAL MY WINS FILTER CONTRAST FIX ===== */
+.wins2-filter-tabs button.active,
+.wins2-filter-tabs button.active:hover,
+.wins2-filter-tabs button.active:focus {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #0f172a !important;
+  min-width: 58px;
+}
+
+:root[data-theme="dark"] .wins2-filter-tabs button.active,
+:root[data-theme="dark"] .wins2-filter-tabs button.active:hover,
+:root[data-theme="dark"] .wins2-filter-tabs button.active:focus {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+}
+
+/* ===== FINAL MY WINS FILTER CONTRAST FIX ===== */
+.wins2-filter-tabs button.active,
+.wins2-filter-tabs button.active:hover,
+.wins2-filter-tabs button.active:focus {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #0f172a !important;
+  min-width: 58px;
+}
+
+:root[data-theme="dark"] .wins2-filter-tabs button.active,
+:root[data-theme="dark"] .wins2-filter-tabs button.active:hover,
+:root[data-theme="dark"] .wins2-filter-tabs button.active:focus {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+}

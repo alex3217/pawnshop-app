@@ -244,3 +244,43 @@
     flex: 1;
   }
 }
+
+/* ===== FINAL HEADER BUTTON CONTRAST FIX ===== */
+.site-header .site-primary-button,
+.site-header .site-primary-button:visited,
+.site-header .site-primary-button:hover,
+.site-header .site-primary-button:focus {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+}
+
+:root:not([data-theme="dark"]) .site-header .site-primary-button,
+:root:not([data-theme="dark"]) .site-header .site-primary-button:visited,
+:root:not([data-theme="dark"]) .site-header .site-primary-button:hover,
+:root:not([data-theme="dark"]) .site-header .site-primary-button:focus {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* ===== FINAL HEADER BUTTON CONTRAST FIX ===== */
+.site-header .site-primary-button,
+.site-header .site-primary-button:visited,
+.site-header .site-primary-button:hover,
+.site-header .site-primary-button:focus {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+}
+
+:root:not([data-theme="dark"]) .site-header .site-primary-button,
+:root:not([data-theme="dark"]) .site-header .site-primary-button:visited,
+:root:not([data-theme="dark"]) .site-header .site-primary-button:hover,
+:root:not([data-theme="dark"]) .site-header .site-primary-button:focus {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}

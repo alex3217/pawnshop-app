@@ -5,7 +5,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type CSSProperties,
   type FormEvent,
 } from "react";
 import { Link } from "react-router-dom";
@@ -22,6 +21,7 @@ import {
   getMySettlements,
   type Settlement,
 } from "../services/settlements";
+import "../styles/my-wins-v2.css";
 
 type ActivePayment = {
   settlementId: string;
@@ -34,6 +34,8 @@ type ActivePayment = {
 type WinRecord = {
   settlementId: string;
   auctionId: string;
+  itemId: string;
+  shopId: string;
   auctionTitle: string;
   shopName: string;
   finalAmountCents: number;
@@ -116,54 +118,17 @@ function isPayableStatus(status: string) {
   return normalized === "PENDING" || normalized === "FAILED";
 }
 
-function getStatusBadgeStyle(status: string): CSSProperties {
-  const normalized = normalizeStatus(status);
-
-  const base: CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    width: "fit-content",
-    borderRadius: 999,
-    padding: "7px 10px",
-    fontSize: 12,
-    fontWeight: 900,
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
-  };
-
-  if (normalized === "CHARGED") {
-    return {
-      ...base,
-      color: "#bbf7d0",
-      background: "rgba(34,197,94,0.16)",
-      border: "1px solid rgba(34,197,94,0.32)",
-    };
-  }
-
-  if (normalized === "FAILED") {
-    return {
-      ...base,
-      color: "#fecaca",
-      background: "rgba(239,68,68,0.16)",
-      border: "1px solid rgba(239,68,68,0.32)",
-    };
-  }
-
-  return {
-    ...base,
-    color: "#fde68a",
-    background: "rgba(245,158,11,0.16)",
-    border: "1px solid rgba(245,158,11,0.32)",
-  };
+function statusClass(status: string) {
+  return `wins2-status wins2-status-${normalizeStatus(status).toLowerCase()}`;
 }
 
 function normalizeWin(row: Settlement, index: number): WinRecord {
   return {
     settlementId: String(row.settlementId || row.id || `win-${index}`),
     auctionId: String(row.auctionId || ""),
-    auctionTitle: String(
-      row.auctionTitle || row.itemTitle || "Won auction",
-    ),
+    itemId: String(row.itemId || ""),
+    shopId: String(row.shopId || ""),
+    auctionTitle: String(row.auctionTitle || row.itemTitle || "Won auction"),
     shopName: String(row.shopName || "Unknown shop"),
     finalAmountCents: toCentsFromSettlement(row),
     currency: String(row.currency || "USD").toUpperCase(),
@@ -263,32 +228,29 @@ function SettlementPaymentPanel({
   }
 
   return (
-    <section style={styles.paymentPanel}>
-      <div style={styles.paymentPanelHeader}>
+    <section className="wins2-payment-panel">
+      <div className="wins2-payment-header">
         <div>
-          <div style={styles.detailLabel}>Secure checkout</div>
-          <h2 style={styles.paymentTitle}>{activePayment.title}</h2>
-          <div style={styles.metaRow}>
-            <span>Settlement #{activePayment.settlementId}</span>
-            <span>{activePayment.amountLabel}</span>
-            {activePayment.paymentIntentId ? (
-              <span>PI {activePayment.paymentIntentId}</span>
-            ) : null}
-          </div>
+          <span>Secure checkout</span>
+          <h2>{activePayment.title}</h2>
+          <p>
+            Settlement #{activePayment.settlementId} · {activePayment.amountLabel}
+            {activePayment.paymentIntentId ? ` · PI ${activePayment.paymentIntentId}` : ""}
+          </p>
         </div>
 
         <button
           type="button"
           onClick={onCancel}
           disabled={disabled || processing}
-          style={styles.secondaryButton}
+          className="wins2-secondary-button"
         >
           Close
         </button>
       </div>
 
-      <form onSubmit={onSubmit} style={styles.paymentForm}>
-        <div style={styles.cardElementBox}>
+      <form onSubmit={onSubmit} className="wins2-payment-form">
+        <div className="wins2-card-element">
           <CardElement
             options={{
               hidePostalCode: true,
@@ -311,14 +273,9 @@ function SettlementPaymentPanel({
         <button
           type="submit"
           disabled={!stripe || disabled || processing}
-          style={{
-            ...styles.payButton,
-            ...(!stripe || disabled || processing
-              ? styles.actionButtonDisabled
-              : {}),
-          }}
+          className="wins2-pay-button"
         >
-          {processing ? "Confirming payment..." : "Confirm Payment"}
+          {processing ? "Confirming payment..." : "Confirm payment"}
         </button>
       </form>
     </section>
@@ -329,13 +286,12 @@ export default function MyWinsPage() {
   const [wins, setWins] = useState<WinRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [payingSettlementId, setPayingSettlementId] = useState<string | null>(
-    null,
-  );
+  const [payingSettlementId, setPayingSettlementId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [activePayment, setActivePayment] = useState<ActivePayment | null>(null);
   const [paymentError, setPaymentError] = useState("");
+  const [filter, setFilter] = useState<"ALL" | "PENDING" | "PAID" | "FAILED">("ALL");
 
   const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
     if (mode === "refresh") setRefreshing(true);
@@ -372,8 +328,7 @@ export default function MyWinsPage() {
       const paymentIntent = await createSettlementPaymentIntent(win.settlementId);
 
       if (
-        normalizeStatus(String(paymentIntent.settlementStatus || "")) ===
-          "CHARGED" &&
+        normalizeStatus(String(paymentIntent.settlementStatus || "")) === "CHARGED" &&
         !paymentIntent.clientSecret
       ) {
         setNotice("This settlement is already paid. Refreshing status now...");
@@ -436,79 +391,109 @@ export default function MyWinsPage() {
     };
   }, [wins]);
 
+  const filteredWins = useMemo(() => {
+    return wins.filter((win) => {
+      if (filter === "ALL") return true;
+      if (filter === "PENDING") return isPayableStatus(win.status);
+      if (filter === "PAID") return isPaidStatus(win.status);
+      if (filter === "FAILED") return isFailedStatus(win.status);
+      return true;
+    });
+  }, [filter, wins]);
+
   return (
-    <div style={styles.page}>
-      <div style={styles.hero}>
-        <div>
-          <div style={styles.eyebrow}>Buyer</div>
-          <h1 style={styles.title}>My Wins</h1>
-          <p style={styles.subtitle}>
-            Review won auctions, final pricing, payment status, and settlement
-            progress.
+    <main className="wins2-page">
+      <section className="wins2-hero">
+        <div className="wins2-hero-copy">
+          <span className="wins2-pill">Buyer win center</span>
+          <h1>Manage won auctions and settlement payments.</h1>
+          <p>
+            Review won auctions, final pricing, payment status, Stripe checkout,
+            and settlement progress from one place.
           </p>
-        </div>
 
-        <button
-          type="button"
-          onClick={() => void load("refresh")}
-          disabled={loading || refreshing || Boolean(payingSettlementId)}
-          style={{
-            ...styles.actionButton,
-            ...(loading || refreshing || payingSettlementId
-              ? styles.actionButtonDisabled
-              : {}),
-          }}
-        >
-          {refreshing ? "Refreshing..." : "Refresh"}
-        </button>
-      </div>
-
-      <div style={styles.statsGrid}>
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Won auctions</div>
-          <div style={styles.statValue}>{summary.winsCount}</div>
-        </div>
-
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Pending payment</div>
-          <div style={styles.statValue}>{summary.pendingCount}</div>
-          <div style={styles.statHint}>
-            {formatCurrency(summary.pendingCents)}
+          <div className="wins2-hero-actions">
+            <Link to="/auctions">Browse auctions</Link>
+            <Link to="/my-bids">My bids</Link>
+            <button
+              type="button"
+              onClick={() => void load("refresh")}
+              disabled={loading || refreshing || Boolean(payingSettlementId)}
+            >
+              {refreshing ? "Refreshing..." : "Refresh wins"}
+            </button>
           </div>
         </div>
 
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Paid settlements</div>
-          <div style={styles.statValue}>{summary.paidCount}</div>
-          <div style={styles.statHint}>{formatCurrency(summary.paidCents)}</div>
-        </div>
-
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Total committed</div>
-          <div style={styles.statValue}>
-            {formatCurrency(summary.totalCommittedCents)}
+        <aside className="wins2-hero-panel">
+          <div>
+            <span>Won auctions</span>
+            <strong>{summary.winsCount}</strong>
+            <small>settlement records</small>
           </div>
-        </div>
-
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Latest update</div>
-          <div style={styles.statValueSmall}>
-            {formatDate(summary.latestSettlement)}
+          <div>
+            <span>Pending payment</span>
+            <strong>{summary.pendingCount}</strong>
+            <small>{formatCurrency(summary.pendingCents)}</small>
           </div>
+          <div>
+            <span>Paid</span>
+            <strong>{summary.paidCount}</strong>
+            <small>{formatCurrency(summary.paidCents)}</small>
+          </div>
+          <div>
+            <span>Total committed</span>
+            <strong>{formatCurrency(summary.totalCommittedCents)}</strong>
+            <small>Latest: {formatDate(summary.latestSettlement)}</small>
+          </div>
+        </aside>
+      </section>
+
+      <section className="wins2-control-panel">
+        <div className="wins2-filter-tabs">
+          {[
+            ["ALL", "All"],
+            ["PENDING", "Pending"],
+            ["PAID", "Paid"],
+            ["FAILED", "Failed"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={filter === value ? "active" : ""}
+              onClick={() => setFilter(value as typeof filter)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-      </div>
+      </section>
+
+      <section className="wins2-discovery-strip">
+        <Link to="/buyer/dashboard">
+          Buyer dashboard <span>Return to command center</span>
+        </Link>
+        <Link to="/my-bids">
+          My bids <span>Track bidding activity</span>
+        </Link>
+        <Link to="/auctions">
+          Auctions <span>Find active auctions</span>
+        </Link>
+        <Link to="/offers">
+          Offers <span>Review negotiations</span>
+        </Link>
+      </section>
 
       {summary.failedCount > 0 ? (
-        <div style={styles.warningCard}>
+        <section className="wins2-warning">
           {summary.failedCount} settlement payment{" "}
-          {summary.failedCount === 1 ? "needs" : "need"} attention. You can
-          retry failed settlement payments below.
-        </div>
+          {summary.failedCount === 1 ? "needs" : "need"} attention. Retry failed
+          settlement payments below.
+        </section>
       ) : null}
 
-      {notice ? <div style={styles.noticeCard}>{notice}</div> : null}
-
-      {paymentError ? <div style={styles.errorCard}>{paymentError}</div> : null}
+      {notice ? <section className="wins2-notice">{notice}</section> : null}
+      {paymentError ? <section className="wins2-error">{paymentError}</section> : null}
 
       {activePayment ? (
         <Elements
@@ -528,363 +513,103 @@ export default function MyWinsPage() {
         </Elements>
       ) : null}
 
-      {loading ? <div style={styles.stateCard}>Loading your wins...</div> : null}
+      {loading ? <section className="wins2-state">Loading your wins...</section> : null}
 
       {!loading && error ? (
-        <div style={styles.errorCard}>
-          <div style={styles.emptyTitle}>Unable to continue</div>
-          <p style={styles.emptyText}>{error}</p>
-        </div>
+        <section className="wins2-state wins2-error">
+          <h2>Unable to continue</h2>
+          <p>{error}</p>
+        </section>
       ) : null}
 
-      {!loading && !error && wins.length === 0 ? (
-        <div style={styles.stateCard}>
-          <div style={styles.emptyTitle}>No wins yet</div>
-          <p style={styles.emptyText}>
-            When you win an auction, it will appear here for payment and
-            settlement tracking.
+      {!loading && !error && filteredWins.length === 0 ? (
+        <section className="wins2-state">
+          <h2>No wins matched</h2>
+          <p>
+            Won auctions and settlement tracking will appear here once you win an
+            auction.
           </p>
-          <Link to="/auctions" style={styles.primaryLink}>
-            Browse Auctions
-          </Link>
-        </div>
+          <Link to="/auctions">Browse auctions</Link>
+        </section>
       ) : null}
 
-      {!loading && wins.length > 0 ? (
-        <div style={styles.list}>
-          {wins.map((win) => {
+      {!loading && !error && filteredWins.length > 0 ? (
+        <section className="wins2-grid">
+          {filteredWins.map((win) => {
             const payable = isPayableStatus(win.status);
             const paying = payingSettlementId === win.settlementId;
             const paid = isPaidStatus(win.status);
             const failed = isFailedStatus(win.status);
 
             return (
-              <article key={win.settlementId} style={styles.card}>
-                <div style={styles.cardHeader}>
+              <article key={win.settlementId} className="wins2-card">
+                <div className="wins2-card-top">
                   <div>
-                    <h2 style={styles.cardTitle}>{win.auctionTitle}</h2>
-                    <div style={styles.metaRow}>
-                      <span>{win.shopName}</span>
-                      <span>Settlement #{win.settlementId}</span>
-                      {win.stripePaymentIntent ? (
-                        <span>PI {win.stripePaymentIntent}</span>
-                      ) : null}
-                    </div>
+                    <h2>{win.auctionTitle}</h2>
+                    <p>{win.shopName}</p>
                   </div>
 
-                  <div style={styles.amountPill}>
+                  <span className="wins2-amount">
                     {formatCurrency(win.finalAmountCents, win.currency)}
+                  </span>
+                </div>
+
+                <div className="wins2-detail-grid">
+                  <div>
+                    <span>Auction ended</span>
+                    <strong>{formatDate(win.endedAt)}</strong>
+                  </div>
+                  <div>
+                    <span>Settlement updated</span>
+                    <strong>{formatDate(win.settledAt)}</strong>
+                  </div>
+                  <div>
+                    <span>Status</span>
+                    <strong className={statusClass(win.status)}>{win.status}</strong>
+                  </div>
+                  <div>
+                    <span>Settlement</span>
+                    <strong>#{win.settlementId}</strong>
                   </div>
                 </div>
 
-                <div style={styles.detailGrid}>
-                  <div>
-                    <div style={styles.detailLabel}>Auction ended</div>
-                    <div style={styles.detailValue}>{formatDate(win.endedAt)}</div>
+                {win.stripePaymentIntent ? (
+                  <div className="wins2-payment-intent">
+                    Payment intent: {win.stripePaymentIntent}
                   </div>
+                ) : null}
 
-                  <div>
-                    <div style={styles.detailLabel}>Settlement updated</div>
-                    <div style={styles.detailValue}>
-                      {formatDate(win.settledAt)}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={styles.detailLabel}>Status</div>
-                    <div style={getStatusBadgeStyle(win.status)}>{win.status}</div>
-                  </div>
-                </div>
-
-                <div style={styles.cardActions}>
+                <div className="wins2-card-actions">
                   {payable ? (
                     <button
                       type="button"
                       onClick={() => void handlePay(win)}
                       disabled={paying || Boolean(activePayment)}
-                      style={{
-                        ...styles.payButton,
-                        ...(paying || activePayment
-                          ? styles.actionButtonDisabled
-                          : {}),
-                      }}
+                      className="wins2-pay-button"
                     >
-                      {paying
-                        ? "Preparing..."
-                        : failed
-                          ? "Retry Payment"
-                          : "Pay Now"}
+                      {paying ? "Preparing..." : failed ? "Retry payment" : "Pay now"}
                     </button>
                   ) : null}
 
-                  {paid ? (
-                    <span style={styles.paidLabel}>Payment completed</span>
-                  ) : null}
+                  {paid ? <span className="wins2-paid-label">Payment completed</span> : null}
 
                   {win.auctionId ? (
-                    <Link
-                      to={`/auctions/${win.auctionId}`}
-                      style={styles.secondaryLink}
-                    >
-                      View Auction
-                    </Link>
+                    <Link to={`/auctions/${win.auctionId}`}>View auction</Link>
                   ) : null}
 
-                  <Link to="/offers" style={styles.secondaryLink}>
-                    View Offers
-                  </Link>
+                  {win.itemId ? (
+                    <Link to={`/items/${win.itemId}`}>View item</Link>
+                  ) : null}
+
+                  {win.shopId ? (
+                    <Link to={`/shops/${win.shopId}`}>View shop</Link>
+                  ) : null}
                 </div>
               </article>
             );
           })}
-        </div>
+        </section>
       ) : null}
-    </div>
+    </main>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  page: {
-    display: "grid",
-    gap: 20,
-    color: "#eef2ff",
-  },
-  hero: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-  },
-  eyebrow: {
-    color: "#93c5fd",
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.1em",
-    fontSize: 12,
-  },
-  title: {
-    margin: "6px 0 0",
-    fontSize: 34,
-    fontWeight: 900,
-  },
-  subtitle: {
-    marginTop: 8,
-    color: "#a7b0d8",
-    maxWidth: 620,
-    lineHeight: 1.6,
-  },
-  actionButton: {
-    border: "none",
-    color: "#08111f",
-    background: "#7ef0b3",
-    padding: "12px 14px",
-    borderRadius: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  actionButtonDisabled: {
-    opacity: 0.65,
-    cursor: "not-allowed",
-  },
-  paymentPanel: {
-    display: "grid",
-    gap: 14,
-    padding: 18,
-    borderRadius: 18,
-    background: "#ecfdf5",
-    border: "1px solid rgba(34,197,94,0.35)",
-    color: "#0f172a",
-  },
-  paymentPanelHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 14,
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-  },
-  paymentTitle: {
-    margin: "4px 0",
-    fontSize: 20,
-    fontWeight: 900,
-    color: "#0f172a",
-  },
-  paymentForm: {
-    display: "grid",
-    gap: 12,
-  },
-  cardElementBox: {
-    padding: 14,
-    borderRadius: 12,
-    background: "#ffffff",
-    border: "1px solid rgba(15,23,42,0.18)",
-  },
-  secondaryButton: {
-    border: "1px solid rgba(15,23,42,0.18)",
-    color: "#0f172a",
-    background: "#ffffff",
-    padding: "10px 12px",
-    borderRadius: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  payButton: {
-    border: "none",
-    color: "#ffffff",
-    background: "#22c55e",
-    padding: "10px 14px",
-    borderRadius: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  statsGrid: {
-    display: "grid",
-    gap: 14,
-    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-  },
-  statCard: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 18,
-  },
-  statLabel: {
-    color: "#a7b0d8",
-    fontSize: 13,
-    fontWeight: 800,
-  },
-  statValue: {
-    marginTop: 8,
-    fontSize: 28,
-    fontWeight: 900,
-  },
-  statValueSmall: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: 900,
-  },
-  statHint: {
-    marginTop: 4,
-    color: "#a7b0d8",
-    fontSize: 13,
-    fontWeight: 800,
-  },
-  noticeCard: {
-    background: "rgba(34,197,94,0.12)",
-    border: "1px solid rgba(34,197,94,0.24)",
-    color: "#bbf7d0",
-    borderRadius: 16,
-    padding: 16,
-    fontWeight: 800,
-  },
-  warningCard: {
-    background: "rgba(245,158,11,0.12)",
-    border: "1px solid rgba(245,158,11,0.26)",
-    color: "#fde68a",
-    borderRadius: 16,
-    padding: 16,
-    fontWeight: 800,
-  },
-  errorCard: {
-    background: "rgba(239,68,68,0.12)",
-    border: "1px solid rgba(239,68,68,0.24)",
-    borderRadius: 16,
-    padding: 18,
-    color: "#fecaca",
-  },
-  stateCard: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 22,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 900,
-  },
-  emptyText: {
-    color: "#a7b0d8",
-    lineHeight: 1.6,
-  },
-  primaryLink: {
-    display: "inline-block",
-    marginTop: 12,
-    textDecoration: "none",
-    background: "#6ea8fe",
-    color: "#08111f",
-    padding: "10px 14px",
-    borderRadius: 12,
-    fontWeight: 900,
-  },
-  list: {
-    display: "grid",
-    gap: 16,
-  },
-  card: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 18,
-  },
-  cardHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  cardTitle: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 900,
-  },
-  metaRow: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    color: "#a7b0d8",
-    fontSize: 13,
-    marginTop: 8,
-  },
-  amountPill: {
-    background: "rgba(34,197,94,0.14)",
-    border: "1px solid rgba(34,197,94,0.28)",
-    color: "#bbf7d0",
-    borderRadius: 999,
-    padding: "8px 12px",
-    fontWeight: 900,
-    height: "fit-content",
-  },
-  detailGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 14,
-    marginTop: 18,
-  },
-  detailLabel: {
-    color: "#a7b0d8",
-    fontSize: 12,
-    fontWeight: 800,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-  },
-  detailValue: {
-    marginTop: 6,
-    fontWeight: 800,
-  },
-  cardActions: {
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    flexWrap: "wrap",
-    marginTop: 18,
-  },
-  secondaryLink: {
-    color: "#bfdbfe",
-    textDecoration: "none",
-    fontWeight: 900,
-  },
-  paidLabel: {
-    color: "#bbf7d0",
-    fontWeight: 900,
-  },
-};
