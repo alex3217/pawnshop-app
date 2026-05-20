@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import type { FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createAuction, getAuctions } from "../services/auctions";
 import { getMyItems } from "../services/items";
 import { getAuthRole, getAuthToken } from "../services/auth";
@@ -47,6 +47,8 @@ function toIsoOrNull(value: string) {
 
 export default function CreateAuctionPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedItemId = searchParams.get("itemId")?.trim() || "";
 
   const nowPlusOneHour = useMemo(() => {
     const date = new Date();
@@ -61,7 +63,7 @@ export default function CreateAuctionPage() {
   }, []);
 
   const [form, setForm] = useState<FormState>({
-    itemId: "",
+    itemId: requestedItemId,
     startPrice: "10.00",
     minIncrement: "1.00",
     startsAt: "",
@@ -229,8 +231,7 @@ export default function CreateAuctionPage() {
                   ))}
               </select>
             <small className="muted">
-              Use an existing item from owner inventory. The next pass can replace this
-              with a dropdown picker.
+              {requestedItemId ? "Preselected from inventory. You can choose another item if needed." : "Use an existing item from owner inventory."}
             </small>
           </label>
 

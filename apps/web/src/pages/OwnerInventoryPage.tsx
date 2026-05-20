@@ -140,6 +140,7 @@ export default function OwnerInventoryPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -197,6 +198,112 @@ export default function OwnerInventoryPage() {
 
     return sortItems(next, sortKey);
   }, [items, query, sortKey, statusFilter]);
+
+
+  const visibleItemIds = useMemo(() => {
+    return filteredItems
+      .map((item) => String(item.id || ""))
+      .filter(Boolean);
+  }, [filteredItems]);
+
+  const selectedVisibleItems = useMemo(() => {
+    const selected = new Set(selectedItemIds);
+    return filteredItems.filter((item) => selected.has(String(item.id || "")));
+  }, [filteredItems, selectedItemIds]);
+
+  const allVisibleSelected =
+    visibleItemIds.length > 0 &&
+    visibleItemIds.every((id) => selectedItemIds.includes(id));
+
+  function toggleItemSelection(itemId: string) {
+    if (!itemId) return;
+
+    setSelectedItemIds((current) =>
+      current.includes(itemId)
+        ? current.filter((id) => id !== itemId)
+        : [...current, itemId],
+    );
+  }
+
+  function toggleAllVisible() {
+    setSelectedItemIds((current) => {
+      const currentSet = new Set(current);
+
+      if (allVisibleSelected) {
+        visibleItemIds.forEach((id) => currentSet.delete(id));
+      } else {
+        visibleItemIds.forEach((id) => currentSet.add(id));
+      }
+
+      return Array.from(currentSet);
+    });
+  }
+
+  function clearSelection() {
+    setSelectedItemIds([]);
+  }
+
+  async function handleBulkMarkSold() {
+    const targets = selectedVisibleItems.filter(
+      (item) => normalizeStatus(item.status) !== "SOLD",
+    );
+
+    if (targets.length === 0 || actionItemId) return;
+
+    const confirmed = window.confirm(
+      `Mark ${targets.length} selected item${targets.length === 1 ? "" : "s"} as sold?`,
+    );
+
+    if (!confirmed) return;
+
+    setActionItemId("bulk-mark-sold");
+    setNotice(null);
+    setError(null);
+
+    try {
+      for (const item of targets) {
+        await markItemSold(String(item.id));
+      }
+
+      setNotice(`Marked ${targets.length} selected item${targets.length === 1 ? "" : "s"} as sold.`);
+      clearSelection();
+      await load(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to mark selected items sold.");
+    } finally {
+      setActionItemId("");
+    }
+  }
+
+  async function handleBulkDelete() {
+    const targets = selectedVisibleItems.filter((item) => item.id);
+
+    if (targets.length === 0 || actionItemId) return;
+
+    const confirmed = window.confirm(
+      `Delete/archive ${targets.length} selected item${targets.length === 1 ? "" : "s"}?`,
+    );
+
+    if (!confirmed) return;
+
+    setActionItemId("bulk-delete");
+    setNotice(null);
+    setError(null);
+
+    try {
+      for (const item of targets) {
+        await deleteItem(String(item.id));
+      }
+
+      setNotice(`Deleted/archived ${targets.length} selected item${targets.length === 1 ? "" : "s"}.`);
+      clearSelection();
+      await load(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete selected items.");
+    } finally {
+      setActionItemId("");
+    }
+  }
 
   async function handleMarkSold(item: Item) {
     if (!item.id || actionItemId) return;
@@ -350,6 +457,39 @@ export default function OwnerInventoryPage() {
         </div>
       ) : null}
 
+
+      {!loading && !error && filteredItems.length > 0 ? (
+        <section className="owner-inventory-bulk-bar">
+          <div>
+            <strong>{selectedVisibleItems.length}</strong> selected · {filteredItems.length} visible
+          </div>
+
+          <div className="owner-inventory-bulk-actions">
+            <button type="button" onClick={toggleAllVisible}>
+              {allVisibleSelected ? "Unselect visible" : "Select visible"}
+            </button>
+            <button type="button" onClick={clearSelection} disabled={selectedItemIds.length === 0}>
+              Clear selection
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleBulkMarkSold()}
+              disabled={selectedVisibleItems.length === 0 || Boolean(actionItemId)}
+            >
+              Bulk mark sold
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={() => void handleBulkDelete()}
+              disabled={selectedVisibleItems.length === 0 || Boolean(actionItemId)}
+            >
+              Bulk delete / archive
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {notice ? <div style={styles.notice}>{notice}</div> : null}
       {loading ? <div style={styles.card}>Loading inventory...</div> : null}
       {error ? <div style={styles.error}>{error}</div> : null}
@@ -368,6 +508,15 @@ export default function OwnerInventoryPage() {
 
           return (
             <article key={item.id} style={styles.card}>
+              <label className="owner-inventory-select-row">
+                <input
+                  type="checkbox"
+                  checked={selectedItemIds.includes(String(item.id || ""))}
+                  onChange={() => toggleItemSelection(String(item.id || ""))}
+                />
+                <span>Select item</span>
+              </label>
+
               <h3 style={styles.cardTitle}>{item.title}</h3>
               <div style={styles.price}>{formatPrice(item.price)}</div>
 
@@ -395,6 +544,15 @@ export default function OwnerInventoryPage() {
                 {item.pawnShopId ? (
                   <Link to={`/shops/${item.pawnShopId}`} style={styles.linkButton}>
                     Shop
+                  </Link>
+                ) : null}
+
+                {!isSold ? (
+                  <Link
+                    to={`/owner/auctions/new?itemId=${encodeURIComponent(String(item.id || ""))}`}
+                    style={styles.linkButton}
+                  >
+                    Create Auction
                   </Link>
                 ) : null}
 
