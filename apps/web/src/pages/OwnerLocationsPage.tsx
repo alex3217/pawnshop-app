@@ -181,7 +181,7 @@ export default function OwnerLocationsPage() {
   }, [locations]);
 
   return (
-    <div style={styles.page}>
+    <div className="owner-locations-page" style={styles.page}>
       <div style={styles.hero}>
         <div>
           <div style={styles.eyebrow}>Owner</div>
@@ -343,7 +343,7 @@ const styles: Record<string, CSSProperties> = {
   },
   statCard: {
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
+    background: "var(--owner-loc-soft-bg)",
     borderRadius: 18,
     padding: 18,
   },
@@ -358,7 +358,7 @@ const styles: Record<string, CSSProperties> = {
   },
   stateCard: {
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
+    background: "var(--owner-loc-soft-bg)",
     borderRadius: 18,
     padding: 22,
   },
@@ -382,15 +382,15 @@ const styles: Record<string, CSSProperties> = {
     display: "inline-flex",
     textDecoration: "none",
     color: "#0b1020",
-    background: "#eef2ff",
+    background: "var(--owner-loc-text)",
     fontWeight: 800,
     padding: "10px 14px",
     borderRadius: 12,
   },
   secondaryButton: {
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#eef2ff",
+    background: "var(--owner-loc-button-bg)",
+    color: "var(--owner-loc-text)",
     borderRadius: 12,
     padding: "10px 14px",
     fontWeight: 700,
@@ -406,7 +406,7 @@ const styles: Record<string, CSSProperties> = {
   },
   card: {
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
+    background: "var(--owner-loc-soft-bg)",
     borderRadius: 18,
     padding: 20,
     display: "grid",
@@ -462,7 +462,7 @@ const styles: Record<string, CSSProperties> = {
   },
   secondaryLink: {
     textDecoration: "none",
-    color: "#eef2ff",
+    color: "var(--owner-loc-text)",
     border: "1px solid rgba(255,255,255,0.12)",
     borderRadius: 12,
     padding: "10px 14px",

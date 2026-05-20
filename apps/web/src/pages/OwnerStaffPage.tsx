@@ -25,6 +25,7 @@ import {
 } from "../services/staff";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INVITED" | "INACTIVE" | "ARCHIVED";
+type RoleFilter = "ALL" | StaffRole;
 
 type StaffRecord = {
   id: string;
@@ -230,6 +231,7 @@ export default function OwnerStaffPage() {
   const [staff, setStaff] = useState<StaffRecord[]>([]);
   const [shops, setShops] = useState<StaffShopOption[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [query, setQuery] = useState("");
   const [form, setForm] = useState<StaffFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState("");
@@ -308,9 +310,11 @@ export default function OwnerStaffPage() {
           .toLowerCase()
           .includes(q);
 
-      return statusMatches && queryMatches;
+      const roleMatches = roleFilter === "ALL" || member.role === roleFilter;
+
+      return statusMatches && roleMatches && queryMatches;
     });
-  }, [query, staff, statusFilter]);
+  }, [query, roleFilter, staff, statusFilter]);
 
   const summary = useMemo(() => {
     return {
@@ -426,7 +430,20 @@ export default function OwnerStaffPage() {
     }
   }
 
-  async function runAction(member: StaffRecord, action: "ACTIVE" | "INACTIVE" | "ARCHIVED") {
+  async function runAction(
+    member: StaffRecord,
+    action: "ACTIVE" | "INACTIVE" | "ARCHIVED" | "INVITED",
+  ) {
+    const label = member.name || member.email || "this staff member";
+
+    if (action === "ARCHIVED") {
+      const confirmed = window.confirm(
+        `Remove access for ${label}? This archives the staff record and keeps your audit history.`,
+      );
+
+      if (!confirmed) return;
+    }
+
     setActionId(member.id);
     setError("");
     setSuccess("");
@@ -434,13 +451,16 @@ export default function OwnerStaffPage() {
     try {
       if (action === "ACTIVE") {
         await activateStaffMember(member.id);
-        setSuccess(`${member.name} activated.`);
+        setSuccess(`${label} activated.`);
       } else if (action === "INACTIVE") {
         await deactivateStaffMember(member.id);
-        setSuccess(`${member.name} deactivated.`);
+        setSuccess(`${label} deactivated.`);
+      } else if (action === "INVITED") {
+        await updateStaffMember(member.id, { status: "INVITED" });
+        setSuccess(`Invite refreshed for ${member.email}.`);
       } else {
         await archiveStaffMember(member.id);
-        setSuccess(`${member.name} archived.`);
+        setSuccess(`${label} access removed.`);
       }
 
       await load("refresh");
@@ -452,7 +472,7 @@ export default function OwnerStaffPage() {
   }
 
   return (
-    <div style={styles.page}>
+    <div className="owner-staff-page" style={styles.page}>
       <div style={styles.hero}>
         <div>
           <div style={styles.eyebrow}>Owner</div>
@@ -625,6 +645,58 @@ export default function OwnerStaffPage() {
 
         <div>
           <div style={styles.detailLabel}>Permissions</div>
+
+          <div className="owner-staff-presets">
+            <button
+              type="button"
+              onClick={() =>
+                updateForm("permissions", [
+                  "inventory:read",
+                  "auctions:read",
+                  "offers:read",
+                  "locations:read",
+                ] as StaffPermission[])
+              }
+            >
+              Staff preset
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                updateForm("permissions", [
+                  "inventory:read",
+                  "inventory:write",
+                  "locations:read",
+                ] as StaffPermission[])
+              }
+            >
+              Inventory preset
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                updateForm("permissions", [
+                  "inventory:read",
+                  "auctions:read",
+                  "auctions:write",
+                ] as StaffPermission[])
+              }
+            >
+              Auction preset
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                updateForm("permissions", [
+                  "settlements:read",
+                  "offers:read",
+                ] as StaffPermission[])
+              }
+            >
+              Finance preset
+            </button>
+          </div>
+
           <div style={styles.permissionGrid}>
             {STAFF_PERMISSIONS.map((permission) => {
               const checked = form.permissions.includes(permission);
@@ -701,6 +773,22 @@ export default function OwnerStaffPage() {
             placeholder="Search staff, role, location, status, permission..."
             style={styles.input}
           />
+        </label>
+
+        <label style={styles.filterLabel}>
+          Role
+          <select
+            value={roleFilter}
+            onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}
+            style={styles.select}
+          >
+            <option value="ALL">ALL ROLES</option>
+            {STAFF_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 
@@ -796,6 +884,17 @@ export default function OwnerStaffPage() {
                 >
                   Edit access
                 </button>
+
+                {member.status === "INVITED" ? (
+                  <button
+                    type="button"
+                    disabled={actionId === member.id}
+                    onClick={() => void runAction(member, "INVITED")}
+                    style={styles.actionButton}
+                  >
+                    Reset invite
+                  </button>
+                ) : null}
 
                 {member.status !== "ACTIVE" ? (
                   <button
