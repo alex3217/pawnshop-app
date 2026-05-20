@@ -605,3 +605,359 @@
     min-height: 560px;
   }
 }
+
+/* ===== FINAL ITEM LOCATOR LIGHT MODE FIX ===== */
+:root:not([data-theme="dark"]) .locator-page {
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 34rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero,
+:root:not([data-theme="dark"]) .locator-hero * {
+  text-shadow: none !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero {
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 28rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fafc 54%, #eef2ff 100%) !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.10) !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero h1,
+:root:not([data-theme="dark"]) .locator-hero h1 *,
+:root:not([data-theme="dark"]) .locator-section-title h2,
+:root:not([data-theme="dark"]) .locator-card h2,
+:root:not([data-theme="dark"]) .locator-card h3,
+:root:not([data-theme="dark"]) .locator-stat strong,
+:root:not([data-theme="dark"]) .locator-stat-card strong {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  background: transparent !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero p,
+:root:not([data-theme="dark"]) .locator-section-title p,
+:root:not([data-theme="dark"]) .locator-card p,
+:root:not([data-theme="dark"]) .locator-stat span,
+:root:not([data-theme="dark"]) .locator-stat small,
+:root:not([data-theme="dark"]) .locator-stat-card span,
+:root:not([data-theme="dark"]) .locator-stat-card small {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  background: transparent !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-pill,
+:root:not([data-theme="dark"]) .locator-section-title > span {
+  background: #eef2ff !important;
+  color: #4338ca !important;
+  -webkit-text-fill-color: #4338ca !important;
+}
+
+:root:not([data-theme="dark"]) .locator-search,
+:root:not([data-theme="dark"]) .locator-search-bar,
+:root:not([data-theme="dark"]) .locator-card,
+:root:not([data-theme="dark"]) .locator-panel,
+:root:not([data-theme="dark"]) .locator-stat,
+:root:not([data-theme="dark"]) .locator-stat-card,
+:root:not([data-theme="dark"]) .locator-result-card,
+:root:not([data-theme="dark"]) .locator-shop-card,
+:root:not([data-theme="dark"]) .locator-map-card {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.26) !important;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.07) !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero input,
+:root:not([data-theme="dark"]) .locator-hero select,
+:root:not([data-theme="dark"]) .locator-search input,
+:root:not([data-theme="dark"]) .locator-search select,
+:root:not([data-theme="dark"]) .locator-search-bar input,
+:root:not([data-theme="dark"]) .locator-search-bar select {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.32) !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero input::placeholder,
+:root:not([data-theme="dark"]) .locator-search input::placeholder,
+:root:not([data-theme="dark"]) .locator-search-bar input::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-primary,
+:root:not([data-theme="dark"]) .locator-primary-small,
+:root:not([data-theme="dark"]) .locator-hero button:first-of-type {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .locator-secondary,
+:root:not([data-theme="dark"]) .locator-secondary-small,
+:root:not([data-theme="dark"]) .locator-hero button:not(:first-of-type) {
+  background: #eef2ff !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+}
+
+/* Catch older inline dark stat cards inside Item Locator */
+:root:not([data-theme="dark"]) .locator-page [style*="#121935"],
+:root:not([data-theme="dark"]) .locator-page [style*="#111827"],
+:root:not([data-theme="dark"]) .locator-page [style*="#0b1020"],
+:root:not([data-theme="dark"]) .locator-page [style*="rgba(255,255,255"],
+:root:not([data-theme="dark"]) .locator-page [style*="rgba(255, 255, 255"] {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.26) !important;
+}
+
+/* ===== ITEM LOCATOR STAT CARD READABILITY LOCK ===== */
+:root:not([data-theme="dark"]) .locator-hero .locator-stat,
+:root:not([data-theme="dark"]) .locator-hero .locator-stat-card,
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"],
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07) !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero .locator-stat *,
+:root:not([data-theme="dark"]) .locator-hero .locator-stat-card *,
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] *,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] * {
+  opacity: 1 !important;
+  text-shadow: none !important;
+  mix-blend-mode: normal !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero .locator-stat strong,
+:root:not([data-theme="dark"]) .locator-hero .locator-stat-card strong,
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] strong,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] strong,
+:root:not([data-theme="dark"]) .locator-hero .locator-stat b,
+:root:not([data-theme="dark"]) .locator-hero .locator-stat-card b {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  background: transparent !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero .locator-stat span,
+:root:not([data-theme="dark"]) .locator-hero .locator-stat-card span,
+:root:not([data-theme="dark"]) .locator-hero .locator-stat small,
+:root:not([data-theme="dark"]) .locator-hero .locator-stat-card small,
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] span,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] span,
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] small,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] small {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  background: transparent !important;
+  opacity: 1 !important;
+}
+
+/* Direct fallback for the visible labels in the hero stat area */
+:root:not([data-theme="dark"]) .locator-hero {
+  --locator-stat-label: #475569;
+  --locator-stat-value: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .locator-hero div {
+  opacity: 1;
+}
+
+:root:not([data-theme="dark"]) .locator-hero div:has(> strong),
+:root:not([data-theme="dark"]) .locator-hero div:has(> span) {
+  color: #0f172a !important;
+}
+
+/* ===== ITEM LOCATOR HERO METRIC TEXT FIX ===== */
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"],
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"],
+:root:not([data-theme="dark"]) .locator-hero [class*="summary"],
+:root:not([data-theme="dark"]) .locator-hero [class*="card"] {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.32) !important;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08) !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] *,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] *,
+:root:not([data-theme="dark"]) .locator-hero [class*="summary"] *,
+:root:not([data-theme="dark"]) .locator-hero [class*="card"] * {
+  opacity: 1 !important;
+  text-shadow: none !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Labels: Search / Showing / Shops / Radius */
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] span,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] span,
+:root:not([data-theme="dark"]) .locator-hero [class*="summary"] span,
+:root:not([data-theme="dark"]) .locator-hero [class*="card"] span,
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] small,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] small,
+:root:not([data-theme="dark"]) .locator-hero [class*="summary"] small,
+:root:not([data-theme="dark"]) .locator-hero [class*="card"] small,
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] p,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] p,
+:root:not([data-theme="dark"]) .locator-hero [class*="summary"] p,
+:root:not([data-theme="dark"]) .locator-hero [class*="card"] p {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  background: transparent !important;
+  font-weight: 850 !important;
+  opacity: 1 !important;
+}
+
+/* Values: — / 0 / 25 */
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] strong,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] strong,
+:root:not([data-theme="dark"]) .locator-hero [class*="summary"] strong,
+:root:not([data-theme="dark"]) .locator-hero [class*="card"] strong,
+:root:not([data-theme="dark"]) .locator-hero [class*="stat"] b,
+:root:not([data-theme="dark"]) .locator-hero [class*="metric"] b,
+:root:not([data-theme="dark"]) .locator-hero [class*="summary"] b,
+:root:not([data-theme="dark"]) .locator-hero [class*="card"] b {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  background: transparent !important;
+  font-weight: 950 !important;
+  opacity: 1 !important;
+}
+
+/* Extra fallback for the four visible metric blocks under the search bar */
+:root:not([data-theme="dark"]) .locator-hero div {
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero div > span:first-child,
+:root:not([data-theme="dark"]) .locator-hero div > small,
+:root:not([data-theme="dark"]) .locator-hero div > p {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero div > strong,
+:root:not([data-theme="dark"]) .locator-hero div > b {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  opacity: 1 !important;
+}
+
+/* ===== FINAL ITEM LOCATOR DARK MODE CARD FIX ===== */
+:root[data-theme="dark"] .locator-page {
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 34rem),
+    linear-gradient(180deg, #020617 0%, #0f172a 100%) !important;
+  color: #e5e7eb !important;
+}
+
+:root[data-theme="dark"] .locator-hero,
+:root[data-theme="dark"] .locator-card,
+:root[data-theme="dark"] .locator-panel,
+:root[data-theme="dark"] .locator-stat,
+:root[data-theme="dark"] .locator-stat-card,
+:root[data-theme="dark"] .locator-result-card,
+:root[data-theme="dark"] .locator-shop-card,
+:root[data-theme="dark"] .locator-map-card,
+:root[data-theme="dark"] .locator-discovery-strip a,
+:root[data-theme="dark"] .locator-page [class*="strip"] a,
+:root[data-theme="dark"] .locator-page [class*="card"],
+:root[data-theme="dark"] .locator-page [class*="panel"] {
+  background: #111827 !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28) !important;
+}
+
+:root[data-theme="dark"] .locator-hero h1,
+:root[data-theme="dark"] .locator-hero h2,
+:root[data-theme="dark"] .locator-card h2,
+:root[data-theme="dark"] .locator-card h3,
+:root[data-theme="dark"] .locator-panel h2,
+:root[data-theme="dark"] .locator-panel h3,
+:root[data-theme="dark"] .locator-stat strong,
+:root[data-theme="dark"] .locator-stat-card strong,
+:root[data-theme="dark"] .locator-discovery-strip a,
+:root[data-theme="dark"] .locator-page [class*="strip"] a,
+:root[data-theme="dark"] .locator-page [class*="card"] strong,
+:root[data-theme="dark"] .locator-page [class*="panel"] strong {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  background: transparent !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="dark"] .locator-hero p,
+:root[data-theme="dark"] .locator-card p,
+:root[data-theme="dark"] .locator-panel p,
+:root[data-theme="dark"] .locator-stat span,
+:root[data-theme="dark"] .locator-stat small,
+:root[data-theme="dark"] .locator-stat-card span,
+:root[data-theme="dark"] .locator-stat-card small,
+:root[data-theme="dark"] .locator-discovery-strip span,
+:root[data-theme="dark"] .locator-page [class*="strip"] span,
+:root[data-theme="dark"] .locator-page [class*="card"] span,
+:root[data-theme="dark"] .locator-page [class*="card"] small,
+:root[data-theme="dark"] .locator-page [class*="panel"] span,
+:root[data-theme="dark"] .locator-page [class*="panel"] small {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+  background: transparent !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="dark"] .locator-search,
+:root[data-theme="dark"] .locator-search-bar,
+:root[data-theme="dark"] .locator-hero input,
+:root[data-theme="dark"] .locator-hero select,
+:root[data-theme="dark"] .locator-search input,
+:root[data-theme="dark"] .locator-search select,
+:root[data-theme="dark"] .locator-search-bar input,
+:root[data-theme="dark"] .locator-search-bar select {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.25) !important;
+}
+
+:root[data-theme="dark"] .locator-hero input::placeholder,
+:root[data-theme="dark"] .locator-search input::placeholder,
+:root[data-theme="dark"] .locator-search-bar input::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+:root[data-theme="dark"] .locator-primary,
+:root[data-theme="dark"] .locator-primary-small,
+:root[data-theme="dark"] .locator-hero button:first-of-type {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .locator-secondary,
+:root[data-theme="dark"] .locator-secondary-small,
+:root[data-theme="dark"] .locator-hero button:not(:first-of-type) {
+  background: #1e293b !important;
+  color: #e5e7eb !important;
+  -webkit-text-fill-color: #e5e7eb !important;
+}
