@@ -1,6 +1,11 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import "../styles/buyer-dashboard.css";
+import { getMyBids, type BidRow } from "../services/bids";
+import { getMyOffers, type Offer } from "../services/offers";
+import { getMyWatchlist, type WatchlistEntry } from "../services/watchlist";
+import { getMySavedSearches, type SavedSearch } from "../services/savedSearches";
+import { getMySettlements, type Settlement } from "../services/settlements";
 
 type ViewMode = "grid" | "list" | "map";
 
@@ -109,26 +114,37 @@ const shops: BuyerShop[] = [
   },
 ];
 
-const actionItems = [
-  {
-    title: "You were outbid",
-    body: "Milwaukee Drill Set ends in 22 minutes.",
-    cta: "Bid again",
-    href: "/auctions",
-  },
-  {
-    title: "Counteroffer received",
-    body: "Cash City Pawn responded on 14K Gold Chain.",
-    cta: "Review offer",
-    href: "/offers",
-  },
-  {
-    title: "New saved-search matches",
-    body: "8 new nearby items match your saved searches.",
-    cta: "View matches",
-    href: "/saved-searches",
-  },
-];
+function normalizeStatus(value: unknown) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isAuctionLive(row: BidRow) {
+  const status = normalizeStatus(row.auction?.status);
+  return !["ENDED", "CANCELED", "CANCELLED"].includes(status);
+}
+
+function getBidPosition(row: BidRow) {
+  const bid = Number(row.amount);
+  const current = Number(row.auction?.currentPrice);
+
+  if (!Number.isFinite(bid) || !Number.isFinite(current)) return "Unknown";
+  return bid >= current ? "Leading" : "Outbid";
+}
+
+function isPaymentNeeded(row: Settlement) {
+  const status = normalizeStatus(row.status);
+  return ["PENDING", "FAILED"].includes(status);
+}
+
+function settledValue<T>(
+  result: PromiseSettledResult<T>,
+  label: string,
+  errors: string[],
+): T | null {
+  if (result.status === "fulfilled") return result.value;
+  errors.push(label);
+  return null;
+}
 
 function StatCard({
   label,
@@ -210,6 +226,152 @@ function ItemCard({ item, compact = false }: { item: BuyerItem; compact?: boolea
 export default function BuyerDashboardPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [locationStatus, setLocationStatus] = useState("Houston area");
+  const [bids, setBids] = useState<BidRow[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [refreshingDashboard, setRefreshingDashboard] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
+
+  async function loadBuyerDashboard(initial = false) {
+    const errors: string[] = [];
+
+    if (initial) {
+      setDashboardLoading(true);
+    } else {
+      setRefreshingDashboard(true);
+    }
+
+    setDashboardError("");
+
+    try {
+      const [
+        bidsResult,
+        offersResult,
+        watchlistResult,
+        savedSearchesResult,
+        settlementsResult,
+      ] = await Promise.allSettled([
+        getMyBids(),
+        getMyOffers(),
+        getMyWatchlist(),
+        getMySavedSearches(),
+        getMySettlements(),
+      ]);
+
+      const nextBids = settledValue(bidsResult, "bids", errors);
+      const nextOffers = settledValue(offersResult, "offers", errors);
+      const nextWatchlist = settledValue(watchlistResult, "watchlist", errors);
+      const nextSavedSearches = settledValue(savedSearchesResult, "saved searches", errors);
+      const nextSettlements = settledValue(settlementsResult, "settlements", errors);
+
+      if (nextBids) setBids(nextBids);
+      if (nextOffers) setOffers(nextOffers);
+      if (nextWatchlist) setWatchlist(nextWatchlist);
+      if (nextSavedSearches) setSavedSearches(nextSavedSearches);
+      if (nextSettlements) setSettlements(nextSettlements);
+
+      if (errors.length) {
+        setDashboardError(`Some dashboard data could not load: ${errors.join(", ")}.`);
+      }
+    } catch (err) {
+      setDashboardError(
+        err instanceof Error ? err.message : "Failed to load buyer dashboard data.",
+      );
+    } finally {
+      setDashboardLoading(false);
+      setRefreshingDashboard(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadBuyerDashboard(true);
+  }, []);
+
+  const dashboardSummary = useMemo(() => {
+    const activeBids = bids.filter(isAuctionLive).length;
+    const leadingCount = bids.filter((row) => getBidPosition(row) === "Leading").length;
+    const outbidCount = bids.filter((row) => getBidPosition(row) === "Outbid").length;
+    const counteredOffers = offers.filter(
+      (offer) => normalizeStatus(offer.status) === "COUNTERED",
+    ).length;
+    const pendingOffers = offers.filter(
+      (offer) => normalizeStatus(offer.status) === "PENDING",
+    ).length;
+    const paymentNeeded = settlements.filter(isPaymentNeeded).length;
+    const favoriteShopCount = new Set(
+      watchlist
+        .map((entry) => entry.item?.shop?.id || entry.item?.shop?.name)
+        .filter(Boolean),
+    ).size;
+
+    return {
+      activeBids,
+      leadingCount,
+      outbidCount,
+      offerCount: offers.length,
+      counteredOffers,
+      pendingOffers,
+      watchlistCount: watchlist.length,
+      savedSearchCount: savedSearches.length,
+      settlementCount: settlements.length,
+      paymentNeeded,
+      favoriteShopCount,
+    };
+  }, [bids, offers, savedSearches, settlements, watchlist]);
+
+  const dashboardActions = useMemo(() => {
+    const items = [];
+
+    if (dashboardSummary.outbidCount > 0) {
+      items.push({
+        title: "You were outbid",
+        body: `${dashboardSummary.outbidCount} auction bid${dashboardSummary.outbidCount === 1 ? "" : "s"} need attention.`,
+        cta: "Bid again",
+        href: "/my-bids",
+      });
+    }
+
+    if (dashboardSummary.counteredOffers > 0) {
+      items.push({
+        title: "Counteroffer received",
+        body: `${dashboardSummary.counteredOffers} offer${dashboardSummary.counteredOffers === 1 ? "" : "s"} waiting for review.`,
+        cta: "Review offer",
+        href: "/offers",
+      });
+    }
+
+    if (dashboardSummary.paymentNeeded > 0) {
+      items.push({
+        title: "Settlement payment needed",
+        body: `${dashboardSummary.paymentNeeded} won auction settlement${dashboardSummary.paymentNeeded === 1 ? "" : "s"} need payment.`,
+        cta: "Pay now",
+        href: "/my-wins",
+      });
+    }
+
+    if (dashboardSummary.savedSearchCount > 0) {
+      items.push({
+        title: "Saved searches active",
+        body: `${dashboardSummary.savedSearchCount} saved search${dashboardSummary.savedSearchCount === 1 ? "" : "es"} tracking new matches.`,
+        cta: "View matches",
+        href: "/saved-searches",
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "Explore nearby inventory",
+        body: "Browse marketplace items, auctions, and shops to start tracking deals.",
+        cta: "Browse marketplace",
+        href: "/marketplace",
+      });
+    }
+
+    return items.slice(0, 3);
+  }, [dashboardSummary]);
 
   function useLocation() {
     if (!navigator.geolocation) {
@@ -251,6 +413,14 @@ export default function BuyerDashboardPage() {
             <button type="button" className="bd-secondary" onClick={useLocation}>
               Use location
             </button>
+            <button
+              type="button"
+              className="bd-secondary"
+              onClick={() => void loadBuyerDashboard(false)}
+              disabled={refreshingDashboard}
+            >
+              {refreshingDashboard ? "Refreshing..." : "Refresh dashboard"}
+            </button>
           </div>
         </div>
 
@@ -262,38 +432,68 @@ export default function BuyerDashboardPage() {
 
           <div className="bd-hero-grid">
             <div>
-              <strong>148</strong>
-              <span>nearby items</span>
+              <strong>{dashboardSummary.watchlistCount}</strong>
+              <span>watched items</span>
             </div>
             <div>
-              <strong>12</strong>
-              <span>active auctions</span>
+              <strong>{dashboardSummary.activeBids}</strong>
+              <span>active bids</span>
             </div>
             <div>
-              <strong>8</strong>
-              <span>saved matches</span>
+              <strong>{dashboardSummary.savedSearchCount}</strong>
+              <span>saved searches</span>
             </div>
             <div>
-              <strong>3</strong>
-              <span>favorite shops</span>
+              <strong>{dashboardSummary.favoriteShopCount}</strong>
+              <span>tracked shops</span>
             </div>
           </div>
         </aside>
       </section>
 
+      {dashboardError ? (
+        <section className="bd-dashboard-notice bd-dashboard-notice-error">
+          {dashboardError}
+        </section>
+      ) : null}
+
+      {dashboardLoading ? (
+        <section className="bd-dashboard-notice">Loading live buyer dashboard data...</section>
+      ) : null}
+
       <section className="bd-stats">
-        <StatCard label="Active bids" value="3" helper="1 winning · 2 outbid" />
-        <StatCard label="Offers" value="4" helper="1 counteroffer" />
-        <StatCard label="Watchlist" value="9" helper="2 price drops" />
-        <StatCard label="Saved matches" value="8" helper="New nearby items" />
-        <StatCard label="Won auctions" value="1" helper="Payment needed" />
+        <StatCard
+          label="Active bids"
+          value={String(dashboardSummary.activeBids)}
+          helper={`${dashboardSummary.leadingCount} leading · ${dashboardSummary.outbidCount} outbid`}
+        />
+        <StatCard
+          label="Offers"
+          value={String(dashboardSummary.offerCount)}
+          helper={`${dashboardSummary.counteredOffers} countered · ${dashboardSummary.pendingOffers} pending`}
+        />
+        <StatCard
+          label="Watchlist"
+          value={String(dashboardSummary.watchlistCount)}
+          helper="Saved items you are tracking"
+        />
+        <StatCard
+          label="Saved matches"
+          value={String(dashboardSummary.savedSearchCount)}
+          helper="Saved searches watching inventory"
+        />
+        <StatCard
+          label="Won auctions"
+          value={String(dashboardSummary.settlementCount)}
+          helper={`${dashboardSummary.paymentNeeded} payment needed`}
+        />
       </section>
 
       <section className="bd-attention">
         <SectionTitle eyebrow="Action needed" title="Needs your attention" />
 
         <div className="bd-attention-grid">
-          {actionItems.map((item) => (
+          {dashboardActions.map((item) => (
             <article key={item.title} className="bd-attention-card">
               <div>
                 <h3>{item.title}</h3>

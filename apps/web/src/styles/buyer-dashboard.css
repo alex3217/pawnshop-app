@@ -738,3 +738,61 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== BUYER DASHBOARD LIVE DATA NOTICES ===== */
+.bd-dashboard-notice {
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: #eef2ff;
+  color: #312e81;
+  font-weight: 850;
+  line-height: 1.5;
+}
+
+.bd-dashboard-notice-error {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+:root[data-theme="dark"] .bd-dashboard-notice {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+:root[data-theme="dark"] .bd-dashboard-notice-error {
+  background: rgba(127, 29, 29, 0.55);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+/* ===== BUYER DASHBOARD LIVE DATA NOTICES ===== */
+.bd-dashboard-notice {
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: #eef2ff;
+  color: #312e81;
+  font-weight: 850;
+  line-height: 1.5;
+}
+
+.bd-dashboard-notice-error {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+:root[data-theme="dark"] .bd-dashboard-notice {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+:root[data-theme="dark"] .bd-dashboard-notice-error {
+  background: rgba(127, 29, 29, 0.55);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.35);
+}
