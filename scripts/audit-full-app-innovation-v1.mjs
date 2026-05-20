@@ -500,25 +500,30 @@ async function inspectPage(browser, tokens, pageProfile, theme) {
 
   await context.addInitScript(
     ({ token, theme, role }) => {
-      localStorage.setItem("pawnloop-theme-v2", theme);
+      try {
+        localStorage.setItem("pawnloop-theme-v2", theme);
 
-      if (token) {
-        localStorage.setItem("token", token);
-        localStorage.setItem("authToken", token);
-        localStorage.setItem("accessToken", token);
-        localStorage.setItem("pawnloop-token", token);
-        localStorage.setItem("pawnloop-auth-token", token);
+        if (token) {
+          localStorage.setItem("token", token);
+          localStorage.setItem("authToken", token);
+          localStorage.setItem("accessToken", token);
+          localStorage.setItem("pawnloop-token", token);
+          localStorage.setItem("pawnloop-auth-token", token);
+        }
+
+        const roleMap = {
+          buyer: "CONSUMER",
+          owner: "OWNER",
+          admin: "ADMIN",
+          superAdmin: "SUPER_ADMIN",
+        };
+
+        localStorage.setItem("role", roleMap[role] || "CONSUMER");
+        localStorage.setItem("userRole", roleMap[role] || "CONSUMER");
+      } catch {
+        // Some browser-internal/sandboxed documents block localStorage.
+        // Ignore this so the audit can continue on the real app document.
       }
-
-      const roleMap = {
-        buyer: "CONSUMER",
-        owner: "OWNER",
-        admin: "ADMIN",
-        superAdmin: "SUPER_ADMIN",
-      };
-
-      localStorage.setItem("role", roleMap[role] || "CONSUMER");
-      localStorage.setItem("userRole", roleMap[role] || "CONSUMER");
     },
     { token, theme, role: pageProfile.role },
   );
@@ -623,7 +628,7 @@ async function inspectPage(browser, tokens, pageProfile, theme) {
     fullPage: true,
   }).catch(() => {});
 
-  await context.close();
+  await context.close().catch(() => {});
 
   const issues = makeIssues({ pageProfile, result });
 
@@ -774,7 +779,7 @@ const tokens = {
   superAdmin: await login("superAdmin"),
 };
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, args: ['--disable-gpu'] });
 const pages = [];
 
 for (const profile of pageProfiles) {
