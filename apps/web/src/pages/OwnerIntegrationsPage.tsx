@@ -931,6 +931,12 @@ export default function OwnerIntegrationsPage() {
         )}
       </section>
 
+      <div className="owner-integrations-control-note">
+        Owner controls available here: create connectors, test connection,
+        sync now, review sync jobs, inspect Created / Updated / Errors counts,
+        manage field mappings, Remove mappings, and archive integrations safely.
+      </div>
+
       <section style={styles.panel}>
         <div>
           <div style={styles.sectionLabel}>Connection options</div>
