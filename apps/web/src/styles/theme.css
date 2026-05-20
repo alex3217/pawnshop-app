@@ -1643,3 +1643,140 @@
     padding: 18px 0;
   }
 }
+
+/* ===== OWNER INVENTORY LIGHT/DARK READABILITY FIX ===== */
+
+.owner-inventory-page {
+  width: min(1440px, calc(100vw - 32px));
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 28px 0;
+  box-sizing: border-box;
+}
+
+:root:not([data-theme="dark"]) .owner-inventory-page {
+  color: #0f172a !important;
+  background: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .owner-inventory-page,
+:root:not([data-theme="dark"]) .owner-inventory-page * {
+  text-shadow: none !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Main text */
+:root:not([data-theme="dark"]) .owner-inventory-page div,
+:root:not([data-theme="dark"]) .owner-inventory-page article,
+:root:not([data-theme="dark"]) .owner-inventory-page section,
+:root:not([data-theme="dark"]) .owner-inventory-page h1,
+:root:not([data-theme="dark"]) .owner-inventory-page h2,
+:root:not([data-theme="dark"]) .owner-inventory-page h3,
+:root:not([data-theme="dark"]) .owner-inventory-page h4,
+:root:not([data-theme="dark"]) .owner-inventory-page p,
+:root:not([data-theme="dark"]) .owner-inventory-page span,
+:root:not([data-theme="dark"]) .owner-inventory-page strong,
+:root:not([data-theme="dark"]) .owner-inventory-page b,
+:root:not([data-theme="dark"]) .owner-inventory-page label {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+/* Muted text / descriptions */
+:root:not([data-theme="dark"]) .owner-inventory-page small,
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="rgb(215, 222, 247)"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="rgb(238, 242, 255)"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="rgba(238, 242, 255"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="#eef2ff"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="#a7b0d8"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="#8d97c5"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="#cfe0ff"] {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}
+
+/* Cards / panels that were dark inline */
+:root:not([data-theme="dark"]) .owner-inventory-page article[style],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="rgb(18, 25, 53)"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="#121935"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="#111827"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="#0b1020"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="#1a2345"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="rgba(255, 255, 255, 0.04)"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="rgba(255, 255, 255, 0.08)"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="rgba(255, 255, 255, 0.10)"],
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="rgba(255, 255, 255, 0.12)"] {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.30) !important;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* Inputs / filters */
+:root:not([data-theme="dark"]) .owner-inventory-page input,
+:root:not([data-theme="dark"]) .owner-inventory-page select,
+:root:not([data-theme="dark"]) .owner-inventory-page textarea {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.38) !important;
+}
+
+:root:not([data-theme="dark"]) .owner-inventory-page input::placeholder,
+:root:not([data-theme="dark"]) .owner-inventory-page textarea::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+/* Normal action buttons like Mark Sold / View / Shop */
+:root:not([data-theme="dark"]) .owner-inventory-page button[style],
+:root:not([data-theme="dark"]) .owner-inventory-page a[style] {
+  background: #eef2ff !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border-color: rgba(99, 102, 241, 0.28) !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+}
+
+/* Primary edit button */
+:root:not([data-theme="dark"]) .owner-inventory-page a[style*="rgb(110, 168, 254)"],
+:root:not([data-theme="dark"]) .owner-inventory-page button[style*="rgb(110, 168, 254)"],
+:root:not([data-theme="dark"]) .owner-inventory-page a[style*="#6ea8fe"],
+:root:not([data-theme="dark"]) .owner-inventory-page button[style*="#6ea8fe"] {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+}
+
+/* Delete / Archive danger button */
+:root:not([data-theme="dark"]) .owner-inventory-page button[style*="rgba(220, 38, 38"],
+:root:not([data-theme="dark"]) .owner-inventory-page a[style*="rgba(220, 38, 38"] {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  -webkit-text-fill-color: #991b1b !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+
+/* AVAILABLE badge */
+:root:not([data-theme="dark"]) .owner-inventory-page [style*="rgba(46, 204, 113"] {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+  -webkit-text-fill-color: #166534 !important;
+  border-color: rgba(34, 197, 94, 0.35) !important;
+}
+
+/* Dark mode stays dark/readable */
+:root[data-theme="dark"] .owner-inventory-page {
+  color: #eef2ff !important;
+}
+
+@media (max-width: 760px) {
+  .owner-inventory-page {
+    width: min(100%, calc(100vw - 24px));
+    padding: 18px 0;
+  }
+}

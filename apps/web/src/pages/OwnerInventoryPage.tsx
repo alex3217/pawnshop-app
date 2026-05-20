@@ -241,7 +241,7 @@ export default function OwnerInventoryPage() {
   }
 
   return (
-    <div style={styles.page}>
+    <div className="owner-inventory-page" style={styles.page}>
       <div style={styles.header}>
         <div>
           <h2 style={styles.title}>Owner Inventory</h2>
