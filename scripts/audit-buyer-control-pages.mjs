@@ -49,7 +49,16 @@ const pages = [
   {
     name: "saved-searches",
     path: "/saved-searches",
-    expected: ["Saved", "Search", "Marketplace", "Item Locator"],
+    expected: [
+      "Saved",
+      "Create",
+      "Save search",
+      "Quick starters",
+      "Marketplace",
+      "Item locator",
+      "Remove",
+      "Watchlist",
+    ],
   },
   {
     name: "offers",
