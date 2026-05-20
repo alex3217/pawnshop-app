@@ -44,7 +44,20 @@ const pages = [
   {
     name: "watchlist",
     path: "/watchlist",
-    expected: ["watchlist", "Find an item", "My offers", "Buyer dashboard"],
+    expected: [
+      "watchlist",
+      "Find an item",
+      "My offers",
+      "Buyer dashboard",
+      "Search",
+      "Status",
+      "Sort",
+      "Select visible",
+      "Bulk remove",
+      "Make offer",
+      "Check auctions",
+      "Find similar",
+    ],
   },
   {
     name: "saved-searches",
