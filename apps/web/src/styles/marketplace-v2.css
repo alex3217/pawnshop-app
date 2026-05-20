@@ -729,3 +729,267 @@
     min-height: 560px;
   }
 }
+
+/* ===== MARKETPLACE LIGHT MODE FILTER + VIEW TOGGLE FIX ===== */
+:root:not([data-theme="dark"]) .mp2-page button,
+:root:not([data-theme="dark"]) .mp2-page select,
+:root:not([data-theme="dark"]) .mp2-page input {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .mp2-page button:disabled,
+:root:not([data-theme="dark"]) .mp2-page .disabled,
+:root:not([data-theme="dark"]) .mp2-page [aria-disabled="true"] {
+  background: #e5e7eb !important;
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+  opacity: 1 !important;
+}
+
+/* Fix active Grid/List/Map pill text */
+:root:not([data-theme="dark"]) .mp2-page button.active,
+:root:not([data-theme="dark"]) .mp2-page [aria-selected="true"],
+:root:not([data-theme="dark"]) .mp2-page [data-active="true"],
+:root:not([data-theme="dark"]) .mp2-page [class*="active"] {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #0f172a !important;
+  opacity: 1 !important;
+}
+
+/* Fix view toggle containers */
+:root:not([data-theme="dark"]) .mp2-page [class*="view"],
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"],
+:root:not([data-theme="dark"]) .mp2-page [class*="switch"],
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .mp2-page [class*="view"] button,
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"] button,
+:root:not([data-theme="dark"]) .mp2-page [class*="switch"] button,
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] button {
+  min-width: 120px;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  background: transparent !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+}
+
+/* Active view button: Grid/List/Map */
+:root:not([data-theme="dark"]) .mp2-page [class*="view"] button.active,
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"] button.active,
+:root:not([data-theme="dark"]) .mp2-page [class*="switch"] button.active,
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] button.active,
+:root:not([data-theme="dark"]) .mp2-page [class*="view"] button[aria-pressed="true"],
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"] button[aria-pressed="true"],
+:root:not([data-theme="dark"]) .mp2-page [class*="switch"] button[aria-pressed="true"],
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] button[aria-pressed="true"] {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #0f172a !important;
+}
+
+/* Fix top-right Clear Filters / action button */
+:root:not([data-theme="dark"]) .mp2-page [class*="clear"],
+:root:not([data-theme="dark"]) .mp2-page [class*="reset"] {
+  background: #eef2ff !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border: 1px solid rgba(99, 102, 241, 0.24) !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+}
+
+/* Filter card readability */
+:root:not([data-theme="dark"]) .mp2-page [class*="filter"],
+:root:not([data-theme="dark"]) .mp2-page [class*="control"] {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .mp2-page label,
+:root:not([data-theme="dark"]) .mp2-page label span,
+:root:not([data-theme="dark"]) .mp2-page [class*="label"] {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+}
+
+/* ===== MARKETPLACE CLEAR FILTERS + GRID/LIST/MAP BUTTON FIX ===== */
+
+/* Keep all marketplace buttons readable in light mode */
+:root:not([data-theme="dark"]) .mp2-page button {
+  opacity: 1 !important;
+  text-shadow: none !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Clear Filters button — visible even when disabled */
+:root:not([data-theme="dark"]) .mp2-page button:disabled,
+:root:not([data-theme="dark"]) .mp2-page button[disabled],
+:root:not([data-theme="dark"]) .mp2-page [class*="clear"] button,
+:root:not([data-theme="dark"]) .mp2-page button[class*="clear"],
+:root:not([data-theme="dark"]) .mp2-page [class*="reset"] button,
+:root:not([data-theme="dark"]) .mp2-page button[class*="reset"] {
+  background: #eef2ff !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border: 1px solid rgba(99, 102, 241, 0.28) !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+}
+
+/* View mode group container */
+:root:not([data-theme="dark"]) .mp2-page [class*="view"],
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"],
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] {
+  background: #eef2f7 !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+}
+
+/* Grid / List / Map buttons default */
+:root:not([data-theme="dark"]) .mp2-page [class*="view"] button,
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"] button,
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] button {
+  background: transparent !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+  min-width: 110px !important;
+}
+
+/* Active Grid/List/Map button */
+:root:not([data-theme="dark"]) .mp2-page [class*="view"] button.active,
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"] button.active,
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] button.active,
+:root:not([data-theme="dark"]) .mp2-page [class*="view"] button[aria-pressed="true"],
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"] button[aria-pressed="true"],
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] button[aria-pressed="true"],
+:root:not([data-theme="dark"]) .mp2-page [class*="view"] button[aria-selected="true"],
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"] button[aria-selected="true"],
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] button[aria-selected="true"] {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #0f172a !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+}
+
+/* Fallback: first button inside a 3-button view toggle is usually Grid */
+:root:not([data-theme="dark"]) .mp2-page [class*="view"] button:first-child,
+:root:not([data-theme="dark"]) .mp2-page [class*="toggle"] button:first-child,
+:root:not([data-theme="dark"]) .mp2-page [class*="segmented"] button:first-child {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Dark mode still readable */
+:root[data-theme="dark"] .mp2-page button:disabled,
+:root[data-theme="dark"] .mp2-page button[disabled],
+:root[data-theme="dark"] .mp2-page [class*="clear"] button,
+:root[data-theme="dark"] .mp2-page button[class*="clear"],
+:root[data-theme="dark"] .mp2-page [class*="reset"] button,
+:root[data-theme="dark"] .mp2-page button[class*="reset"] {
+  background: #1e293b !important;
+  color: #e5e7eb !important;
+  -webkit-text-fill-color: #e5e7eb !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="dark"] .mp2-page [class*="view"] button.active,
+:root[data-theme="dark"] .mp2-page [class*="toggle"] button.active,
+:root[data-theme="dark"] .mp2-page [class*="segmented"] button.active,
+:root[data-theme="dark"] .mp2-page [class*="view"] button[aria-pressed="true"],
+:root[data-theme="dark"] .mp2-page [class*="toggle"] button[aria-pressed="true"],
+:root[data-theme="dark"] .mp2-page [class*="segmented"] button[aria-pressed="true"] {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* ===== EXACT MARKETPLACE BUTTON FIX: Clear Filters + Grid/List/Map ===== */
+/* The Marketplace wrapper is .marketplace-v2, not .mp2-page. */
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-heading button {
+  background: #eef2ff !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border: 1px solid rgba(99, 102, 241, 0.28) !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+  text-shadow: none !important;
+  mix-blend-mode: normal !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-heading button:disabled,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-heading button[disabled] {
+  background: #e2e8f0 !important;
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  border: 1px solid rgba(148, 163, 184, 0.42) !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-view-toggle {
+  background: #eef2f7 !important;
+  border: 1px solid rgba(148, 163, 184, 0.24) !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-view-toggle button {
+  background: transparent !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+  text-shadow: none !important;
+  mix-blend-mode: normal !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-view-toggle button.active {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #0f172a !important;
+  opacity: 1 !important;
+}
+
+/* Dark mode exact selectors */
+:root[data-theme="dark"] .marketplace-v2 .mp2-filter-heading button {
+  background: #1e293b !important;
+  color: #e5e7eb !important;
+  -webkit-text-fill-color: #e5e7eb !important;
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-view-toggle {
+  background: #1e293b !important;
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-view-toggle button {
+  background: transparent !important;
+  color: #e5e7eb !important;
+  -webkit-text-fill-color: #e5e7eb !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-view-toggle button.active {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
