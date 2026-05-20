@@ -1974,3 +1974,22 @@
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }
+
+/* ===== OWNER STAFF ACCESS CONTROL NOTE ===== */
+.owner-staff-control-note {
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: #eef2ff;
+  color: #312e81;
+  -webkit-text-fill-color: #312e81;
+  font-weight: 850;
+  line-height: 1.5;
+}
+
+:root[data-theme="dark"] .owner-staff-control-note {
+  background: #1e293b;
+  color: #f8fafc;
+  -webkit-text-fill-color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.35);
+}

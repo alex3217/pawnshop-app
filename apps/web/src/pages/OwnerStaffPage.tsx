@@ -792,6 +792,12 @@ export default function OwnerStaffPage() {
         </label>
       </div>
 
+      <div className="owner-staff-control-note">
+        Owner controls available here: search staff, filter by status or role,
+        edit role / permissions, activate / reactivate staff, deactivate staff,
+        and remove access while keeping the audit trail.
+      </div>
+
       {loading ? (
         <div style={styles.stateCard}>Loading staff...</div>
       ) : staff.length === 0 ? (
