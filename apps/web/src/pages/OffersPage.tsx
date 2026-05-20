@@ -445,6 +445,12 @@ export default function OffersPage() {
         </aside>
       </section>
 
+      <section className="offers2-control-note">
+        Offer controls available here: create offers, cancel or withdraw pending offers,
+        review counteroffers, accept or decline responses, and use View item / View shop
+        links from offer cards when offer activity exists.
+      </section>
+
       <section className="offers2-control-panel">
         <div className="offers2-control-head">
           <div>
