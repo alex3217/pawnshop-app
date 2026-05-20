@@ -796,3 +796,159 @@
   color: #fecaca;
   border-color: rgba(248, 113, 113, 0.35);
 }
+
+/* ===== BUYER DASHBOARD LIVE DISCOVERY CLEANUP ===== */
+.bd-empty-panel,
+.bd-auction-mini-card,
+.bd-map-empty {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 18px;
+  padding: 14px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.bd-empty-panel h3,
+.bd-auction-mini-card h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.bd-empty-panel p,
+.bd-auction-mini-card p,
+.bd-auction-mini-card small,
+.bd-map-empty span {
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.bd-empty-panel a,
+.bd-auction-mini-card a {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 10px;
+}
+
+.bd-auction-mini-card {
+  display: grid;
+  gap: 10px;
+}
+
+.bd-auction-mini-card span {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #eef2ff;
+  color: #312e81;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bd-auction-mini-card strong {
+  font-size: 1.1rem;
+}
+
+.bd-map-empty {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 35%;
+  z-index: 2;
+  text-align: center;
+}
+
+:root[data-theme="dark"] .bd-empty-panel,
+:root[data-theme="dark"] .bd-auction-mini-card,
+:root[data-theme="dark"] .bd-map-empty {
+  background: #111827;
+  color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+:root[data-theme="dark"] .bd-empty-panel p,
+:root[data-theme="dark"] .bd-auction-mini-card p,
+:root[data-theme="dark"] .bd-auction-mini-card small,
+:root[data-theme="dark"] .bd-map-empty span {
+  color: #cbd5e1;
+}
+
+/* ===== BUYER DASHBOARD LIVE DISCOVERY CLEANUP ===== */
+.bd-empty-panel,
+.bd-auction-mini-card,
+.bd-map-empty {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 18px;
+  padding: 14px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.bd-empty-panel h3,
+.bd-auction-mini-card h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.bd-empty-panel p,
+.bd-auction-mini-card p,
+.bd-auction-mini-card small,
+.bd-map-empty span {
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.bd-empty-panel a,
+.bd-auction-mini-card a {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 10px;
+}
+
+.bd-auction-mini-card {
+  display: grid;
+  gap: 10px;
+}
+
+.bd-auction-mini-card span {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #eef2ff;
+  color: #312e81;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bd-auction-mini-card strong {
+  font-size: 1.1rem;
+}
+
+.bd-map-empty {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 35%;
+  z-index: 2;
+  text-align: center;
+}
+
+:root[data-theme="dark"] .bd-empty-panel,
+:root[data-theme="dark"] .bd-auction-mini-card,
+:root[data-theme="dark"] .bd-map-empty {
+  background: #111827;
+  color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+:root[data-theme="dark"] .bd-empty-panel p,
+:root[data-theme="dark"] .bd-auction-mini-card p,
+:root[data-theme="dark"] .bd-auction-mini-card small,
+:root[data-theme="dark"] .bd-map-empty span {
+  color: #cbd5e1;
+}

@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import "../styles/buyer-dashboard.css";
+import {
+  getBuyerDashboardDiscovery,
+  type BuyerDashboardAuction,
+  type BuyerDashboardItem,
+  type BuyerDashboardShop,
+} from "../services/buyerDashboardDiscovery";
 import { getMyBids, type BidRow } from "../services/bids";
 import { getMyOffers, type Offer } from "../services/offers";
 import { getMyWatchlist, type WatchlistEntry } from "../services/watchlist";
@@ -8,111 +14,6 @@ import { getMySavedSearches, type SavedSearch } from "../services/savedSearches"
 import { getMySettlements, type Settlement } from "../services/settlements";
 
 type ViewMode = "grid" | "list" | "map";
-
-type BuyerItem = {
-  id: string;
-  title: string;
-  price: string;
-  shop: string;
-  distance: string;
-  meta: string;
-  badge: string;
-  action: string;
-  href: string;
-  x: number;
-  y: number;
-};
-
-type BuyerShop = {
-  id: string;
-  name: string;
-  distance: string;
-  inventory: number;
-  auctions: number;
-  status: string;
-};
-
-const featuredItems: BuyerItem[] = [
-  {
-    id: "ps5",
-    title: "PS5 Console Bundle",
-    price: "$329",
-    shop: "West End Pawn",
-    distance: "2.1 mi",
-    meta: "Gaming · Good condition",
-    badge: "Accepts offers",
-    action: "Make offer",
-    href: "/marketplace",
-    x: 30,
-    y: 42,
-  },
-  {
-    id: "gold-chain",
-    title: "14K Gold Chain",
-    price: "$420",
-    shop: "Cash City Pawn",
-    distance: "3.4 mi",
-    meta: "Jewelry · Verified",
-    badge: "Price drop",
-    action: "View item",
-    href: "/marketplace",
-    x: 58,
-    y: 34,
-  },
-  {
-    id: "drill",
-    title: "Milwaukee Drill Set",
-    price: "$85 bid",
-    shop: "Northline Pawn",
-    distance: "4.8 mi",
-    meta: "Tools · Tested",
-    badge: "Ends soon",
-    action: "Place bid",
-    href: "/auctions",
-    x: 68,
-    y: 64,
-  },
-  {
-    id: "watch",
-    title: "Citizen Watch",
-    price: "$145",
-    shop: "Bayou Pawn",
-    distance: "5.2 mi",
-    meta: "Watches · Excellent",
-    badge: "New arrival",
-    action: "Watch item",
-    href: "/marketplace",
-    x: 42,
-    y: 72,
-  },
-];
-
-const shops: BuyerShop[] = [
-  {
-    id: "west-end",
-    name: "West End Pawn",
-    distance: "2.1 mi",
-    inventory: 148,
-    auctions: 12,
-    status: "Open until 7 PM",
-  },
-  {
-    id: "cash-city",
-    name: "Cash City Pawn",
-    distance: "3.4 mi",
-    inventory: 92,
-    auctions: 7,
-    status: "Open now",
-  },
-  {
-    id: "northline",
-    name: "Northline Pawn",
-    distance: "4.8 mi",
-    inventory: 64,
-    auctions: 5,
-    status: "Closes soon",
-  },
-];
 
 function normalizeStatus(value: unknown) {
   return String(value || "").trim().toUpperCase();
@@ -134,6 +35,15 @@ function getBidPosition(row: BidRow) {
 function isPaymentNeeded(row: Settlement) {
   const status = normalizeStatus(row.status);
   return ["PENDING", "FAILED"].includes(status);
+}
+
+function formatAuctionTime(value: string) {
+  if (!value) return "Ending time unavailable";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Ending time unavailable";
+
+  return `Ends ${date.toLocaleString()}`;
 }
 
 function settledValue<T>(
@@ -191,7 +101,13 @@ function SectionTitle({
   );
 }
 
-function ItemCard({ item, compact = false }: { item: BuyerItem; compact?: boolean }) {
+function ItemCard({
+  item,
+  compact = false,
+}: {
+  item: BuyerDashboardItem;
+  compact?: boolean;
+}) {
   return (
     <article className={compact ? "bd-item-card bd-item-card-compact" : "bd-item-card"}>
       <div className="bd-item-image">
@@ -215,7 +131,7 @@ function ItemCard({ item, compact = false }: { item: BuyerItem; compact?: boolea
             {item.action}
           </Link>
           <Link to="/watchlist" className="bd-secondary-small">
-            Watch
+            Watchlist
           </Link>
         </div>
       </div>
@@ -223,17 +139,64 @@ function ItemCard({ item, compact = false }: { item: BuyerItem; compact?: boolea
   );
 }
 
+function AuctionMiniCard({ auction }: { auction: BuyerDashboardAuction }) {
+  return (
+    <article className="bd-auction-mini-card">
+      <div>
+        <span>{auction.status}</span>
+        <h3>{auction.title}</h3>
+        <p>{auction.shop}</p>
+        <small>{formatAuctionTime(auction.endsAt)}</small>
+      </div>
+
+      <strong>{auction.price}</strong>
+
+      <Link to={auction.href} className="bd-primary-small">
+        Open auction
+      </Link>
+    </article>
+  );
+}
+
+function EmptyPanel({
+  title,
+  body,
+  href,
+  cta,
+}: {
+  title: string;
+  body: string;
+  href: string;
+  cta: string;
+}) {
+  return (
+    <div className="bd-empty-panel">
+      <h3>{title}</h3>
+      <p>{body}</p>
+      <Link to={href}>{cta}</Link>
+    </div>
+  );
+}
+
 export default function BuyerDashboardPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [locationStatus, setLocationStatus] = useState("Houston area");
+  const [searchQuery, setSearchQuery] = useState("");
   const [bids, setBids] = useState<BidRow[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [discoveryItems, setDiscoveryItems] = useState<BuyerDashboardItem[]>([]);
+  const [nearbyShops, setNearbyShops] = useState<BuyerDashboardShop[]>([]);
+  const [liveAuctions, setLiveAuctions] = useState<BuyerDashboardAuction[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [refreshingDashboard, setRefreshingDashboard] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
+
+  const marketplaceSearchHref = searchQuery.trim()
+    ? `/marketplace?search=${encodeURIComponent(searchQuery.trim())}`
+    : "/marketplace";
 
   async function loadBuyerDashboard(initial = false) {
     const errors: string[] = [];
@@ -253,12 +216,14 @@ export default function BuyerDashboardPage() {
         watchlistResult,
         savedSearchesResult,
         settlementsResult,
+        discoveryResult,
       ] = await Promise.allSettled([
         getMyBids(),
         getMyOffers(),
         getMyWatchlist(),
         getMySavedSearches(),
         getMySettlements(),
+        getBuyerDashboardDiscovery(),
       ]);
 
       const nextBids = settledValue(bidsResult, "bids", errors);
@@ -266,12 +231,19 @@ export default function BuyerDashboardPage() {
       const nextWatchlist = settledValue(watchlistResult, "watchlist", errors);
       const nextSavedSearches = settledValue(savedSearchesResult, "saved searches", errors);
       const nextSettlements = settledValue(settlementsResult, "settlements", errors);
+      const nextDiscovery = settledValue(discoveryResult, "marketplace discovery", errors);
 
       if (nextBids) setBids(nextBids);
       if (nextOffers) setOffers(nextOffers);
       if (nextWatchlist) setWatchlist(nextWatchlist);
       if (nextSavedSearches) setSavedSearches(nextSavedSearches);
       if (nextSettlements) setSettlements(nextSettlements);
+
+      if (nextDiscovery) {
+        setDiscoveryItems(nextDiscovery.items);
+        setNearbyShops(nextDiscovery.shops);
+        setLiveAuctions(nextDiscovery.auctions);
+      }
 
       if (errors.length) {
         setDashboardError(`Some dashboard data could not load: ${errors.join(", ")}.`);
@@ -319,8 +291,11 @@ export default function BuyerDashboardPage() {
       settlementCount: settlements.length,
       paymentNeeded,
       favoriteShopCount,
+      marketplaceItemCount: discoveryItems.length,
+      liveAuctionCount: liveAuctions.length,
+      nearbyShopCount: nearbyShops.length,
     };
-  }, [bids, offers, savedSearches, settlements, watchlist]);
+  }, [bids, discoveryItems, liveAuctions, nearbyShops, offers, savedSearches, settlements, watchlist]);
 
   const dashboardActions = useMemo(() => {
     const items = [];
@@ -406,8 +381,12 @@ export default function BuyerDashboardPage() {
           </p>
 
           <div className="bd-search-bar">
-            <input placeholder="Search PS5, gold chain, tools, watches..." />
-            <Link to="/marketplace" className="bd-primary">
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search PS5, gold chain, tools, watches..."
+            />
+            <Link to={marketplaceSearchHref} className="bd-primary">
               Search
             </Link>
             <button type="button" className="bd-secondary" onClick={useLocation}>
@@ -432,20 +411,20 @@ export default function BuyerDashboardPage() {
 
           <div className="bd-hero-grid">
             <div>
-              <strong>{dashboardSummary.watchlistCount}</strong>
-              <span>watched items</span>
+              <strong>{dashboardSummary.marketplaceItemCount}</strong>
+              <span>marketplace items</span>
             </div>
             <div>
-              <strong>{dashboardSummary.activeBids}</strong>
-              <span>active bids</span>
+              <strong>{dashboardSummary.liveAuctionCount}</strong>
+              <span>live auctions</span>
             </div>
             <div>
               <strong>{dashboardSummary.savedSearchCount}</strong>
               <span>saved searches</span>
             </div>
             <div>
-              <strong>{dashboardSummary.favoriteShopCount}</strong>
-              <span>tracked shops</span>
+              <strong>{dashboardSummary.nearbyShopCount}</strong>
+              <span>shops found</span>
             </div>
           </div>
         </aside>
@@ -531,22 +510,29 @@ export default function BuyerDashboardPage() {
           <div className="bd-map-stage">
             <div className="bd-map-user">You</div>
 
-            {featuredItems.map((item) => (
-              <Link
-                key={item.id}
-                to={item.href}
-                className="bd-map-pin"
-                style={{ left: `${item.x}%`, top: `${item.y}%` }}
-                title={item.title}
-              >
-                <strong>{item.price}</strong>
-                <span>{item.distance}</span>
-              </Link>
-            ))}
+            {discoveryItems.length ? (
+              discoveryItems.map((item) => (
+                <Link
+                  key={item.id}
+                  to={item.href}
+                  className="bd-map-pin"
+                  style={{ left: `${item.x}%`, top: `${item.y}%` }}
+                  title={item.title}
+                >
+                  <strong>{item.price}</strong>
+                  <span>{item.distance}</span>
+                </Link>
+              ))
+            ) : (
+              <div className="bd-map-empty">
+                <strong>No live item pins yet</strong>
+                <span>Browse marketplace or create a saved search to track inventory.</span>
+              </div>
+            )}
 
             <div className="bd-map-footer">
-              <strong>Map-ready discovery</strong>
-              <span>Real map provider can replace this panel later.</span>
+              <strong>Live marketplace discovery</strong>
+              <span>Powered by current marketplace items, shops, and auctions.</span>
               <Link to="/shops">View shops</Link>
             </div>
           </div>
@@ -556,44 +542,62 @@ export default function BuyerDashboardPage() {
           <SectionTitle title="Nearby pawnshops" link="/shops" linkLabel="View all" />
 
           <div className="bd-shop-list">
-            {shops.map((shop) => (
-              <Link key={shop.id} to="/shops" className="bd-shop-row">
-                <div>
-                  <h3>{shop.name}</h3>
-                  <p>
-                    {shop.distance} · {shop.status}
-                  </p>
-                </div>
-                <span>
-                  {shop.inventory} items
-                  <small>{shop.auctions} auctions</small>
-                </span>
-              </Link>
-            ))}
+            {nearbyShops.length ? (
+              nearbyShops.map((shop) => (
+                <Link key={shop.id} to={shop.href} className="bd-shop-row">
+                  <div>
+                    <h3>{shop.name}</h3>
+                    <p>
+                      {shop.distance} · {shop.status}
+                    </p>
+                  </div>
+                  <span>
+                    {shop.inventory} items
+                    <small>{shop.auctions} auctions</small>
+                  </span>
+                </Link>
+              ))
+            ) : (
+              <EmptyPanel
+                title="No shop data loaded yet"
+                body="Open the shops directory to browse participating pawnshops."
+                href="/shops"
+                cta="View shops"
+              />
+            )}
           </div>
         </aside>
       </section>
 
       <section className="bd-content-section">
         <SectionTitle
-          eyebrow="Nearby"
+          eyebrow="Live marketplace"
           title="Attractive items close by"
           link="/marketplace"
           linkLabel="View marketplace"
         />
 
-        {viewMode === "list" ? (
-          <div className="bd-list-stack">
-            {featuredItems.map((item) => (
-              <ItemCard key={item.id} item={item} compact />
-            ))}
-          </div>
+        {discoveryItems.length ? (
+          viewMode === "list" ? (
+            <div className="bd-list-stack">
+              {discoveryItems.map((item) => (
+                <ItemCard key={item.id} item={item} compact />
+              ))}
+            </div>
+          ) : (
+            <div className="bd-item-grid">
+              {discoveryItems.map((item) => (
+                <ItemCard key={item.id} item={item} />
+              ))}
+            </div>
+          )
         ) : (
-          <div className="bd-item-grid">
-            {featuredItems.map((item) => (
-              <ItemCard key={item.id} item={item} />
-            ))}
-          </div>
+          <EmptyPanel
+            title="No marketplace items loaded yet"
+            body="Search the marketplace or item locator to find inventory near you."
+            href="/marketplace"
+            cta="Browse marketplace"
+          />
         )}
       </section>
 
@@ -601,27 +605,58 @@ export default function BuyerDashboardPage() {
         <div className="bd-panel">
           <SectionTitle eyebrow="Deals" title="Deals near you" link="/marketplace" linkLabel="See deals" />
           <div className="bd-list-stack">
-            {featuredItems.slice(0, 2).map((item) => (
-              <ItemCard key={item.id} item={item} compact />
-            ))}
+            {discoveryItems.slice(0, 2).length ? (
+              discoveryItems.slice(0, 2).map((item) => (
+                <ItemCard key={item.id} item={item} compact />
+              ))
+            ) : (
+              <EmptyPanel
+                title="No deal cards yet"
+                body="Marketplace results will appear here when inventory is available."
+                href="/marketplace"
+                cta="Search marketplace"
+              />
+            )}
           </div>
         </div>
 
         <div className="bd-panel">
           <SectionTitle eyebrow="Auctions" title="Ending soon" link="/auctions" linkLabel="View auctions" />
           <div className="bd-list-stack">
-            {featuredItems.slice(2, 3).map((item) => (
-              <ItemCard key={item.id} item={item} compact />
-            ))}
+            {liveAuctions.length ? (
+              liveAuctions.slice(0, 3).map((auction) => (
+                <AuctionMiniCard key={auction.id} auction={auction} />
+              ))
+            ) : (
+              <EmptyPanel
+                title="No live auctions right now"
+                body="Open auctions to check scheduled, ended, or upcoming bidding activity."
+                href="/auctions"
+                cta="View auctions"
+              />
+            )}
           </div>
         </div>
 
         <div className="bd-panel">
-          <SectionTitle eyebrow="Saved" title="New matches" link="/saved-searches" linkLabel="Open" />
+          <SectionTitle eyebrow="Saved" title="Saved searches" link="/saved-searches" linkLabel="Open" />
           <div className="bd-link-list">
-            <Link to="/saved-searches">PS5 under $400 nearby <span>8 new</span></Link>
-            <Link to="/saved-searches">Gold jewelry under $500 <span>4 new</span></Link>
-            <Link to="/saved-searches">Milwaukee tools ending soon <span>2 new</span></Link>
+            {savedSearches.length ? (
+              savedSearches.slice(0, 3).map((search) => (
+                <Link
+                  key={search.id}
+                  to={`/marketplace?search=${encodeURIComponent(search.query)}`}
+                >
+                  {search.query} <span>Run search</span>
+                </Link>
+              ))
+            ) : (
+              <>
+                <Link to="/saved-searches">Create saved search <span>Track matches</span></Link>
+                <Link to="/marketplace">Browse marketplace <span>Find items</span></Link>
+                <Link to="/buyer/item-locator">Use item locator <span>Find nearby</span></Link>
+              </>
+            )}
           </div>
         </div>
       </section>
