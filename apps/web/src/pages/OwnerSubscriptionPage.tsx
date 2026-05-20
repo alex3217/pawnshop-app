@@ -754,6 +754,12 @@ export default function OwnerSubscriptionPage() {
         {pageError ? <div style={styles.error}>{pageError}</div> : null}
         {entitlementsError ? <div style={styles.error}>{entitlementsError}</div> : null}
 
+        <div className="owner-subscription-control-note">
+          Owner billing controls available here: review current Plan and Status,
+          compare Feature access and limits, Upgrade or Downgrade plans,
+          Cancel or Renew service, and launch Stripe Checkout for paid seller plans.
+        </div>
+
         {pageLoading ? (
           <div style={styles.card}>Loading subscription data...</div>
         ) : !hasShops ? (
