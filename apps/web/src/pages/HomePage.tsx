@@ -51,7 +51,7 @@ export default function HomePage() {
             offers, and manage marketplace activity from one clean web experience.
           </p>
 
-          <div className="home2-actions">
+          <div className="home2-actions home2-hero-actions">
             <Link to="/marketplace">Browse Marketplace</Link>
             <Link to="/buyer/item-locator">Find an Item</Link>
             <Link to="/buyer/sell-item">Sell / Pawn Item</Link>

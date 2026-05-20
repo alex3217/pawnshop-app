@@ -280,3 +280,122 @@
   -webkit-text-fill-color: #4338ca !important;
   opacity: 1 !important;
 }
+
+/* ===== HOME HERO DARK/LIGHT BUTTON CONTRAST FIX ===== */
+
+/* Primary hero CTA: Browse Marketplace */
+.home2-page .home2-hero-actions a:first-child,
+.home2-page .home2-hero-actions a:first-child:visited,
+.home2-page .home2-hero-actions a:first-child:hover,
+.home2-page .home2-hero-actions a:first-child:focus {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 52px !important;
+  border-radius: 16px !important;
+  padding: 0 18px !important;
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #4f46e5 !important;
+  font-weight: 950 !important;
+  text-decoration: none !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.28) !important;
+}
+
+/* Secondary hero CTAs: Find an Item / Sell / Pawn Item */
+.home2-page .home2-hero-actions a:not(:first-child),
+.home2-page .home2-hero-actions a:not(:first-child):visited,
+.home2-page .home2-hero-actions a:not(:first-child):hover,
+.home2-page .home2-hero-actions a:not(:first-child):focus {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 52px !important;
+  border-radius: 16px !important;
+  padding: 0 18px !important;
+  background: #eef2ff !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border: 1px solid rgba(99, 102, 241, 0.20) !important;
+  font-weight: 950 !important;
+  text-decoration: none !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* Dark mode keeps Browse Marketplace as a visible real button */
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:first-child,
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:first-child:visited,
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:first-child:hover,
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:first-child:focus {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+}
+
+/* Dark mode secondary buttons */
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:not(:first-child),
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:not(:first-child):visited,
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:not(:first-child):hover,
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:not(:first-child):focus {
+  background: #e5e7eb !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border-color: rgba(226, 232, 240, 0.65) !important;
+}
+
+/* ===== EXACT HOME HERO CTA FIX ===== */
+/* Real JSX uses .home2-actions. Keep .home2-hero-actions too for stability. */
+
+.home2-page .home2-actions a:first-child,
+.home2-page .home2-hero-actions a:first-child {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 52px !important;
+  border-radius: 16px !important;
+  padding: 0 18px !important;
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #4f46e5 !important;
+  font-weight: 950 !important;
+  text-decoration: none !important;
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.28) !important;
+}
+
+.home2-page .home2-actions a:not(:first-child),
+.home2-page .home2-hero-actions a:not(:first-child) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 52px !important;
+  border-radius: 16px !important;
+  padding: 0 18px !important;
+  background: #eef2ff !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border: 1px solid rgba(99, 102, 241, 0.24) !important;
+  font-weight: 950 !important;
+  text-decoration: none !important;
+}
+
+:root[data-theme="dark"] .home2-page .home2-actions a:first-child,
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:first-child {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+}
+
+:root[data-theme="dark"] .home2-page .home2-actions a:not(:first-child),
+:root[data-theme="dark"] .home2-page .home2-hero-actions a:not(:first-child) {
+  background: #e5e7eb !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border-color: rgba(226, 232, 240, 0.65) !important;
+}
