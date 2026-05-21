@@ -534,6 +534,37 @@ model PlatformSetting {
   @@index([updatedByUserId])
 }
 
+
+
+model PlatformPricingRule {
+  id               String   @id @default(cuid())
+  key              String   @unique
+  label            String
+  description      String?
+  category         String
+  appliesTo        String
+  feeType          String
+  amountCents      Int?
+  percentBps       Int?
+  minCents         Int?
+  maxCents         Int?
+  currency         String   @default("USD")
+  status           String   @default("DRAFT")
+  stripePriceId    String?
+  effectiveStartAt DateTime?
+  effectiveEndAt   DateTime?
+  metadata         Json?
+  createdByUserId  String?
+  updatedByUserId  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([category, status])
+  @@index([appliesTo, status])
+  @@index([status, effectiveStartAt])
+  @@index([createdAt])
+}
+
 model SuperAdminAuditLog {
   id         String   @id @default(cuid())
   actorId    String?

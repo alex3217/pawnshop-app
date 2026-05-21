@@ -1927,3 +1927,234 @@ export async function updateSuperAdminPlatformSettings(req, res) {
     return sendError(res, error);
   }
 }
+function normalizePricingRuleStatus(value) {
+  const status = normalizeUpper(value, "DRAFT");
+  return ["ACTIVE", "DRAFT", "DISABLED", "ARCHIVED"].includes(status)
+    ? status
+    : "DRAFT";
+}
+
+function normalizePricingRuleFeeType(value) {
+  const feeType = normalizeUpper(value, "FIXED_CENTS");
+  return ["FIXED_CENTS", "PERCENT_BPS", "HYBRID"].includes(feeType)
+    ? feeType
+    : "FIXED_CENTS";
+}
+
+function normalizePricingRuleText(value, fallback = "") {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function normalizePricingRuleInt(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.round(parsed) : null;
+}
+
+function normalizePricingRuleDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function mapPlatformPricingRule(row) {
+  return {
+    id: row.id,
+    key: row.key,
+    label: row.label,
+    description: row.description || "",
+    category: row.category,
+    appliesTo: row.appliesTo,
+    feeType: row.feeType,
+    amountCents: row.amountCents,
+    percentBps: row.percentBps,
+    minCents: row.minCents,
+    maxCents: row.maxCents,
+    currency: row.currency || "USD",
+    status: row.status || "DRAFT",
+    stripePriceId: row.stripePriceId || null,
+    effectiveStartAt: toIsoOrNull(row.effectiveStartAt),
+    effectiveEndAt: toIsoOrNull(row.effectiveEndAt),
+    metadata: row.metadata || null,
+    createdByUserId: row.createdByUserId || null,
+    updatedByUserId: row.updatedByUserId || null,
+    createdAt: toIsoOrNull(row.createdAt),
+    updatedAt: toIsoOrNull(row.updatedAt),
+  };
+}
+
+function buildPricingRuleData(body, actorId, existing = null) {
+  const key = normalizePricingRuleText(body.key, existing?.key || "");
+  const label = normalizePricingRuleText(body.label, existing?.label || "");
+  const category = normalizeUpper(body.category, existing?.category || "PLATFORM_FEES");
+  const appliesTo = normalizeUpper(body.appliesTo, existing?.appliesTo || "PLATFORM");
+  const feeType = normalizePricingRuleFeeType(body.feeType ?? existing?.feeType);
+  const status = normalizePricingRuleStatus(body.status ?? existing?.status);
+
+  if (!key) throw badRequest("Pricing rule key is required.");
+  if (!label) throw badRequest("Pricing rule label is required.");
+
+  const amountCents = normalizePricingRuleInt(
+    body.amountCents !== undefined ? body.amountCents : existing?.amountCents,
+  );
+  const percentBps = normalizePricingRuleInt(
+    body.percentBps !== undefined ? body.percentBps : existing?.percentBps,
+  );
+
+  if (feeType === "FIXED_CENTS" && amountCents === null) {
+    throw badRequest("amountCents is required for fixed fee rules.");
+  }
+
+  if (feeType === "PERCENT_BPS" && percentBps === null) {
+    throw badRequest("percentBps is required for percentage fee rules.");
+  }
+
+  return {
+    key,
+    label,
+    description:
+      body.description !== undefined
+        ? normalizePricingRuleText(body.description)
+        : existing?.description || null,
+    category,
+    appliesTo,
+    feeType,
+    amountCents,
+    percentBps,
+    minCents: normalizePricingRuleInt(
+      body.minCents !== undefined ? body.minCents : existing?.minCents,
+    ),
+    maxCents: normalizePricingRuleInt(
+      body.maxCents !== undefined ? body.maxCents : existing?.maxCents,
+    ),
+    currency: normalizeUpper(body.currency, existing?.currency || "USD"),
+    status,
+    stripePriceId:
+      body.stripePriceId !== undefined
+        ? normalizePricingRuleText(body.stripePriceId) || null
+        : existing?.stripePriceId || null,
+    effectiveStartAt:
+      body.effectiveStartAt !== undefined
+        ? normalizePricingRuleDate(body.effectiveStartAt)
+        : existing?.effectiveStartAt || null,
+    effectiveEndAt:
+      body.effectiveEndAt !== undefined
+        ? normalizePricingRuleDate(body.effectiveEndAt)
+        : existing?.effectiveEndAt || null,
+    metadata:
+      body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
+        ? body.metadata
+        : existing?.metadata || null,
+    updatedByUserId: actorId || null,
+  };
+}
+
+async function writePricingRuleAudit(req, action, targetId, metadata = {}) {
+  try {
+    await prisma.superAdminAuditLog.create({
+      data: {
+        actorId: req.user?.id || null,
+        actorEmail: req.user?.email || null,
+        actorRole: req.user?.role || null,
+        action,
+        method: req.method,
+        path: req.originalUrl || req.path,
+        routeKey: "super-admin.pricing-rules",
+        targetType: "PLATFORM_PRICING_RULE",
+        targetId,
+        statusCode: 200,
+        success: true,
+        requestId: req.id || req.requestId || null,
+        ipAddress: req.ip || null,
+        userAgent: req.get?.("user-agent") || null,
+        metadata,
+      },
+    });
+  } catch (auditError) {
+    console.warn("[super-admin:pricing-rule-audit] Failed to write audit log", {
+      error: auditError?.message || auditError,
+    });
+  }
+}
+
+export async function listSuperAdminPricingRules(req, res) {
+  try {
+    assertSuperAdmin(req);
+
+    const rows = await prisma.platformPricingRule.findMany({
+      orderBy: [{ category: "asc" }, { label: "asc" }],
+    });
+
+    return res.json({
+      success: true,
+      pricingRules: rows.map(mapPlatformPricingRule),
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function createSuperAdminPricingRule(req, res) {
+  try {
+    assertSuperAdmin(req);
+
+    const data = buildPricingRuleData(req.body || {}, req.user?.id, null);
+
+    const row = await prisma.platformPricingRule.create({
+      data: {
+        ...data,
+        createdByUserId: req.user?.id || null,
+      },
+    });
+
+    await writePricingRuleAudit(req, "CREATE_PLATFORM_PRICING_RULE", row.id, {
+      key: row.key,
+      category: row.category,
+      appliesTo: row.appliesTo,
+      feeType: row.feeType,
+      status: row.status,
+    });
+
+    return res.status(201).json({
+      success: true,
+      pricingRule: mapPlatformPricingRule(row),
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function updateSuperAdminPricingRule(req, res) {
+  try {
+    assertSuperAdmin(req);
+
+    const id = normalizeId(req.params?.id);
+    if (!id) throw badRequest("Pricing rule id is required.");
+
+    const existing = await prisma.platformPricingRule.findUnique({ where: { id } });
+    if (!existing) throw notFound("Pricing rule not found.");
+
+    const data = buildPricingRuleData(req.body || {}, req.user?.id, existing);
+
+    const row = await prisma.platformPricingRule.update({
+      where: { id },
+      data,
+    });
+
+    await writePricingRuleAudit(req, "UPDATE_PLATFORM_PRICING_RULE", row.id, {
+      key: row.key,
+      category: row.category,
+      appliesTo: row.appliesTo,
+      feeType: row.feeType,
+      status: row.status,
+    });
+
+    return res.json({
+      success: true,
+      pricingRule: mapPlatformPricingRule(row),
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}

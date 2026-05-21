@@ -28,6 +28,9 @@ import {
   getSuperAdminRevenueSummary,
   getSuperAdminPlatformSettings,
   updateSuperAdminPlatformSettings,
+  listSuperAdminPricingRules,
+  createSuperAdminPricingRule,
+  updateSuperAdminPricingRule,
 } from "../controllers/superAdmin.controller.js";
 
 const router = Router();
@@ -369,6 +372,22 @@ router.patch(
 );
 
 router.get("/revenue", asyncRoute(getSuperAdminRevenueSummary));
+
+
+router.get("/pricing-rules", asyncRoute(listSuperAdminPricingRules));
+
+router.post(
+  "/pricing-rules",
+  validateJsonObjectBody,
+  asyncRoute(createSuperAdminPricingRule)
+);
+
+router.patch(
+  "/pricing-rules/:id",
+  validateIdParam("id", "Pricing rule id"),
+  validateJsonObjectBody,
+  asyncRoute(updateSuperAdminPricingRule)
+);
 
 router.get("/platform-settings", asyncRoute(getSuperAdminPlatformSettings));
 

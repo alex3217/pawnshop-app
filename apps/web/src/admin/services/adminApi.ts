@@ -179,6 +179,51 @@ export type AdminSettlementRow = {
   } | null;
 };
 
+export type PlatformPricingRuleStatus = "ACTIVE" | "DRAFT" | "DISABLED" | "ARCHIVED";
+
+export type PlatformPricingRuleRow = {
+  id: string;
+  key: string;
+  label: string;
+  description?: string | null;
+  category: string;
+  appliesTo: string;
+  feeType: string;
+  amountCents?: number | null;
+  percentBps?: number | null;
+  minCents?: number | null;
+  maxCents?: number | null;
+  currency?: string | null;
+  status: PlatformPricingRuleStatus;
+  stripePriceId?: string | null;
+  effectiveStartAt?: string | null;
+  effectiveEndAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdByUserId?: string | null;
+  updatedByUserId?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type SavePlatformPricingRuleInput = {
+  key: string;
+  label: string;
+  description?: string | null;
+  category: string;
+  appliesTo: string;
+  feeType: string;
+  amountCents?: number | null;
+  percentBps?: number | null;
+  minCents?: number | null;
+  maxCents?: number | null;
+  currency?: string | null;
+  status?: PlatformPricingRuleStatus;
+  stripePriceId?: string | null;
+  effectiveStartAt?: string | null;
+  effectiveEndAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
 export type SellerPlanSummary = {
   code: string;
   label: string;
@@ -674,6 +719,18 @@ function jsonBody(body: unknown): Pick<RequestInit, "body" | "headers"> {
   };
 }
 
+function postJson<T>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal
+): Promise<T> {
+  return adminRequest<T>(path, {
+    method: "POST",
+    body: JSON.stringify(body),
+    signal,
+  });
+}
+
 function patchJson<T>(
   path: string,
   body: unknown,
@@ -1073,6 +1130,37 @@ export const adminApi = {
     );
     return payload.revenue ?? {};
   },
+
+  getSuperAdminPricingRules: async (
+    signal?: AbortSignal
+  ): Promise<PlatformPricingRuleRow[]> => {
+    const payload = await adminRequest<{ pricingRules?: PlatformPricingRuleRow[] }>(
+      "/super-admin/pricing-rules",
+      { signal }
+    );
+    return Array.isArray(payload.pricingRules) ? payload.pricingRules : [];
+  },
+
+  createSuperAdminPricingRule: (
+    input: SavePlatformPricingRuleInput,
+    signal?: AbortSignal
+  ) =>
+    postJson<{ success: boolean; pricingRule: PlatformPricingRuleRow }>(
+      "/super-admin/pricing-rules",
+      input,
+      signal
+    ),
+
+  updateSuperAdminPricingRule: (
+    id: string,
+    input: Partial<SavePlatformPricingRuleInput>,
+    signal?: AbortSignal
+  ) =>
+    patchJson<{ success: boolean; pricingRule: PlatformPricingRuleRow }>(
+      `/super-admin/pricing-rules/${encodeURIComponent(id)}`,
+      input,
+      signal
+    ),
 
   getPlatformSettings: async (
     signal?: AbortSignal
