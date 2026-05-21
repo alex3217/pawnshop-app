@@ -2,41 +2,15 @@
 
 import { prisma } from "../lib/prisma.js";
 import {
+  BUYER_PLAN_CODES,
+  getBuyerPlanCatalog,
+} from "../services/platformPricingCatalog.service.js";
+import {
   SELLER_PLANS,
   getSellerPlanCodes,
   getPaidSellerPlanCodes,
 } from "../config/sellerPlans.js";
 
-const BUYER_PLAN_CATALOG = Object.freeze([
-  {
-    code: "FREE",
-    label: "Free",
-    monthlyPriceCents: 0,
-    yearlyPriceCents: 0,
-    features: ["Browse marketplace", "Watchlist", "Saved searches"],
-  },
-  {
-    code: "PLUS",
-    label: "Plus",
-    monthlyPriceCents: 999,
-    yearlyPriceCents: 9990,
-    features: ["Everything in Free", "Priority alerts", "Enhanced saved searches"],
-  },
-  {
-    code: "PREMIUM",
-    label: "Premium",
-    monthlyPriceCents: 1999,
-    yearlyPriceCents: 19990,
-    features: ["Everything in Plus", "Advanced notifications", "Priority support"],
-  },
-  {
-    code: "ULTRA",
-    label: "Ultra",
-    monthlyPriceCents: 2999,
-    yearlyPriceCents: 29990,
-    features: ["Everything in Premium", "VIP access features", "Early feature access"],
-  },
-]);
 
 const USER_ROLE_CODES = new Set(["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
 
@@ -208,7 +182,7 @@ function buildSearchFilter(fields, value) {
 
 function normalizeBuyerPlanCode(value, fallback = "FREE") {
   const planCode = normalizeUpper(value, fallback);
-  const allowedPlanCodes = BUYER_PLAN_CATALOG.map((plan) => plan.code);
+  const allowedPlanCodes = BUYER_PLAN_CODES;
 
   if (!allowedPlanCodes.includes(planCode)) {
     throw badRequest("Invalid buyer plan code.", { allowedPlanCodes });
@@ -374,8 +348,10 @@ function mapSellerPlanCatalog() {
   });
 }
 
-function mapBuyerPlanCatalog() {
-  return BUYER_PLAN_CATALOG.map((plan) => ({
+async function mapBuyerPlanCatalog() {
+  const plans = await getBuyerPlanCatalog();
+
+  return plans.map((plan) => ({
     ...plan,
     yearlyPriceCents: Number(
       plan.yearlyPriceCents ?? Math.round(Number(plan.monthlyPriceCents || 0) * 10)
@@ -460,7 +436,7 @@ export async function getSuperAdminOverview(req, res) {
     );
 
     const sellerPlanCatalog = mapSellerPlanCatalog();
-    const buyerPlanCatalog = mapBuyerPlanCatalog();
+    const buyerPlanCatalog = await mapBuyerPlanCatalog();
 
     const projectedSellerMrrCents = shops.reduce((sum, shop) => {
       const plan = sellerPlanCatalog.find(
@@ -1537,7 +1513,7 @@ export async function getSuperAdminBuyerPlans(req, res) {
 
     return res.json({
       success: true,
-      plans: mapBuyerPlanCatalog(),
+      plans: await mapBuyerPlanCatalog(),
       source: "CONTROLLER_DEFAULTS",
       mutableInApp: false,
     });
@@ -1820,7 +1796,7 @@ export async function getSuperAdminRevenueSummary(req, res) {
     );
 
     const sellerPlanCatalog = mapSellerPlanCatalog();
-    const buyerPlanCatalog = mapBuyerPlanCatalog();
+    const buyerPlanCatalog = await mapBuyerPlanCatalog();
 
     const projectedSellerMrrCents = shops.reduce((sum, shop) => {
       const plan = sellerPlanCatalog.find(

@@ -1,6 +1,9 @@
 import { prisma } from "../lib/prisma.js";
+import {
+  BUYER_PLAN_CODES,
+  getBuyerPlanCatalog,
+} from "../services/platformPricingCatalog.service.js";
 
-const BUYER_PLAN_CODES = ["FREE", "PLUS", "PREMIUM", "ULTRA"];
 const BUYER_SUBSCRIPTION_STATUSES = [
   "UNKNOWN",
   "ACTIVE",
@@ -107,46 +110,11 @@ async function requireBuyerSubscriptionModel() {
 
 export async function listAvailableBuyerPlans(_req, res) {
   try {
+    const plans = await getBuyerPlanCatalog();
+
     return res.json({
       success: true,
-      plans: [
-        {
-          code: "FREE",
-          label: "Free",
-          monthlyPriceCents: 0,
-          features: ["Browse marketplace", "Watchlist", "Saved searches"],
-        },
-        {
-          code: "PLUS",
-          label: "Plus",
-          monthlyPriceCents: 999,
-          features: [
-            "Everything in Free",
-            "Priority alerts",
-            "Enhanced saved searches",
-          ],
-        },
-        {
-          code: "PREMIUM",
-          label: "Premium",
-          monthlyPriceCents: 1999,
-          features: [
-            "Everything in Plus",
-            "Advanced notifications",
-            "Priority support",
-          ],
-        },
-        {
-          code: "ULTRA",
-          label: "Ultra",
-          monthlyPriceCents: 2999,
-          features: [
-            "Everything in Premium",
-            "VIP access features",
-            "Early feature access",
-          ],
-        },
-      ],
+      plans,
     });
   } catch (error) {
     return sendError(res, error);
