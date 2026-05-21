@@ -273,6 +273,15 @@ const pageProfiles = [
   {
     group: "super-admin",
     role: "superAdmin",
+    name: "super-admin-pricing",
+    path: "/super-admin/pricing",
+    expected: ["Pricing Control", "Subscription", "Commission", "Service fee", "Auction", "Payout", "Settlement"],
+    innovation: ["Export CSV", "Platform Settings", "Audit", "Seller plan", "Buyer plan"],
+  },
+
+  {
+    group: "super-admin",
+    role: "superAdmin",
     name: "super-admin-revenue",
     path: "/super-admin/revenue",
     expected: ["Revenue"],
