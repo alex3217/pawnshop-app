@@ -1,46 +1,15 @@
 // File: apps/api/backend/src/services/platformPricingCatalog.service.js
 
 import { prisma } from "../lib/prisma.js";
+import { listBuyerPlans } from "../config/buyerPlans.js";
 import {
   SELLER_PLANS,
   getPaidSellerPlanCodes,
   getSellerPlanCodes,
 } from "../config/sellerPlans.js";
 
-const FALLBACK_BUYER_PLAN_CATALOG = Object.freeze([
-  {
-    code: "FREE",
-    label: "Free",
-    monthlyPriceCents: 0,
-    yearlyPriceCents: 0,
-    features: ["Browse marketplace", "Watchlist", "Saved searches"],
-  },
-  {
-    code: "PLUS",
-    label: "Plus",
-    monthlyPriceCents: 999,
-    yearlyPriceCents: 9990,
-    features: ["Everything in Free", "Priority alerts", "Enhanced saved searches"],
-  },
-  {
-    code: "PREMIUM",
-    label: "Premium",
-    monthlyPriceCents: 1999,
-    yearlyPriceCents: 19990,
-    features: ["Everything in Plus", "Advanced notifications", "Priority support"],
-  },
-  {
-    code: "ULTRA",
-    label: "Ultra",
-    monthlyPriceCents: 2999,
-    yearlyPriceCents: 29990,
-    features: ["Everything in Premium", "VIP access features", "Early feature access"],
-  },
-]);
 
-export const BUYER_PLAN_CODES = Object.freeze(
-  FALLBACK_BUYER_PLAN_CATALOG.map((plan) => plan.code),
-);
+export const BUYER_PLAN_CODES = Object.freeze(listBuyerPlans().map((plan) => plan.code));
 
 function clonePlan(plan) {
   return {
@@ -105,14 +74,14 @@ function applyBuyerPlanPricingOverrides(plans, ruleMap) {
 }
 
 export async function getBuyerPlanCatalog() {
-  const fallback = FALLBACK_BUYER_PLAN_CATALOG.map(clonePlan);
+  const fallback = listBuyerPlans().map(clonePlan);
   const ruleMap = await getActivePricingRuleMap();
 
   return applyBuyerPlanPricingOverrides(fallback, ruleMap);
 }
 
 export function getFallbackBuyerPlanCatalog() {
-  return FALLBACK_BUYER_PLAN_CATALOG.map(clonePlan);
+  return listBuyerPlans().map(clonePlan);
 }
 
 
