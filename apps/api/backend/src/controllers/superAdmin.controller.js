@@ -1927,6 +1927,10 @@ export async function updateSuperAdminPlatformSettings(req, res) {
     return sendError(res, error);
   }
 }
+function normalizePricingRuleId(value) {
+  return String(value ?? "").trim();
+}
+
 function normalizePricingRuleStatus(value) {
   const status = normalizeUpper(value, "DRAFT");
   return ["ACTIVE", "DRAFT", "DISABLED", "ARCHIVED"].includes(status)
@@ -2129,7 +2133,7 @@ export async function updateSuperAdminPricingRule(req, res) {
   try {
     assertSuperAdmin(req);
 
-    const id = normalizeId(req.params?.id);
+    const id = normalizePricingRuleId(req.params?.id);
     if (!id) throw badRequest("Pricing rule id is required.");
 
     const existing = await prisma.platformPricingRule.findUnique({ where: { id } });
