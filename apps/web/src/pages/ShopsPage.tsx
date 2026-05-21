@@ -5,6 +5,8 @@ import "../styles/shops-v2.css";
 
 type ViewMode = "grid" | "list" | "map";
 
+const SHOPS_PAGE_SIZE = 36;
+
 function normalizeText(value: string | null | undefined) {
   return String(value || "").trim().toLowerCase();
 }
@@ -166,6 +168,7 @@ function ShopsMap({
 
 export default function ShopsPage() {
   const [shops, setShops] = useState<Shop[]>([]);
+  const [visibleCount, setVisibleCount] = useState(SHOPS_PAGE_SIZE);
   const [query, setQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
   const [requirePhone, setRequirePhone] = useState(false);
@@ -248,6 +251,13 @@ export default function ShopsPage() {
       withHours,
     };
   }, [shops, filteredShops]);
+
+  const visibleShops = useMemo(
+    () => filteredShops.slice(0, visibleCount),
+    [filteredShops, visibleCount],
+  );
+
+  const hiddenShopCount = Math.max(filteredShops.length - visibleShops.length, 0);
 
   const hasActiveFilters = Boolean(
     query.trim() || locationQuery.trim() || requirePhone || requireHours,
@@ -434,7 +444,7 @@ export default function ShopsPage() {
         />
       ) : (
         <section className={viewMode === "list" ? "shops2-list" : "shops2-grid"}>
-          {filteredShops.map((shop, index) => (
+          {visibleShops.map((shop, index) => (
             <ShopCard
               key={shop.id}
               shop={shop}
@@ -444,6 +454,31 @@ export default function ShopsPage() {
           ))}
         </section>
       )}
+      {hiddenShopCount > 0 ? (
+        <section className="shops2-pagination-panel">
+          <div>
+            <strong>
+              Showing {visibleShops.length} of {filteredShops.length} shops
+            </strong>
+            <p>
+              More shop storefronts are available. Load more when you want to
+              continue browsing local inventory sources.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              setVisibleCount((current) =>
+                Math.min(current + SHOPS_PAGE_SIZE, filteredShops.length),
+              )
+            }
+          >
+            Show more shops ({hiddenShopCount})
+          </button>
+        </section>
+      ) : null}
+
     </main>
   );
 }
