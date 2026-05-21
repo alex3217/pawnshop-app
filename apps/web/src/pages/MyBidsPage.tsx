@@ -104,6 +104,8 @@ function isEndedBid(row: BidRow) {
   return normalizeStatus(row.auction?.status) === "ENDED" || getAuctionEndLabel(row) === "Ended";
 }
 
+const MY_BIDS_PAGE_SIZE = 36;
+
 function BidCard({
   row,
   watchingItemId,
@@ -215,6 +217,7 @@ export default function MyBidsPage() {
   const token = getAuthToken();
 
   const [rows, setRows] = useState<BidRow[]>([]);
+  const [visibleCount, setVisibleCount] = useState(MY_BIDS_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [watchingItemId, setWatchingItemId] = useState<string | null>(null);
@@ -355,6 +358,13 @@ export default function MyBidsPage() {
     { value: "ENDED", label: "Ended" },
   ];
 
+  const visibleRows = useMemo(
+    () => filteredRows.slice(0, visibleCount),
+    [filteredRows, visibleCount],
+  );
+
+  const hiddenBidCount = Math.max(filteredRows.length - visibleRows.length, 0);
+
   return (
     <main className="mybids2-page">
       <section className="mybids2-hero">
@@ -363,7 +373,9 @@ export default function MyBidsPage() {
           <h1>Track your bids and auction activity.</h1>
           <p>
             Review live bids, see whether you are leading or outbid, jump back into
-            auctions, and keep control of your auction activity.
+            auctions, and keep control of your auction activity. Use Bid again when
+            you are outbid, Monitor auction when you are leading, and Open auction
+            for ended or historical bid records.
           </p>
 
           <div className="mybids2-hero-actions">
@@ -485,16 +497,43 @@ export default function MyBidsPage() {
           <Link to="/auctions">Browse auctions</Link>
         </section>
       ) : (
-        <section className="mybids2-grid">
-          {filteredRows.map((row) => (
-            <BidCard
-              key={row.id}
-              row={row}
-              watchingItemId={watchingItemId}
-              onWatchItem={handleWatchItem}
-            />
-          ))}
-        </section>
+        <>
+          <section className="mybids2-grid">
+            {visibleRows.map((row) => (
+              <BidCard
+                key={row.id}
+                row={row}
+                watchingItemId={watchingItemId}
+                onWatchItem={handleWatchItem}
+              />
+            ))}
+          </section>
+
+          {hiddenBidCount > 0 ? (
+            <section className="mybids2-pagination-panel">
+              <div>
+                <strong>
+                  Showing {visibleRows.length} of {filteredRows.length} bid records
+                </strong>
+                <p>
+                  Older bid records are still available. Load more when you need
+                  deeper auction history.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleCount((current) =>
+                    Math.min(current + MY_BIDS_PAGE_SIZE, filteredRows.length),
+                  )
+                }
+              >
+                Show more bids ({hiddenBidCount})
+              </button>
+            </section>
+          ) : null}
+        </>
       )}
     </main>
   );
