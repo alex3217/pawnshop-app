@@ -6,10 +6,10 @@ import {
   assertKnownSellerPlanCode,
   assertKnownSubscriptionStatus,
   getSellerPlanSummary,
-  listSellerPlans,
   normalizeSubscriptionStatus,
 } from "../config/sellerPlans.js";
 import { getSellerEntitlementsForShop } from "../services/sellerPlan.service.js";
+import { getSellerPlanCatalog } from "../services/platformPricingCatalog.service.js";
 
 function errorResponse(res, err, fallback = "Internal Server Error") {
   const status = Number(err?.statusCode) || Number(err?.status) || 500;
@@ -118,9 +118,11 @@ function buildShopPlanResponse(shop) {
 
 export async function listAvailableSellerPlans(_req, res) {
   try {
+    const plans = await getSellerPlanCatalog();
+
     return res.json({
       success: true,
-      plans: listSellerPlans().map((plan) => getSellerPlanSummary(plan.code)),
+      plans,
     });
   } catch (err) {
     return errorResponse(res, err, "Failed to load seller plans");

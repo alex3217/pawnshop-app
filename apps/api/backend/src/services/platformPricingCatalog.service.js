@@ -115,8 +115,37 @@ export function getFallbackBuyerPlanCatalog() {
   return FALLBACK_BUYER_PLAN_CATALOG.map(clonePlan);
 }
 
-export function getSellerPlanCatalog() {
-  return getSellerPlanCodes().map((code) => {
+
+function applySellerPlanPricingOverrides(plans, ruleMap) {
+  return plans.map((plan) => {
+    const code = normalizeRuleKey(plan.code);
+    const monthlyRule = ruleMap.get(`seller_plan_${code}_monthly`);
+    const yearlyRule = ruleMap.get(`seller_plan_${code}_yearly`);
+    const commissionRule = ruleMap.get(`seller_plan_${code}_commission_bps`);
+
+    const commissionBps = toNumberOrFallback(
+      commissionRule?.percentBps,
+      plan.commissionBps,
+    );
+
+    return {
+      ...plan,
+      monthlyPriceCents: toNumberOrFallback(
+        monthlyRule?.amountCents,
+        plan.monthlyPriceCents,
+      ),
+      yearlyPriceCents: toNumberOrFallback(
+        yearlyRule?.amountCents,
+        plan.yearlyPriceCents,
+      ),
+      commissionBps,
+      commissionPercent: Number((Number(commissionBps || 0) / 100).toFixed(2)),
+    };
+  });
+}
+
+export async function getSellerPlanCatalog() {
+  const fallback = getSellerPlanCodes().map((code) => {
     const plan = SELLER_PLANS[code];
 
     return {
@@ -138,4 +167,7 @@ export function getSellerPlanCatalog() {
       isPaid: getPaidSellerPlanCodes().includes(plan.code),
     };
   });
+
+  const ruleMap = await getActivePricingRuleMap();
+  return applySellerPlanPricingOverrides(fallback, ruleMap);
 }

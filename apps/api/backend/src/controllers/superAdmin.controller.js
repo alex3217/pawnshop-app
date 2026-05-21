@@ -4,12 +4,9 @@ import { prisma } from "../lib/prisma.js";
 import {
   BUYER_PLAN_CODES,
   getBuyerPlanCatalog,
+  getSellerPlanCatalog,
 } from "../services/platformPricingCatalog.service.js";
-import {
-  SELLER_PLANS,
-  getSellerPlanCodes,
-  getPaidSellerPlanCodes,
-} from "../config/sellerPlans.js";
+import { getSellerPlanCodes } from "../config/sellerPlans.js";
 
 
 const USER_ROLE_CODES = new Set(["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
@@ -323,29 +320,8 @@ function mapBuyerSubscriptionRow(record) {
   };
 }
 
-function mapSellerPlanCatalog() {
-  return getSellerPlanCodes().map((code) => {
-    const plan = SELLER_PLANS[code];
-
-    return {
-      code: plan.code,
-      label: plan.label,
-      monthlyPriceCents: Number(plan.monthlyPriceCents || 0),
-      yearlyPriceCents: Number(plan.yearlyPriceCents || 0),
-      maxActiveListings:
-        plan.maxActiveListings === null ? null : Number(plan.maxActiveListings || 0),
-      maxLocations: plan.maxLocations === null ? null : Number(plan.maxLocations || 0),
-      maxStaffUsers:
-        plan.maxStaffUsers === null ? null : Number(plan.maxStaffUsers || 0),
-      canCreateAuctions: Boolean(plan.canCreateAuctions),
-      canFeatureListings: Boolean(plan.canFeatureListings),
-      analyticsLevel: plan.analyticsLevel || "none",
-      commissionBps: Number(plan.commissionBps || 0),
-      commissionPercent: Number((Number(plan.commissionBps || 0) / 100).toFixed(2)),
-      features: Array.isArray(plan.features) ? plan.features : [],
-      isPaid: getPaidSellerPlanCodes().includes(plan.code),
-    };
-  });
+async function mapSellerPlanCatalog() {
+  return getSellerPlanCatalog();
 }
 
 async function mapBuyerPlanCatalog() {
@@ -435,7 +411,7 @@ export async function getSuperAdminOverview(req, res) {
       (row) => normalizeUpper(row.status) === "CHARGED"
     );
 
-    const sellerPlanCatalog = mapSellerPlanCatalog();
+    const sellerPlanCatalog = await mapSellerPlanCatalog();
     const buyerPlanCatalog = await mapBuyerPlanCatalog();
 
     const projectedSellerMrrCents = shops.reduce((sum, shop) => {
@@ -1498,7 +1474,7 @@ export async function getSuperAdminSellerPlans(req, res) {
 
     return res.json({
       success: true,
-      plans: mapSellerPlanCatalog(),
+      plans: await mapSellerPlanCatalog(),
       source: "CONFIG",
       mutableInApp: false,
     });
@@ -1795,7 +1771,7 @@ export async function getSuperAdminRevenueSummary(req, res) {
       0
     );
 
-    const sellerPlanCatalog = mapSellerPlanCatalog();
+    const sellerPlanCatalog = await mapSellerPlanCatalog();
     const buyerPlanCatalog = await mapBuyerPlanCatalog();
 
     const projectedSellerMrrCents = shops.reduce((sum, shop) => {
