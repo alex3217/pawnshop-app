@@ -150,6 +150,21 @@ const REVIEW_ONLY_CONTROLS: CommandCard[] = [
       "No delete",
     ],
   },
+
+  {
+    title: "Pricing Control",
+    description: "Central control center for subscriptions, commissions, service fees, auction fees, payout fees, and all platform pricing.",
+    to: "/super-admin/pricing",
+    primaryAction: "Open Pricing Control",
+    controls: [
+      "Seller plan prices",
+      "Buyer plan prices",
+      "Commission rules",
+      "Service fees",
+      "Auction fees",
+      "Payout fees",
+    ],
+  },
   {
     title: "Revenue Dashboard",
     description: "Review platform revenue and financial metrics.",

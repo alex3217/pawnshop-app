@@ -98,6 +98,7 @@ const SuperAdminPlatformSettingsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminPlatformSettingsPage"),
 );
 const SuperAdminRevenuePage = lazyPage(() => import("./admin/pages/SuperAdminRevenuePage"));
+const SuperAdminPricingPage = lazyPage(() => import("./admin/pages/SuperAdminPricingPage"));
 const SuperAdminBuyerSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminBuyerSubscriptionsPage"),
 );
@@ -326,6 +327,7 @@ const superAdminRoutes: RouteConfig[] = [
     element: <Navigate to="/super-admin/buyer-subscriptions" replace />,
   },
   { path: "settlements", element: <SuperAdminSettlementsPage /> },
+  { path: "pricing", element: <SuperAdminPricingPage /> },
   { path: "revenue", element: <SuperAdminRevenuePage /> },
   { path: "audit", element: <SuperAdminAuditPage /> },
   { path: "system", element: <SuperAdminSystemHealthPage /> },
