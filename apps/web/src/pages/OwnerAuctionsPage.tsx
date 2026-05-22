@@ -1346,6 +1346,49 @@ export default function OwnerAuctionsPage() {
                     {getOwnerAuctionTimeState(auction)}
                   </div>
 
+                  {closedAuction ? (
+                    <div
+                      data-owner-auction-settlement-summary="true"
+                      style={{
+                        borderRadius: 12,
+                        padding: "10px 12px",
+                        background: "rgba(34,197,94,0.10)",
+                        border: "1px solid rgba(34,197,94,0.22)",
+                        color: "#dcfce7",
+                        display: "grid",
+                        gap: 5,
+                        marginTop: 10,
+                        fontSize: 13,
+                      }}
+                    >
+                      <strong>Settlement Summary</strong>
+                      {auction.settlement ? (
+                        <>
+                          <span>
+                            Winner:{" "}
+                            {auction.settlement.winnerName ||
+                              auction.settlement.winnerEmail ||
+                              auction.settlement.winnerUserId ||
+                              "Winning buyer"}
+                          </span>
+                          <span>
+                            Final amount:{" "}
+                            {formatOwnerAuctionCents(auction.settlement.finalAmountCents)}
+                          </span>
+                          <span>
+                            Status: {String(auction.settlement.status || "PENDING")}
+                          </span>
+                          <span>Settlement ID: {auction.settlement.id}</span>
+                        </>
+                      ) : (
+                        <span>
+                          No settlement is attached yet. Auctions without bids may close without
+                          creating a settlement.
+                        </span>
+                      )}
+                    </div>
+                  ) : null}
+
                   <div
                     style={{
                       display: "flex",

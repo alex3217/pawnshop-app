@@ -37,6 +37,7 @@ export type Auction = {
     address?: string | null;
     phone?: string | null;
   } | null;
+  settlement?: AuctionSettlementSummary | null;
 };
 
 export type AuctionSettlementSummary = {

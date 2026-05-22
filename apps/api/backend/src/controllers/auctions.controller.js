@@ -52,6 +52,21 @@ const PAWNSHOP_SAFE_FIELDS = [
   "isDeleted",
 ];
 
+const SETTLEMENT_SAFE_FIELDS = [
+  "id",
+  "auctionId",
+  "winnerUserId",
+  "finalPrice",
+  "status",
+  "stripePaymentIntent",
+  "createdAt",
+  "updatedAt",
+  "chargedAt",
+  "currency",
+  "failedAt",
+  "failureMessage",
+];
+
 const VALID_AUCTION_STATUSES = new Set([
   "SCHEDULED",
   "LIVE",
@@ -103,6 +118,23 @@ async function buildPawnShopSelect(extraFields = []) {
   return buildScalarSelect("PawnShop", [...PAWNSHOP_SAFE_FIELDS, ...extraFields]);
 }
 
+async function buildSettlementSelect(extraFields = []) {
+  const select = await buildScalarSelect("Settlement", [
+    ...SETTLEMENT_SAFE_FIELDS,
+    ...extraFields,
+  ]);
+
+  select.winner = {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  };
+
+  return select;
+}
+
 async function buildItemSelect({ includeShop = false, extraFields = [] } = {}) {
   const select = await buildScalarSelect("Item", [...ITEM_SAFE_FIELDS, ...extraFields]);
 
@@ -116,6 +148,7 @@ async function buildItemSelect({ includeShop = false, extraFields = [] } = {}) {
 async function buildAuctionSelect({
   includeItem = false,
   includeShop = false,
+  includeSettlement = false,
   extraFields = [],
 } = {}) {
   const select = await buildScalarSelect("Auction", [
@@ -129,6 +162,10 @@ async function buildAuctionSelect({
 
   if (includeShop) {
     select.shop = { select: await buildPawnShopSelect() };
+  }
+
+  if (includeSettlement) {
+    select.settlement = { select: await buildSettlementSelect() };
   }
 
   return select;
@@ -202,13 +239,47 @@ function getEffectiveAuctionStatus(auction, now = new Date()) {
   return "LIVE";
 }
 
+function normalizeSettlementForAuctionResponse(settlement) {
+  if (!settlement) return null;
+
+  const finalPrice = Number(settlement.finalPrice ?? 0);
+  const finalAmountCents = Number.isFinite(finalPrice)
+    ? Math.round(finalPrice * 100)
+    : null;
+
+  return {
+    id: settlement.id,
+    auctionId: settlement.auctionId,
+    winnerUserId: settlement.winnerUserId,
+    winnerName: settlement.winner?.name || null,
+    winnerEmail: settlement.winner?.email || null,
+    finalAmountCents,
+    finalPrice: settlement.finalPrice,
+    currency: settlement.currency || "USD",
+    status: settlement.status || "UNKNOWN",
+    stripePaymentIntent: settlement.stripePaymentIntent || null,
+    chargedAt: settlement.chargedAt || null,
+    failedAt: settlement.failedAt || null,
+    failureMessage: settlement.failureMessage || null,
+    settledAt: settlement.updatedAt || settlement.createdAt || null,
+    createdAt: settlement.createdAt || null,
+    updatedAt: settlement.updatedAt || null,
+  };
+}
+
 function normalizeAuctionForResponse(auction, now = new Date()) {
   if (!auction) return auction;
 
-  return {
+  const response = {
     ...auction,
     status: getEffectiveAuctionStatus(auction, now),
   };
+
+  if (Object.prototype.hasOwnProperty.call(response, "settlement")) {
+    response.settlement = normalizeSettlementForAuctionResponse(response.settlement);
+  }
+
+  return response;
 }
 
 function resolveCreateStatus({ requestedStatus, startsAt, endsAt, now = new Date() }) {
@@ -332,6 +403,36 @@ async function reconcileExpiredAuctions(ids, auctionColumns) {
     });
   } catch (_err) {
     // Non-fatal. Read responses still return effective status.
+  }
+}
+
+function getEndedAuctionIdsNeedingSettlement(rows, now = new Date()) {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  return [
+    ...new Set(
+      rows
+        .filter((row) => row?.id)
+        .filter((row) => row.status !== "CANCELED")
+        .filter((row) => getEffectiveAuctionStatus(row, now) === "ENDED")
+        .filter((row) => !row.settlement)
+        .map((row) => row.id),
+    ),
+  ];
+}
+
+async function ensureSettlementsForEndedAuctionIds(ids = []) {
+  const uniqueIds = [...new Set((Array.isArray(ids) ? ids : []).filter(Boolean))];
+
+  for (const auctionId of uniqueIds) {
+    try {
+      await upsertSettlementForEndedAuction(auctionId);
+    } catch (err) {
+      console.warn("[auctions] Failed to ensure settlement for ended auction", {
+        auctionId,
+        message: err?.message || String(err),
+      });
+    }
   }
 }
 
@@ -501,11 +602,27 @@ export async function listAuctions(req, res) {
     const staleExpiredIds = getStaleExpiredAuctionIds(rows, now);
     await reconcileExpiredAuctions(staleExpiredIds, auctionColumns);
 
+    const settlementCandidateIds = getEndedAuctionIdsNeedingSettlement(rows, now);
+    await ensureSettlementsForEndedAuctionIds(settlementCandidateIds);
+
+    const shouldRefetchRows =
+      staleExpiredIds.length > 0 || settlementCandidateIds.length > 0;
+
+    const responseRows = shouldRefetchRows
+      ? await prisma.auction.findMany({
+          where,
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select,
+          skip: (pageNum - 1) * pageSize,
+          take: pageSize,
+        })
+      : rows;
+
     return res.json({
       page: pageNum,
       limit: pageSize,
       total,
-      rows: rows.map((row) => normalizeAuctionForResponse(row, now)),
+      rows: responseRows.map((row) => normalizeAuctionForResponse(row, now)),
     });
   } catch (err) {
     return handleControllerError(res, err, "Failed to list auctions");
@@ -568,6 +685,7 @@ export async function listMyAuctions(req, res) {
     const select = await buildAuctionSelect({
       includeItem: true,
       includeShop: true,
+      includeSettlement: true,
     });
 
     const [total, rows] = await Promise.all([
