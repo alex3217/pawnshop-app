@@ -10,7 +10,7 @@ import {
 import { Link } from "react-router-dom";
 import {
   cancelAuction,
-  endAuction,
+  endAuctionWithSettlement,
   getOwnerAuctions,
   type Auction,
   type AuctionStatus,
@@ -279,6 +279,43 @@ function formatOwnerAuctionMoney(value: unknown) {
     style: "currency",
     currency: "USD",
   }).format(amount);
+}
+
+function formatOwnerAuctionCents(value: unknown) {
+  const cents = Number(value ?? 0);
+
+  if (!Number.isFinite(cents)) return "$0.00";
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(cents / 100);
+}
+
+function getEndAuctionSuccessMessage(result: Awaited<ReturnType<typeof endAuctionWithSettlement>>) {
+  const settlement = result?.settlement;
+
+  if (!settlement) {
+    if (result?.settlementReason === "NO_BIDS") {
+      return "Auction ended successfully. No settlement was created because there were no bids.";
+    }
+
+    if (result?.settlementReason) {
+      return `Auction ended successfully. Settlement status: ${result.settlementReason}.`;
+    }
+
+    return "Auction ended successfully.";
+  }
+
+  const winner =
+    settlement.winnerName ||
+    settlement.winnerEmail ||
+    settlement.winnerUserId ||
+    "winning buyer";
+
+  const amount = formatOwnerAuctionCents(settlement.finalAmountCents);
+
+  return `Auction ended successfully. Settlement ${settlement.id} created for ${winner} at ${amount}. Payment status: ${settlement.status || "PENDING"}.`;
 }
 
 function formatOwnerAuctionDateTime(value: unknown) {
@@ -619,11 +656,11 @@ export default function OwnerAuctionsPage() {
     setAuctionAction(auction.id, "end");
 
     try {
-      await endAuction(auction.id);
+      const result = await endAuctionWithSettlement(auction.id);
       await load("refresh");
       setMessage({
         type: "success",
-        text: "Auction ended successfully.",
+        text: getEndAuctionSuccessMessage(result),
       });
     } catch (err: unknown) {
       setMessage({

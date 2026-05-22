@@ -39,6 +39,26 @@ export type Auction = {
   } | null;
 };
 
+export type AuctionSettlementSummary = {
+  id: string;
+  auctionId?: string;
+  winnerUserId?: string | null;
+  winnerName?: string | null;
+  winnerEmail?: string | null;
+  finalAmountCents?: number | null;
+  currency?: string | null;
+  status?: string | null;
+  settledAt?: string | null;
+};
+
+export type EndAuctionResult = {
+  success?: boolean;
+  auction: Auction;
+  settlement: AuctionSettlementSummary | null;
+  settlementReason?: string | null;
+};
+
+
 export type AuctionsResponse = {
   auctions: Auction[];
   total?: number;
@@ -233,6 +253,25 @@ export async function placeBid(
   return getAuctionPayload(data);
 }
 
+
+function unwrapEndAuctionResult(data: unknown): EndAuctionResult {
+  const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+
+  const auction = getAuctionPayload(data) || unwrapAuction(data);
+  const settlement =
+    record.settlement && typeof record.settlement === "object"
+      ? (record.settlement as AuctionSettlementSummary)
+      : null;
+
+  return {
+    success: Boolean(record.success ?? true),
+    auction,
+    settlement,
+    settlementReason:
+      typeof record.settlementReason === "string" ? record.settlementReason : null,
+  };
+}
+
 export async function cancelAuction(id: string): Promise<Auction | null> {
   if (!id) throw new Error("Missing auction id.");
 
@@ -243,12 +282,17 @@ export async function cancelAuction(id: string): Promise<Auction | null> {
   return getAuctionPayload(data);
 }
 
-export async function endAuction(id: string): Promise<Auction> {
+export async function endAuctionWithSettlement(id: string): Promise<EndAuctionResult> {
   if (!id) throw new Error("Missing auction id.");
 
   const data = await api.post<unknown>(
     `/auctions/${encodeURIComponent(id)}/end`,
   );
 
-  return unwrapAuction(data);
+  return unwrapEndAuctionResult(data);
+}
+
+export async function endAuction(id: string): Promise<Auction> {
+  const result = await endAuctionWithSettlement(id);
+  return result.auction;
 }
