@@ -20,8 +20,8 @@ function hasValue(value: string | null | undefined) {
   return String(value || "").trim().length > 0;
 }
 
-function fakeDistance(index: number) {
-  return `${(2.1 + index * 1.15).toFixed(1)} mi`;
+function distanceLabel() {
+  return "Distance unavailable";
 }
 
 function mapPosition(index: number) {
@@ -41,17 +41,15 @@ function mapPosition(index: number) {
 
 function ShopCard({
   shop,
-  index,
   compact = false,
 }: {
   shop: Shop;
-  index: number;
   compact?: boolean;
 }) {
   return (
     <article className={compact ? "shops2-card shops2-card-list" : "shops2-card"}>
       <div className="shops2-card-map">
-        <span>{fakeDistance(index)}</span>
+        <span>{distanceLabel()}</span>
         <strong>{displayValue(shop.name, "Pawnshop").slice(0, 2).toUpperCase()}</strong>
       </div>
 
@@ -127,7 +125,7 @@ function ShopsMap({
               title={shop.name}
             >
               <strong>{displayValue(shop.name, "Shop").slice(0, 2).toUpperCase()}</strong>
-              <span>{fakeDistance(index)}</span>
+              <span>{distanceLabel()}</span>
             </button>
           );
         })}
@@ -147,7 +145,7 @@ function ShopsMap({
           <span>{mapShops.length} shown</span>
         </div>
 
-        {mapShops.map((shop, index) => (
+        {mapShops.map((shop) => (
           <button
             key={shop.id}
             type="button"
@@ -158,7 +156,7 @@ function ShopsMap({
               <strong>{displayValue(shop.name, "Unnamed pawnshop")}</strong>
               <small>{displayValue(shop.address, "Address not listed")}</small>
             </span>
-            <b>{fakeDistance(index)}</b>
+            <b>{distanceLabel()}</b>
           </button>
         ))}
       </aside>
@@ -444,11 +442,10 @@ export default function ShopsPage() {
         />
       ) : (
         <section className={viewMode === "list" ? "shops2-list" : "shops2-grid"}>
-          {visibleShops.map((shop, index) => (
+          {visibleShops.map((shop) => (
             <ShopCard
               key={shop.id}
               shop={shop}
-              index={index}
               compact={viewMode === "list"}
             />
           ))}
