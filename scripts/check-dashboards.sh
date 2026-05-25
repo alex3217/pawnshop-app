@@ -10,16 +10,11 @@ echo "===== FULL DASHBOARD AUDIT ====="
 
 echo ""
 echo "===== CLEAN LEGACY PM2 PROCESSES IF PRESENT ====="
-pm2 delete dev-5002 prod-5001 staging-5003 tire-marketplace tire-dev tire-prod 2>/dev/null || true
 pm2 save --force >/dev/null 2>&1 || true
 
 echo ""
 echo "===== CLEAN LEGACY 5002 IF PRESENT ====="
 
-pkill -TERM -f '/Users/brandonwash/tire-marketplace/backend/node_modules/.bin/nodemon' 2>/dev/null || true
-pkill -TERM -f '/Users/brandonwash/tire-marketplace/backend/.*express-server.js' 2>/dev/null || true
-pkill -TERM -f '/Users/brandonwash/tire-marketplace/frontend/node_modules/.bin/vite' 2>/dev/null || true
-pkill -TERM -f '/Users/brandonwash/tire-marketplace/frontend/node_modules/@esbuild' 2>/dev/null || true
 
 PID="$(/usr/sbin/lsof -tiTCP:5002 -sTCP:LISTEN -n -P | head -1 || true)"
 

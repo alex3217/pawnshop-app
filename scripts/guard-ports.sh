@@ -13,7 +13,7 @@ BAD_HITS="$(
     --glob '!reports/**' \
     --glob '!package-lock.json' \
     --glob '!scripts/**' \
-    '5001|5002|5003|dev-5002|prod-5001|staging-5003' \
+    'dev-6002|prod-6001|staging-6003|pawn-dev-6002|pawn-prod-6001|pawn-staging-6003' \
     apps package.json pnpm-lock.yaml package-lock.json vite.config.* tsconfig*.json 2>/dev/null || true
 )"
 

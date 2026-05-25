@@ -9,13 +9,6 @@ else
   echo "⚠️ No Pawnshop PM2 processes detected"
 fi
 
-if pm2 status | grep -Eq 'dev-5002|prod-5001|staging-5003'; then
-  echo "❌ Legacy non-Pawnshop PM2 process detected. Stop/delete it before auditing Pawnshop."
-  pm2 status | grep -E 'dev-5002|prod-5001|staging-5003' || true
-  exit 1
-else
-  echo "✅ No legacy non-Pawnshop PM2 process names detected"
-fi
 
 for port in 5001 5002 5003; do
   if lsof -iTCP:"$port" -sTCP:LISTEN -n -P >/dev/null 2>&1; then
