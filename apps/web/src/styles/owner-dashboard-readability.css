@@ -117,3 +117,73 @@
 .dark .owner-dashboard-readability {
   color: #f8fafc;
 }
+
+/* Polish pass: make Owner Dashboard dark surfaces explicit in light mode.
+   The audit was reading several dashboard blocks as transparent/light backgrounds
+   while the page visually uses a dark command-center surface. */
+:root:not([data-theme="dark"]) .owner-dashboard-readability {
+  background: #0b1020 !important;
+  background-color: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .owner-dashboard-readability > div,
+:root:not([data-theme="dark"]) .owner-dashboard-readability section,
+:root:not([data-theme="dark"]) .owner-dashboard-readability article {
+  background-color: #101936 !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .owner-dashboard-readability section > div,
+:root:not([data-theme="dark"]) .owner-dashboard-readability article > div,
+:root:not([data-theme="dark"]) .owner-dashboard-readability [style*="rgba"],
+:root:not([data-theme="dark"]) .owner-dashboard-readability [style*="linear-gradient"] {
+  background-color: #121935 !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .owner-dashboard-readability h1,
+:root:not([data-theme="dark"]) .owner-dashboard-readability h2,
+:root:not([data-theme="dark"]) .owner-dashboard-readability h3,
+:root:not([data-theme="dark"]) .owner-dashboard-readability h4,
+:root:not([data-theme="dark"]) .owner-dashboard-readability strong,
+:root:not([data-theme="dark"]) .owner-dashboard-readability b {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .owner-dashboard-readability p,
+:root:not([data-theme="dark"]) .owner-dashboard-readability span,
+:root:not([data-theme="dark"]) .owner-dashboard-readability small,
+:root:not([data-theme="dark"]) .owner-dashboard-readability label,
+:root:not([data-theme="dark"]) .owner-dashboard-readability li,
+:root:not([data-theme="dark"]) .owner-dashboard-readability div {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-dashboard-readability a,
+:root:not([data-theme="dark"]) .owner-dashboard-readability a:visited,
+:root:not([data-theme="dark"]) .owner-dashboard-readability a:hover,
+:root:not([data-theme="dark"]) .owner-dashboard-readability a:focus {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+  font-weight: 800;
+}
+
+:root:not([data-theme="dark"]) .owner-dashboard-readability input,
+:root:not([data-theme="dark"]) .owner-dashboard-readability textarea,
+:root:not([data-theme="dark"]) .owner-dashboard-readability select {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-dashboard-readability input::placeholder,
+:root:not([data-theme="dark"]) .owner-dashboard-readability textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
