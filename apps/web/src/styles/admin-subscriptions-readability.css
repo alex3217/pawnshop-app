@@ -1,0 +1,110 @@
+/* Admin Subscriptions readability patch.
+   Imported only by AdminSubscriptionsPage.tsx.
+   Light-mode focused because dark mode is already low failure. */
+
+:root:not([data-theme="dark"]) .page-card .section-title,
+:root:not([data-theme="dark"]) .page-card .toolbar .section-title,
+:root:not([data-theme="dark"]) .page-card h1,
+:root:not([data-theme="dark"]) .page-card h2,
+:root:not([data-theme="dark"]) .page-card h3,
+:root:not([data-theme="dark"]) .page-card strong,
+:root:not([data-theme="dark"]) .admin-table strong {
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .page-card .section-subtitle,
+:root:not([data-theme="dark"]) .page-card .toolbar .section-subtitle,
+:root:not([data-theme="dark"]) .page-card p,
+:root:not([data-theme="dark"]) .page-card span,
+:root:not([data-theme="dark"]) .page-card label,
+:root:not([data-theme="dark"]) .admin-muted,
+:root:not([data-theme="dark"]) .admin-muted.small,
+:root:not([data-theme="dark"]) .admin-table .admin-muted,
+:root:not([data-theme="dark"]) .admin-table .admin-muted.small {
+  color: #334155 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-control-input,
+:root:not([data-theme="dark"]) .admin-control-textarea,
+:root:not([data-theme="dark"]) .admin-control-bar input,
+:root:not([data-theme="dark"]) .admin-control-bar textarea,
+:root:not([data-theme="dark"]) .admin-control-bar select {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #64748b !important;
+}
+
+:root:not([data-theme="dark"]) .admin-control-input::placeholder,
+:root:not([data-theme="dark"]) .admin-control-textarea::placeholder,
+:root:not([data-theme="dark"]) .admin-control-bar input::placeholder,
+:root:not([data-theme="dark"]) .admin-control-bar textarea::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-table th,
+:root:not([data-theme="dark"]) .admin-table td {
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .admin-table .admin-muted {
+  color: #334155 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-table .admin-muted.small {
+  color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-table tbody tr {
+  background: #ffffff;
+}
+
+:root:not([data-theme="dark"]) .admin-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+:root:not([data-theme="dark"]) .super-admin-row-actions .btn.btn-secondary,
+:root:not([data-theme="dark"]) .admin-table .btn.btn-secondary,
+:root:not([data-theme="dark"]) .btn.btn-secondary,
+:root:not([data-theme="dark"]) button.btn.btn-secondary,
+:root:not([data-theme="dark"]) a.btn.btn-secondary {
+  background: #ffffff !important;
+  border: 1px solid #64748b !important;
+  color: #0f172a !important;
+  font-weight: 800;
+}
+
+:root:not([data-theme="dark"]) .btn.btn-primary,
+:root:not([data-theme="dark"]) button.btn.btn-primary,
+:root:not([data-theme="dark"]) a.btn.btn-primary {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+:root:not([data-theme="dark"]) .badge,
+:root:not([data-theme="dark"]) .pill,
+:root:not([data-theme="dark"]) .tag,
+:root:not([data-theme="dark"]) .status,
+:root:not([data-theme="dark"]) [class*="badge"],
+:root:not([data-theme="dark"]) [class*="pill"],
+:root:not([data-theme="dark"]) [class*="status"] {
+  color: #0f172a !important;
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  font-weight: 800;
+}
+
+/* Dark mode: only strengthen placeholders. */
+:root[data-theme="dark"] .admin-control-input::placeholder,
+:root[data-theme="dark"] .admin-control-textarea::placeholder,
+:root[data-theme="dark"] .admin-control-bar input::placeholder,
+:root[data-theme="dark"] .admin-control-bar textarea::placeholder,
+.dark .admin-control-input::placeholder,
+.dark .admin-control-textarea::placeholder,
+.dark .admin-control-bar input::placeholder,
+.dark .admin-control-bar textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}

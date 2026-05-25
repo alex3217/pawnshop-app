@@ -22,6 +22,7 @@ import {
   type Settlement,
 } from "../services/settlements";
 import "../styles/my-wins-v2.css";
+import "../styles/my-wins-pay-button-readability.css";
 
 type ActivePayment = {
   settlementId: string;

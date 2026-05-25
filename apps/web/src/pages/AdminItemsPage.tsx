@@ -16,6 +16,7 @@ import {
   includesSearch,
   type SortDirection,
 } from "../admin/utils/adminControlUtils";
+import "../styles/admin-items-readability.css";
 
 type StatusFilter = "ALL" | "ACTIVE" | "DELETED";
 type ModalMode = "create" | "edit";

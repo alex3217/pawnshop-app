@@ -1,0 +1,153 @@
+/* Admin Auctions readability patch.
+   Imported only by AdminAuctionsPage.tsx, so direct selectors are safe here. */
+
+.page-card .section-title,
+.page-card .toolbar .section-title,
+.page-card h1,
+.page-card h2,
+.page-card h3,
+.page-card strong,
+.page-card .grid .list-card strong {
+  color: #0f172a !important;
+}
+
+.page-card .section-subtitle,
+.page-card .toolbar .section-subtitle,
+.page-card p,
+.page-card span,
+.page-card .muted,
+.page-card .admin-muted,
+.page-card .grid .list-card,
+.page-card .grid .list-card p,
+.page-card .grid .list-card span {
+  color: #334155 !important;
+}
+
+.page-card .grid .list-card {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+.page-card .grid .list-card strong {
+  color: #0f172a !important;
+}
+
+.page-card .grid .list-card .btn.btn-primary,
+.page-card .grid .list-card a.btn.btn-primary,
+.page-card .grid .list-card button.btn.btn-primary,
+.page-card .btn.btn-primary,
+.page-card a.btn.btn-primary,
+.page-card button.btn.btn-primary {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+
+.page-card .grid .list-card .btn.btn-secondary,
+.page-card .grid .list-card a.btn.btn-secondary,
+.page-card .grid .list-card button.btn.btn-secondary,
+.page-card .btn.btn-secondary,
+.page-card a.btn.btn-secondary,
+.page-card button.btn.btn-secondary {
+  background: #ffffff !important;
+  border: 1px solid #64748b !important;
+  color: #0f172a !important;
+}
+
+.page-card .btn,
+.page-card a.btn,
+.page-card button.btn {
+  font-weight: 700;
+}
+
+.page-card .badge,
+.page-card .pill,
+.page-card .tag,
+.page-card .status,
+.page-card [class*="badge"],
+.page-card [class*="pill"],
+.page-card [class*="status"] {
+  color: #0f172a !important;
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  font-weight: 700;
+}
+
+/* Dark theme */
+:root[data-theme="dark"] .page-card .section-title,
+:root[data-theme="dark"] .page-card .toolbar .section-title,
+:root[data-theme="dark"] .page-card h1,
+:root[data-theme="dark"] .page-card h2,
+:root[data-theme="dark"] .page-card h3,
+:root[data-theme="dark"] .page-card strong,
+:root[data-theme="dark"] .page-card .grid .list-card strong,
+.dark .page-card .section-title,
+.dark .page-card .toolbar .section-title,
+.dark .page-card h1,
+.dark .page-card h2,
+.dark .page-card h3,
+.dark .page-card strong,
+.dark .page-card .grid .list-card strong {
+  color: #f8fafc !important;
+}
+
+:root[data-theme="dark"] .page-card .section-subtitle,
+:root[data-theme="dark"] .page-card .toolbar .section-subtitle,
+:root[data-theme="dark"] .page-card p,
+:root[data-theme="dark"] .page-card span,
+:root[data-theme="dark"] .page-card .muted,
+:root[data-theme="dark"] .page-card .admin-muted,
+:root[data-theme="dark"] .page-card .grid .list-card,
+:root[data-theme="dark"] .page-card .grid .list-card p,
+:root[data-theme="dark"] .page-card .grid .list-card span,
+.dark .page-card .section-subtitle,
+.dark .page-card .toolbar .section-subtitle,
+.dark .page-card p,
+.dark .page-card span,
+.dark .page-card .muted,
+.dark .page-card .admin-muted,
+.dark .page-card .grid .list-card,
+.dark .page-card .grid .list-card p,
+.dark .page-card .grid .list-card span {
+  color: #dbeafe !important;
+}
+
+:root[data-theme="dark"] .page-card .grid .list-card,
+.dark .page-card .grid .list-card {
+  background: #0f172a;
+  border-color: #475569;
+}
+
+:root[data-theme="dark"] .page-card .grid .list-card .btn.btn-primary,
+:root[data-theme="dark"] .page-card .grid .list-card a.btn.btn-primary,
+:root[data-theme="dark"] .page-card .grid .list-card button.btn.btn-primary,
+:root[data-theme="dark"] .page-card .btn.btn-primary,
+:root[data-theme="dark"] .page-card a.btn.btn-primary,
+:root[data-theme="dark"] .page-card button.btn.btn-primary,
+.dark .page-card .grid .list-card .btn.btn-primary,
+.dark .page-card .grid .list-card a.btn.btn-primary,
+.dark .page-card .grid .list-card button.btn.btn-primary,
+.dark .page-card .btn.btn-primary,
+.dark .page-card a.btn.btn-primary,
+.dark .page-card button.btn.btn-primary {
+  background: #2563eb !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .page-card .grid .list-card .btn.btn-secondary,
+:root[data-theme="dark"] .page-card .grid .list-card a.btn.btn-secondary,
+:root[data-theme="dark"] .page-card .grid .list-card button.btn.btn-secondary,
+:root[data-theme="dark"] .page-card .btn.btn-secondary,
+:root[data-theme="dark"] .page-card a.btn.btn-secondary,
+:root[data-theme="dark"] .page-card button.btn.btn-secondary,
+.dark .page-card .grid .list-card .btn.btn-secondary,
+.dark .page-card .grid .list-card a.btn.btn-secondary,
+.dark .page-card .grid .list-card button.btn.btn-secondary,
+.dark .page-card .btn.btn-secondary,
+.dark .page-card a.btn.btn-secondary,
+.dark .page-card button.btn.btn-secondary {
+  background: #1e293b !important;
+  border: 1px solid #94a3b8 !important;
+  color: #f8fafc !important;
+}

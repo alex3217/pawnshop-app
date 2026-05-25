@@ -18,6 +18,7 @@ import {
   reviewBuyerItemSubmission,
   type OwnerBuyerItemSubmission,
 } from "../services/ownerWorkspace";
+import "../styles/owner-dashboard-readability.css";
 
 type Shop = {
   id: string;
@@ -669,7 +670,7 @@ export default function OwnerDashboardPage() {
 
 
   return (
-    <div style={styles.page}>
+    <div className="owner-dashboard-readability" style={styles.page}>
       <div style={styles.header}>
         <div>
           <h2 style={styles.title}>Owner Dashboard</h2>

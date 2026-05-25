@@ -14,6 +14,7 @@ import {
   includesSearch,
   type SortDirection,
 } from "../admin/utils/adminControlUtils";
+import "../styles/admin-users-readability.css";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
 type RoleFilter = "ALL" | UserRole;

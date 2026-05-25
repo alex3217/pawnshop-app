@@ -16,6 +16,7 @@ import {
   type AuctionStatus,
 } from "../services/auctions";
 import { getAuthRole, getAuthToken } from "../services/auth";
+import "../styles/owner-auctions-readability.css";
 
 type StatusFilter = "ALL" | "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED";
 
@@ -861,7 +862,7 @@ export default function OwnerAuctionsPage() {
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack owner-auctions-readability">
       <div className="page-card" style={{ display: "grid", gap: 18 }}>
         <div
           style={{

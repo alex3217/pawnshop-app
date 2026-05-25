@@ -1,0 +1,220 @@
+/* Owner Auctions readability patch.
+   Scoped with .owner-auctions-readability so it does not leak across the app. */
+
+.owner-auctions-readability {
+  color: #0f172a;
+}
+
+.owner-auctions-readability .page-card,
+.owner-auctions-readability article.page-card,
+.owner-auctions-readability section.page-card {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.owner-auctions-readability h1,
+.owner-auctions-readability h2,
+.owner-auctions-readability h3,
+.owner-auctions-readability h4,
+.owner-auctions-readability strong,
+.owner-auctions-readability .section-title {
+  color: #0f172a !important;
+}
+
+.owner-auctions-readability p,
+.owner-auctions-readability span,
+.owner-auctions-readability div,
+.owner-auctions-readability .muted,
+.owner-auctions-readability .section-subtitle {
+  color: #334155;
+}
+
+.owner-auctions-readability input,
+.owner-auctions-readability select,
+.owner-auctions-readability textarea {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #64748b;
+}
+
+.owner-auctions-readability input::placeholder,
+.owner-auctions-readability textarea::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+.owner-auctions-readability .btn.btn-primary,
+.owner-auctions-readability a.btn.btn-primary,
+.owner-auctions-readability button.btn.btn-primary {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+
+.owner-auctions-readability .btn.btn-secondary,
+.owner-auctions-readability a.btn.btn-secondary,
+.owner-auctions-readability button.btn.btn-secondary,
+.owner-auctions-readability a.btn:not(.btn-primary),
+.owner-auctions-readability button.btn:not(.btn-primary) {
+  background: #ffffff !important;
+  border: 1px solid #64748b !important;
+  color: #0f172a !important;
+}
+
+.owner-auctions-readability article.page-card span,
+.owner-auctions-readability article.page-card div,
+.owner-auctions-readability article.page-card p,
+.owner-auctions-readability article.page-card strong {
+  color: #0f172a !important;
+}
+
+.owner-auctions-readability article.page-card .muted,
+.owner-auctions-readability article.page-card [class*="muted"],
+.owner-auctions-readability article.page-card [class*="meta"],
+.owner-auctions-readability article.page-card [class*="label"] {
+  color: #334155 !important;
+}
+
+.owner-auctions-readability .badge,
+.owner-auctions-readability .pill,
+.owner-auctions-readability .tag,
+.owner-auctions-readability .status,
+.owner-auctions-readability [class*="badge"],
+.owner-auctions-readability [class*="pill"],
+.owner-auctions-readability [class*="status"] {
+  color: #0f172a !important;
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+/* Dark theme */
+:root[data-theme="dark"] .owner-auctions-readability,
+.dark .owner-auctions-readability {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability .page-card,
+:root[data-theme="dark"] .owner-auctions-readability article.page-card,
+:root[data-theme="dark"] .owner-auctions-readability section.page-card,
+.dark .owner-auctions-readability .page-card,
+.dark .owner-auctions-readability article.page-card,
+.dark .owner-auctions-readability section.page-card {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability h1,
+:root[data-theme="dark"] .owner-auctions-readability h2,
+:root[data-theme="dark"] .owner-auctions-readability h3,
+:root[data-theme="dark"] .owner-auctions-readability h4,
+:root[data-theme="dark"] .owner-auctions-readability strong,
+:root[data-theme="dark"] .owner-auctions-readability .section-title,
+.dark .owner-auctions-readability h1,
+.dark .owner-auctions-readability h2,
+.dark .owner-auctions-readability h3,
+.dark .owner-auctions-readability h4,
+.dark .owner-auctions-readability strong,
+.dark .owner-auctions-readability .section-title {
+  color: #f8fafc !important;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability p,
+:root[data-theme="dark"] .owner-auctions-readability span,
+:root[data-theme="dark"] .owner-auctions-readability div,
+:root[data-theme="dark"] .owner-auctions-readability .muted,
+:root[data-theme="dark"] .owner-auctions-readability .section-subtitle,
+.dark .owner-auctions-readability p,
+.dark .owner-auctions-readability span,
+.dark .owner-auctions-readability div,
+.dark .owner-auctions-readability .muted,
+.dark .owner-auctions-readability .section-subtitle {
+  color: #dbeafe;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability input,
+:root[data-theme="dark"] .owner-auctions-readability select,
+:root[data-theme="dark"] .owner-auctions-readability textarea,
+.dark .owner-auctions-readability input,
+.dark .owner-auctions-readability select,
+.dark .owner-auctions-readability textarea {
+  background: #020617;
+  color: #f8fafc;
+  border-color: #94a3b8;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability input::placeholder,
+:root[data-theme="dark"] .owner-auctions-readability textarea::placeholder,
+.dark .owner-auctions-readability input::placeholder,
+.dark .owner-auctions-readability textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability .btn.btn-primary,
+:root[data-theme="dark"] .owner-auctions-readability a.btn.btn-primary,
+:root[data-theme="dark"] .owner-auctions-readability button.btn.btn-primary,
+.dark .owner-auctions-readability .btn.btn-primary,
+.dark .owner-auctions-readability a.btn.btn-primary,
+.dark .owner-auctions-readability button.btn.btn-primary {
+  background: #2563eb !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability .btn.btn-secondary,
+:root[data-theme="dark"] .owner-auctions-readability a.btn.btn-secondary,
+:root[data-theme="dark"] .owner-auctions-readability button.btn.btn-secondary,
+:root[data-theme="dark"] .owner-auctions-readability a.btn:not(.btn-primary),
+:root[data-theme="dark"] .owner-auctions-readability button.btn:not(.btn-primary),
+.dark .owner-auctions-readability .btn.btn-secondary,
+.dark .owner-auctions-readability a.btn.btn-secondary,
+.dark .owner-auctions-readability button.btn.btn-secondary,
+.dark .owner-auctions-readability a.btn:not(.btn-primary),
+.dark .owner-auctions-readability button.btn:not(.btn-primary) {
+  background: #1e293b !important;
+  border: 1px solid #94a3b8 !important;
+  color: #f8fafc !important;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability article.page-card span,
+:root[data-theme="dark"] .owner-auctions-readability article.page-card div,
+:root[data-theme="dark"] .owner-auctions-readability article.page-card p,
+:root[data-theme="dark"] .owner-auctions-readability article.page-card strong,
+.dark .owner-auctions-readability article.page-card span,
+.dark .owner-auctions-readability article.page-card div,
+.dark .owner-auctions-readability article.page-card p,
+.dark .owner-auctions-readability article.page-card strong {
+  color: #f8fafc !important;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability article.page-card .muted,
+:root[data-theme="dark"] .owner-auctions-readability article.page-card [class*="muted"],
+:root[data-theme="dark"] .owner-auctions-readability article.page-card [class*="meta"],
+:root[data-theme="dark"] .owner-auctions-readability article.page-card [class*="label"],
+.dark .owner-auctions-readability article.page-card .muted,
+.dark .owner-auctions-readability article.page-card [class*="muted"],
+.dark .owner-auctions-readability article.page-card [class*="meta"],
+.dark .owner-auctions-readability article.page-card [class*="label"] {
+  color: #dbeafe !important;
+}
+
+:root[data-theme="dark"] .owner-auctions-readability .badge,
+:root[data-theme="dark"] .owner-auctions-readability .pill,
+:root[data-theme="dark"] .owner-auctions-readability .tag,
+:root[data-theme="dark"] .owner-auctions-readability .status,
+:root[data-theme="dark"] .owner-auctions-readability [class*="badge"],
+:root[data-theme="dark"] .owner-auctions-readability [class*="pill"],
+:root[data-theme="dark"] .owner-auctions-readability [class*="status"],
+.dark .owner-auctions-readability .badge,
+.dark .owner-auctions-readability .pill,
+.dark .owner-auctions-readability .tag,
+.dark .owner-auctions-readability .status,
+.dark .owner-auctions-readability [class*="badge"],
+.dark .owner-auctions-readability [class*="pill"],
+.dark .owner-auctions-readability [class*="status"] {
+  color: #f8fafc !important;
+  background: #334155;
+  border-color: #64748b;
+}

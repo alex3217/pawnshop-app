@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
 import { adminApi, type AdminAuctionRow } from "../services/adminApi";
+import "../../styles/admin-auctions-readability.css";
 
 type AuctionStatus = "LIVE" | "ENDED" | "CANCELED" | "ALL";
 

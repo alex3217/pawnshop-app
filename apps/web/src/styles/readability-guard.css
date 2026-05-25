@@ -1,0 +1,185 @@
+/* Safer readability guard for PawnShop.
+   This avoids forcing global text color onto every dark/light card.
+   It focuses on placeholders, forms, tables, muted text, and known low-contrast app surfaces. */
+
+:root {
+  --readability-light-text: #0f172a;
+  --readability-light-muted: #334155;
+  --readability-light-soft: #475569;
+  --readability-light-placeholder: #475569;
+
+  --readability-dark-text: #f8fafc;
+  --readability-dark-muted: #e2e8f0;
+  --readability-dark-soft: #cbd5e1;
+  --readability-dark-placeholder: #cbd5e1;
+}
+
+/* Do NOT globally force body/site-main text.
+   Many pages intentionally use dark cards in light mode. */
+
+/* Placeholder readability */
+input::placeholder,
+textarea::placeholder {
+  color: var(--readability-light-placeholder) !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder,
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--readability-dark-placeholder) !important;
+  opacity: 1 !important;
+}
+
+/* Form readability */
+label,
+legend {
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  color: inherit;
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] select,
+.dark input,
+.dark textarea,
+.dark select {
+  color: var(--readability-dark-text);
+  background-color: #0f172a;
+  border-color: #475569;
+}
+
+/* Muted text should still be readable. */
+.text-muted,
+.muted,
+.subtle,
+.helper,
+.help-text,
+.description,
+.caption,
+.meta,
+.secondary,
+[class*="muted"],
+[class*="subtle"],
+[class*="helper"],
+[class*="caption"],
+[class*="description"] {
+  color: var(--readability-light-muted);
+}
+
+:root[data-theme="dark"] .text-muted,
+:root[data-theme="dark"] .muted,
+:root[data-theme="dark"] .subtle,
+:root[data-theme="dark"] .helper,
+:root[data-theme="dark"] .help-text,
+:root[data-theme="dark"] .description,
+:root[data-theme="dark"] .caption,
+:root[data-theme="dark"] .meta,
+:root[data-theme="dark"] .secondary,
+:root[data-theme="dark"] [class*="muted"],
+:root[data-theme="dark"] [class*="subtle"],
+:root[data-theme="dark"] [class*="helper"],
+:root[data-theme="dark"] [class*="caption"],
+:root[data-theme="dark"] [class*="description"],
+.dark .text-muted,
+.dark .muted,
+.dark .subtle,
+.dark .helper,
+.dark .help-text,
+.dark .description,
+.dark .caption,
+.dark .meta,
+.dark .secondary,
+.dark [class*="muted"],
+.dark [class*="subtle"],
+.dark [class*="helper"],
+.dark [class*="caption"],
+.dark [class*="description"] {
+  color: var(--readability-dark-soft);
+}
+
+/* Tables in admin/owner pages */
+table,
+thead,
+tbody,
+tr,
+td,
+th {
+  color: inherit;
+}
+
+:root[data-theme="dark"] table,
+:root[data-theme="dark"] td,
+:root[data-theme="dark"] th,
+.dark table,
+.dark td,
+.dark th {
+  color: var(--readability-dark-text);
+}
+
+/* Known dark cards/surfaces must keep light text even in light theme. */
+[class*="hero"],
+[class*="panel"],
+[class*="card"],
+[class*="shell"],
+[class*="surface"],
+[class*="stat"],
+[class*="metric"],
+[class*="command"],
+[class*="control"],
+[class*="auction"],
+[class*="owner"],
+[class*="admin"] {
+  text-wrap: pretty;
+}
+
+/* Dark-looking surfaces */
+[style*="rgb(15, 23, 42)"],
+[style*="rgb(17, 24, 39)"],
+[style*="rgb(30, 41, 59)"],
+[style*="#0f172a"],
+[style*="#111827"],
+[style*="#1e293b"] {
+  color: #f8fafc !important;
+}
+
+/* Buttons and links should never become invisible */
+button,
+a {
+  text-decoration-thickness: 1px;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+/* Badge/pill safety without overriding every status color too hard */
+.badge,
+.pill,
+.tag,
+.status,
+[class*="badge"],
+[class*="pill"] {
+  font-weight: 700;
+}
+
+:root[data-theme="dark"] .badge,
+:root[data-theme="dark"] .pill,
+:root[data-theme="dark"] .tag,
+:root[data-theme="dark"] .status,
+:root[data-theme="dark"] [class*="badge"],
+:root[data-theme="dark"] [class*="pill"],
+.dark .badge,
+.dark .pill,
+.dark .tag,
+.dark .status,
+.dark [class*="badge"],
+.dark [class*="pill"] {
+  color: #f8fafc;
+}

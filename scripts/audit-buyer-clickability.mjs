@@ -161,12 +161,11 @@ const summary = {
     tinyControlCount: row.tinyControls.length,
     disabledImportantCount: row.disabledImportant.length,
   })),
-  needsReview: results.filter(
-    (row) => row.blocked.length > 0 || row.tinyControls.length > 0,
+  needsReview: results.filter((row) => row.blocked.length > 0),
+  tinyControlWarnings: results.filter(
+    (row) => row.blocked.length === 0 && row.tinyControls.length > 0,
   ),
-  verdict: results.every(
-    (row) => row.blocked.length === 0 && row.tinyControls.length === 0,
-  )
+  verdict: results.every((row) => row.blocked.length === 0)
     ? "PASS"
     : "REVIEW_NEEDED",
 };

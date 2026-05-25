@@ -8,6 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import { adminApi, type AdminShopRow } from "../services/adminApi";
+import "../../styles/admin-subscriptions-readability.css";
 
 type AdminSubscriptionRecord = {
   id: string;

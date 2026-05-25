@@ -1,0 +1,24 @@
+/* My Wins targeted readability patch.
+   Imported only by MyWinsPage.tsx.
+   Fixes the repeated low-contrast Pay now button in dark mode. */
+
+:root[data-theme="dark"] .wins2-pay-button,
+.dark .wins2-pay-button {
+  background: #14532d !important;
+  border: 1px solid #86efac !important;
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+:root[data-theme="dark"] .wins2-pay-button:hover:not(:disabled),
+.dark .wins2-pay-button:hover:not(:disabled) {
+  background: #166534 !important;
+}
+
+:root[data-theme="dark"] .wins2-pay-button:disabled,
+.dark .wins2-pay-button:disabled {
+  background: #334155 !important;
+  border-color: #94a3b8 !important;
+  color: #f8fafc !important;
+  opacity: 0.9;
+}

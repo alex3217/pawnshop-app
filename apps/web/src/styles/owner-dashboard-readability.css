@@ -1,0 +1,119 @@
+/* Owner Dashboard readability patch.
+   Imported only by OwnerDashboardPage.tsx and scoped to .owner-dashboard-readability.
+   The page uses dark card surfaces even in light mode, so this makes those surfaces readable. */
+
+.owner-dashboard-readability {
+  color: #f8fafc;
+}
+
+/* Most owner dashboard cards are dark inline-style surfaces. Keep text light there. */
+.owner-dashboard-readability section,
+.owner-dashboard-readability article,
+.owner-dashboard-readability [style*="26, 35, 69"],
+.owner-dashboard-readability [style*="16, 24, 48"],
+.owner-dashboard-readability [style*="15, 23, 42"],
+.owner-dashboard-readability [style*="#1a2345"],
+.owner-dashboard-readability [style*="#101830"],
+.owner-dashboard-readability [style*="#0f172a"] {
+  color: #f8fafc !important;
+}
+
+/* Headings and card titles */
+.owner-dashboard-readability h1,
+.owner-dashboard-readability h2,
+.owner-dashboard-readability h3,
+.owner-dashboard-readability h4,
+.owner-dashboard-readability strong {
+  color: #ffffff !important;
+}
+
+/* Generic text inside the dashboard */
+.owner-dashboard-readability p,
+.owner-dashboard-readability span,
+.owner-dashboard-readability small,
+.owner-dashboard-readability label,
+.owner-dashboard-readability div {
+  color: inherit;
+}
+
+/* Blue labels were failing at ~2.42 contrast; make them high-contrast. */
+.owner-dashboard-readability [style*="110, 168, 254"],
+.owner-dashboard-readability [style*="141, 151, 197"],
+.owner-dashboard-readability [style*="207, 224, 255"] {
+  color: #f8fafc !important;
+}
+
+/* Action links were blue on dark cards and failing at ~2.29 contrast. */
+.owner-dashboard-readability a,
+.owner-dashboard-readability a:not(.btn),
+.owner-dashboard-readability a:not([class*="btn"]) {
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+/* Buttons and button-like links */
+.owner-dashboard-readability .btn,
+.owner-dashboard-readability a.btn,
+.owner-dashboard-readability button,
+.owner-dashboard-readability [role="button"] {
+  background: #2563eb !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+/* Secondary buttons still need readable text. */
+.owner-dashboard-readability .btn-secondary,
+.owner-dashboard-readability a.btn-secondary,
+.owner-dashboard-readability button.btn-secondary {
+  background: #1e293b !important;
+  border: 1px solid #94a3b8 !important;
+  color: #f8fafc !important;
+}
+
+/* Badges/chips such as ACTIVE and AVAILABLE were green-on-green low contrast. */
+.owner-dashboard-readability .badge,
+.owner-dashboard-readability .pill,
+.owner-dashboard-readability .tag,
+.owner-dashboard-readability .status,
+.owner-dashboard-readability [class*="badge"],
+.owner-dashboard-readability [class*="pill"],
+.owner-dashboard-readability [class*="tag"],
+.owner-dashboard-readability [class*="status"],
+.owner-dashboard-readability [style*="46, 204, 113"] {
+  color: #ffffff !important;
+  background: #166534 !important;
+  border-color: #22c55e !important;
+  font-weight: 800;
+}
+
+/* Info chips like Shops: 1, Items: 58, Active: 58 */
+.owner-dashboard-readability [style*="110, 168, 254, 0.12"],
+.owner-dashboard-readability [style*="110,168,254,0.12"],
+.owner-dashboard-readability [style*="110, 168, 254, 0.14"],
+.owner-dashboard-readability [style*="110,168,254,0.14"] {
+  background: #1e3a8a !important;
+  color: #ffffff !important;
+  border-color: #60a5fa !important;
+}
+
+/* Inputs */
+.owner-dashboard-readability input,
+.owner-dashboard-readability textarea,
+.owner-dashboard-readability select {
+  background: #020617 !important;
+  color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+.owner-dashboard-readability input::placeholder,
+.owner-dashboard-readability textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+/* Preserve dark theme safety. */
+:root[data-theme="dark"] .owner-dashboard-readability,
+.dark .owner-dashboard-readability {
+  color: #f8fafc;
+}
