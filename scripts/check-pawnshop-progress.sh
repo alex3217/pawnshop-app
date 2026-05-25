@@ -88,6 +88,11 @@ TIRE_LEFTOVERS="$(
     2>/dev/null | wc -l | tr -d ' ' || echo 0
 )"
 
+# Normalize count command substitutions so failed rg/no-match paths cannot produce "0\n0".
+TODO_COUNT="$(printf '%s\n' "$TODO_COUNT" | awk 'NF { value = $1 } END { print value + 0 }')"
+TIRE_LEFTOVERS="$(printf '%s\n' "$TIRE_LEFTOVERS" | awk 'NF { value = $1 } END { print value + 0 }')"
+
+
 cat <<REPORT | tee -a "$SUMMARY"
 | Area | Current Count / Signal |
 |---|---:|
