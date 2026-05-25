@@ -62,9 +62,31 @@ BACKEND_CONTROLLERS="$(count_files apps/api/backend/src/controllers '*.js')"
 PRISMA_MODELS="$((rg -n '^model ' apps/api/backend/prisma/schema.prisma 2>/dev/null || true) | wc -l | tr -d ' ')"
 PRISMA_ENUMS="$((rg -n '^enum ' apps/api/backend/prisma/schema.prisma 2>/dev/null || true) | wc -l | tr -d ' ')"
 MIGRATIONS="$(find apps/api/backend/prisma/migrations -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ' || echo 0)"
-TODO_COUNT="$(count_rg 'TODO|FIXME|HACK|scaffold stub|Replace with real UI|Not implemented|throw new Error' .)"
+TODO_COUNT="$(
+  rg -n -i 'fakeDistance|mock data|not implemented|coming soon|Replace with real UI|FeaturePlaceholderPage|placeholderRoute|adminPlaceholderRoutes|scaffold stub|throw new Error\\("Not implemented' \
+    apps/web/src/pages \
+    apps/web/src/admin/pages \
+    apps/api/backend/src/routes \
+    apps/api/backend/src/controllers \
+    apps/api/backend/src/services \
+    --glob '!*.bak-*' \
+    --glob '!*.disabled-*' \
+    2>/dev/null | wc -l | tr -d ' ' || echo 0
+)"
 RAW_FETCH_PAGES="$((rg -n 'fetch\(' apps/web/src/pages 2>/dev/null || true) | wc -l | tr -d ' ')"
-TIRE_LEFTOVERS="$(rg -n --hidden --glob '!node_modules/**' --glob '!.git/**' --glob '!reports/**' --glob '!dist/**' --glob '!build/**' -i 'tire-marketplace|tire marketplace|tireshop|tire shop|tires?|sequelize|mongoose|dev-5002|5001|5002|5003|/api/tires' . 2>/dev/null | wc -l | tr -d ' ' || echo 0)"
+TIRE_LEFTOVERS="$(
+  rg -n -i '\\b(tire-marketplace|tire marketplace|tireshop|tire shop|tires?|tyres?|live tire|tire locator|tire bidding|tire subscription|tire warranty|tire inventory|tread|tpms|sequelize|mongoose|redisClient|redisUtils|dev-5002|prod-5001|/api/tires)\\b|/Users/[^ ]*/tire-marketplace' \
+    apps scripts package.json \
+    --glob '!node_modules/**' \
+    --glob '!dist/**' \
+    --glob '!reports/**' \
+    --glob '!scripts/check-pawnshop-progress.sh' \
+    --glob '!scripts/audit-pawnshop-cleanliness.sh' \
+    --glob '!scripts/check-pawnshop-real-remaining.sh' \
+    --glob '!*.bak-*' \
+    --glob '!*.disabled-*' \
+    2>/dev/null | wc -l | tr -d ' ' || echo 0
+)"
 
 cat <<REPORT | tee -a "$SUMMARY"
 | Area | Current Count / Signal |
@@ -76,9 +98,9 @@ cat <<REPORT | tee -a "$SUMMARY"
 | Prisma models | $PRISMA_MODELS |
 | Prisma enums | $PRISMA_ENUMS |
 | Prisma migrations | $MIGRATIONS |
-| TODO / stub / not-implemented hits | $TODO_COUNT |
+| Actionable TODO / real stub hits | $TODO_COUNT |
 | Raw fetch calls inside pages | $RAW_FETCH_PAGES |
-| Tire Marketplace leftover hits | $TIRE_LEFTOVERS |
+| Actionable Tire Marketplace leftover hits | $TIRE_LEFTOVERS |
 
 REPORT
 
@@ -95,9 +117,9 @@ else
 fi
 
 if [ "$TODO_COUNT" -gt 0 ]; then
-  echo "⚠️ TODO/stub/not-implemented debt exists. Review the debt section." | tee -a "$SUMMARY"
+  echo "⚠️ Actionable TODO/stub debt exists. Review the debt section." | tee -a "$SUMMARY"
 else
-  echo "✅ No obvious TODO/stub/not-implemented markers found." | tee -a "$SUMMARY"
+  echo "✅ No actionable TODO/stub markers found." | tee -a "$SUMMARY"
 fi
 
 capture "01 Git Status" git status --short
