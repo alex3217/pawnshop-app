@@ -1,0 +1,75 @@
+/* Admin Shops readability polish.
+   Scoped to AdminShopsPage so the table, sidebar, filters, and modal stay readable in light mode. */
+
+:root:not([data-theme="dark"]) .admin-shops-readability,
+:root:not([data-theme="dark"]) .admin-shops-readability .page-card,
+:root:not([data-theme="dark"]) .admin-shops-readability .admin-table-card,
+:root:not([data-theme="dark"]) .admin-shops-readability .admin-table-scroll,
+:root:not([data-theme="dark"]) .admin-shops-readability .admin-control-bar {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .admin-shops-readability .section-title,
+:root:not([data-theme="dark"]) .admin-shops-readability h1,
+:root:not([data-theme="dark"]) .admin-shops-readability h2,
+:root:not([data-theme="dark"]) .admin-shops-readability h3,
+:root:not([data-theme="dark"]) .admin-shops-readability strong,
+:root:not([data-theme="dark"]) .admin-shops-readability b,
+:root:not([data-theme="dark"]) .admin-shops-readability th {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .admin-shops-readability .section-subtitle,
+:root:not([data-theme="dark"]) .admin-shops-readability p,
+:root:not([data-theme="dark"]) .admin-shops-readability span,
+:root:not([data-theme="dark"]) .admin-shops-readability small,
+:root:not([data-theme="dark"]) .admin-shops-readability label,
+:root:not([data-theme="dark"]) .admin-shops-readability div,
+:root:not([data-theme="dark"]) .admin-shops-readability td,
+:root:not([data-theme="dark"]) .admin-shops-readability .admin-muted,
+:root:not([data-theme="dark"]) .admin-shops-readability .admin-table-meta {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-shops-readability .admin-control-input,
+:root:not([data-theme="dark"]) .admin-shops-readability .admin-control-select,
+:root:not([data-theme="dark"]) .admin-shops-readability input,
+:root:not([data-theme="dark"]) .admin-shops-readability select,
+:root:not([data-theme="dark"]) .admin-shops-readability textarea {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-shops-readability input::placeholder,
+:root:not([data-theme="dark"]) .admin-shops-readability textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-shops-readability .btn,
+:root:not([data-theme="dark"]) .admin-shops-readability button,
+:root:not([data-theme="dark"]) .admin-shops-readability a {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+  font-weight: 800 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-shops-readability .badge {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #93c5fd !important;
+}
+
+/* Modal is inline-styled, so force explicit readable surfaces inside this page only. */
+:root:not([data-theme="dark"]) .admin-shops-readability [style*="rgba"],
+:root:not([data-theme="dark"]) .admin-shops-readability [style*="#0f172a"] {
+  background-color: #101936 !important;
+  color: #f8fafc !important;
+}

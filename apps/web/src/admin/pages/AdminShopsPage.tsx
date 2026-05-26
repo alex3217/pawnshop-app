@@ -15,6 +15,7 @@ import {
   includesSearch,
   type SortDirection,
 } from "../utils/adminControlUtils";
+import "../../styles/admin-shops-readability.css";
 
 type StatusFilter = "ALL" | "ACTIVE" | "DELETED";
 type ModalMode = "create" | "edit";
@@ -324,7 +325,8 @@ export default function AdminShopsPage() {
   }
 
   return (
-    <AdminPageShell
+    <div className="admin-shops-readability">
+      <AdminPageShell
       title={isSuperAdminSurface ? "Super Admin Shop Management" : "Admin Shops"}
       subtitle={isSuperAdminSurface ? "Search, add, edit, reassign owners, update plan/status, disable, and restore shops." : "Search, filter, export, create, edit, assign owners, disable, and restore marketplace shops."}
       actions={
@@ -696,7 +698,8 @@ export default function AdminShopsPage() {
           </form>
         </div>
       ) : null}
-    </AdminPageShell>
+      </AdminPageShell>
+    </div>
   );
 }
 
