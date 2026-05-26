@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from
 import { Link } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
 import { adminApi } from "../services/adminApi";
+import "../../styles/admin-overview-readability.css";
 
 type AnyRow = Record<string, unknown>;
 
@@ -327,7 +328,7 @@ export default function AdminOverviewPage() {
         </button>
       }
     >
-      <div style={styles.stack}>
+      <div className="admin-overview-readability" style={styles.stack}>
         {state.coreErrors.length ? (
           <div style={{ ...styles.notice, ...styles.errorNotice }}>
             <div style={styles.noticeTitle}>Core admin panels could not load.</div>

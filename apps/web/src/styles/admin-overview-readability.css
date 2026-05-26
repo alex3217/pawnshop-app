@@ -1,0 +1,71 @@
+/* Admin Overview readability polish.
+   Scoped to AdminOverviewPage content, with sidebar overrides because /admin includes AdminPageShell navigation. */
+
+:root:not([data-theme="dark"]) .admin-overview-readability,
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="rgba"],
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="linear-gradient"],
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="#111827"],
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="#172033"],
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="#0f172a"] {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-overview-readability h1,
+:root:not([data-theme="dark"]) .admin-overview-readability h2,
+:root:not([data-theme="dark"]) .admin-overview-readability h3,
+:root:not([data-theme="dark"]) .admin-overview-readability h4,
+:root:not([data-theme="dark"]) .admin-overview-readability strong,
+:root:not([data-theme="dark"]) .admin-overview-readability b,
+:root:not([data-theme="dark"]) .admin-overview-readability th,
+:root:not([data-theme="dark"]) .admin-sidebar .section-title {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .admin-overview-readability p,
+:root:not([data-theme="dark"]) .admin-overview-readability span,
+:root:not([data-theme="dark"]) .admin-overview-readability small,
+:root:not([data-theme="dark"]) .admin-overview-readability label,
+:root:not([data-theme="dark"]) .admin-overview-readability div,
+:root:not([data-theme="dark"]) .admin-overview-readability td,
+:root:not([data-theme="dark"]) .admin-overview-readability li,
+:root:not([data-theme="dark"]) .admin-sidebar,
+:root:not([data-theme="dark"]) .admin-sidebar p,
+:root:not([data-theme="dark"]) .admin-sidebar span,
+:root:not([data-theme="dark"]) .admin-sidebar div,
+:root:not([data-theme="dark"]) .admin-sidebar .section-subtitle {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-overview-readability a,
+:root:not([data-theme="dark"]) .admin-overview-readability button,
+:root:not([data-theme="dark"]) .admin-overview-readability .btn {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+  font-weight: 800 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-overview-readability table,
+:root:not([data-theme="dark"]) .admin-overview-readability thead,
+:root:not([data-theme="dark"]) .admin-overview-readability tbody,
+:root:not([data-theme="dark"]) .admin-overview-readability tr,
+:root:not([data-theme="dark"]) .admin-overview-readability td,
+:root:not([data-theme="dark"]) .admin-overview-readability th {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="#86efac"],
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="#fecaca"],
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="#fde68a"],
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="#bfdbfe"],
+:root:not([data-theme="dark"]) .admin-overview-readability [style*="#cbd5e1"] {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
