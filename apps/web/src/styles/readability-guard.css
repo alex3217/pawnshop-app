@@ -183,3 +183,69 @@ button:not(:disabled) {
 .dark [class*="pill"] {
   color: #f8fafc;
 }
+
+/* Admin shell readability polish.
+   Fixes repeated light-mode AdminSidebar/AdminPageShell contrast failures across admin pages. */
+
+:root:not([data-theme="dark"]) aside.admin-sidebar {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+:root:not([data-theme="dark"]) aside.admin-sidebar *,
+:root:not([data-theme="dark"]) aside.admin-sidebar div,
+:root:not([data-theme="dark"]) aside.admin-sidebar span,
+:root:not([data-theme="dark"]) aside.admin-sidebar p {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link {
+  background: #111827 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border: 1px solid rgba(148, 163, 184, 0.34) !important;
+}
+
+:root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link span,
+:root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link svg {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link--active,
+:root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link[aria-current="page"] {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #93c5fd !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link--active *,
+:root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link[aria-current="page"] * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* AdminPageShell header cards that repeat across admin pages. */
+:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card .section-title,
+:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card h1,
+:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card h2,
+:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card h3,
+:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card .section-title,
+:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card h1,
+:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card h2,
+:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card h3 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card .section-subtitle,
+:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card p,
+:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card .section-subtitle,
+:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card p {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
