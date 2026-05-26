@@ -28,6 +28,7 @@ import {
   type OwnerIntegrationOverview,
   type SavedInventoryIntegration,
 } from "../services/integrations";
+import "../styles/owner-integrations-readability.css";
 
 type IntegrationFormState = {
   shopId: string;
@@ -428,7 +429,7 @@ export default function OwnerIntegrationsPage() {
   }
 
   return (
-    <div style={styles.page}>
+    <div className="owner-integrations-readability" style={styles.page}>
       <section style={styles.commandPanel}>
         <div>
           <div style={styles.kicker}>Integration Command Center</div>

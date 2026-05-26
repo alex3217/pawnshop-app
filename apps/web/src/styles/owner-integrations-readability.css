@@ -1,0 +1,79 @@
+/* Owner Integrations readability polish.
+   Scoped to OwnerIntegrationsPage because the page uses inline styles heavily. */
+
+:root:not([data-theme="dark"]) .owner-integrations-readability {
+  background: #0b1020 !important;
+  background-color: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .owner-integrations-readability [style*="rgba"],
+:root:not([data-theme="dark"]) .owner-integrations-readability [style*="linear-gradient"],
+:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#121935"],
+:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#0f172a"] {
+  background-color: #101936 !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .owner-integrations-readability h1,
+:root:not([data-theme="dark"]) .owner-integrations-readability h2,
+:root:not([data-theme="dark"]) .owner-integrations-readability h3,
+:root:not([data-theme="dark"]) .owner-integrations-readability h4,
+:root:not([data-theme="dark"]) .owner-integrations-readability strong,
+:root:not([data-theme="dark"]) .owner-integrations-readability b {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .owner-integrations-readability p,
+:root:not([data-theme="dark"]) .owner-integrations-readability span,
+:root:not([data-theme="dark"]) .owner-integrations-readability small,
+:root:not([data-theme="dark"]) .owner-integrations-readability label,
+:root:not([data-theme="dark"]) .owner-integrations-readability li,
+:root:not([data-theme="dark"]) .owner-integrations-readability div {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-integrations-readability button,
+:root:not([data-theme="dark"]) .owner-integrations-readability a {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+  font-weight: 800 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-integrations-readability button:disabled,
+:root:not([data-theme="dark"]) .owner-integrations-readability [aria-disabled="true"] {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+  background-color: #334155 !important;
+  border-color: #64748b !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-integrations-readability input,
+:root:not([data-theme="dark"]) .owner-integrations-readability select,
+:root:not([data-theme="dark"]) .owner-integrations-readability textarea {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-integrations-readability input::placeholder,
+:root:not([data-theme="dark"]) .owner-integrations-readability textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+/* Keep status badges readable after inline statusStyle() colors are applied. */
+:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#bbf7d0"],
+:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#fde68a"],
+:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#fecaca"],
+:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#cbd5e1"],
+:root:not([data-theme="dark"]) .owner-integrations-readability [style*="rgba(147,197,253"] {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
