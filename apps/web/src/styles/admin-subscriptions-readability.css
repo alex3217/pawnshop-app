@@ -108,3 +108,74 @@
   color: #cbd5e1 !important;
   opacity: 1 !important;
 }
+
+/* Admin Subscriptions readability polish.
+   Scoped to the subscriptions page plus admin sidebar surfaces shown on that route. */
+
+:root:not([data-theme="dark"]) .admin-subscriptions-readability,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability [style*="rgba"],
+:root:not([data-theme="dark"]) .admin-subscriptions-readability [style*="linear-gradient"] {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .admin-subscriptions-readability h1,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability h2,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability h3,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability strong,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability b,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability .section-title,
+:root:not([data-theme="dark"]) .admin-sidebar .section-title {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .admin-subscriptions-readability p,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability span,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability small,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability label,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability div,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability .section-subtitle,
+:root:not([data-theme="dark"]) .admin-sidebar,
+:root:not([data-theme="dark"]) .admin-sidebar p,
+:root:not([data-theme="dark"]) .admin-sidebar span,
+:root:not([data-theme="dark"]) .admin-sidebar div,
+:root:not([data-theme="dark"]) .admin-sidebar .section-subtitle {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-subscriptions-readability button,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability .btn,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability a {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+  font-weight: 800 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-subscriptions-readability select,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability input,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability textarea {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-subscriptions-readability input::placeholder,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-subscriptions-readability table,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability thead,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability tbody,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability tr,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability td,
+:root:not([data-theme="dark"]) .admin-subscriptions-readability th {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}

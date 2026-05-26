@@ -149,7 +149,7 @@ export default function AdminSubscriptionsPage() {
   );
 
   return (
-    <div style={styles.page}>
+    <div className="admin-subscriptions-readability" style={styles.page}>
       <div style={styles.hero}>
         <div>
           <div style={styles.eyebrow}>Admin</div>
