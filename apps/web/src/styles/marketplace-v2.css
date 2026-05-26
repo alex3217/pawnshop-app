@@ -993,3 +993,73 @@
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }
+
+/* Marketplace dark-mode readability polish.
+   Targets audit failures: Use location button, filter labels, discovery strip text,
+   and repeated PawnLoop placeholders. */
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-search-row button.secondary,
+.dark .marketplace-v2 .mp2-search-row button.secondary {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #93c5fd !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-filter-grid label,
+:root[data-theme="dark"] .marketplace-v2 .mp2-filter-grid label span,
+:root[data-theme="dark"] .marketplace-v2 .mp2-filter-grid span,
+.dark .marketplace-v2 .mp2-filter-grid label,
+.dark .marketplace-v2 .mp2-filter-grid label span,
+.dark .marketplace-v2 .mp2-filter-grid span {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  font-weight: 800 !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-filter-grid input,
+:root[data-theme="dark"] .marketplace-v2 .mp2-filter-grid select,
+.dark .marketplace-v2 .mp2-filter-grid input,
+.dark .marketplace-v2 .mp2-filter-grid select {
+  background: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-filter-grid input::placeholder,
+.dark .marketplace-v2 .mp2-filter-grid input::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-discovery-strip a,
+.dark .marketplace-v2 .mp2-discovery-strip a {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-discovery-strip a span,
+.dark .marketplace-v2 .mp2-discovery-strip a span {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 800 !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-item-placeholder,
+.dark .marketplace-v2 .mp2-item-placeholder {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(148, 163, 184, 0.42) !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-item-media,
+.dark .marketplace-v2 .mp2-item-media {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.55), rgba(79, 70, 229, 0.22)),
+    linear-gradient(135deg, #020617, #1e293b) !important;
+}
