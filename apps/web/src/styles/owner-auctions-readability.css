@@ -218,3 +218,98 @@
   background: #334155;
   border-color: #64748b;
 }
+
+/* Polish pass: Owner Auctions light-mode contrast for inline dark command panels.
+   The page mixes page-card classes with inline dark backgrounds, so this block
+   forces explicit readable surfaces and text inside the owner auctions scope. */
+
+:root:not([data-theme="dark"]) .owner-auctions-readability {
+  background: #0b1020 !important;
+  background-color: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .owner-auctions-readability .page-card,
+:root:not([data-theme="dark"]) .owner-auctions-readability article.page-card,
+:root:not([data-theme="dark"]) .owner-auctions-readability section.page-card,
+:root:not([data-theme="dark"]) .owner-auctions-readability [style*="rgba"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [style*="linear-gradient"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [style*="#121935"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [style*="#0f172a"] {
+  background-color: #101936 !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-auctions-readability h1,
+:root:not([data-theme="dark"]) .owner-auctions-readability h2,
+:root:not([data-theme="dark"]) .owner-auctions-readability h3,
+:root:not([data-theme="dark"]) .owner-auctions-readability h4,
+:root:not([data-theme="dark"]) .owner-auctions-readability strong,
+:root:not([data-theme="dark"]) .owner-auctions-readability b {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .owner-auctions-readability p,
+:root:not([data-theme="dark"]) .owner-auctions-readability span,
+:root:not([data-theme="dark"]) .owner-auctions-readability small,
+:root:not([data-theme="dark"]) .owner-auctions-readability label,
+:root:not([data-theme="dark"]) .owner-auctions-readability div,
+:root:not([data-theme="dark"]) .owner-auctions-readability .muted,
+:root:not([data-theme="dark"]) .owner-auctions-readability [class*="muted"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [class*="meta"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [class*="label"] {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-auctions-readability input,
+:root:not([data-theme="dark"]) .owner-auctions-readability select,
+:root:not([data-theme="dark"]) .owner-auctions-readability textarea {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-auctions-readability input::placeholder,
+:root:not([data-theme="dark"]) .owner-auctions-readability textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-auctions-readability button,
+:root:not([data-theme="dark"]) .owner-auctions-readability .btn,
+:root:not([data-theme="dark"]) .owner-auctions-readability a {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+  font-weight: 800 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-auctions-readability button:disabled,
+:root:not([data-theme="dark"]) .owner-auctions-readability [aria-disabled="true"] {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+  background-color: #334155 !important;
+  border-color: #64748b !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-auctions-readability .badge,
+:root:not([data-theme="dark"]) .owner-auctions-readability .pill,
+:root:not([data-theme="dark"]) .owner-auctions-readability .status,
+:root:not([data-theme="dark"]) .owner-auctions-readability [class*="badge"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [class*="pill"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [class*="status"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [style*="rgba(34,197,94"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [style*="rgba(100,116,139"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [style*="rgba(239,68,68"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [style*="rgba(245,158,11"],
+:root:not([data-theme="dark"]) .owner-auctions-readability [style*="rgba(250,204,21"] {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #93c5fd !important;
+}
