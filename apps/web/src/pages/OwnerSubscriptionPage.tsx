@@ -15,6 +15,7 @@ import {
   getShopEntitlements,
   updateShopSubscription,
 } from "../services/ownerWorkspace";
+import "../styles/owner-subscription-readability.css";
 
 type SellerPlan = {
   code: "FREE" | "PRO" | "PREMIUM" | "ULTRA" | string;
@@ -596,7 +597,7 @@ export default function OwnerSubscriptionPage() {
   }, [entitlements]);
 
   return (
-    <div style={styles.page}>
+    <div className="owner-subscription-readability" style={styles.page}>
       <div style={styles.container}>
         <div style={styles.headerRow}>
           <div>

@@ -1,0 +1,77 @@
+/* Owner Subscription readability polish.
+   Scoped to this page only because OwnerSubscriptionPage uses inline styles heavily. */
+
+:root:not([data-theme="dark"]) .owner-subscription-readability {
+  background: #0b1020 !important;
+  background-color: #0b1020 !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .owner-subscription-readability [style*="linear-gradient"],
+:root:not([data-theme="dark"]) .owner-subscription-readability [style*="rgba"],
+:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#121935"],
+:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#1a2345"] {
+  background-color: #101936 !important;
+  color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"]) .owner-subscription-readability h1,
+:root:not([data-theme="dark"]) .owner-subscription-readability h2,
+:root:not([data-theme="dark"]) .owner-subscription-readability h3,
+:root:not([data-theme="dark"]) .owner-subscription-readability h4,
+:root:not([data-theme="dark"]) .owner-subscription-readability strong,
+:root:not([data-theme="dark"]) .owner-subscription-readability b {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .owner-subscription-readability p,
+:root:not([data-theme="dark"]) .owner-subscription-readability span,
+:root:not([data-theme="dark"]) .owner-subscription-readability small,
+:root:not([data-theme="dark"]) .owner-subscription-readability label,
+:root:not([data-theme="dark"]) .owner-subscription-readability li,
+:root:not([data-theme="dark"]) .owner-subscription-readability div {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-subscription-readability button {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+  font-weight: 800 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-subscription-readability button:disabled,
+:root:not([data-theme="dark"]) .owner-subscription-readability [aria-disabled="true"] {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+  background-color: #334155 !important;
+  border-color: #64748b !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-subscription-readability select,
+:root:not([data-theme="dark"]) .owner-subscription-readability input,
+:root:not([data-theme="dark"]) .owner-subscription-readability textarea {
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root:not([data-theme="dark"]) .owner-subscription-readability input::placeholder,
+:root:not([data-theme="dark"]) .owner-subscription-readability textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+/* Preserve high-emphasis price/status content with readable foregrounds. */
+:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#6ea8fe"],
+:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#8ea7e6"],
+:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#a7b0d8"],
+:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#c7d2fe"] {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
