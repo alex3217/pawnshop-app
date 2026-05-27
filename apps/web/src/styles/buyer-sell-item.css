@@ -630,3 +630,141 @@
 :root[data-theme="dark"] .sellitem-flow-list small {
   color: #94a3b8;
 }
+
+/* Buyer Sell Item dark-mode readability polish.
+   Targets dark audit failures: form labels, section title spans, hero pill,
+   reset button, and empty photo preview text. */
+
+:root[data-theme="dark"] .sellitem-page .sellitem-pill,
+.dark .sellitem-page .sellitem-pill {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #93c5fd !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-section-title span,
+:root[data-theme="dark"] .sellitem-page .sellitem-field-grid label span,
+:root[data-theme="dark"] .sellitem-page .sellitem-textarea-label span,
+.dark .sellitem-page .sellitem-section-title span,
+.dark .sellitem-page .sellitem-field-grid label span,
+.dark .sellitem-page .sellitem-textarea-label span {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  font-weight: 850 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-actions button.secondary,
+.dark .sellitem-page .sellitem-actions button.secondary {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #94a3b8 !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-preview-media,
+.dark .sellitem-page .sellitem-preview-media {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.55), rgba(79, 70, 229, 0.22)),
+    linear-gradient(135deg, #020617, #1e293b) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.38) !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-preview-media span,
+.dark .sellitem-page .sellitem-preview-media span {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-field-grid input,
+:root[data-theme="dark"] .sellitem-page .sellitem-field-grid select,
+:root[data-theme="dark"] .sellitem-page .sellitem-textarea-label textarea,
+.dark .sellitem-page .sellitem-field-grid input,
+.dark .sellitem-page .sellitem-field-grid select,
+.dark .sellitem-page .sellitem-textarea-label textarea {
+  background: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-field-grid input::placeholder,
+:root[data-theme="dark"] .sellitem-page .sellitem-textarea-label textarea::placeholder,
+.dark .sellitem-page .sellitem-field-grid input::placeholder,
+.dark .sellitem-page .sellitem-textarea-label textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+/* Buyer Sell Item dark-mode readability polish.
+   Targets dark audit failures: form labels, section title spans, hero pill,
+   reset button, and empty photo preview text. */
+
+:root[data-theme="dark"] .sellitem-page .sellitem-pill,
+.dark .sellitem-page .sellitem-pill {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #93c5fd !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-section-title span,
+:root[data-theme="dark"] .sellitem-page .sellitem-field-grid label span,
+:root[data-theme="dark"] .sellitem-page .sellitem-textarea-label span,
+.dark .sellitem-page .sellitem-section-title span,
+.dark .sellitem-page .sellitem-field-grid label span,
+.dark .sellitem-page .sellitem-textarea-label span {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  font-weight: 850 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-actions button.secondary,
+.dark .sellitem-page .sellitem-actions button.secondary {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #94a3b8 !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-preview-media,
+.dark .sellitem-page .sellitem-preview-media {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.55), rgba(79, 70, 229, 0.22)),
+    linear-gradient(135deg, #020617, #1e293b) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.38) !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-preview-media span,
+.dark .sellitem-page .sellitem-preview-media span {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-field-grid input,
+:root[data-theme="dark"] .sellitem-page .sellitem-field-grid select,
+:root[data-theme="dark"] .sellitem-page .sellitem-textarea-label textarea,
+.dark .sellitem-page .sellitem-field-grid input,
+.dark .sellitem-page .sellitem-field-grid select,
+.dark .sellitem-page .sellitem-textarea-label textarea {
+  background: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page .sellitem-field-grid input::placeholder,
+:root[data-theme="dark"] .sellitem-page .sellitem-textarea-label textarea::placeholder,
+.dark .sellitem-page .sellitem-field-grid input::placeholder,
+.dark .sellitem-page .sellitem-textarea-label textarea::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
