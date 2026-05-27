@@ -1099,3 +1099,73 @@
   color: #cbd5e1 !important;
   opacity: 1 !important;
 }
+
+/* Buyer Dashboard light-mode readability polish.
+   Targets failing light audit selectors: search placeholder, active view button,
+   shop row headings, item card titles, attention cards, and empty panels. */
+
+:root:not([data-theme="dark"]) .buyer-dashboard input::placeholder,
+:root:not([data-theme="dark"]) .buyer-dashboard textarea::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-view-toggle button.active,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-view-toggle button[aria-selected="true"] {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-attention-card,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-item-card,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-shops-card,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-panel,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-map-empty {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(100, 116, 139, 0.35) !important;
+}
+
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-attention-card h3,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-item-card h3,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-item-topline h3,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-shop-row h3,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-map-empty h3,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-empty-panel h3,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-panel h3 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-attention-card p,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-item-card p,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-item-meta,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-item-topline p,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-shop-row p,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-shop-row span,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-shop-row small,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-empty-panel p,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-map-empty span {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+}
+
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-shop-row {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(100, 116, 139, 0.28) !important;
+}
+
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-primary-small,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-section-link,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-attention-card a {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #1d4ed8 !important;
+  font-weight: 900 !important;
+}
