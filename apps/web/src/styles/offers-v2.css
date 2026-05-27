@@ -747,3 +747,129 @@
   -webkit-text-fill-color: #0f172a !important;
   border-color: #64748b !important;
 }
+
+/* Offers dark-mode readability polish.
+   Targets dark audit failures: Buyer offer center pill, filter labels,
+   Controls label, and Add offer manually label. */
+
+:root[data-theme="dark"] .offers2-page .offers2-pill,
+.dark .offers2-page .offers2-pill {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #93c5fd !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .offers2-page .offers2-filter-row label span,
+:root[data-theme="dark"] .offers2-page .offers2-control-head span,
+:root[data-theme="dark"] .offers2-page .offers2-create-form div > span,
+.dark .offers2-page .offers2-filter-row label span,
+.dark .offers2-page .offers2-control-head span,
+.dark .offers2-page .offers2-create-form div > span {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  font-weight: 850 !important;
+}
+
+:root[data-theme="dark"] .offers2-page .offers2-filter-row input,
+:root[data-theme="dark"] .offers2-page .offers2-filter-row select,
+:root[data-theme="dark"] .offers2-page .offers2-create-form input,
+.dark .offers2-page .offers2-filter-row input,
+.dark .offers2-page .offers2-filter-row select,
+.dark .offers2-page .offers2-create-form input {
+  background: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root[data-theme="dark"] .offers2-page input::placeholder,
+.dark .offers2-page input::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+/* Offers dark-mode readability polish.
+   Targets dark audit failures: Buyer offer center pill, filter labels,
+   Controls label, and Add offer manually label. */
+
+:root[data-theme="dark"] .offers2-page .offers2-pill,
+.dark .offers2-page .offers2-pill {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #93c5fd !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .offers2-page .offers2-filter-row label span,
+:root[data-theme="dark"] .offers2-page .offers2-control-head span,
+:root[data-theme="dark"] .offers2-page .offers2-create-form div > span,
+.dark .offers2-page .offers2-filter-row label span,
+.dark .offers2-page .offers2-control-head span,
+.dark .offers2-page .offers2-create-form div > span {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  font-weight: 850 !important;
+}
+
+:root[data-theme="dark"] .offers2-page .offers2-filter-row input,
+:root[data-theme="dark"] .offers2-page .offers2-filter-row select,
+:root[data-theme="dark"] .offers2-page .offers2-create-form input,
+.dark .offers2-page .offers2-filter-row input,
+.dark .offers2-page .offers2-filter-row select,
+.dark .offers2-page .offers2-create-form input {
+  background: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root[data-theme="dark"] .offers2-page input::placeholder,
+.dark .offers2-page input::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+/* Offers dark-mode readability polish.
+   Targets dark audit failures: Buyer offer center pill, filter labels,
+   Controls label, and Add offer manually label. */
+
+:root[data-theme="dark"] .offers2-page .offers2-pill,
+.dark .offers2-page .offers2-pill {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #93c5fd !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .offers2-page .offers2-filter-row label span,
+:root[data-theme="dark"] .offers2-page .offers2-control-head span,
+:root[data-theme="dark"] .offers2-page .offers2-create-form div > span,
+.dark .offers2-page .offers2-filter-row label span,
+.dark .offers2-page .offers2-control-head span,
+.dark .offers2-page .offers2-create-form div > span {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  font-weight: 850 !important;
+}
+
+:root[data-theme="dark"] .offers2-page .offers2-filter-row input,
+:root[data-theme="dark"] .offers2-page .offers2-filter-row select,
+:root[data-theme="dark"] .offers2-page .offers2-create-form input,
+.dark .offers2-page .offers2-filter-row input,
+.dark .offers2-page .offers2-filter-row select,
+.dark .offers2-page .offers2-create-form input {
+  background: #020617 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root[data-theme="dark"] .offers2-page input::placeholder,
+.dark .offers2-page input::placeholder {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
