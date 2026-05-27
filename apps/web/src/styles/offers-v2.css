@@ -704,3 +704,46 @@
   background: #0f172a !important;
   border-color: rgba(255, 255, 255, 0.75) !important;
 }
+
+/* Offers light-mode readability polish.
+   Targets light audit failures: hero heading, Refresh button, placeholders,
+   and empty-state heading. */
+
+:root:not([data-theme="dark"]) .offers2-page .offers2-hero h1,
+:root:not([data-theme="dark"]) .offers2-page .offers2-empty h2 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .offers2-page .offers2-hero p,
+:root:not([data-theme="dark"]) .offers2-page .offers2-empty p {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+}
+
+:root:not([data-theme="dark"]) .offers2-page .offers2-hero-actions button,
+:root:not([data-theme="dark"]) .offers2-page .offers2-hero-actions a,
+:root:not([data-theme="dark"]) .offers2-page .offers2-empty a,
+:root:not([data-theme="dark"]) .offers2-page .offers2-empty button {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #1d4ed8 !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .offers2-page input::placeholder,
+:root:not([data-theme="dark"]) .offers2-page textarea::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .offers2-page .offers2-filter-row input,
+:root:not([data-theme="dark"]) .offers2-page .offers2-filter-row select,
+:root:not([data-theme="dark"]) .offers2-page .offers2-create-form input {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: #64748b !important;
+}
