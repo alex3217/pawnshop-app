@@ -1169,3 +1169,31 @@
   border-color: #1d4ed8 !important;
   font-weight: 900 !important;
 }
+
+/* Buyer Dashboard dark-mode final badge/link readability polish.
+   Targets remaining dark failures: AVAILABLE item badges and lower-grid quick-link labels. */
+
+:root[data-theme="dark"] .buyer-dashboard .bd-item-badge,
+.dark .buyer-dashboard .bd-item-badge {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #93c5fd !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .buyer-dashboard .bd-link-list a,
+.dark .buyer-dashboard .bd-link-list a {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+:root[data-theme="dark"] .buyer-dashboard .bd-link-list a span,
+.dark .buyer-dashboard .bd-link-list a span {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #93c5fd !important;
+  font-weight: 900 !important;
+}
