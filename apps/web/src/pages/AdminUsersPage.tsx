@@ -278,7 +278,8 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <AdminPageShell
+    <div className="admin-users-readability">
+      <AdminPageShell
       title={isSuperAdminSurface ? "Super Admin Users & Roles" : "Admin Users"}
       subtitle={isSuperAdminSurface ? "Search, add, edit, activate, deactivate, and govern platform users and roles." : "Search, filter, export, create, edit, activate, and deactivate platform users."}
       actions={
@@ -550,7 +551,8 @@ export default function AdminUsersPage() {
           </form>
         </div>
       ) : null}
-    </AdminPageShell>
+      </AdminPageShell>
+    </div>
   );
 }
 

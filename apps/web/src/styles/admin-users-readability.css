@@ -108,3 +108,54 @@
   color: #cbd5e1 !important;
   opacity: 1 !important;
 }
+
+/* Admin Users scoped readability polish.
+   Fixes only /admin/users light-mode failures: title, subtitle, table headers,
+   and sidebar nav text when this page is active. */
+
+:root:not([data-theme="dark"]) .admin-users-readability .page-card .section-title,
+:root:not([data-theme="dark"]) .admin-users-readability .page-card .toolbar .section-title {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-users-readability .page-card .section-subtitle,
+:root:not([data-theme="dark"]) .admin-users-readability .page-card .toolbar .section-subtitle {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-users-readability .admin-table thead,
+:root:not([data-theme="dark"]) .admin-users-readability .admin-table thead tr,
+:root:not([data-theme="dark"]) .admin-users-readability .admin-table thead th {
+  background: #020617 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(148, 163, 184, 0.55) !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-users-readability .admin-table-scroll {
+  background: #111827 !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+:root:not([data-theme="dark"]) .admin-users-readability .admin-table-card {
+  background: #111827 !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+:root:not([data-theme="dark"]) .admin-users-readability .admin-table-meta {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-users-readability .admin-sidebar nav,
+:root:not([data-theme="dark"]) .admin-users-readability .admin-sidebar nav *,
+:root:not([data-theme="dark"]) .admin-users-readability aside.admin-sidebar nav,
+:root:not([data-theme="dark"]) .admin-users-readability aside.admin-sidebar nav * {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
