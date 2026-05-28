@@ -352,7 +352,8 @@ export default function AdminItemsPage() {
   }
 
   return (
-    <AdminPageShell
+    <div className="admin-items-readability">
+      <AdminPageShell
       title={isSuperAdminSurface ? "Super Admin Inventory Control" : "Admin Inventory Control"}
       subtitle={
         isSuperAdminSurface
@@ -687,7 +688,8 @@ export default function AdminItemsPage() {
           </form>
         </div>
       ) : null}
-    </AdminPageShell>
+      </AdminPageShell>
+    </div>
   );
 }
 
