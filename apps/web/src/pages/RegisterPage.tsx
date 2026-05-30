@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { persistAuth, register } from "../services/auth";
 import type { Role } from "../services/auth";
+import "../styles/register-readability.css";
 
 type PublicRole = Extract<Role, "CONSUMER" | "OWNER">;
 
@@ -67,7 +68,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{ maxWidth: 420 }}>
+    <div className="register-readability" style={{ maxWidth: 420 }}>
       <h3>Register</h3>
 
       <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>

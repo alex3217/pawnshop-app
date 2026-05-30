@@ -1,0 +1,20 @@
+/* Register light-mode readability polish.
+   Targets remaining light audit failures: Register heading and form placeholders. */
+
+:root:not([data-theme="dark"]) .register-readability h3 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .register-readability input {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border: 1px solid #64748b !important;
+}
+
+:root:not([data-theme="dark"]) .register-readability input::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
