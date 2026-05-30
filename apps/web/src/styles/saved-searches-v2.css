@@ -315,3 +315,33 @@
   -webkit-text-fill-color: #ffffff !important;
   border-color: rgba(148, 163, 184, 0.45) !important;
 }
+
+/* Saved Searches light-mode readability polish.
+   Targets remaining light audit failures: hero heading, control heading,
+   search placeholder, and empty-state heading. */
+
+:root:not([data-theme="dark"]) .saved2-page .saved2-hero h1,
+:root:not([data-theme="dark"]) .saved2-page .saved2-control-head h2,
+:root:not([data-theme="dark"]) .saved2-page .saved2-empty h2 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .saved2-page .saved2-form input {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: #64748b !important;
+}
+
+:root:not([data-theme="dark"]) .saved2-page .saved2-form input::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .saved2-page .saved2-empty p,
+:root:not([data-theme="dark"]) .saved2-page .saved2-control-head p {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+}
