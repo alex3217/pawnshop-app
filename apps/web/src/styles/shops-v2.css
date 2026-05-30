@@ -781,3 +781,42 @@
   color: #ffffff;
   -webkit-text-fill-color: #ffffff;
 }
+
+/* Shops light-mode readability polish.
+   Targets remaining light audit failures: search placeholders, location button,
+   Browse storefronts heading, and active grid/list toggle. */
+
+:root:not([data-theme="dark"]) .shops2-page .shops2-search-row input::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .shops2-page .shops2-search-row input {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: #64748b !important;
+}
+
+:root:not([data-theme="dark"]) .shops2-page .shops2-search-row button {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #1d4ed8 !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .shops2-page .shops2-filter-heading h2,
+:root:not([data-theme="dark"]) .shops2-page .shops2-filter-heading strong {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .shops2-page .shops2-view-toggle button.active {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #0f172a !important;
+  font-weight: 900 !important;
+}
