@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
 import { getOwnerOffers, type Offer } from "../../services/offers";
+import "../../styles/admin-offers-readability.css";
 
 export default function AdminOffersPage() {
   const [rows, setRows] = useState<Offer[]>([]);
@@ -41,7 +42,8 @@ export default function AdminOffersPage() {
   }, [rows]);
 
   return (
-    <AdminPageShell
+    <div className="admin-offers-readability">
+      <AdminPageShell
       title="Offers"
       subtitle="Monitor offer activity across marketplace negotiations."
       actions={
@@ -129,6 +131,7 @@ export default function AdminOffersPage() {
           </div>
         ))}
       </div>
-    </AdminPageShell>
+      </AdminPageShell>
+    </div>
   );
 }

@@ -1,0 +1,46 @@
+/* Admin Offers scoped readability polish.
+   Fixes only /admin/offers light-mode failures: Admin shell labels,
+   page title/subtitle, empty-state card, and muted offer text. */
+
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card .section-title,
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card .toolbar .section-title,
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card h1,
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card h2,
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card h3,
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card strong,
+:root:not([data-theme="dark"]) .admin-offers-readability .list-card strong {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card .section-subtitle,
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card .toolbar .section-subtitle,
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card p,
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card .muted,
+:root:not([data-theme="dark"]) .admin-offers-readability .list-card,
+:root:not([data-theme="dark"]) .admin-offers-readability .list-card p,
+:root:not([data-theme="dark"]) .admin-offers-readability .list-card .muted {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-offers-readability .list-card {
+  background: #111827 !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+:root:not([data-theme="dark"]) .admin-offers-readability .page-card {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+/* Sidebar nav labels are counted on this page; keep the fix page-scoped. */
+:root:not([data-theme="dark"]) .admin-offers-readability .admin-sidebar nav,
+:root:not([data-theme="dark"]) .admin-offers-readability .admin-sidebar nav *,
+:root:not([data-theme="dark"]) .admin-offers-readability aside.admin-sidebar nav,
+:root:not([data-theme="dark"]) .admin-offers-readability aside.admin-sidebar nav * {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
