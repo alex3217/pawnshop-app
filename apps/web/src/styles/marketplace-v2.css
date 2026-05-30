@@ -1063,3 +1063,108 @@
     linear-gradient(135deg, rgba(15, 23, 42, 0.55), rgba(79, 70, 229, 0.22)),
     linear-gradient(135deg, #020617, #1e293b) !important;
 }
+
+/* Marketplace light-mode readability polish.
+   Targets remaining light audit failures: search placeholders, price placeholders,
+   Save search button, and filter heading. */
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row input::placeholder,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-grid input::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row button,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row button.secondary {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #1d4ed8 !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-heading h2,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-heading strong {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-grid input,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-grid select,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row input {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: #64748b !important;
+}
+
+/* Marketplace light-mode readability polish.
+   Targets remaining light audit failures: search placeholders, price placeholders,
+   Save search button, and filter heading. */
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row input::placeholder,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-grid input::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row button,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row button.secondary {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #1d4ed8 !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-heading h2,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-heading strong {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-grid input,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-grid select,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row input {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: #64748b !important;
+}
+
+/* Marketplace light-mode readability polish.
+   Targets remaining light audit failures: search placeholders, price placeholders,
+   Save search button, and filter heading. */
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row input::placeholder,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-grid input::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row button,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row button.secondary {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #1d4ed8 !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-heading h2,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-heading strong {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-grid input,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-filter-grid select,
+:root:not([data-theme="dark"]) .marketplace-v2 .mp2-search-row input {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: #64748b !important;
+}
