@@ -6,6 +6,11 @@ const LOCATION_SAFE_FIELDS = [
   "id",
   "name",
   "address",
+  "city",
+  "state",
+  "zip",
+  "latitude",
+  "longitude",
   "phone",
   "description",
   "hours",
@@ -18,8 +23,7 @@ const LOCATION_SAFE_FIELDS = [
   "subscriptionBillingInterval",
   "subscriptionCurrentPeriodEnd",
   "stripeCustomerId",
-  "stripeSubscriptionId",
-];
+  "stripeSubscriptionId",];
 
 const PAWNSHOP_TABLE = "PawnShop";
 

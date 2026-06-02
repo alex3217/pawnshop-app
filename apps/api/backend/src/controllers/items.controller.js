@@ -46,6 +46,11 @@ const PAWNSHOP_SAFE_FIELDS = [
   "id",
   "name",
   "address",
+  "city",
+  "state",
+  "zip",
+  "latitude",
+  "longitude",
   "phone",
   "description",
   "hours",
@@ -53,8 +58,7 @@ const PAWNSHOP_SAFE_FIELDS = [
   "createdAt",
   "updatedAt",
   "isDeleted",
-  "subscriptionBillingInterval",
-];
+  "subscriptionBillingInterval",];
 
 const tableColumnsCache = new Map();
 

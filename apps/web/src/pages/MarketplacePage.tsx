@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { addSavedSearch } from "../services/savedSearches";
 import { getMarketplaceItemsPaged, type Item } from "../services/items";
+import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import {
   ITEM_CATEGORY_OPTIONS,
   ITEM_CONDITION_OPTIONS,
@@ -40,6 +41,27 @@ function itemShopName(item: Item) {
   return normalizeLabel(item.shop?.name, "Pawnshop");
 }
 
+function itemShopPoint(item: Item): GeoPoint {
+  return {
+    latitude: item.shop?.latitude,
+    longitude: item.shop?.longitude,
+  };
+}
+
+function itemDistanceMiles(item: Item, userPoint: GeoPoint | null): number | null {
+  if (!userPoint) return null;
+  return distanceMiles(userPoint, itemShopPoint(item));
+}
+
+function itemDistanceLabel(item: Item, userPoint: GeoPoint | null): string {
+  return formatMiles(itemDistanceMiles(item, userPoint));
+}
+
+function itemDirectionsUrl(item: Item): string | null {
+  return directionsUrl(itemShopPoint(item));
+}
+
+
 function itemImage(item: Item) {
   return Array.isArray(item.images) && item.images.length ? item.images[0] : "";
 }
@@ -71,7 +93,15 @@ function StatusBadge({ item }: { item: Item }) {
   );
 }
 
-function ItemCard({ item, compact = false }: { item: Item; compact?: boolean }) {
+function ItemCard({
+  item,
+  userPoint,
+  compact = false,
+}: {
+  item: Item;
+  userPoint: GeoPoint | null;
+  compact?: boolean;
+}) {
   const image = itemImage(item);
   const shopName = itemShopName(item);
 
@@ -88,7 +118,10 @@ function ItemCard({ item, compact = false }: { item: Item; compact?: boolean }) 
             <Link to={itemHref(item)} className="mp2-item-title">
               {normalizeLabel(item.title, "Untitled item")}
             </Link>
-            <p>{shopName}</p>
+            <p>
+              {shopName}
+              {userPoint ? ` · ${itemDistanceLabel(item, userPoint)}` : ""}
+            </p>
           </div>
           <strong>{formatPrice(item.price)}</strong>
         </div>
@@ -106,6 +139,16 @@ function ItemCard({ item, compact = false }: { item: Item; compact?: boolean }) 
           <Link to="/offers" className="mp2-secondary-small">
             Make offer
           </Link>
+          {itemDirectionsUrl(item) ? (
+            <a
+              href={itemDirectionsUrl(item) || "#"}
+              target="_blank"
+              rel="noreferrer"
+              className="mp2-secondary-small"
+            >
+              Directions
+            </a>
+          ) : null}
           <Link to="/watchlist" className="mp2-secondary-small">
             Watch
           </Link>
@@ -132,10 +175,12 @@ function EmptyState({ clearFilters }: { clearFilters: () => void }) {
 
 function MarketplaceMap({
   items,
+  userPoint,
   selectedItemId,
   setSelectedItemId,
 }: {
   items: Item[];
+  userPoint: GeoPoint | null;
   selectedItemId: string | null;
   setSelectedItemId: (id: string) => void;
 }) {
@@ -160,16 +205,16 @@ function MarketplaceMap({
               title={item.title}
             >
               <strong>{formatPrice(item.price)}</strong>
-              <span>{itemShopName(item)}</span>
+              <span>{itemShopName(item)} · {itemDistanceLabel(item, userPoint)}</span>
             </button>
           );
         })}
 
         <div className="mp2-map-card">
-          <strong>Map-ready browsing</strong>
+          <strong>Coordinate-backed browsing</strong>
           <span>
-            This view is ready for real coordinates once nearby item/shop endpoints
-            are added.
+            Items use saved shop coordinates for local discovery, distance badges,
+            and directions links when location is enabled.
           </span>
           <Link to="/shops">Browse shops</Link>
         </div>
@@ -190,7 +235,7 @@ function MarketplaceMap({
           >
             <span>
               <strong>{normalizeLabel(item.title, "Untitled item")}</strong>
-              <small>{itemShopName(item)}</small>
+              <small>{itemShopName(item)} · {itemDistanceLabel(item, userPoint)}</small>
             </span>
             <b>{formatPrice(item.price)}</b>
           </button>
@@ -216,6 +261,7 @@ export default function MarketplacePage() {
   const [sort, setSort] = useState("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [locationLabel, setLocationLabel] = useState("your area");
+  const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
@@ -300,6 +346,25 @@ export default function MarketplacePage() {
     ).sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
 
+  const rankedItems = useMemo(() => {
+    const ranked = [...items];
+
+    if (userPoint) {
+      ranked.sort((a, b) => {
+        const aDistance = itemDistanceMiles(a, userPoint);
+        const bDistance = itemDistanceMiles(b, userPoint);
+
+        if (aDistance === null && bDistance === null) return 0;
+        if (aDistance === null) return 1;
+        if (bDistance === null) return -1;
+
+        return aDistance - bDistance;
+      });
+    }
+
+    return ranked;
+  }, [items, userPoint]);
+
   const stats = useMemo(() => {
     const totalValue = items.reduce(
       (sum, item) => sum + toPriceNumber(item.price),
@@ -372,6 +437,7 @@ export default function MarketplacePage() {
     setMaxPrice("");
     setSort("newest");
     setSaveMessage(null);
+    setUserPoint(null);
   }
 
   function handleUseLocation() {
@@ -384,10 +450,14 @@ export default function MarketplacePage() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        setUserPoint({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
         setLocationLabel(
           `near ${position.coords.latitude.toFixed(2)}, ${position.coords.longitude.toFixed(2)}`,
         );
-        setLocationMessage("Location enabled. Real nearby ranking can now be wired to backend geo endpoints.");
+        setLocationMessage("Location enabled. Nearby discovery can rank shops with saved coordinates.");
       },
       () => {
         setLocationMessage("Location permission was not enabled. You can still browse by filters.");
@@ -404,7 +474,7 @@ export default function MarketplacePage() {
           <h1>Browse pawnshop inventory across nearby stores.</h1>
           <p>
             Search items, compare prices, save searches, and switch between
-            grid, list, and map-ready views built for local discovery.
+            grid, list, and coordinate-backed discovery views built for local shopping.
           </p>
 
           <div className="mp2-search-row">
@@ -608,18 +678,24 @@ export default function MarketplacePage() {
             <div key={index} className="mp2-skeleton" />
           ))}
         </section>
-      ) : items.length === 0 ? (
+      ) : rankedItems.length === 0 ? (
         <EmptyState clearFilters={clearFilters} />
       ) : viewMode === "map" ? (
         <MarketplaceMap
-          items={items}
+          items={rankedItems}
+          userPoint={userPoint}
           selectedItemId={selectedItemId}
           setSelectedItemId={setSelectedItemId}
         />
       ) : (
         <section className={viewMode === "list" ? "mp2-list" : "mp2-grid"}>
-          {items.map((item) => (
-            <ItemCard key={item.id} item={item} compact={viewMode === "list"} />
+          {rankedItems.map((item) => (
+            <ItemCard
+              key={item.id}
+              item={item}
+              userPoint={userPoint}
+              compact={viewMode === "list"}
+            />
           ))}
         </section>
       )}

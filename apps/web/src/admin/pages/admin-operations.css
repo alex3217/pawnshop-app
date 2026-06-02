@@ -1,0 +1,173 @@
+.admin-ops-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-ops-hero,
+.admin-ops-card {
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.28));
+  border-radius: 24px;
+  background: var(--surface, rgba(255, 255, 255, 0.94));
+  color: var(--text, #0f172a);
+  box-shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
+}
+
+.admin-ops-hero {
+  padding: 1.4rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-ops-eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.76rem;
+  font-weight: 900;
+  color: var(--muted, #64748b);
+}
+
+.admin-ops-hero h1,
+.admin-ops-card h2,
+.admin-ops-card h3,
+.admin-ops-card p {
+  margin-top: 0;
+}
+
+.admin-ops-hero h1 {
+  margin-bottom: 0;
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+}
+
+.admin-ops-actions,
+.admin-ops-grid,
+.admin-ops-links,
+.admin-ops-endpoints {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-ops-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.admin-ops-card {
+  padding: 1rem;
+}
+
+.admin-ops-stat {
+  font-size: 1.8rem;
+  font-weight: 950;
+}
+
+.admin-ops-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+}
+
+.admin-ops-chip.good {
+  border-color: rgba(22, 163, 74, 0.35);
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+}
+
+.admin-ops-chip.warn {
+  border-color: rgba(217, 119, 6, 0.35);
+  background: rgba(217, 119, 6, 0.14);
+  color: #92400e;
+}
+
+.admin-ops-chip.bad {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+}
+
+.admin-ops-link,
+.admin-ops-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 0.62rem 0.95rem;
+  font-weight: 900;
+  text-decoration: none;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+}
+
+.admin-ops-button {
+  background: #2563eb;
+  color: #fff;
+}
+
+.admin-ops-link {
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.admin-ops-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.admin-ops-list li + li {
+  margin-top: 0.45rem;
+}
+
+.admin-ops-endpoint {
+  display: grid;
+  gap: 0.5rem;
+  border-radius: 18px;
+  padding: 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(248, 250, 252, 0.76);
+}
+
+.admin-ops-endpoint-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-ops-code {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+:root[data-theme="dark"] .admin-ops-hero,
+:root[data-theme="dark"] .admin-ops-card,
+.dark .admin-ops-hero,
+.dark .admin-ops-card {
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+:root[data-theme="dark"] .admin-ops-eyebrow,
+.dark .admin-ops-eyebrow {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .admin-ops-endpoint,
+.dark .admin-ops-endpoint {
+  background: rgba(30, 41, 59, 0.72);
+}
+
+:root[data-theme="dark"] .admin-ops-link,
+.dark .admin-ops-link {
+  color: #bfdbfe;
+  background: rgba(37, 99, 235, 0.18);
+}

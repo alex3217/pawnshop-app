@@ -83,7 +83,15 @@ const AdminShopsPage = lazyPage(() => import("./admin/pages/AdminShopsPage"));
 const AdminSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/AdminSubscriptionsPage"),
 );
-const AdminWorkspacePage = lazyPage(() => import("./admin/pages/AdminWorkspacePage"));
+const AdminOrdersPage = lazyPage(() => import("./admin/pages/AdminOrdersPage"));
+const AdminReviewsPage = lazyPage(() => import("./admin/pages/AdminReviewsPage"));
+const AdminSupportPage = lazyPage(() => import("./admin/pages/AdminSupportPage"));
+const AdminRevenuePage = lazyPage(() => import("./admin/pages/AdminRevenuePage"));
+const AdminAnalyticsPage = lazyPage(() => import("./admin/pages/AdminAnalyticsPage"));
+const AdminRiskPage = lazyPage(() => import("./admin/pages/AdminRiskPage"));
+const AdminAuditPage = lazyPage(() => import("./admin/pages/AdminAuditPage"));
+const AdminSystemPage = lazyPage(() => import("./admin/pages/AdminSystemPage"));
+const AdminSettingsPage = lazyPage(() => import("./admin/pages/AdminSettingsPage"));
 
 const AdminItemsPage = lazyPage(() => import("./pages/AdminItemsPage"));
 const AdminUsersPage = lazyPage(() => import("./pages/AdminUsersPage"));
@@ -248,60 +256,15 @@ const adminCoreRoutes: RouteConfig[] = [
 ];
 
 const adminWorkspaceRoutes: RouteConfig[] = [
-  {
-    path: "orders",
-    element: (
-      <AdminWorkspacePage />
-    ),
-  },
-  {
-    path: "reviews",
-    element: (
-      <AdminWorkspacePage />
-    ),
-  },
-  {
-    path: "support",
-    element: (
-      <AdminWorkspacePage />
-    ),
-  },
-  {
-    path: "revenue",
-    element: (
-      <AdminWorkspacePage />
-    ),
-  },
-  {
-    path: "analytics",
-    element: (
-      <AdminWorkspacePage />
-    ),
-  },
-  {
-    path: "risk",
-    element: (
-      <AdminWorkspacePage />
-    ),
-  },
-  {
-    path: "audit",
-    element: (
-      <AdminWorkspacePage />
-    ),
-  },
-  {
-    path: "system",
-    element: (
-      <AdminWorkspacePage />
-    ),
-  },
-  {
-    path: "settings",
-    element: (
-      <AdminWorkspacePage />
-    ),
-  },
+  { path: "orders", element: <AdminOrdersPage /> },
+  { path: "reviews", element: <AdminReviewsPage /> },
+  { path: "support", element: <AdminSupportPage /> },
+  { path: "revenue", element: <AdminRevenuePage /> },
+  { path: "analytics", element: <AdminAnalyticsPage /> },
+  { path: "risk", element: <AdminRiskPage /> },
+  { path: "audit", element: <AdminAuditPage /> },
+  { path: "system", element: <AdminSystemPage /> },
+  { path: "settings", element: <AdminSettingsPage /> },
 ];
 
 const adminChildRoutes: RouteConfig[] = [
