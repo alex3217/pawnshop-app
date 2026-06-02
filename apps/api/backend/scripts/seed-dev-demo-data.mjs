@@ -198,10 +198,18 @@ async function main() {
     password: "Admin123!",
   });
 
+  const superAdmin = await upsertUser({
+    email: "superadmin1@example.com",
+    name: "Dev Super Admin",
+    role: "SUPER_ADMIN",
+    password: "SuperAdmin123!",
+  });
+
   console.log("✅ Users ready:", {
     buyer: buyer.email,
     owner: owner.email,
     admin: admin.email,
+    superAdmin: superAdmin.email,
   });
 
   const shops = [];
