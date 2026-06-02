@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMarketplaceShops, type Shop } from "../services/shops";
+import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import "../styles/shops-v2.css";
 
 type ViewMode = "grid" | "list" | "map";
@@ -20,8 +21,24 @@ function hasValue(value: string | null | undefined) {
   return String(value || "").trim().length > 0;
 }
 
-function distanceLabel() {
-  return "Distance unavailable";
+function shopPoint(shop: Shop): GeoPoint {
+  return {
+    latitude: shop.latitude,
+    longitude: shop.longitude,
+  };
+}
+
+function shopDistanceMiles(shop: Shop, userPoint: GeoPoint | null): number | null {
+  if (!userPoint) return null;
+  return distanceMiles(userPoint, shopPoint(shop));
+}
+
+function distanceLabel(shop: Shop, userPoint: GeoPoint | null): string {
+  return formatMiles(shopDistanceMiles(shop, userPoint));
+}
+
+function shopDirectionsUrl(shop: Shop): string | null {
+  return directionsUrl(shopPoint(shop));
 }
 
 function mapPosition(index: number) {
@@ -41,15 +58,17 @@ function mapPosition(index: number) {
 
 function ShopCard({
   shop,
+  userPoint,
   compact = false,
 }: {
   shop: Shop;
+  userPoint: GeoPoint | null;
   compact?: boolean;
 }) {
   return (
     <article className={compact ? "shops2-card shops2-card-list" : "shops2-card"}>
       <div className="shops2-card-map">
-        <span>{distanceLabel()}</span>
+        <span>{distanceLabel(shop, userPoint)}</span>
         <strong>{displayValue(shop.name, "Pawnshop").slice(0, 2).toUpperCase()}</strong>
       </div>
 
@@ -83,6 +102,16 @@ function ShopCard({
           <Link to={`/shops/${shop.id}`} className="shops2-primary-small">
             View storefront
           </Link>
+          {shopDirectionsUrl(shop) ? (
+            <a
+              href={shopDirectionsUrl(shop) || "#"}
+              target="_blank"
+              rel="noreferrer"
+              className="shops2-secondary-small"
+            >
+              Directions
+            </a>
+          ) : null}
           <Link to="/marketplace" className="shops2-secondary-small">
             Browse inventory
           </Link>
@@ -97,10 +126,12 @@ function ShopCard({
 
 function ShopsMap({
   shops,
+  userPoint,
   selectedShopId,
   setSelectedShopId,
 }: {
   shops: Shop[];
+  userPoint: GeoPoint | null;
   selectedShopId: string | null;
   setSelectedShopId: (id: string) => void;
 }) {
@@ -125,7 +156,7 @@ function ShopsMap({
               title={shop.name}
             >
               <strong>{displayValue(shop.name, "Shop").slice(0, 2).toUpperCase()}</strong>
-              <span>{distanceLabel()}</span>
+              <span>{distanceLabel(shop, userPoint)}</span>
             </button>
           );
         })}
@@ -156,7 +187,7 @@ function ShopsMap({
               <strong>{displayValue(shop.name, "Unnamed pawnshop")}</strong>
               <small>{displayValue(shop.address, "Address not listed")}</small>
             </span>
-            <b>{distanceLabel()}</b>
+            <b>{distanceLabel(shop, userPoint)}</b>
           </button>
         ))}
       </aside>
@@ -175,6 +206,7 @@ export default function ShopsPage() {
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState("your area");
+  const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -250,10 +282,24 @@ export default function ShopsPage() {
     };
   }, [shops, filteredShops]);
 
-  const visibleShops = useMemo(
-    () => filteredShops.slice(0, visibleCount),
-    [filteredShops, visibleCount],
-  );
+  const visibleShops = useMemo(() => {
+    const ranked = [...filteredShops];
+
+    if (userPoint) {
+      ranked.sort((a, b) => {
+        const aDistance = shopDistanceMiles(a, userPoint);
+        const bDistance = shopDistanceMiles(b, userPoint);
+
+        if (aDistance === null && bDistance === null) return 0;
+        if (aDistance === null) return 1;
+        if (bDistance === null) return -1;
+
+        return aDistance - bDistance;
+      });
+    }
+
+    return ranked.slice(0, visibleCount);
+  }, [filteredShops, visibleCount, userPoint]);
 
   const hiddenShopCount = Math.max(filteredShops.length - visibleShops.length, 0);
 
@@ -267,6 +313,7 @@ export default function ShopsPage() {
     setRequirePhone(false);
     setRequireHours(false);
     setLocationMessage(null);
+    setUserPoint(null);
   }
 
   function handleUseLocation() {
@@ -279,6 +326,10 @@ export default function ShopsPage() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        setUserPoint({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
         setLocationLabel(
           `near ${position.coords.latitude.toFixed(2)}, ${position.coords.longitude.toFixed(2)}`,
         );
@@ -437,6 +488,7 @@ export default function ShopsPage() {
       ) : viewMode === "map" ? (
         <ShopsMap
           shops={filteredShops}
+          userPoint={userPoint}
           selectedShopId={selectedShopId}
           setSelectedShopId={setSelectedShopId}
         />
@@ -446,6 +498,7 @@ export default function ShopsPage() {
             <ShopCard
               key={shop.id}
               shop={shop}
+              userPoint={userPoint}
               compact={viewMode === "list"}
             />
           ))}
