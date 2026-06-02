@@ -66,6 +66,11 @@ model PawnShop {
   id                           String                     @id @default(cuid())
   name                         String
   address                      String?
+  city                         String?
+  state                        String?
+  zip                          String?
+  latitude                     Float?
+  longitude                    Float?
   phone                        String?
   description                  String?
   hours                        String?
