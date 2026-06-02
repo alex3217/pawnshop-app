@@ -4,6 +4,11 @@ export type ItemShop = {
   id: string;
   name: string;
   address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   phone?: string | null;
 };
 

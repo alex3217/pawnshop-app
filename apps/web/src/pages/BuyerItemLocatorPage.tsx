@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMarketplaceItemsPaged, type Item } from "../services/items";
+import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import "../styles/buyer-item-locator.css";
 
 function normalizeLabel(value: string | null | undefined, fallback: string) {
@@ -42,6 +43,27 @@ function shopAddress(item: Item) {
   return normalizeLabel(item.shop?.address, "Shop address not listed");
 }
 
+function itemShopPoint(item: Item): GeoPoint {
+  return {
+    latitude: item.shop?.latitude,
+    longitude: item.shop?.longitude,
+  };
+}
+
+function itemDistanceMiles(item: Item, userPoint: GeoPoint | null): number | null {
+  if (!userPoint) return null;
+  return distanceMiles(userPoint, itemShopPoint(item));
+}
+
+function itemDistanceLabel(item: Item, userPoint: GeoPoint | null): string {
+  return formatMiles(itemDistanceMiles(item, userPoint));
+}
+
+function itemDirectionsUrl(item: Item): string | null {
+  return directionsUrl(itemShopPoint(item));
+}
+
+
 function itemImage(item: Item) {
   return Array.isArray(item.images) && item.images.length ? item.images[0] : "";
 }
@@ -63,12 +85,12 @@ function mapPosition(index: number) {
 
 function LocatorResultCard({
   item,
-  index,
+  userPoint,
   selected,
   onSelect,
 }: {
   item: Item;
-  index: number;
+  userPoint: GeoPoint | null;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -79,7 +101,7 @@ function LocatorResultCard({
       <button type="button" className="locator-result-select" onClick={onSelect}>
         <div className="locator-result-image">
           {image ? <img src={image} alt={item.title} /> : <span>PawnLoop</span>}
-          <b>{`${(2.1 + index * 1.2).toFixed(1)} mi`}</b>
+          <b>{itemDistanceLabel(item, userPoint)}</b>
         </div>
 
         <div className="locator-result-body">
@@ -108,6 +130,16 @@ function LocatorResultCard({
         <Link to={shopHref(item)} className="locator-secondary-small">
           View shop
         </Link>
+        {itemDirectionsUrl(item) ? (
+          <a
+            href={itemDirectionsUrl(item) || "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="locator-secondary-small"
+          >
+            Directions
+          </a>
+        ) : null}
         <Link to="/watchlist" className="locator-secondary-small">
           Watch
         </Link>
@@ -118,10 +150,12 @@ function LocatorResultCard({
 
 function LocatorMap({
   items,
+  userPoint,
   selectedItemId,
   setSelectedItemId,
 }: {
   items: Item[];
+  userPoint: GeoPoint | null;
   selectedItemId: string | null;
   setSelectedItemId: (id: string) => void;
 }) {
@@ -146,7 +180,7 @@ function LocatorMap({
               title={`${item.title} at ${shopName(item)}`}
             >
               <strong>{formatPrice(item.price)}</strong>
-              <span>{shopName(item)}</span>
+              <span>{shopName(item)} · {itemDistanceLabel(item, userPoint)}</span>
             </button>
           );
         })}
@@ -170,15 +204,42 @@ export default function BuyerItemLocatorPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState("your area");
+  const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [radius, setRadius] = useState("25");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const groupedByShop = useMemo(() => {
-    const map = new Map<string, { name: string; address: string; count: number; shopHref: string }>();
+  const rankedItems = useMemo(() => {
+    const ranked = [...items];
 
-    items.forEach((item) => {
+    if (userPoint) {
+      ranked.sort((a, b) => {
+        const aDistance = itemDistanceMiles(a, userPoint);
+        const bDistance = itemDistanceMiles(b, userPoint);
+
+        if (aDistance === null && bDistance === null) return 0;
+        if (aDistance === null) return 1;
+        if (bDistance === null) return -1;
+
+        return aDistance - bDistance;
+      });
+    }
+
+    return ranked;
+  }, [items, userPoint]);
+
+  const groupedByShop = useMemo(() => {
+    const map = new Map<string, {
+      name: string;
+      address: string;
+      count: number;
+      shopHref: string;
+      distanceLabel: string;
+      directionsHref: string | null;
+    }>();
+
+    rankedItems.forEach((item) => {
       const key = item.shop?.id || item.pawnShopId || shopName(item);
       const existing = map.get(key);
 
@@ -192,11 +253,28 @@ export default function BuyerItemLocatorPage() {
         address: shopAddress(item),
         count: 1,
         shopHref: shopHref(item),
+        distanceLabel: itemDistanceLabel(item, userPoint),
+        directionsHref: itemDirectionsUrl(item),
       });
     });
 
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [items]);
+    return Array.from(map.values()).sort((a, b) => {
+      if (userPoint) {
+        const aItem = rankedItems.find((item) => shopHref(item) === a.shopHref) || null;
+        const bItem = rankedItems.find((item) => shopHref(item) === b.shopHref) || null;
+        const aDistance = aItem ? itemDistanceMiles(aItem, userPoint) : null;
+        const bDistance = bItem ? itemDistanceMiles(bItem, userPoint) : null;
+
+        if (aDistance === null && bDistance === null) return b.count - a.count;
+        if (aDistance === null) return 1;
+        if (bDistance === null) return -1;
+
+        return aDistance - bDistance;
+      }
+
+      return b.count - a.count;
+    });
+  }, [rankedItems, userPoint]);
 
   useEffect(() => {
     if (!appliedQuery.trim()) {
@@ -257,6 +335,10 @@ export default function BuyerItemLocatorPage() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        setUserPoint({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
         setLocationLabel(
           `near ${position.coords.latitude.toFixed(2)}, ${position.coords.longitude.toFixed(2)}`,
         );
@@ -313,7 +395,7 @@ export default function BuyerItemLocatorPage() {
           </div>
           <div>
             <span>Showing</span>
-            <strong>{items.length}</strong>
+            <strong>{rankedItems.length}</strong>
             <small>{totalItems} total matches</small>
           </div>
           <div>
@@ -363,7 +445,7 @@ export default function BuyerItemLocatorPage() {
             <div key={index} className="locator-skeleton" />
           ))}
         </section>
-      ) : items.length === 0 ? (
+      ) : rankedItems.length === 0 ? (
         <section className="locator-empty">
           <h2>No shops currently show that item</h2>
           <p>
@@ -385,11 +467,11 @@ export default function BuyerItemLocatorPage() {
             </div>
 
             <div className="locator-result-list">
-              {items.map((item, index) => (
+              {rankedItems.map((item) => (
                 <LocatorResultCard
                   key={item.id}
                   item={item}
-                  index={index}
+                  userPoint={userPoint}
                   selected={selectedItemId === item.id}
                   onSelect={() => setSelectedItemId(item.id)}
                 />
@@ -399,7 +481,8 @@ export default function BuyerItemLocatorPage() {
 
           <aside className="locator-side-panel">
             <LocatorMap
-              items={items}
+              items={rankedItems}
+              userPoint={userPoint}
               selectedItemId={selectedItemId}
               setSelectedItemId={setSelectedItemId}
             />
@@ -416,8 +499,13 @@ export default function BuyerItemLocatorPage() {
                 {groupedByShop.map((shop) => (
                   <Link key={shop.name + shop.address} to={shop.shopHref}>
                     <strong>{shop.name}</strong>
-                    <span>{shop.count} matching item{shop.count === 1 ? "" : "s"}</span>
+                    <span>
+                      {shop.count} matching item{shop.count === 1 ? "" : "s"} · {shop.distanceLabel}
+                    </span>
                     <small>{shop.address}</small>
+                    {shop.directionsHref ? (
+                      <small>Directions available</small>
+                    ) : null}
                   </Link>
                 ))}
               </div>
