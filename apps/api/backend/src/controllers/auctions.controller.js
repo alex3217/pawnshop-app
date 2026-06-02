@@ -43,14 +43,18 @@ const PAWNSHOP_SAFE_FIELDS = [
   "id",
   "name",
   "address",
+  "city",
+  "state",
+  "zip",
+  "latitude",
+  "longitude",
   "phone",
   "description",
   "hours",
   "ownerId",
   "createdAt",
   "updatedAt",
-  "isDeleted",
-];
+  "isDeleted",];
 
 const SETTLEMENT_SAFE_FIELDS = [
   "id",

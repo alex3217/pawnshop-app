@@ -320,8 +320,8 @@ export default function ItemDetailPage() {
           <div className="item-detail-map-card">
             <div className="item-detail-map-user">Shop</div>
             <div className="item-detail-map-note">
-              <strong>Map-ready location</strong>
-              <span>Real coordinates can power directions once shop geo fields are added.</span>
+              <strong>Shop location</strong>
+              <span>Saved shop coordinates can support nearby discovery and directions.</span>
             </div>
           </div>
 

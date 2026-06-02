@@ -387,7 +387,7 @@ export default function MarketplacePage() {
         setLocationLabel(
           `near ${position.coords.latitude.toFixed(2)}, ${position.coords.longitude.toFixed(2)}`,
         );
-        setLocationMessage("Location enabled. Real nearby ranking can now be wired to backend geo endpoints.");
+        setLocationMessage("Location enabled. Nearby discovery can rank shops with saved coordinates.");
       },
       () => {
         setLocationMessage("Location permission was not enabled. You can still browse by filters.");
@@ -404,7 +404,7 @@ export default function MarketplacePage() {
           <h1>Browse pawnshop inventory across nearby stores.</h1>
           <p>
             Search items, compare prices, save searches, and switch between
-            grid, list, and map-ready views built for local discovery.
+            grid, list, and coordinate-backed discovery views built for local shopping.
           </p>
 
           <div className="mp2-search-row">

@@ -154,7 +154,7 @@ function LocatorMap({
         <div className="locator-map-note">
           <strong>Item location view</strong>
           <span>
-            Pins show where matching items are available by shop. Real coordinates can replace this map-ready panel next.
+            Pins show where matching items are available by shop using saved shop coordinates when available.
           </span>
           <Link to="/marketplace">Open marketplace</Link>
         </div>
@@ -260,7 +260,7 @@ export default function BuyerItemLocatorPage() {
         setLocationLabel(
           `near ${position.coords.latitude.toFixed(2)}, ${position.coords.longitude.toFixed(2)}`,
         );
-        setLocationMessage("Location enabled. Nearby item ranking can be connected to geo endpoints next.");
+        setLocationMessage("Location enabled. Nearby item discovery can use saved shop coordinates.");
       },
       () => {
         setLocationMessage("Location permission was not enabled. You can still search all marketplace inventory.");
@@ -277,7 +277,7 @@ export default function BuyerItemLocatorPage() {
           <h1>Search an item and see which pawnshops have it.</h1>
           <p>
             Enter a keyword like PS5, gold chain, laptop, tools, or watch. PawnLoop
-            will show matching items, the shops that have them, and a map-ready view
+            will show matching items, the shops that have them, and a coordinate-backed location view
             of where those items are located.
           </p>
 

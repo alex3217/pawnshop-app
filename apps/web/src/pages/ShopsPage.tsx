@@ -133,7 +133,7 @@ function ShopsMap({
         <div className="shops2-map-card">
           <strong>Map-ready shop discovery</strong>
           <span>
-            Real coordinates can replace this panel once shop geo fields and nearby endpoints are added.
+            Saved shop coordinates power this location view when available.
           </span>
           <Link to="/marketplace">Browse inventory</Link>
         </div>
@@ -283,7 +283,7 @@ export default function ShopsPage() {
           `near ${position.coords.latitude.toFixed(2)}, ${position.coords.longitude.toFixed(2)}`,
         );
         setLocationMessage(
-          "Location enabled. Real nearby shop ranking can be wired to backend geo endpoints next.",
+          "Location enabled. Nearby shop discovery can use saved shop coordinates.",
         );
       },
       () => {
@@ -355,7 +355,7 @@ export default function ShopsPage() {
             <h2>Browse storefronts</h2>
             <p>
               Filter by shop info, location text, contact availability, or switch to
-              map-ready discovery.
+              coordinate-backed discovery.
             </p>
           </div>
 
