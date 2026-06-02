@@ -4,7 +4,7 @@ const requireFromWeb = createRequire(new URL("../../apps/web/package.json", impo
 const { chromium } = requireFromWeb("@playwright/test");
 
 const baseUrl = process.env.FRONTEND_URL || "http://127.0.0.1:5176";
-const email = process.env.SUPER_ADMIN_EMAIL || "superadmin@pawn.local";
+const email = process.env.SUPER_ADMIN_EMAIL || "superadmin1@example.com";
 const password = process.env.SUPER_ADMIN_PASSWORD || "SuperAdmin123!";
 
 const routesToCheck = [
