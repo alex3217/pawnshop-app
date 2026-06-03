@@ -13,6 +13,10 @@ import {
   rejectOffer,
   type Offer,
 } from "../services/offers";
+import {
+  updateSettlementFulfillment,
+  type FulfillmentStatus,
+} from "../services/settlements";
 import "../styles/offers-v2.css";
 
 function normalizeLabel(value: string | number | null | undefined, fallback: string) {
@@ -72,6 +76,10 @@ function settlementHref(offer: Offer) {
   return settlementId ? `/my-wins?settlement=${encodeURIComponent(settlementId)}` : "/my-wins";
 }
 
+function formatFulfillmentStatus(value: string | null | undefined) {
+  return String(value || "PAYMENT_PENDING").trim().toUpperCase().replaceAll("_", " ");
+}
+
 export default function OffersPage() {
   const role = getAuthRole();
   const isOwnerView = useMemo(
@@ -84,6 +92,7 @@ export default function OffersPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
+  const [fulfillmentActioningId, setFulfillmentActioningId] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -219,6 +228,37 @@ export default function OffersPage() {
     }
   }
 
+  async function runFulfillmentAction(
+    offer: Offer,
+    fulfillmentStatus: FulfillmentStatus,
+    fulfillmentNote: string,
+  ) {
+    const settlementId = offer.settlement?.id;
+
+    if (!settlementId) {
+      setError("Missing settlement for this accepted offer.");
+      return;
+    }
+
+    try {
+      setFulfillmentActioningId(settlementId);
+      setError(null);
+      setNotice(null);
+
+      await updateSettlementFulfillment(settlementId, {
+        fulfillmentStatus,
+        fulfillmentNote,
+      });
+
+      setNotice(`Fulfillment updated to ${formatFulfillmentStatus(fulfillmentStatus)}.`);
+      await loadOffers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fulfillment update failed.");
+    } finally {
+      setFulfillmentActioningId(null);
+    }
+  }
+
   async function handleCounter(event: FormEvent<HTMLFormElement>, offer: Offer) {
     event.preventDefault();
 
@@ -250,6 +290,16 @@ export default function OffersPage() {
     const canOwnerAct = isOwnerView && status === "PENDING";
     const canBuyerAct = !isOwnerView && status === "COUNTERED";
     const canBuyerCancel = !isOwnerView && canCancelBuyerOffer(offer);
+    const settlement = offer.settlement;
+    const settlementStatus = normalizeStatus(settlement?.status);
+    const canOwnerFulfill =
+      isOwnerView &&
+      status === "ACCEPTED" &&
+      Boolean(settlement?.id) &&
+      settlementStatus === "CHARGED";
+    const fulfillmentBusy = settlement?.id
+      ? fulfillmentActioningId === settlement.id
+      : false;
 
     return (
       <article key={offer.id} className="offers2-card">
@@ -392,6 +442,50 @@ export default function OffersPage() {
           >
             {isWorking ? "Working..." : "Cancel / withdraw offer"}
           </button>
+        ) : null}
+
+        {settlement ? (
+          <div className="offers2-message">
+            <span>Settlement</span>
+            <p>
+              Payment: {settlementStatus || "PENDING"} · Fulfillment:{" "}
+              {formatFulfillmentStatus(settlement.fulfillmentStatus)}
+            </p>
+            {settlement.fulfillmentNote ? <p>{settlement.fulfillmentNote}</p> : null}
+          </div>
+        ) : null}
+
+        {canOwnerFulfill ? (
+          <div className="offers2-actions" data-offer-fulfillment-controls="true">
+            <button
+              type="button"
+              disabled={fulfillmentBusy}
+              onClick={() =>
+                void runFulfillmentAction(
+                  offer,
+                  "READY_FOR_PICKUP",
+                  "Ready for pickup at the counter.",
+                )
+              }
+              className="offers2-counter"
+            >
+              Ready for pickup
+            </button>
+            <button
+              type="button"
+              disabled={fulfillmentBusy}
+              onClick={() =>
+                void runFulfillmentAction(
+                  offer,
+                  "COMPLETED",
+                  "Buyer picked up item and order is complete.",
+                )
+              }
+              className="offers2-accept"
+            >
+              Mark completed
+            </button>
+          </div>
         ) : null}
 
         <div className="offers2-card-links">

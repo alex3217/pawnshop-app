@@ -45,6 +45,9 @@ type WinRecord = {
   endedAt: string | null;
   settledAt: string | null;
   stripePaymentIntent: string | null;
+  fulfillmentStatus: string;
+  fulfillmentNote: string | null;
+  fulfilledAt: string | null;
 };
 
 function toValidDate(value: string | null | undefined) {
@@ -123,6 +126,10 @@ function statusClass(status: string) {
   return `wins2-status wins2-status-${normalizeStatus(status).toLowerCase()}`;
 }
 
+function normalizeFulfillmentStatus(value: string | null | undefined) {
+  return String(value || "PAYMENT_PENDING").trim().toUpperCase().replaceAll("_", " ");
+}
+
 function normalizeWin(row: Settlement, index: number): WinRecord {
   return {
     settlementId: String(row.settlementId || row.id || `win-${index}`),
@@ -137,6 +144,9 @@ function normalizeWin(row: Settlement, index: number): WinRecord {
     endedAt: row.endedAt || null,
     settledAt: row.settledAt || row.updatedAt || row.createdAt || null,
     stripePaymentIntent: row.stripePaymentIntent || null,
+    fulfillmentStatus: String(row.fulfillmentStatus || "PAYMENT_PENDING"),
+    fulfillmentNote: row.fulfillmentNote || null,
+    fulfilledAt: row.fulfilledAt || null,
   };
 }
 
@@ -569,6 +579,14 @@ export default function MyWinsPage() {
                     <strong className={statusClass(win.status)}>{win.status}</strong>
                   </div>
                   <div>
+                    <span>Fulfillment</span>
+                    <strong>{normalizeFulfillmentStatus(win.fulfillmentStatus)}</strong>
+                  </div>
+                  <div>
+                    <span>Fulfilled at</span>
+                    <strong>{formatDate(win.fulfilledAt)}</strong>
+                  </div>
+                  <div>
                     <span>Settlement</span>
                     <strong>#{win.settlementId}</strong>
                   </div>
@@ -577,6 +595,12 @@ export default function MyWinsPage() {
                 {win.stripePaymentIntent ? (
                   <div className="wins2-payment-intent">
                     Payment intent: {win.stripePaymentIntent}
+                  </div>
+                ) : null}
+
+                {win.fulfillmentNote ? (
+                  <div className="wins2-payment-intent">
+                    Fulfillment note: {win.fulfillmentNote}
                   </div>
                 ) : null}
 

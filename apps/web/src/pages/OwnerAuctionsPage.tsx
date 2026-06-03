@@ -16,6 +16,10 @@ import {
   type AuctionStatus,
 } from "../services/auctions";
 import { getAuthRole, getAuthToken } from "../services/auth";
+import {
+  updateSettlementFulfillment,
+  type FulfillmentStatus,
+} from "../services/settlements";
 import "../styles/owner-auctions-readability.css";
 
 type StatusFilter = "ALL" | "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED";
@@ -478,6 +482,10 @@ function ownerAuctionViewFilterLabel(filter: OwnerAuctionViewFilter) {
   return filter;
 }
 
+function formatOwnerAuctionFulfillmentStatus(value: string | null | undefined) {
+  return String(value || "PAYMENT_PENDING").trim().toUpperCase().replaceAll("_", " ");
+}
+
 function isClosedOwnerAuction(auction: Auction) {
   const label = statusLabel(auction.status);
   return label === "ENDED" || label === "CANCELED";
@@ -536,6 +544,7 @@ export default function OwnerAuctionsPage() {
   const [actionLoadingById, setActionLoadingById] = useState<
     Record<string, AuctionAction>
   >({});
+  const [fulfillmentActioningId, setFulfillmentActioningId] = useState<string | null>(null);
 
   const actionInProgress = Object.keys(actionLoadingById).length > 0;
 
@@ -670,6 +679,64 @@ export default function OwnerAuctionsPage() {
       });
     } finally {
       setAuctionAction(auction.id, null);
+    }
+  }
+
+  async function onUpdateAuctionSettlementFulfillment(
+    auction: Auction,
+    fulfillmentStatus: FulfillmentStatus,
+    fulfillmentNote: string,
+  ) {
+    const settlement = auction.settlement as
+      | {
+          id?: string | null;
+          status?: string | null;
+        }
+      | null
+      | undefined;
+
+    const settlementId = settlement?.id || "";
+
+    if (!settlementId) {
+      setMessage({
+        type: "warning",
+        text: "This auction does not have a settlement yet.",
+      });
+      return;
+    }
+
+    if (String(settlement?.status || "").toUpperCase() !== "CHARGED") {
+      setMessage({
+        type: "warning",
+        text: "Only paid settlements can move through fulfillment.",
+      });
+      return;
+    }
+
+    try {
+      setMessage(null);
+      setFulfillmentActioningId(settlementId);
+
+      await updateSettlementFulfillment(settlementId, {
+        fulfillmentStatus,
+        fulfillmentNote,
+      });
+
+      await load("refresh");
+      setMessage({
+        type: "success",
+        text: `Fulfillment updated to ${formatOwnerAuctionFulfillmentStatus(fulfillmentStatus)}.`,
+      });
+    } catch (err: unknown) {
+      setMessage({
+        type: "danger",
+        text:
+          err instanceof Error
+            ? err.message
+            : "Failed to update settlement fulfillment.",
+      });
+    } finally {
+      setFulfillmentActioningId(null);
     }
   }
 
@@ -1379,7 +1446,66 @@ export default function OwnerAuctionsPage() {
                           <span>
                             Status: {String(auction.settlement.status || "PENDING")}
                           </span>
+                          <span>
+                            Fulfillment:{" "}
+                            {formatOwnerAuctionFulfillmentStatus(
+                              (auction.settlement as any).fulfillmentStatus,
+                            )}
+                          </span>
+                          {(auction.settlement as any).fulfillmentNote ? (
+                            <span>
+                              Note: {(auction.settlement as any).fulfillmentNote}
+                            </span>
+                          ) : null}
+                          {(auction.settlement as any).fulfilledAt ? (
+                            <span>
+                              Fulfilled:{" "}
+                              {formatOwnerAuctionDateTime(
+                                (auction.settlement as any).fulfilledAt,
+                              )}
+                            </span>
+                          ) : null}
                           <span>Settlement ID: {auction.settlement.id}</span>
+                          {String(auction.settlement.status || "").toUpperCase() === "CHARGED" ? (
+                            <div
+                              data-owner-auction-fulfillment-controls="true"
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 8,
+                                marginTop: 8,
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="btn btn-sm"
+                                disabled={fulfillmentActioningId === auction.settlement.id}
+                                onClick={() =>
+                                  void onUpdateAuctionSettlementFulfillment(
+                                    auction,
+                                    "READY_FOR_PICKUP",
+                                    "Ready for pickup at the counter.",
+                                  )
+                                }
+                              >
+                                Ready for pickup
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm"
+                                disabled={fulfillmentActioningId === auction.settlement.id}
+                                onClick={() =>
+                                  void onUpdateAuctionSettlementFulfillment(
+                                    auction,
+                                    "COMPLETED",
+                                    "Buyer picked up item and order is complete.",
+                                  )
+                                }
+                              >
+                                Mark completed
+                              </button>
+                            </div>
+                          ) : null}
                         </>
                       ) : (
                         <span>
