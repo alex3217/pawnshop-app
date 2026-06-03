@@ -8,6 +8,15 @@ export type OfferStatus =
   | "CANCELED"
   | string;
 
+export type OfferSettlement = {
+  id?: string | null;
+  offerId?: string | null;
+  status?: string | null;
+  finalPrice?: number | string | null;
+  currency?: string | null;
+  stripePaymentIntent?: string | null;
+};
+
 export type OfferItem = {
   id?: string | null;
   title?: string | null;
@@ -31,6 +40,7 @@ export type Offer = {
   createdAt?: string;
   updatedAt?: string;
   item?: OfferItem | null;
+  settlement?: OfferSettlement | null;
   buyer?: unknown;
   seller?: unknown;
 };

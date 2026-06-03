@@ -87,6 +87,7 @@ function mapSettlementRow(row) {
   return {
     id: normalizeString(row.id),
     auctionId: normalizeString(row.auctionId),
+    offerId: normalizeString(row.offerId),
     auctionTitle: normalizeString(
       row.auctionTitle || row.itemTitle || row.title,
       "Won auction",
@@ -123,18 +124,33 @@ async function getOwnedAuctionIdsForOwner(userId) {
   return auctions.map((item) => item.id);
 }
 
+function settlementInclude() {
+  return {
+    auction: {
+      include: {
+        item: true,
+        shop: true,
+      },
+    },
+    offer: {
+      include: {
+        item: {
+          include: {
+            shop: true,
+          },
+        },
+        buyer: true,
+        owner: true,
+      },
+    },
+    winner: true,
+  };
+}
+
 async function getSettlementWithRelations(where) {
   return prisma.settlement.findFirst({
     where,
-    include: {
-      auction: {
-        include: {
-          item: true,
-          shop: true,
-        },
-      },
-      winner: true,
-    },
+    include: settlementInclude(),
   });
 }
 
@@ -142,29 +158,26 @@ async function getAllSettlementsWithRelations(where = {}) {
   return prisma.settlement.findMany({
     where,
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-    include: {
-      auction: {
-        include: {
-          item: true,
-          shop: true,
-        },
-      },
-      winner: true,
-    },
+    include: settlementInclude(),
   });
 }
 
 function toResponseSettlement(settlement) {
   const auction = settlement.auction || {};
-  const item = auction.item || {};
-  const shop = auction.shop || {};
-  const winner = settlement.winner || {};
+  const offer = settlement.offer || {};
+  const item = auction.item || offer.item || {};
+  const shop = auction.shop || offer.item?.shop || {};
+  const winner = settlement.winner || offer.buyer || {};
+  const sourceTitle = settlement.offerId ? "Accepted offer" : "Won auction";
 
   return mapSettlementRow({
     id: settlement.id,
-    auctionId: settlement.auctionId,
-    auctionTitle: item.title || auction.title || "Won auction",
+    auctionId: settlement.auctionId || null,
+    offerId: settlement.offerId || null,
+    auctionTitle: item.title || auction.title || sourceTitle,
+    itemId: item.id || offer.itemId || null,
     itemTitle: item.title || null,
+    shopId: shop.id || item.pawnShopId || null,
     shopName: shop.name || null,
     finalAmountCents:
       settlement.finalPrice != null
@@ -172,7 +185,7 @@ function toResponseSettlement(settlement) {
         : 0,
     currency: settlement.currency || "USD",
     status: settlement.status || "UNKNOWN",
-    endedAt: auction.endsAt || auction.endedAt || null,
+    endedAt: auction.endsAt || auction.endedAt || offer.respondedAt || null,
     settledAt: settlement.updatedAt || settlement.createdAt || null,
     stripePaymentIntent: settlement.stripePaymentIntent || null,
     winnerUserId: settlement.winnerUserId || null,
@@ -201,7 +214,11 @@ async function assertSettlementReadableByUser(settlement, req) {
   }
 
   if (role === "OWNER") {
-    const ownerId = settlement.auction?.shop?.ownerId;
+    const ownerId =
+      settlement.auction?.shop?.ownerId ||
+      settlement.offer?.ownerId ||
+      settlement.offer?.item?.shop?.ownerId;
+
     if (ownerId !== userId) {
       throw forbidden("You do not have access to this settlement.");
     }
