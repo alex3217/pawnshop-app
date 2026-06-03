@@ -243,6 +243,9 @@ model Settlement {
   currency            String           @default("USD")
   failedAt            DateTime?
   failureMessage      String?
+  fulfillmentStatus   FulfillmentStatus @default(PAYMENT_PENDING)
+  fulfillmentNote     String?
+  fulfilledAt         DateTime?
   auction             Auction?         @relation(fields: [auctionId], references: [id])
   offer               Offer?           @relation(fields: [offerId], references: [id])
   winner              User             @relation("SettlementWinner", fields: [winnerUserId], references: [id])
@@ -490,6 +493,15 @@ enum SettlementStatus {
   FAILED
   CANCELED
   REFUNDED
+}
+
+enum FulfillmentStatus {
+  PAYMENT_PENDING
+  READY_FOR_PICKUP
+  PICKED_UP
+  SHIPPED
+  COMPLETED
+  CANCELED
 }
 
 enum BuyerSubscriptionPlan {

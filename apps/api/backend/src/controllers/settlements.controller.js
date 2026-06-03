@@ -65,6 +65,33 @@ function normalizeSettlementStatus(value, fallback = "CHARGED") {
   return aliasMap[normalized] || normalized;
 }
 
+const FULFILLMENT_STATUSES = new Set([
+  "PAYMENT_PENDING",
+  "READY_FOR_PICKUP",
+  "PICKED_UP",
+  "SHIPPED",
+  "COMPLETED",
+  "CANCELED",
+]);
+
+function normalizeFulfillmentStatus(value) {
+  const normalized = normalizeString(value).toUpperCase();
+
+  const aliasMap = {
+    READY: "READY_FOR_PICKUP",
+    READY_FOR_PICK_UP: "READY_FOR_PICKUP",
+    PICKUP_READY: "READY_FOR_PICKUP",
+    PICKED: "PICKED_UP",
+    PICKEDUP: "PICKED_UP",
+    COMPLETE: "COMPLETED",
+    DONE: "COMPLETED",
+    SHIP: "SHIPPED",
+    CANCELLED: "CANCELED",
+  };
+
+  return aliasMap[normalized] || normalized;
+}
+
 function toIsoOrNull(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -104,6 +131,9 @@ function mapSettlementRow(row) {
     endedAt: toIsoOrNull(row.endedAt),
     settledAt: toIsoOrNull(row.settledAt || row.updatedAt || row.createdAt),
     stripePaymentIntent: row.stripePaymentIntent || null,
+    fulfillmentStatus: normalizeStatus(row.fulfillmentStatus || "PAYMENT_PENDING"),
+    fulfillmentNote: row.fulfillmentNote || null,
+    fulfilledAt: toIsoOrNull(row.fulfilledAt),
     winnerId: row.winnerUserId || null,
     winnerName: row.winnerName || null,
     winnerEmail: row.winnerEmail || null,
@@ -188,6 +218,9 @@ function toResponseSettlement(settlement) {
     endedAt: auction.endsAt || auction.endedAt || offer.respondedAt || null,
     settledAt: settlement.updatedAt || settlement.createdAt || null,
     stripePaymentIntent: settlement.stripePaymentIntent || null,
+    fulfillmentStatus: settlement.fulfillmentStatus || "PAYMENT_PENDING",
+    fulfillmentNote: settlement.fulfillmentNote || null,
+    fulfilledAt: settlement.fulfilledAt || null,
     winnerUserId: settlement.winnerUserId || null,
     winnerName: winner.name || null,
     winnerEmail: winner.email || null,
@@ -247,13 +280,14 @@ export async function listMySettlements(req, res) {
       });
     } else if (role === "OWNER") {
       const auctionIds = await getOwnedAuctionIdsForOwner(userId);
-      if (auctionIds.length === 0) {
-        return res.json([]);
-      }
+      const ownerSettlementWhere = {
+        OR: [
+          ...(auctionIds.length ? [{ auctionId: { in: auctionIds } }] : []),
+          { offer: { ownerId: userId } },
+        ],
+      };
 
-      settlements = await getAllSettlementsWithRelations({
-        auctionId: { in: auctionIds },
-      });
+      settlements = await getAllSettlementsWithRelations(ownerSettlementWhere);
     } else {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
@@ -391,5 +425,65 @@ export async function createOrFinalizeSettlement(req, res) {
     });
   } catch (error) {
     return sendError(res, error);
+  }
+}
+
+export async function updateSettlementFulfillment(req, res) {
+  try {
+    const role = req?.user?.role;
+    const userId = req?.user?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    if (role !== "OWNER" && role !== "ADMIN") {
+      throw forbidden("Only owners or admins can update fulfillment.");
+    }
+
+    const id = normalizeString(req.params?.id);
+    if (!id) {
+      throw badRequest("Settlement id is required.");
+    }
+
+    const settlement = await getSettlementWithRelations({ id });
+    await assertSettlementReadableByUser(settlement, req);
+
+    if (normalizeStatus(settlement.status) !== "CHARGED") {
+      throw badRequest("Only charged settlements can be fulfilled.");
+    }
+
+    const fulfillmentStatus = normalizeFulfillmentStatus(req.body?.fulfillmentStatus || req.body?.status);
+    if (!FULFILLMENT_STATUSES.has(fulfillmentStatus)) {
+      throw badRequest("Invalid fulfillment status.", {
+        allowed: Array.from(FULFILLMENT_STATUSES),
+      });
+    }
+
+    const fulfillmentNote =
+      req.body?.fulfillmentNote !== undefined
+        ? normalizeString(req.body.fulfillmentNote, null)
+        : undefined;
+
+    const shouldSetFulfilledAt = ["PICKED_UP", "SHIPPED", "COMPLETED"].includes(
+      fulfillmentStatus,
+    );
+
+    const updated = await prisma.settlement.update({
+      where: { id },
+      data: {
+        fulfillmentStatus,
+        ...(fulfillmentNote !== undefined ? { fulfillmentNote } : {}),
+        fulfilledAt: shouldSetFulfilledAt ? new Date() : null,
+      },
+      include: settlementInclude(),
+    });
+
+    return res.json({
+      success: true,
+      settlement: toResponseSettlement(updated),
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to update settlement fulfillment.");
   }
 }

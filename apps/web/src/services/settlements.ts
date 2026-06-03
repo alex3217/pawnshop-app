@@ -8,6 +8,15 @@ export type SettlementStatus =
   | "COMPLETED"
   | string;
 
+export type FulfillmentStatus =
+  | "PAYMENT_PENDING"
+  | "READY_FOR_PICKUP"
+  | "PICKED_UP"
+  | "SHIPPED"
+  | "COMPLETED"
+  | "CANCELED"
+  | string;
+
 export type Settlement = {
   id: string;
   settlementId?: string;
@@ -31,6 +40,9 @@ export type Settlement = {
   endedAt?: string | null;
   settledAt?: string | null;
   stripePaymentIntent?: string | null;
+  fulfillmentStatus?: FulfillmentStatus;
+  fulfillmentNote?: string | null;
+  fulfilledAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -125,4 +137,22 @@ export async function createSettlementPaymentIntent(
   );
 
   return unwrapPaymentIntent(data);
+}
+
+
+export async function updateSettlementFulfillment(
+  settlementId: string,
+  input: {
+    fulfillmentStatus: FulfillmentStatus;
+    fulfillmentNote?: string;
+  },
+): Promise<Settlement> {
+  if (!settlementId) throw new Error("Missing settlement id.");
+
+  const data = await api.patch<unknown>(
+    `/settlements/${encodeURIComponent(settlementId)}/fulfillment`,
+    input,
+  );
+
+  return unwrapSettlement(data);
 }
