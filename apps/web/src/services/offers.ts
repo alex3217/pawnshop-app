@@ -15,6 +15,9 @@ export type OfferSettlement = {
   finalPrice?: number | string | null;
   currency?: string | null;
   stripePaymentIntent?: string | null;
+  fulfillmentStatus?: string | null;
+  fulfillmentNote?: string | null;
+  fulfilledAt?: string | null;
 };
 
 export type OfferItem = {
