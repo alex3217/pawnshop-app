@@ -8,11 +8,13 @@ import {
   getSettlementByAuctionId,
   listAllSettlementsForAdmin,
   createOrFinalizeSettlement,
+  updateSettlementFulfillment,
 } from "../controllers/settlements.controller.js";
 
 const router = Router();
 
 const BUYER_ROLES = ["CONSUMER", "OWNER", "ADMIN"];
+const FULFILLMENT_ROLES = ["OWNER", "ADMIN"];
 const ADMIN_ROLES = ["ADMIN"];
 const ID_MAX_LENGTH = 128;
 
@@ -120,6 +122,20 @@ router.get(
  *
  * Returns a single settlement by settlement id.
  */
+router.patch(
+  "/:id/fulfillment",
+  authRequired,
+  requireRole(...FULFILLMENT_ROLES),
+  validateSettlementIdParam,
+  asyncRoute(updateSettlementFulfillment),
+);
+
+/**
+ * Buyer/Admin
+ * GET /api/settlements/:id
+ *
+ * Returns a single settlement by settlement id.
+ */
 router.get(
   "/:id",
   authRequired,
@@ -177,6 +193,7 @@ export const SETTLEMENT_ROUTE_MAP = Object.freeze({
   byAuctionId: "GET /api/settlements/auction/:auctionId",
   adminList: "GET /api/settlements",
   createOrFinalize: "POST /api/settlements",
+  updateFulfillment: "PATCH /api/settlements/:id/fulfillment",
 });
 
 export default router;
