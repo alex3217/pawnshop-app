@@ -4,19 +4,49 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
-SHOP_ID="${SHOP_ID:-cmjhvejh80002xxnmyqrxhcaj}"
-LIMIT="${LIMIT:-40}"
+OWNER_EMAIL="${OWNER_EMAIL:-owner1@pawn.local}"
+SHOP_ID="${SHOP_ID:-}"
+LIMIT="${LIMIT:-80}"
 DRY_RUN="${DRY_RUN:-true}"
 
-node --env-file=apps/api/backend/.env.development --input-type=module <<NODE
+OWNER_EMAIL="$OWNER_EMAIL" \
+SHOP_ID="$SHOP_ID" \
+LIMIT="$LIMIT" \
+DRY_RUN="$DRY_RUN" \
+node --env-file=apps/api/backend/.env.development --input-type=module <<'NODE'
 import { prisma } from "./apps/api/backend/src/lib/prisma.js";
 
-const shopId = "${SHOP_ID}";
-const limit = Number("${LIMIT}");
-const dryRun = String("${DRY_RUN}") !== "false";
+const ownerEmail = process.env.OWNER_EMAIL || "owner1@pawn.local";
+const explicitShopId = process.env.SHOP_ID || "";
+const limit = Number(process.env.LIMIT || "80");
+const dryRun = String(process.env.DRY_RUN || "true") !== "false";
+
+const owner = explicitShopId
+  ? null
+  : await prisma.user.findUnique({
+      where: { email: ownerEmail },
+      select: { id: true, email: true },
+    });
+
+if (!owner && !explicitShopId) {
+  throw new Error(`Owner not found and SHOP_ID not provided: ${ownerEmail}`);
+}
+
+const shops = explicitShopId
+  ? await prisma.pawnShop.findMany({
+      where: { id: explicitShopId },
+      select: { id: true, name: true },
+    })
+  : await prisma.pawnShop.findMany({
+      where: { ownerId: owner.id },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+
+const shopIds = shops.map((shop) => shop.id);
 
 const where = {
-  pawnShopId: shopId,
+  pawnShopId: { in: shopIds },
   isDeleted: false,
   OR: [
     { title: { contains: "Auction E2E Test Item" } },
@@ -29,7 +59,13 @@ const where = {
 
 const candidates = await prisma.item.findMany({
   where,
-  select: { id: true, title: true, status: true, createdAt: true },
+  select: {
+    id: true,
+    title: true,
+    status: true,
+    pawnShopId: true,
+    createdAt: true,
+  },
   orderBy: { createdAt: "asc" },
   take: limit,
 });
@@ -45,11 +81,26 @@ if (!dryRun && candidates.length > 0) {
   console.log("Soft-deleted:", result.count);
 }
 
-const activeTotal = await prisma.item.count({
-  where: { pawnShopId: shopId, isDeleted: false },
-});
+const activeByShop = [];
 
-console.log("Active listings after check:", activeTotal);
+for (const shop of shops) {
+  const availableListings = await prisma.item.count({
+    where: {
+      pawnShopId: shop.id,
+      isDeleted: false,
+      status: "AVAILABLE",
+    },
+  });
 
-await prisma.\$disconnect();
+  activeByShop.push({
+    shop: shop.name,
+    shopId: shop.id,
+    availableListings,
+  });
+}
+
+console.log("Available listings after check:");
+console.table(activeByShop);
+
+await prisma.$disconnect();
 NODE
