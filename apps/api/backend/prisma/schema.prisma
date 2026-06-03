@@ -231,7 +231,8 @@ model Bid {
 
 model Settlement {
   id                  String           @id @default(cuid())
-  auctionId           String           @unique
+  auctionId           String?          @unique
+  offerId             String?          @unique
   winnerUserId        String
   finalPrice          Decimal          @db.Decimal(10, 2)
   status              SettlementStatus @default(PENDING)
@@ -242,12 +243,14 @@ model Settlement {
   currency            String           @default("USD")
   failedAt            DateTime?
   failureMessage      String?
-  auction             Auction          @relation(fields: [auctionId], references: [id])
+  auction             Auction?         @relation(fields: [auctionId], references: [id])
+  offer               Offer?           @relation(fields: [offerId], references: [id])
   winner              User             @relation("SettlementWinner", fields: [winnerUserId], references: [id])
 
   @@index([winnerUserId, status])
   @@index([status, createdAt])
   @@index([createdAt])
+  @@index([offerId])
 }
 
 model Offer {
@@ -266,6 +269,7 @@ model Offer {
   buyer          User        @relation("OfferBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
   item           Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
   owner          User        @relation("OfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  settlement     Settlement?
 
   @@index([buyerId, createdAt])
   @@index([ownerId, createdAt])

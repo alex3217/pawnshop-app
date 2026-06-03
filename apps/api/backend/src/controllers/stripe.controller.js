@@ -357,6 +357,7 @@ export async function createSettlementPaymentIntent(req, res) {
       metadata: {
         settlementId: settlement.id,
         auctionId: String(settlement.auctionId || ""),
+        offerId: String(settlement.offerId || ""),
         winnerUserId: String(settlement.winnerUserId || ""),
       },
     });

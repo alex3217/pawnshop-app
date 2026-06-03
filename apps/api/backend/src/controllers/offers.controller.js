@@ -48,6 +48,23 @@ function offerInclude() {
         shop: { select: SAFE_SHOP_SELECT },
       },
     },
+    settlement: {
+      select: {
+        id: true,
+        offerId: true,
+        auctionId: true,
+        winnerUserId: true,
+        finalPrice: true,
+        currency: true,
+        status: true,
+        stripePaymentIntent: true,
+        chargedAt: true,
+        failedAt: true,
+        failureMessage: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    },
   };
 }
 
@@ -70,6 +87,35 @@ async function getOwnerOfferOrThrow(offerId, ownerId) {
   }
 
   return offer;
+}
+
+async function upsertSettlementForAcceptedOffer(tx, offer, amount) {
+  const finalPrice = normalizeAmount(amount);
+
+  if (!finalPrice) {
+    const err = new Error("Accepted offer amount must be valid.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return tx.settlement.upsert({
+    where: { offerId: offer.id },
+    update: {
+      winnerUserId: offer.buyerId,
+      finalPrice,
+      currency: "USD",
+      status: "PENDING",
+      failedAt: null,
+      failureMessage: null,
+    },
+    create: {
+      offerId: offer.id,
+      winnerUserId: offer.buyerId,
+      finalPrice,
+      currency: "USD",
+      status: "PENDING",
+    },
+  });
 }
 
 async function getBuyerOfferOrThrow(offerId, buyerId) {
@@ -204,10 +250,18 @@ export async function acceptOffer(req, res) {
       });
     }
 
-    const updated = await prisma.offer.update({
-      where: { id: offerId },
-      data: { status: "ACCEPTED", respondedAt: new Date() },
-      include: offerInclude(),
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.offer.update({
+        where: { id: offerId },
+        data: { status: "ACCEPTED", respondedAt: new Date() },
+      });
+
+      await upsertSettlementForAcceptedOffer(tx, offer, offer.amount);
+
+      return tx.offer.findUnique({
+        where: { id: offerId },
+        include: offerInclude(),
+      });
     });
 
     return res.json(updated);
@@ -350,15 +404,25 @@ export async function acceptCounterOffer(req, res) {
       });
     }
 
-    const updated = await prisma.offer.update({
-      where: { id: offerId },
-      data: {
-        status: "ACCEPTED",
-        amount: offer.counterAmount ?? offer.amount,
-        message: offer.counterMessage ?? offer.message,
-        respondedAt: new Date(),
-      },
-      include: offerInclude(),
+    const updated = await prisma.$transaction(async (tx) => {
+      const acceptedAmount = offer.counterAmount ?? offer.amount;
+
+      await tx.offer.update({
+        where: { id: offerId },
+        data: {
+          status: "ACCEPTED",
+          amount: acceptedAmount,
+          message: offer.counterMessage ?? offer.message,
+          respondedAt: new Date(),
+        },
+      });
+
+      await upsertSettlementForAcceptedOffer(tx, offer, acceptedAmount);
+
+      return tx.offer.findUnique({
+        where: { id: offerId },
+        include: offerInclude(),
+      });
     });
 
     return res.json(updated);

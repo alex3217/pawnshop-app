@@ -67,6 +67,11 @@ function canCancelBuyerOffer(offer: Offer) {
   return ["PENDING", "COUNTERED"].includes(normalizeStatus(offer.status));
 }
 
+function settlementHref(offer: Offer) {
+  const settlementId = offer.settlement?.id;
+  return settlementId ? `/my-wins?settlement=${encodeURIComponent(settlementId)}` : "/my-wins";
+}
+
 export default function OffersPage() {
   const role = getAuthRole();
   const isOwnerView = useMemo(
@@ -390,6 +395,9 @@ export default function OffersPage() {
         ) : null}
 
         <div className="offers2-card-links">
+          {!isOwnerView && status === "ACCEPTED" ? (
+            <Link to={settlementHref(offer)}>Pay now</Link>
+          ) : null}
           <Link to={itemHref(offer)}>View item</Link>
           <Link to={shopHref(offer)}>View shop</Link>
           <Link to="/marketplace">Marketplace</Link>

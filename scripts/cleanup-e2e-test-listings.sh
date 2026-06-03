@@ -52,6 +52,7 @@ const where = {
     { title: { contains: "Auction E2E Test Item" } },
     { title: { contains: "Full Flow Test Item" } },
     { title: { contains: "Webhook Payment Test Item" } },
+    { title: { contains: "Offer Payment Test Item" } },
     { title: { contains: "Live Auction Test Item" } },
     { title: { contains: "Progress Check Live Auction" } },
   ],
