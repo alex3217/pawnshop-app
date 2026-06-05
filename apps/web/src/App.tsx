@@ -34,6 +34,7 @@ const ADMIN_ROLES: Role[] = ["ADMIN", "SUPER_ADMIN"];
 const SUPER_ADMIN_ROLES: Role[] = ["SUPER_ADMIN"];
 const OWNER_ROLES: Role[] = ["OWNER", "ADMIN"];
 const CONSUMER_ROLES: Role[] = ["CONSUMER", "ADMIN"];
+const OFFER_ROLES: Role[] = ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"];
 
 function isComponentExport(value: unknown): value is ComponentType<unknown> {
   return typeof value === "function";
@@ -217,6 +218,9 @@ const consumerRoutes: RouteConfig[] = [
   { path: "/my-wins", element: <MyWinsPage /> },
   { path: "/watchlist", element: <WatchlistPage /> },
   { path: "/saved-searches", element: <SavedSearchesPage /> },
+];
+
+const offerRoutes: RouteConfig[] = [
   { path: "/offers", element: <OffersPage /> },
 ];
 
@@ -309,6 +313,7 @@ export default function App() {
           {renderRouteGroup(publicRoutes, "public")}
           {renderRouteGroup(consumerRoutes, "consumer", CONSUMER_ROLES)}
           {renderRouteGroup(ownerRoutes, "owner", OWNER_ROLES)}
+          {renderRouteGroup(offerRoutes, "offers", OFFER_ROLES)}
         </Route>
 
         <Route element={<RequireRole allowed={ADMIN_ROLES} />}>
