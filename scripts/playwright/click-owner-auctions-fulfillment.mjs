@@ -59,7 +59,10 @@ await injectAuth(page, token);
 await page.goto(`${WEB_BASE}/owner/auctions`, { waitUntil: "networkidle" });
 
 const before = await page.evaluate(() => document.body.innerText);
-const readyButton = page.getByRole("button", { name: /ready for pickup/i }).first();
+const readyButton = page
+  .locator("[data-owner-auction-fulfillment-controls]")
+  .getByRole("button", { name: /ready for pickup/i })
+  .first();
 
 if (!(await readyButton.count())) {
   throw new Error("No Ready for pickup button found.");
@@ -75,7 +78,10 @@ await page.screenshot({
   fullPage: true,
 });
 
-const completedButton = page.getByRole("button", { name: /mark completed/i }).first();
+const completedButton = page
+  .locator("[data-owner-auction-fulfillment-controls]")
+  .getByRole("button", { name: /mark completed/i })
+  .first();
 
 if (!(await completedButton.count())) {
   throw new Error("No Mark completed button found.");

@@ -19,6 +19,21 @@ import {
 } from "../services/settlements";
 import "../styles/offers-v2.css";
 
+type OfferFulfillmentQueueFilter =
+  | "ALL"
+  | "PAID_NEEDS_FULFILLMENT"
+  | "READY_FOR_PICKUP"
+  | "COMPLETED"
+  | "PAYMENT_PENDING";
+
+const OFFER_FULFILLMENT_QUEUE_FILTERS: OfferFulfillmentQueueFilter[] = [
+  "ALL",
+  "PAID_NEEDS_FULFILLMENT",
+  "READY_FOR_PICKUP",
+  "COMPLETED",
+  "PAYMENT_PENDING",
+];
+
 function normalizeLabel(value: string | number | null | undefined, fallback: string) {
   const normalized = String(value ?? "").trim();
   return normalized || fallback;
@@ -80,6 +95,71 @@ function formatFulfillmentStatus(value: string | null | undefined) {
   return String(value || "PAYMENT_PENDING").trim().toUpperCase().replaceAll("_", " ");
 }
 
+function offerFulfillmentQueueFilterLabel(filter: OfferFulfillmentQueueFilter) {
+  if (filter === "PAID_NEEDS_FULFILLMENT") return "Paid needs fulfillment";
+  if (filter === "READY_FOR_PICKUP") return "Ready for pickup";
+  if (filter === "PAYMENT_PENDING") return "Payment pending";
+  if (filter === "COMPLETED") return "Completed";
+  return "All fulfillment";
+}
+
+function getOfferPaymentStatus(offer: Offer) {
+  return normalizeStatus(offer.settlement?.status);
+}
+
+function getOfferFulfillmentStatus(offer: Offer) {
+  return String(offer.settlement?.fulfillmentStatus || "PAYMENT_PENDING").toUpperCase();
+}
+
+function offerMatchesFulfillmentQueueFilter(
+  offer: Offer,
+  filter: OfferFulfillmentQueueFilter,
+) {
+  if (filter === "ALL") return true;
+
+  const status = normalizeStatus(offer.status);
+  const paymentStatus = getOfferPaymentStatus(offer);
+  const fulfillmentStatus = getOfferFulfillmentStatus(offer);
+
+  if (filter === "PAID_NEEDS_FULFILLMENT") {
+    return status === "ACCEPTED" && paymentStatus === "CHARGED" && fulfillmentStatus === "PAYMENT_PENDING";
+  }
+
+  if (filter === "READY_FOR_PICKUP") {
+    return status === "ACCEPTED" && paymentStatus === "CHARGED" && fulfillmentStatus === "READY_FOR_PICKUP";
+  }
+
+  if (filter === "COMPLETED") {
+    return status === "ACCEPTED" && paymentStatus === "CHARGED" && fulfillmentStatus === "COMPLETED";
+  }
+
+  if (filter === "PAYMENT_PENDING") {
+    return status === "ACCEPTED" && paymentStatus !== "CHARGED";
+  }
+
+  return true;
+}
+
+function getOfferFulfillmentPriority(offer: Offer) {
+  const status = normalizeStatus(offer.status);
+  const paymentStatus = getOfferPaymentStatus(offer);
+  const fulfillmentStatus = getOfferFulfillmentStatus(offer);
+
+  if (status === "ACCEPTED" && paymentStatus === "CHARGED" && fulfillmentStatus === "PAYMENT_PENDING") return 0;
+  if (status === "ACCEPTED" && paymentStatus === "CHARGED" && fulfillmentStatus === "READY_FOR_PICKUP") return 1;
+  if (status === "ACCEPTED" && paymentStatus !== "CHARGED") return 2;
+  if (status === "ACCEPTED" && paymentStatus === "CHARGED" && fulfillmentStatus === "COMPLETED") return 3;
+
+  return 4;
+}
+
+function sortOffersByFulfillmentQueue(offers: Offer[]) {
+  return [...offers].sort(
+    (left, right) =>
+      getOfferFulfillmentPriority(left) - getOfferFulfillmentPriority(right),
+  );
+}
+
 export default function OffersPage() {
   const role = getAuthRole();
   const isOwnerView = useMemo(
@@ -96,6 +176,7 @@ export default function OffersPage() {
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<OfferFulfillmentQueueFilter>("ALL");
 
   const [newItemId, setNewItemId] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -126,22 +207,28 @@ export default function OffersPage() {
   const filteredOffers = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    return offers.filter((offer) => {
-      const status = normalizeStatus(offer.status);
-      const searchable = [
-        offerTitle(offer),
-        shopName(offer),
-        offer.message || "",
-        offer.counterMessage || "",
-        status,
-      ].join(" ").toLowerCase();
+    const visible = offers
+      .filter((offer) => {
+        const status = normalizeStatus(offer.status);
+        const searchable = [
+          offerTitle(offer),
+          shopName(offer),
+          offer.message || "",
+          offer.counterMessage || "",
+          status,
+          getOfferPaymentStatus(offer),
+          getOfferFulfillmentStatus(offer),
+        ].join(" ").toLowerCase();
 
-      if (statusFilter !== "ALL" && status !== statusFilter) return false;
-      if (q && !searchable.includes(q)) return false;
+        if (statusFilter !== "ALL" && status !== statusFilter) return false;
+        if (!offerMatchesFulfillmentQueueFilter(offer, fulfillmentFilter)) return false;
+        if (q && !searchable.includes(q)) return false;
 
-      return true;
-    });
-  }, [offers, query, statusFilter]);
+        return true;
+      });
+
+    return sortOffersByFulfillmentQueue(visible);
+  }, [fulfillmentFilter, offers, query, statusFilter]);
 
   const statusOptions = useMemo(() => {
     return Array.from(new Set(offers.map((offer) => normalizeStatus(offer.status)))).sort();
@@ -172,6 +259,10 @@ export default function OffersPage() {
       return isOwnerView ? status === "PENDING" : status === "COUNTERED";
     });
   }, [filteredOffers, isOwnerView]);
+
+  function getOfferFulfillmentFilterCount(filter: OfferFulfillmentQueueFilter) {
+    return offers.filter((offer) => offerMatchesFulfillmentQueueFilter(offer, filter)).length;
+  }
 
   async function handleCreateOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -562,6 +653,7 @@ export default function OffersPage() {
           <button type="button" onClick={() => {
             setQuery("");
             setStatusFilter("ALL");
+            setFulfillmentFilter("ALL");
           }}>
             Clear filters
           </button>
@@ -587,6 +679,22 @@ export default function OffersPage() {
               {statusOptions.map((status) => (
                 <option key={status} value={status}>
                   {status}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Fulfillment queue</span>
+            <select
+              value={fulfillmentFilter}
+              onChange={(event) =>
+                setFulfillmentFilter(event.target.value as OfferFulfillmentQueueFilter)
+              }
+            >
+              {OFFER_FULFILLMENT_QUEUE_FILTERS.map((filter) => (
+                <option key={filter} value={filter}>
+                  {offerFulfillmentQueueFilterLabel(filter)} ({getOfferFulfillmentFilterCount(filter)})
                 </option>
               ))}
             </select>
