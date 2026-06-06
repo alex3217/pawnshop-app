@@ -24,6 +24,21 @@ import "../styles/owner-auctions-readability.css";
 
 type StatusFilter = "ALL" | "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED";
 
+type FulfillmentQueueFilter =
+  | "ALL"
+  | "PAID_NEEDS_FULFILLMENT"
+  | "READY_FOR_PICKUP"
+  | "COMPLETED"
+  | "PAYMENT_PENDING";
+
+const FULFILLMENT_QUEUE_FILTERS: FulfillmentQueueFilter[] = [
+  "ALL",
+  "PAID_NEEDS_FULFILLMENT",
+  "READY_FOR_PICKUP",
+  "COMPLETED",
+  "PAYMENT_PENDING",
+];
+
 type OwnerAuctionViewFilter = StatusFilter | "ENDING_SOON" | "NEEDS_ATTENTION";
 
 type OwnerAuctionSortKey =
@@ -486,6 +501,82 @@ function formatOwnerAuctionFulfillmentStatus(value: string | null | undefined) {
   return String(value || "PAYMENT_PENDING").trim().toUpperCase().replaceAll("_", " ");
 }
 
+function fulfillmentQueueFilterLabel(filter: FulfillmentQueueFilter) {
+  if (filter === "PAID_NEEDS_FULFILLMENT") return "PAID NEEDS FULFILLMENT";
+  if (filter === "READY_FOR_PICKUP") return "READY FOR PICKUP";
+  if (filter === "PAYMENT_PENDING") return "PAYMENT PENDING";
+  return filter;
+}
+
+function getOwnerAuctionSettlement(auction: Auction) {
+  return (auction.settlement || null) as
+    | {
+        id?: string | null;
+        status?: string | null;
+        fulfillmentStatus?: string | null;
+        fulfilledAt?: string | null;
+      }
+    | null;
+}
+
+function getOwnerAuctionPaymentStatus(auction: Auction) {
+  return String(getOwnerAuctionSettlement(auction)?.status || "PENDING").toUpperCase();
+}
+
+function getOwnerAuctionFulfillmentStatusRaw(auction: Auction) {
+  return String(
+    getOwnerAuctionSettlement(auction)?.fulfillmentStatus || "PAYMENT_PENDING",
+  ).toUpperCase();
+}
+
+function ownerAuctionMatchesFulfillmentQueueFilter(
+  auction: Auction,
+  filter: FulfillmentQueueFilter,
+) {
+  if (filter === "ALL") return true;
+
+  const paymentStatus = getOwnerAuctionPaymentStatus(auction);
+  const fulfillmentStatus = getOwnerAuctionFulfillmentStatusRaw(auction);
+
+  if (filter === "PAID_NEEDS_FULFILLMENT") {
+    return paymentStatus === "CHARGED" && fulfillmentStatus === "PAYMENT_PENDING";
+  }
+
+  if (filter === "READY_FOR_PICKUP") {
+    return paymentStatus === "CHARGED" && fulfillmentStatus === "READY_FOR_PICKUP";
+  }
+
+  if (filter === "COMPLETED") {
+    return paymentStatus === "CHARGED" && fulfillmentStatus === "COMPLETED";
+  }
+
+  if (filter === "PAYMENT_PENDING") {
+    return paymentStatus !== "CHARGED";
+  }
+
+  return true;
+}
+
+function getOwnerAuctionFulfillmentPriority(auction: Auction) {
+  const paymentStatus = getOwnerAuctionPaymentStatus(auction);
+  const fulfillmentStatus = getOwnerAuctionFulfillmentStatusRaw(auction);
+
+  if (paymentStatus === "CHARGED" && fulfillmentStatus === "PAYMENT_PENDING") return 0;
+  if (paymentStatus === "CHARGED" && fulfillmentStatus === "READY_FOR_PICKUP") return 1;
+  if (paymentStatus !== "CHARGED") return 2;
+  if (paymentStatus === "CHARGED" && fulfillmentStatus === "COMPLETED") return 3;
+
+  return 4;
+}
+
+function prioritizeOwnerAuctionFulfillment(auctions: Auction[]) {
+  return [...auctions].sort(
+    (left, right) =>
+      getOwnerAuctionFulfillmentPriority(left) -
+      getOwnerAuctionFulfillmentPriority(right),
+  );
+}
+
 function isClosedOwnerAuction(auction: Auction) {
   const label = statusLabel(auction.status);
   return label === "ENDED" || label === "CANCELED";
@@ -534,6 +625,7 @@ export default function OwnerAuctionsPage() {
   const [query, setQuery] = useState("");
   const [viewFilter, setViewFilter] = useState<OwnerAuctionViewFilter>("ALL");
   const [sortKey, setSortKey] = useState<OwnerAuctionSortKey>("endingSoon");
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<FulfillmentQueueFilter>("ALL");
   const [reviewedAuctionIds, setReviewedAuctionIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -782,6 +874,9 @@ export default function OwnerAuctionsPage() {
 
     const visible = auctions
       .filter((auction) => ownerAuctionMatchesViewFilter(auction, viewFilter))
+      .filter((auction) =>
+        ownerAuctionMatchesFulfillmentQueueFilter(auction, fulfillmentFilter),
+      )
       .filter((auction: Auction) => {
         if (!needle) return true;
 
@@ -797,11 +892,17 @@ export default function OwnerAuctionsPage() {
           .some((value) => String(value).toLowerCase().includes(needle));
       });
 
-    return sortOwnerAuctions(visible, sortKey);
-  }, [auctions, query, sortKey, viewFilter]);
+    return prioritizeOwnerAuctionFulfillment(sortOwnerAuctions(visible, sortKey));
+  }, [auctions, fulfillmentFilter, query, sortKey, viewFilter]);
 
   function getViewFilterCount(filter: OwnerAuctionViewFilter) {
     return auctions.filter((auction) => ownerAuctionMatchesViewFilter(auction, filter)).length;
+  }
+
+  function getFulfillmentFilterCount(filter: FulfillmentQueueFilter) {
+    return auctions.filter((auction) =>
+      ownerAuctionMatchesFulfillmentQueueFilter(auction, filter),
+    ).length;
   }
 
   function applyViewFilter(filter: OwnerAuctionViewFilter) {
@@ -1147,6 +1248,42 @@ export default function OwnerAuctionsPage() {
             />
           ))}
         </div>
+
+        <section
+          className="page-card"
+          data-owner-auction-fulfillment-queue="true"
+          style={{
+            display: "grid",
+            gap: 12,
+            border: "1px solid rgba(34,197,94,0.28)",
+          }}
+        >
+          <div>
+            <span className="muted">Fulfillment Queue</span>
+            <h2 style={{ margin: "4px 0 0" }}>Prioritize paid orders that need action</h2>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 10,
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            }}
+          >
+            {FULFILLMENT_QUEUE_FILTERS.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                className={fulfillmentFilter === filter ? "btn btn-primary" : "btn"}
+                disabled={loading || refreshing || actionInProgress}
+                onClick={() => setFulfillmentFilter(filter)}
+              >
+                {fulfillmentQueueFilterLabel(filter)}{" "}
+                <span>({getFulfillmentFilterCount(filter)})</span>
+              </button>
+            ))}
+          </div>
+        </section>
 
         <div
           style={{
