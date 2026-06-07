@@ -252,6 +252,22 @@ const links = actions
 
 const issues = [];
 
+const visibleChargedAuctionSettlements =
+  Array.isArray(auctionsMine.json?.rows)
+    ? auctionsMine.json.rows.filter((auction) => {
+        const settlementStatus = String(auction.settlement?.status || "").toUpperCase();
+        return settlementStatus === "CHARGED" && auction.item?.isDeleted !== true;
+      }).length
+    : null;
+
+if (
+  visibleChargedAuctionSettlements &&
+  signals.markerCounts.fulfillmentControls === 0
+) {
+  issues.push("Visible charged settlements exist, but no owner fulfillment controls rendered.");
+}
+
+
 if (signals.textSignals.stillOnLogin) {
   issues.push("Still on login after auth injection.");
 }
