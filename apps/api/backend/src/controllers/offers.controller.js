@@ -43,6 +43,7 @@ function offerInclude() {
       select: {
         id: true,
         title: true,
+        isDeleted: true,
         price: true,
         pawnShopId: true,
         shop: { select: SAFE_SHOP_SELECT },

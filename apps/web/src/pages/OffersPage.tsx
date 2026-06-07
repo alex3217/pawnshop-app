@@ -160,6 +160,12 @@ function sortOffersByFulfillmentQueue(offers: Offer[]) {
   );
 }
 
+function offerUsesDeletedItem(offer: Offer) {
+  return Boolean(
+    (offer.item as { isDeleted?: boolean } | null | undefined)?.isDeleted,
+  );
+}
+
 export default function OffersPage() {
   const role = getAuthRole();
   const isOwnerView = useMemo(
@@ -177,6 +183,7 @@ export default function OffersPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [fulfillmentFilter, setFulfillmentFilter] = useState<OfferFulfillmentQueueFilter>("ALL");
+  const [showArchivedTestHistory, setShowArchivedTestHistory] = useState(false);
 
   const [newItemId, setNewItemId] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -220,6 +227,7 @@ export default function OffersPage() {
           getOfferFulfillmentStatus(offer),
         ].join(" ").toLowerCase();
 
+        if (!showArchivedTestHistory && offerUsesDeletedItem(offer)) return false;
         if (statusFilter !== "ALL" && status !== statusFilter) return false;
         if (!offerMatchesFulfillmentQueueFilter(offer, fulfillmentFilter)) return false;
         if (q && !searchable.includes(q)) return false;
@@ -228,7 +236,7 @@ export default function OffersPage() {
       });
 
     return sortOffersByFulfillmentQueue(visible);
-  }, [fulfillmentFilter, offers, query, statusFilter]);
+  }, [fulfillmentFilter, offers, query, showArchivedTestHistory, statusFilter]);
 
   const statusOptions = useMemo(() => {
     return Array.from(new Set(offers.map((offer) => normalizeStatus(offer.status)))).sort();
@@ -654,6 +662,7 @@ export default function OffersPage() {
             setQuery("");
             setStatusFilter("ALL");
             setFulfillmentFilter("ALL");
+            setShowArchivedTestHistory(false);
           }}>
             Clear filters
           </button>
@@ -698,6 +707,15 @@ export default function OffersPage() {
                 </option>
               ))}
             </select>
+          </label>
+
+          <label className="offers2-checkbox">
+            <input
+              type="checkbox"
+              checked={showArchivedTestHistory}
+              onChange={(event) => setShowArchivedTestHistory(event.target.checked)}
+            />
+            <span>Show archived/test history</span>
           </label>
         </div>
 
