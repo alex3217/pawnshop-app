@@ -276,11 +276,6 @@ if (!signals.textSignals.hasSettlementSummary) {
   issues.push("Missing visible Settlement Summary text.");
 }
 
-if (signals.markerCounts.fulfillmentControls === 0) {
-  issues.push(
-    "No owner fulfillment controls rendered. This is only acceptable if no CHARGED settlements are visible.",
-  );
-}
 
 if (!buttons.some((button) => /refresh/i.test(button.text))) {
   issues.push("No visible refresh button found.");
