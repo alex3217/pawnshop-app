@@ -228,6 +228,18 @@ const chargedAcceptedOffers = Array.isArray(offersArray)
     }).length
   : null;
 
+const visibleChargedAcceptedOffers = Array.isArray(offersArray)
+  ? offersArray.filter((offer) => {
+      const status = String(offer.status || "").toUpperCase();
+      const settlementStatus = String(offer.settlement?.status || "").toUpperCase();
+      return (
+        status === "ACCEPTED" &&
+        settlementStatus === "CHARGED" &&
+        offer.item?.isDeleted !== true
+      );
+    }).length
+  : null;
+
 const issues = [];
 
 if (signals.textSignals.stillOnLogin) {
@@ -238,8 +250,8 @@ if (!signals.textSignals.hasOwnerOfferCenter) {
   issues.push("Owner offer center text not visible.");
 }
 
-if (chargedAcceptedOffers && signals.markerCounts.offerFulfillmentControls === 0) {
-  issues.push("Charged accepted offers exist, but no fulfillment controls rendered.");
+if (visibleChargedAcceptedOffers && signals.markerCounts.offerFulfillmentControls === 0) {
+  issues.push("Visible charged accepted offers exist, but no fulfillment controls rendered.");
 }
 
 if (
@@ -265,6 +277,7 @@ const summary = {
   api: {
     ownerOffersStatus: ownerOffers.status,
     chargedAcceptedOffers,
+    visibleChargedAcceptedOffers,
   },
   issues,
   reportDir: OUT,

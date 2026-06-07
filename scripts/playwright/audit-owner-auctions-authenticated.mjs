@@ -297,6 +297,13 @@ const summary = {
       Array.isArray(settlementsMine.json)
         ? settlementsMine.json.filter((row) => String(row.status).toUpperCase() === "CHARGED").length
         : null,
+    visibleChargedAuctionSettlements:
+      Array.isArray(auctionsMine.json?.rows)
+        ? auctionsMine.json.rows.filter((auction) => {
+            const settlementStatus = String(auction.settlement?.status || "").toUpperCase();
+            return settlementStatus === "CHARGED" && auction.item?.isDeleted !== true;
+          }).length
+        : null,
   },
   issues,
   reportDir: OUT,

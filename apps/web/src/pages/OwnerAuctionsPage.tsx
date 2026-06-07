@@ -577,6 +577,12 @@ function prioritizeOwnerAuctionFulfillment(auctions: Auction[]) {
   );
 }
 
+function ownerAuctionUsesDeletedItem(auction: Auction) {
+  return Boolean(
+    (auction.item as { isDeleted?: boolean } | null | undefined)?.isDeleted,
+  );
+}
+
 function isClosedOwnerAuction(auction: Auction) {
   const label = statusLabel(auction.status);
   return label === "ENDED" || label === "CANCELED";
@@ -626,6 +632,7 @@ export default function OwnerAuctionsPage() {
   const [viewFilter, setViewFilter] = useState<OwnerAuctionViewFilter>("ALL");
   const [sortKey, setSortKey] = useState<OwnerAuctionSortKey>("endingSoon");
   const [fulfillmentFilter, setFulfillmentFilter] = useState<FulfillmentQueueFilter>("ALL");
+  const [showArchivedTestHistory, setShowArchivedTestHistory] = useState(false);
   const [reviewedAuctionIds, setReviewedAuctionIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -873,6 +880,7 @@ export default function OwnerAuctionsPage() {
     const needle = query.trim().toLowerCase();
 
     const visible = auctions
+      .filter((auction) => showArchivedTestHistory || !ownerAuctionUsesDeletedItem(auction))
       .filter((auction) => ownerAuctionMatchesViewFilter(auction, viewFilter))
       .filter((auction) =>
         ownerAuctionMatchesFulfillmentQueueFilter(auction, fulfillmentFilter),
@@ -893,7 +901,7 @@ export default function OwnerAuctionsPage() {
       });
 
     return prioritizeOwnerAuctionFulfillment(sortOwnerAuctions(visible, sortKey));
-  }, [auctions, fulfillmentFilter, query, sortKey, viewFilter]);
+  }, [auctions, fulfillmentFilter, query, showArchivedTestHistory, sortKey, viewFilter]);
 
   function getViewFilterCount(filter: OwnerAuctionViewFilter) {
     return auctions.filter((auction) => ownerAuctionMatchesViewFilter(auction, filter)).length;
@@ -1283,6 +1291,15 @@ export default function OwnerAuctionsPage() {
               </button>
             ))}
           </div>
+
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={showArchivedTestHistory}
+              onChange={(event) => setShowArchivedTestHistory(event.target.checked)}
+            />
+            <span>Show archived/test history</span>
+          </label>
         </section>
 
         <div
