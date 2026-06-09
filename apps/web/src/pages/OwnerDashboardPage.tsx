@@ -1155,7 +1155,8 @@ const styles: Record<string, CSSProperties> = {
   page: {
     display: "grid",
     gap: 20,
-    color: "#eef2ff",
+    color: "var(--owner-dashboard-text)",
+    background: "var(--owner-dashboard-page-bg)",
   },
   header: {
     display: "flex",
@@ -1171,7 +1172,7 @@ const styles: Record<string, CSSProperties> = {
   },
   subtitle: {
     marginTop: 8,
-    color: "#a7b0d8",
+    color: "var(--owner-dashboard-muted)",
   },
   actions: {
     display: "flex",
@@ -1181,9 +1182,9 @@ const styles: Record<string, CSSProperties> = {
   },
   linkButton: {
     textDecoration: "none",
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#eef2ff",
-    background: "#1a2345",
+    border: "1px solid var(--owner-dashboard-border)",
+    color: "var(--owner-dashboard-text)",
+    background: "var(--owner-dashboard-button-bg)",
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 700,
@@ -1191,16 +1192,16 @@ const styles: Record<string, CSSProperties> = {
   linkButtonPrimary: {
     textDecoration: "none",
     border: "none",
-    color: "#08111f",
-    background: "#6ea8fe",
+    color: "var(--owner-dashboard-primary-text)",
+    background: "var(--owner-dashboard-primary-bg)",
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 800,
   },
   refreshButton: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#eef2ff",
-    background: "#121935",
+    border: "1px solid var(--owner-dashboard-border)",
+    color: "var(--owner-dashboard-text)",
+    background: "var(--owner-dashboard-card-bg)",
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 700,
@@ -1225,16 +1226,16 @@ const styles: Record<string, CSSProperties> = {
   statBadge: {
     borderRadius: 999,
     padding: "8px 12px",
-    background: "rgba(110,168,254,0.12)",
-    color: "#cfe0ff",
-    border: "1px solid rgba(110,168,254,0.2)",
+    background: "var(--owner-dashboard-chip-bg)",
+    color: "var(--owner-dashboard-chip-text)",
+    border: "1px solid var(--owner-dashboard-accent-border)",
     fontSize: 13,
     fontWeight: 700,
   },
   label: {
     display: "block",
     marginBottom: 8,
-    color: "#a7b0d8",
+    color: "var(--owner-dashboard-muted)",
     fontSize: 14,
     fontWeight: 600,
   },
@@ -1242,9 +1243,9 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 280,
     padding: "10px 12px",
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "#121935",
-    color: "#eef2ff",
+    border: "1px solid var(--owner-dashboard-border)",
+    background: "var(--owner-dashboard-card-bg)",
+    color: "var(--owner-dashboard-text)",
   },
   section: {
     display: "grid",
@@ -1261,14 +1262,15 @@ const styles: Record<string, CSSProperties> = {
     gap: 12,
   },
   card: {
-    border: "1px solid rgba(255,255,255,0.10)",
+    border: "1px solid var(--owner-dashboard-soft-border)",
     borderRadius: 16,
     padding: 16,
-    background: "#121935",
+    background: "var(--owner-dashboard-card-bg)",
+    boxShadow: "var(--owner-dashboard-shadow)",
   },
   kicker: {
     fontSize: 12,
-    color: "#6ea8fe",
+    color: "var(--owner-dashboard-accent)",
     textTransform: "uppercase",
     fontWeight: 800,
     marginBottom: 8,
@@ -1279,11 +1281,11 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 24,
   },
   muted: {
-    color: "#a7b0d8",
+    color: "var(--owner-dashboard-muted)",
     marginTop: 6,
   },
   smallMuted: {
-    color: "#8d97c5",
+    color: "var(--owner-dashboard-subtle)",
     marginTop: 8,
     fontSize: 12,
   },
@@ -1332,13 +1334,14 @@ const styles: Record<string, CSSProperties> = {
     gap: 10,
   },
   listCard: {
-    border: "1px solid rgba(255,255,255,0.10)",
+    border: "1px solid var(--owner-dashboard-soft-border)",
     borderRadius: 14,
     padding: 14,
-    background: "#121935",
+    background: "var(--owner-dashboard-card-bg)",
+    boxShadow: "var(--owner-dashboard-shadow)",
   },
   activeListCard: {
-    border: "1px solid rgba(110,168,254,0.42)",
+    border: "1px solid var(--owner-dashboard-active-border)",
     boxShadow: "0 0 0 1px rgba(110,168,254,0.18) inset",
   },
   listCardTop: {
@@ -1352,8 +1355,8 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 16,
   },
   activeBadge: {
-    background: "rgba(110,168,254,0.14)",
-    color: "#6ea8fe",
+    background: "var(--owner-dashboard-active-bg)",
+    color: "var(--owner-dashboard-accent)",
     padding: "6px 10px",
     borderRadius: 999,
     fontSize: 12,
@@ -1367,6 +1370,6 @@ const styles: Record<string, CSSProperties> = {
   },
   empty: {
     margin: 0,
-    color: "#a7b0d8",
+    color: "var(--owner-dashboard-muted)",
   },
 };
