@@ -1,189 +1,81 @@
-/* Owner Dashboard readability patch.
-   Imported only by OwnerDashboardPage.tsx and scoped to .owner-dashboard-readability.
-   The page uses dark card surfaces even in light mode, so this makes those surfaces readable. */
+/* Owner Dashboard theme-aware readability.
+   OwnerDashboardPage.tsx uses these CSS variables in inline styles.
+   Do not force light mode into dark surfaces or dark mode into light surfaces. */
 
 .owner-dashboard-readability {
-  color: #f8fafc;
+  --owner-dashboard-page-bg: #f8fafc;
+  --owner-dashboard-surface: #ffffff;
+  --owner-dashboard-card-bg: #ffffff;
+  --owner-dashboard-secondary-bg: #ffffff;
+  --owner-dashboard-text: #0f172a;
+  --owner-dashboard-muted: #475569;
+  --owner-dashboard-subtle: #64748b;
+  --owner-dashboard-accent: #1d4ed8;
+  --owner-dashboard-primary-bg: #2563eb;
+  --owner-dashboard-primary-text: #ffffff;
+  --owner-dashboard-button-bg: #ffffff;
+  --owner-dashboard-button-text: #0f172a;
+  --owner-dashboard-border: rgba(15, 23, 42, 0.14);
+  --owner-dashboard-soft-border: rgba(15, 23, 42, 0.12);
+  --owner-dashboard-accent-border: rgba(37, 99, 235, 0.22);
+  --owner-dashboard-active-border: rgba(37, 99, 235, 0.42);
+  --owner-dashboard-chip-bg: #eff6ff;
+  --owner-dashboard-chip-text: #1e3a8a;
+  --owner-dashboard-active-bg: #dbeafe;
+  --owner-dashboard-hero-bg: radial-gradient(circle at top left, rgba(219, 234, 254, 0.9), transparent 34%), #ffffff;
+  --owner-dashboard-hero-border: rgba(37, 99, 235, 0.18);
+  --owner-dashboard-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+
+  background: var(--owner-dashboard-page-bg);
+  color: var(--owner-dashboard-text);
 }
 
-/* Most owner dashboard cards are dark inline-style surfaces. Keep text light there. */
-.owner-dashboard-readability section,
-.owner-dashboard-readability article,
-.owner-dashboard-readability [style*="26, 35, 69"],
-.owner-dashboard-readability [style*="16, 24, 48"],
-.owner-dashboard-readability [style*="15, 23, 42"],
-.owner-dashboard-readability [style*="#1a2345"],
-.owner-dashboard-readability [style*="#101830"],
-.owner-dashboard-readability [style*="#0f172a"] {
-  color: #f8fafc !important;
+:root[data-theme="dark"] .owner-dashboard-readability,
+.dark .owner-dashboard-readability,
+html[data-theme="dark"] .owner-dashboard-readability {
+  --owner-dashboard-page-bg: #020617;
+  --owner-dashboard-surface: #0b1020;
+  --owner-dashboard-card-bg: #121935;
+  --owner-dashboard-secondary-bg: #1a2345;
+  --owner-dashboard-text: #eef2ff;
+  --owner-dashboard-muted: #a7b0d8;
+  --owner-dashboard-subtle: #8d97c5;
+  --owner-dashboard-accent: #6ea8fe;
+  --owner-dashboard-primary-bg: #6ea8fe;
+  --owner-dashboard-primary-text: #08111f;
+  --owner-dashboard-button-bg: #1a2345;
+  --owner-dashboard-button-text: #eef2ff;
+  --owner-dashboard-border: rgba(255, 255, 255, 0.12);
+  --owner-dashboard-soft-border: rgba(255, 255, 255, 0.10);
+  --owner-dashboard-accent-border: rgba(110, 168, 254, 0.2);
+  --owner-dashboard-active-border: rgba(110, 168, 254, 0.42);
+  --owner-dashboard-chip-bg: rgba(110, 168, 254, 0.12);
+  --owner-dashboard-chip-text: #cfe0ff;
+  --owner-dashboard-active-bg: rgba(110, 168, 254, 0.14);
+  --owner-dashboard-hero-bg: radial-gradient(circle at top left, rgba(110, 168, 254, 0.22), transparent 32%), #121935;
+  --owner-dashboard-hero-border: rgba(110, 168, 254, 0.28);
+  --owner-dashboard-shadow: none;
 }
 
-/* Headings and card titles */
 .owner-dashboard-readability h1,
 .owner-dashboard-readability h2,
 .owner-dashboard-readability h3,
 .owner-dashboard-readability h4,
 .owner-dashboard-readability strong {
-  color: #ffffff !important;
+  color: var(--owner-dashboard-text);
 }
 
-/* Generic text inside the dashboard */
 .owner-dashboard-readability p,
 .owner-dashboard-readability span,
 .owner-dashboard-readability small,
 .owner-dashboard-readability label,
+.owner-dashboard-readability li,
 .owner-dashboard-readability div {
   color: inherit;
 }
 
-/* Blue labels were failing at ~2.42 contrast; make them high-contrast. */
-.owner-dashboard-readability [style*="110, 168, 254"],
-.owner-dashboard-readability [style*="141, 151, 197"],
-.owner-dashboard-readability [style*="207, 224, 255"] {
-  color: #f8fafc !important;
-}
-
-/* Action links were blue on dark cards and failing at ~2.29 contrast. */
 .owner-dashboard-readability a,
-.owner-dashboard-readability a:not(.btn),
-.owner-dashboard-readability a:not([class*="btn"]) {
-  color: #ffffff !important;
-  font-weight: 800;
-}
-
-/* Buttons and button-like links */
-.owner-dashboard-readability .btn,
-.owner-dashboard-readability a.btn,
 .owner-dashboard-readability button,
 .owner-dashboard-readability [role="button"] {
-  background: #2563eb !important;
-  border-color: #60a5fa !important;
-  color: #ffffff !important;
   font-weight: 800;
-}
-
-/* Secondary buttons still need readable text. */
-.owner-dashboard-readability .btn-secondary,
-.owner-dashboard-readability a.btn-secondary,
-.owner-dashboard-readability button.btn-secondary {
-  background: #1e293b !important;
-  border: 1px solid #94a3b8 !important;
-  color: #f8fafc !important;
-}
-
-/* Badges/chips such as ACTIVE and AVAILABLE were green-on-green low contrast. */
-.owner-dashboard-readability .badge,
-.owner-dashboard-readability .pill,
-.owner-dashboard-readability .tag,
-.owner-dashboard-readability .status,
-.owner-dashboard-readability [class*="badge"],
-.owner-dashboard-readability [class*="pill"],
-.owner-dashboard-readability [class*="tag"],
-.owner-dashboard-readability [class*="status"],
-.owner-dashboard-readability [style*="46, 204, 113"] {
-  color: #ffffff !important;
-  background: #166534 !important;
-  border-color: #22c55e !important;
-  font-weight: 800;
-}
-
-/* Info chips like Shops: 1, Items: 58, Active: 58 */
-.owner-dashboard-readability [style*="110, 168, 254, 0.12"],
-.owner-dashboard-readability [style*="110,168,254,0.12"],
-.owner-dashboard-readability [style*="110, 168, 254, 0.14"],
-.owner-dashboard-readability [style*="110,168,254,0.14"] {
-  background: #1e3a8a !important;
-  color: #ffffff !important;
-  border-color: #60a5fa !important;
-}
-
-/* Inputs */
-.owner-dashboard-readability input,
-.owner-dashboard-readability textarea,
-.owner-dashboard-readability select {
-  background: #020617 !important;
-  color: #f8fafc !important;
-  border-color: #94a3b8 !important;
-}
-
-.owner-dashboard-readability input::placeholder,
-.owner-dashboard-readability textarea::placeholder {
-  color: #cbd5e1 !important;
-  opacity: 1 !important;
-}
-
-/* Preserve dark theme safety. */
-:root[data-theme="dark"] .owner-dashboard-readability,
-.dark .owner-dashboard-readability {
-  color: #f8fafc;
-}
-
-/* Polish pass: make Owner Dashboard dark surfaces explicit in light mode.
-   The audit was reading several dashboard blocks as transparent/light backgrounds
-   while the page visually uses a dark command-center surface. */
-:root:not([data-theme="dark"]) .owner-dashboard-readability {
-  background: #0b1020 !important;
-  background-color: #0b1020 !important;
-  color: #f8fafc !important;
-}
-
-:root:not([data-theme="dark"]) .owner-dashboard-readability > div,
-:root:not([data-theme="dark"]) .owner-dashboard-readability section,
-:root:not([data-theme="dark"]) .owner-dashboard-readability article {
-  background-color: #101936 !important;
-  color: #f8fafc !important;
-}
-
-:root:not([data-theme="dark"]) .owner-dashboard-readability section > div,
-:root:not([data-theme="dark"]) .owner-dashboard-readability article > div,
-:root:not([data-theme="dark"]) .owner-dashboard-readability [style*="rgba"],
-:root:not([data-theme="dark"]) .owner-dashboard-readability [style*="linear-gradient"] {
-  background-color: #121935 !important;
-  color: #f8fafc !important;
-}
-
-:root:not([data-theme="dark"]) .owner-dashboard-readability h1,
-:root:not([data-theme="dark"]) .owner-dashboard-readability h2,
-:root:not([data-theme="dark"]) .owner-dashboard-readability h3,
-:root:not([data-theme="dark"]) .owner-dashboard-readability h4,
-:root:not([data-theme="dark"]) .owner-dashboard-readability strong,
-:root:not([data-theme="dark"]) .owner-dashboard-readability b {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-:root:not([data-theme="dark"]) .owner-dashboard-readability p,
-:root:not([data-theme="dark"]) .owner-dashboard-readability span,
-:root:not([data-theme="dark"]) .owner-dashboard-readability small,
-:root:not([data-theme="dark"]) .owner-dashboard-readability label,
-:root:not([data-theme="dark"]) .owner-dashboard-readability li,
-:root:not([data-theme="dark"]) .owner-dashboard-readability div {
-  color: #e2e8f0 !important;
-  -webkit-text-fill-color: #e2e8f0 !important;
-}
-
-:root:not([data-theme="dark"]) .owner-dashboard-readability a,
-:root:not([data-theme="dark"]) .owner-dashboard-readability a:visited,
-:root:not([data-theme="dark"]) .owner-dashboard-readability a:hover,
-:root:not([data-theme="dark"]) .owner-dashboard-readability a:focus {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  background-color: #1d4ed8 !important;
-  border-color: #93c5fd !important;
-  font-weight: 800;
-}
-
-:root:not([data-theme="dark"]) .owner-dashboard-readability input,
-:root:not([data-theme="dark"]) .owner-dashboard-readability textarea,
-:root:not([data-theme="dark"]) .owner-dashboard-readability select {
-  background-color: #020617 !important;
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
-  border-color: #94a3b8 !important;
-}
-
-:root:not([data-theme="dark"]) .owner-dashboard-readability input::placeholder,
-:root:not([data-theme="dark"]) .owner-dashboard-readability textarea::placeholder {
-  color: #cbd5e1 !important;
-  opacity: 1 !important;
 }
