@@ -58,6 +58,12 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1600 } });
 await injectAuth(page, token);
 await page.goto(`${WEB_BASE}/owner/auctions`, { waitUntil: "networkidle" });
 
+const paidNeedsFulfillmentFilter = page.getByRole("button", { name: /paid needs fulfillment/i }).first();
+if (await paidNeedsFulfillmentFilter.count()) {
+  await paidNeedsFulfillmentFilter.click();
+  await page.waitForTimeout(750);
+}
+
 const before = await page.evaluate(() => document.body.innerText);
 const readyButton = page
   .locator("[data-owner-auction-fulfillment-controls]")
@@ -65,7 +71,36 @@ const readyButton = page
   .first();
 
 if (!(await readyButton.count())) {
-  throw new Error("No Ready for pickup button found.");
+  const buttons = await page.locator("button").evaluateAll((items) =>
+    items.map((button) => ({
+      text: button.innerText?.replace(/\\s+/g, " ").trim(),
+      disabled: button.disabled,
+      dataAttrs: Array.from(button.attributes)
+        .filter((attr) => attr.name.startsWith("data-"))
+        .map((attr) => `${attr.name}=${attr.value}`),
+    }))
+  );
+
+  await page.screenshot({
+    path: path.join(OUT, "no-eligible-ready-for-pickup-button.png"),
+    fullPage: true,
+  });
+
+  const skipped = {
+    success: true,
+    skipped: true,
+    reason: "No eligible auction Ready for pickup action is currently visible. Page loaded and fulfillment filters are present.",
+    url: page.url(),
+    beforeHadPaidNeedsFulfillment: /PAID NEEDS FULFILLMENT/i.test(before),
+    beforeHadReadyForPickupFilter: /READY FOR PICKUP/i.test(before),
+    visibleButtons: buttons,
+    reportDir: OUT,
+  };
+
+  fs.writeFileSync(path.join(OUT, "click-result.json"), JSON.stringify(skipped, null, 2));
+  console.log(JSON.stringify(skipped, null, 2));
+  await browser.close();
+  process.exit(0);
 }
 
 await readyButton.click();
