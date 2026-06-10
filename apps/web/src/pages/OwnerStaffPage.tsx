@@ -214,6 +214,16 @@ function getStatusStyle(status: string): CSSProperties {
   return base;
 }
 
+function csvCell(value: unknown) {
+  const raw = Array.isArray(value)
+    ? value.join("; ")
+    : value === undefined || value === null
+      ? ""
+      : String(value);
+
+  return `"${raw.replaceAll('"', '""')}"`;
+}
+
 function getDefaultPermissions(role: StaffRole) {
   return DEFAULT_PERMISSIONS_BY_ROLE[String(role).toUpperCase()] || [];
 }
@@ -468,6 +478,61 @@ export default function OwnerStaffPage() {
       setActionId("");
     }
   }
+
+  function clearStaffFilters() {
+    setStatusFilter("ALL");
+    setRoleFilter("ALL");
+    setQuery("");
+    setSuccess("Staff filters cleared.");
+  }
+
+  function exportFilteredStaff() {
+    const rows = filteredStaff.map((member) => [
+      member.name,
+      member.email,
+      member.phone,
+      member.role,
+      member.status,
+      member.locationName,
+      member.permissions,
+      member.invitedAt,
+      member.acceptedAt,
+      member.updatedAt,
+    ]);
+
+    const header = [
+      "Name",
+      "Email",
+      "Phone",
+      "Role",
+      "Status",
+      "Location",
+      "Permissions",
+      "Invited At",
+      "Accepted At",
+      "Updated At",
+    ];
+
+    const csv = [header, ...rows]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `owner-staff-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    setSuccess(`Exported ${filteredStaff.length} staff row${filteredStaff.length === 1 ? "" : "s"}.`);
+  }
+
+  const filtersActive =
+    statusFilter !== "ALL" || roleFilter !== "ALL" || query.trim().length > 0;
 
   return (
     <div className="owner-staff-page" style={styles.page}>
@@ -788,6 +853,44 @@ export default function OwnerStaffPage() {
             ))}
           </select>
         </label>
+      </div>
+
+      <div style={styles.staffUtilityBar}>
+        <div>
+          <strong>
+            Showing {filteredStaff.length} of {staff.length} staff members
+          </strong>
+          <p style={styles.utilityText}>
+            Export the current filtered list or clear filters before reviewing
+            staff access.
+          </p>
+        </div>
+
+        <div style={styles.utilityActions}>
+          <button
+            type="button"
+            onClick={exportFilteredStaff}
+            disabled={filteredStaff.length === 0}
+            style={{
+              ...styles.actionButton,
+              ...(filteredStaff.length === 0 ? styles.actionButtonDisabled : {}),
+            }}
+          >
+            Export staff CSV
+          </button>
+
+          <button
+            type="button"
+            onClick={clearStaffFilters}
+            disabled={!filtersActive}
+            style={{
+              ...styles.actionButton,
+              ...(!filtersActive ? styles.actionButtonDisabled : {}),
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
       </div>
 
       <div className="owner-staff-control-note">
@@ -1223,4 +1326,27 @@ const styles: Record<string, CSSProperties> = {
     gap: 10,
     flexWrap: "wrap",
   },
+  staffUtilityBar: {
+    border: "1px solid var(--owner-staff-border)",
+    background: "var(--owner-staff-card-bg)",
+    borderRadius: 18,
+    padding: 16,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 14,
+    flexWrap: "wrap",
+    boxShadow: "var(--owner-staff-shadow)",
+  },
+  utilityText: {
+    margin: "6px 0 0",
+    color: "var(--owner-staff-muted)",
+    lineHeight: 1.5,
+  },
+  utilityActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+
 };
