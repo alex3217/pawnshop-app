@@ -1,0 +1,131 @@
+/* Owner Inventory theme-aware readability.
+   Scoped to OwnerInventoryPage only. */
+
+.owner-inventory-page {
+  --owner-inv-page-bg: #f8fafc;
+  --owner-inv-card-bg: #ffffff;
+  --owner-inv-command-bg: radial-gradient(circle at top left, rgba(219, 234, 254, 0.85), transparent 34%), #ffffff;
+  --owner-inv-text: #0f172a;
+  --owner-inv-muted: #475569;
+  --owner-inv-subtle: #64748b;
+  --owner-inv-accent: #1d4ed8;
+  --owner-inv-primary-bg: #2563eb;
+  --owner-inv-primary-text: #ffffff;
+  --owner-inv-control-bg: #ffffff;
+  --owner-inv-control-text: #0f172a;
+  --owner-inv-border: rgba(15, 23, 42, 0.14);
+  --owner-inv-soft-border: rgba(15, 23, 42, 0.12);
+  --owner-inv-accent-border: rgba(37, 99, 235, 0.22);
+  --owner-inv-chip-bg: #eff6ff;
+  --owner-inv-chip-text: #1e3a8a;
+  --owner-inv-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+
+  --owner-inv-success-bg: #dcfce7;
+  --owner-inv-success-text: #14532d;
+  --owner-inv-success-border: rgba(22, 101, 52, 0.28);
+  --owner-inv-warning-bg: #fef3c7;
+  --owner-inv-warning-text: #78350f;
+  --owner-inv-warning-border: rgba(146, 64, 14, 0.34);
+  --owner-inv-danger-bg: #fee2e2;
+  --owner-inv-danger-text: #7f1d1d;
+  --owner-inv-danger-border: rgba(153, 27, 27, 0.28);
+  --owner-inv-neutral-bg: #e2e8f0;
+  --owner-inv-neutral-text: #334155;
+  --owner-inv-neutral-border: rgba(71, 85, 105, 0.24);
+
+  background: var(--owner-inv-page-bg);
+  color: var(--owner-inv-text);
+}
+
+:root[data-theme="dark"] .owner-inventory-page,
+.dark .owner-inventory-page,
+html[data-theme="dark"] .owner-inventory-page {
+  --owner-inv-page-bg: #020617;
+  --owner-inv-card-bg: #121935;
+  --owner-inv-command-bg: radial-gradient(circle at top left, rgba(110, 168, 254, 0.20), transparent 30%), #121935;
+  --owner-inv-text: #eef2ff;
+  --owner-inv-muted: #a7b0d8;
+  --owner-inv-subtle: #8ea7e6;
+  --owner-inv-accent: #6ea8fe;
+  --owner-inv-primary-bg: #6ea8fe;
+  --owner-inv-primary-text: #08111f;
+  --owner-inv-control-bg: #121935;
+  --owner-inv-control-text: #eef2ff;
+  --owner-inv-border: rgba(255, 255, 255, 0.12);
+  --owner-inv-soft-border: rgba(255, 255, 255, 0.10);
+  --owner-inv-accent-border: rgba(110, 168, 254, 0.28);
+  --owner-inv-chip-bg: rgba(110, 168, 254, 0.12);
+  --owner-inv-chip-text: #cfe0ff;
+  --owner-inv-shadow: 0 8px 30px rgba(0, 0, 0, 0.16);
+
+  --owner-inv-success-bg: rgba(46, 204, 113, 0.12);
+  --owner-inv-success-text: #7ef0b3;
+  --owner-inv-success-border: rgba(46, 204, 113, 0.24);
+  --owner-inv-warning-bg: rgba(255, 193, 7, 0.12);
+  --owner-inv-warning-text: #ffd98a;
+  --owner-inv-warning-border: rgba(255, 193, 7, 0.24);
+  --owner-inv-danger-bg: rgba(255, 128, 143, 0.12);
+  --owner-inv-danger-text: #ffb2bc;
+  --owner-inv-danger-border: rgba(255, 128, 143, 0.24);
+  --owner-inv-neutral-bg: rgba(199, 210, 254, 0.10);
+  --owner-inv-neutral-text: #c7d2fe;
+  --owner-inv-neutral-border: rgba(199, 210, 254, 0.18);
+}
+
+.owner-inventory-page h1,
+.owner-inventory-page h2,
+.owner-inventory-page h3,
+.owner-inventory-page h4,
+.owner-inventory-page strong {
+  color: var(--owner-inv-text);
+}
+
+.owner-inventory-page p,
+.owner-inventory-page span,
+.owner-inventory-page small,
+.owner-inventory-page label,
+.owner-inventory-page div {
+  color: inherit;
+}
+
+.owner-inventory-page input,
+.owner-inventory-page select,
+.owner-inventory-page textarea {
+  background: var(--owner-inv-control-bg);
+  color: var(--owner-inv-control-text);
+  border-color: var(--owner-inv-border);
+}
+
+.owner-inventory-page input::placeholder,
+.owner-inventory-page textarea::placeholder {
+  color: var(--owner-inv-subtle);
+  opacity: 1;
+}
+
+.owner-inventory-page button:disabled,
+.owner-inventory-page [aria-disabled="true"] {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.owner-inventory-bulk-bar {
+  background: var(--owner-inv-card-bg);
+  color: var(--owner-inv-text);
+  border: 1px solid var(--owner-inv-soft-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--owner-inv-shadow);
+}
+
+.owner-inventory-bulk-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.owner-inventory-select-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--owner-inv-text);
+}
