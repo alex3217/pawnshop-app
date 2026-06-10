@@ -12,6 +12,8 @@
   --owner-locations-primary-text: #ffffff;
   --owner-locations-button-bg: #ffffff;
   --owner-locations-button-text: #0f172a;
+  --owner-locations-input-bg: #ffffff;
+  --owner-locations-input-text: #0f172a;
   --owner-locations-border: rgba(15, 23, 42, 0.14);
   --owner-locations-soft-border: rgba(15, 23, 42, 0.12);
   --owner-locations-accent-border: rgba(37, 99, 235, 0.22);
@@ -41,6 +43,8 @@ html[data-theme="dark"] .owner-locations-page {
   --owner-locations-primary-text: #0f172a;
   --owner-locations-button-bg: rgba(255, 255, 255, 0.06);
   --owner-locations-button-text: #eef2ff;
+  --owner-locations-input-bg: rgba(15, 23, 42, 0.9);
+  --owner-locations-input-text: #eef2ff;
   --owner-locations-border: rgba(255, 255, 255, 0.14);
   --owner-locations-soft-border: rgba(255, 255, 255, 0.08);
   --owner-locations-accent-border: rgba(147, 197, 253, 0.28);
@@ -74,4 +78,23 @@ html[data-theme="dark"] .owner-locations-page {
 .owner-locations-page [aria-disabled="true"] {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+
+.owner-locations-page input,
+.owner-locations-page textarea,
+.owner-locations-page select {
+  background: var(--owner-locations-input-bg);
+  color: var(--owner-locations-input-text);
+  border-color: var(--owner-locations-border);
+}
+
+.owner-locations-page input::placeholder,
+.owner-locations-page textarea::placeholder {
+  color: var(--owner-locations-subtle);
+  opacity: 1;
+}
+
+.owner-locations-page button {
+  font: inherit;
 }
