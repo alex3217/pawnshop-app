@@ -1,77 +1,117 @@
-/* Owner Subscription readability polish.
-   Scoped to this page only because OwnerSubscriptionPage uses inline styles heavily. */
+/* Owner Subscription theme-aware readability.
+   OwnerSubscriptionPage.tsx uses these variables from inline styles.
+   Do not force light mode into dark surfaces or white text. */
 
-:root:not([data-theme="dark"]) .owner-subscription-readability {
-  background: #0b1020 !important;
-  background-color: #0b1020 !important;
-  color: #f8fafc !important;
+.owner-subscription-readability {
+  --owner-sub-page-bg: #f8fafc;
+  --owner-sub-surface: #ffffff;
+  --owner-sub-card-bg: #ffffff;
+  --owner-sub-text: #0f172a;
+  --owner-sub-muted: #475569;
+  --owner-sub-subtle: #64748b;
+  --owner-sub-accent: #1d4ed8;
+  --owner-sub-accent-2: #334155;
+  --owner-sub-primary-bg: #2563eb;
+  --owner-sub-primary-text: #ffffff;
+  --owner-sub-button-bg: #ffffff;
+  --owner-sub-button-text: #0f172a;
+  --owner-sub-input-bg: #ffffff;
+  --owner-sub-input-text: #0f172a;
+  --owner-sub-border: rgba(15, 23, 42, 0.14);
+  --owner-sub-soft-border: rgba(15, 23, 42, 0.12);
+  --owner-sub-active-border: rgba(37, 99, 235, 0.42);
+  --owner-sub-active-shadow: 0 0 0 1px rgba(37, 99, 235, 0.16) inset, 0 12px 30px rgba(15, 23, 42, 0.08);
+  --owner-sub-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+
+  --owner-sub-success-bg: #dcfce7;
+  --owner-sub-success-text: #14532d;
+  --owner-sub-success-border: rgba(22, 101, 52, 0.28);
+  --owner-sub-warning-bg: #fef3c7;
+  --owner-sub-warning-text: #78350f;
+  --owner-sub-warning-border: rgba(146, 64, 14, 0.34);
+  --owner-sub-error-bg: #fee2e2;
+  --owner-sub-error-text: #7f1d1d;
+  --owner-sub-error-border: rgba(153, 27, 27, 0.28);
+  --owner-sub-neutral-bg: #e2e8f0;
+  --owner-sub-neutral-text: #334155;
+  --owner-sub-neutral-border: rgba(71, 85, 105, 0.24);
+  --owner-sub-progress-bg: #e2e8f0;
+  --owner-sub-progress-fill: linear-gradient(90deg, #2563eb 0%, #7c3aed 100%);
+
+  background: var(--owner-sub-page-bg);
+  color: var(--owner-sub-text);
 }
 
-:root:not([data-theme="dark"]) .owner-subscription-readability [style*="linear-gradient"],
-:root:not([data-theme="dark"]) .owner-subscription-readability [style*="rgba"],
-:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#121935"],
-:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#1a2345"] {
-  background-color: #101936 !important;
-  color: #f8fafc !important;
+:root[data-theme="dark"] .owner-subscription-readability,
+.dark .owner-subscription-readability,
+html[data-theme="dark"] .owner-subscription-readability {
+  --owner-sub-page-bg: linear-gradient(180deg, #0b1020 0%, #0f1530 52%, #0b1020 100%);
+  --owner-sub-surface: #0b1020;
+  --owner-sub-card-bg: rgba(18, 25, 53, 0.94);
+  --owner-sub-text: #eef2ff;
+  --owner-sub-muted: #a7b0d8;
+  --owner-sub-subtle: #8ea7e6;
+  --owner-sub-accent: #6ea8fe;
+  --owner-sub-accent-2: #c7d2fe;
+  --owner-sub-primary-bg: #6ea8fe;
+  --owner-sub-primary-text: #08111f;
+  --owner-sub-button-bg: #1a2345;
+  --owner-sub-button-text: #eef2ff;
+  --owner-sub-input-bg: #121935;
+  --owner-sub-input-text: #eef2ff;
+  --owner-sub-border: rgba(255, 255, 255, 0.12);
+  --owner-sub-soft-border: rgba(255, 255, 255, 0.10);
+  --owner-sub-active-border: rgba(110, 168, 254, 0.42);
+  --owner-sub-active-shadow: 0 0 0 1px rgba(110, 168, 254, 0.18) inset, 0 10px 30px rgba(18, 25, 53, 0.24);
+  --owner-sub-shadow: 0 8px 30px rgba(0, 0, 0, 0.16);
+
+  --owner-sub-success-bg: rgba(46, 204, 113, 0.12);
+  --owner-sub-success-text: #7ef0b3;
+  --owner-sub-success-border: rgba(46, 204, 113, 0.24);
+  --owner-sub-warning-bg: #fbbf24;
+  --owner-sub-warning-text: #111827;
+  --owner-sub-warning-border: rgba(251, 191, 36, 0.62);
+  --owner-sub-error-bg: rgba(255, 128, 143, 0.12);
+  --owner-sub-error-text: #ffb2bc;
+  --owner-sub-error-border: rgba(255, 128, 143, 0.24);
+  --owner-sub-neutral-bg: rgba(199, 210, 254, 0.10);
+  --owner-sub-neutral-text: #c7d2fe;
+  --owner-sub-neutral-border: rgba(199, 210, 254, 0.18);
+  --owner-sub-progress-bg: rgba(255, 255, 255, 0.08);
+  --owner-sub-progress-fill: linear-gradient(90deg, #6ea8fe 0%, #8f7cff 100%);
 }
 
-:root:not([data-theme="dark"]) .owner-subscription-readability h1,
-:root:not([data-theme="dark"]) .owner-subscription-readability h2,
-:root:not([data-theme="dark"]) .owner-subscription-readability h3,
-:root:not([data-theme="dark"]) .owner-subscription-readability h4,
-:root:not([data-theme="dark"]) .owner-subscription-readability strong,
-:root:not([data-theme="dark"]) .owner-subscription-readability b {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+.owner-subscription-readability h1,
+.owner-subscription-readability h2,
+.owner-subscription-readability h3,
+.owner-subscription-readability h4,
+.owner-subscription-readability strong,
+.owner-subscription-readability b {
+  color: var(--owner-sub-text);
 }
 
-:root:not([data-theme="dark"]) .owner-subscription-readability p,
-:root:not([data-theme="dark"]) .owner-subscription-readability span,
-:root:not([data-theme="dark"]) .owner-subscription-readability small,
-:root:not([data-theme="dark"]) .owner-subscription-readability label,
-:root:not([data-theme="dark"]) .owner-subscription-readability li,
-:root:not([data-theme="dark"]) .owner-subscription-readability div {
-  color: #e2e8f0 !important;
-  -webkit-text-fill-color: #e2e8f0 !important;
+.owner-subscription-readability p,
+.owner-subscription-readability span,
+.owner-subscription-readability small,
+.owner-subscription-readability label,
+.owner-subscription-readability li,
+.owner-subscription-readability div {
+  color: inherit;
 }
 
-:root:not([data-theme="dark"]) .owner-subscription-readability button {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  background-color: #1d4ed8 !important;
-  border-color: #93c5fd !important;
-  font-weight: 800 !important;
+.owner-subscription-readability select,
+.owner-subscription-readability input,
+.owner-subscription-readability textarea {
+  color: var(--owner-sub-input-text);
 }
 
-:root:not([data-theme="dark"]) .owner-subscription-readability button:disabled,
-:root:not([data-theme="dark"]) .owner-subscription-readability [aria-disabled="true"] {
-  color: #cbd5e1 !important;
-  -webkit-text-fill-color: #cbd5e1 !important;
-  background-color: #334155 !important;
-  border-color: #64748b !important;
-  opacity: 1 !important;
+.owner-subscription-readability input::placeholder,
+.owner-subscription-readability textarea::placeholder {
+  color: var(--owner-sub-subtle);
+  opacity: 1;
 }
 
-:root:not([data-theme="dark"]) .owner-subscription-readability select,
-:root:not([data-theme="dark"]) .owner-subscription-readability input,
-:root:not([data-theme="dark"]) .owner-subscription-readability textarea {
-  background-color: #020617 !important;
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
-  border-color: #94a3b8 !important;
-}
-
-:root:not([data-theme="dark"]) .owner-subscription-readability input::placeholder,
-:root:not([data-theme="dark"]) .owner-subscription-readability textarea::placeholder {
-  color: #cbd5e1 !important;
-  opacity: 1 !important;
-}
-
-/* Preserve high-emphasis price/status content with readable foregrounds. */
-:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#6ea8fe"],
-:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#8ea7e6"],
-:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#a7b0d8"],
-:root:not([data-theme="dark"]) .owner-subscription-readability [style*="#c7d2fe"] {
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
+.owner-subscription-readability button,
+.owner-subscription-readability [role="button"] {
+  font-weight: 800;
 }
