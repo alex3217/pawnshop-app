@@ -23,6 +23,7 @@ import {
   type StaffShopOption,
   type StaffStatus,
 } from "../services/staff";
+import "../styles/owner-staff-readability.css";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INVITED" | "INACTIVE" | "ARCHIVED";
 type RoleFilter = "ALL" | StaffRole;
@@ -187,29 +188,26 @@ function getStatusStyle(status: string): CSSProperties {
     borderRadius: 999,
     padding: "10px 14px",
     fontWeight: 900,
+    color: "var(--owner-staff-neutral-text)",
+    background: "var(--owner-staff-neutral-bg)",
+    border: "1px solid var(--owner-staff-neutral-border)",
   };
 
   if (normalized === "ACTIVE") {
     return {
       ...base,
-      background: "rgba(34,197,94,0.18)",
-      border: "1px solid rgba(74,222,128,0.3)",
+      color: "var(--owner-staff-success-text)",
+      background: "var(--owner-staff-success-bg)",
+      border: "1px solid var(--owner-staff-success-border)",
     };
   }
 
   if (normalized === "INVITED") {
     return {
       ...base,
-      background: "rgba(245,158,11,0.18)",
-      border: "1px solid rgba(251,191,36,0.3)",
-    };
-  }
-
-  if (normalized === "ARCHIVED" || normalized === "INACTIVE") {
-    return {
-      ...base,
-      background: "rgba(148,163,184,0.14)",
-      border: "1px solid rgba(148,163,184,0.25)",
+      color: "var(--owner-staff-warning-text)",
+      background: "var(--owner-staff-warning-bg)",
+      border: "1px solid var(--owner-staff-warning-border)",
     };
   }
 
@@ -945,6 +943,8 @@ const styles: Record<string, CSSProperties> = {
   page: {
     display: "grid",
     gap: 20,
+    background: "var(--owner-staff-page-bg)",
+    color: "var(--owner-staff-text)",
   },
   hero: {
     display: "flex",
@@ -969,7 +969,7 @@ const styles: Record<string, CSSProperties> = {
   subtitle: {
     margin: "10px 0 0",
     maxWidth: 760,
-    color: "rgba(238,242,255,0.78)",
+    color: "var(--owner-staff-muted)",
     lineHeight: 1.6,
   },
   sectionEyebrow: {
@@ -977,7 +977,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     letterSpacing: "0.1em",
     textTransform: "uppercase",
-    color: "rgba(147,197,253,0.9)",
+    color: "var(--owner-staff-accent)",
     marginBottom: 8,
   },
   sectionTitle: {
@@ -987,13 +987,13 @@ const styles: Record<string, CSSProperties> = {
   },
   sectionText: {
     margin: "8px 0 0",
-    color: "rgba(238,242,255,0.72)",
+    color: "var(--owner-staff-muted)",
     lineHeight: 1.5,
   },
   actionButton: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#eef2ff",
+    border: "1px solid var(--owner-staff-border)",
+    background: "var(--owner-staff-button-bg)",
+    color: "var(--owner-staff-button-text)",
     borderRadius: 12,
     padding: "10px 14px",
     fontWeight: 800,
@@ -1004,18 +1004,18 @@ const styles: Record<string, CSSProperties> = {
     cursor: "not-allowed",
   },
   primaryButton: {
-    border: "1px solid rgba(255,255,255,0.2)",
-    background: "#eef2ff",
-    color: "#0f172a",
+    border: "1px solid var(--owner-staff-border)",
+    background: "var(--owner-staff-primary-bg)",
+    color: "var(--owner-staff-primary-text)",
     borderRadius: 12,
     padding: "10px 14px",
     fontWeight: 900,
     cursor: "pointer",
   },
   dangerButton: {
-    border: "1px solid rgba(248,113,113,0.32)",
-    background: "rgba(248,113,113,0.12)",
-    color: "#fecaca",
+    border: "1px solid var(--owner-staff-danger-border)",
+    background: "var(--owner-staff-danger-bg)",
+    color: "var(--owner-staff-danger-text)",
     borderRadius: 12,
     padding: "10px 14px",
     fontWeight: 800,
@@ -1027,14 +1027,15 @@ const styles: Record<string, CSSProperties> = {
     gap: 16,
   },
   statCard: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
+    border: "1px solid var(--owner-staff-soft-border)",
+    background: "var(--owner-staff-card-bg)",
     borderRadius: 18,
     padding: 18,
+    boxShadow: "var(--owner-staff-shadow)",
   },
   statLabel: {
     fontSize: 13,
-    color: "rgba(238,242,255,0.7)",
+    color: "var(--owner-staff-muted)",
     marginBottom: 8,
   },
   statValue: {
@@ -1044,10 +1045,11 @@ const styles: Record<string, CSSProperties> = {
   formCard: {
     display: "grid",
     gap: 18,
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(255,255,255,0.045)",
+    border: "1px solid var(--owner-staff-soft-border)",
+    background: "var(--owner-staff-card-bg)",
     borderRadius: 18,
     padding: 18,
+    boxShadow: "var(--owner-staff-shadow)",
   },
   formGrid: {
     display: "grid",
@@ -1058,29 +1060,30 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "220px minmax(220px, 1fr)",
     gap: 12,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
+    border: "1px solid var(--owner-staff-soft-border)",
+    background: "var(--owner-staff-card-bg)",
     borderRadius: 18,
     padding: 16,
+    boxShadow: "var(--owner-staff-shadow)",
   },
   filterLabel: {
     display: "grid",
     gap: 8,
     fontSize: 13,
     fontWeight: 800,
-    color: "rgba(238,242,255,0.78)",
+    color: "var(--owner-staff-muted)",
   },
   select: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(15,23,42,0.9)",
-    color: "#eef2ff",
+    border: "1px solid var(--owner-staff-border)",
+    background: "var(--owner-staff-input-bg)",
+    color: "var(--owner-staff-button-text)",
     borderRadius: 12,
     padding: "10px 12px",
   },
   input: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(15,23,42,0.9)",
-    color: "#eef2ff",
+    border: "1px solid var(--owner-staff-border)",
+    background: "var(--owner-staff-input-bg)",
+    color: "var(--owner-staff-button-text)",
     borderRadius: 12,
     padding: "10px 12px",
   },
@@ -1094,11 +1097,11 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(15,23,42,0.55)",
+    border: "1px solid var(--owner-staff-soft-border)",
+    background: "var(--owner-staff-chip-bg)",
     borderRadius: 12,
     padding: "10px 12px",
-    color: "rgba(238,242,255,0.82)",
+    color: "var(--owner-staff-text)",
     fontSize: 13,
     fontWeight: 700,
   },
@@ -1109,15 +1112,16 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
   },
   stateCard: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
+    border: "1px solid var(--owner-staff-soft-border)",
+    background: "var(--owner-staff-card-bg)",
     borderRadius: 18,
     padding: 22,
+    boxShadow: "var(--owner-staff-shadow)",
   },
   errorCard: {
-    border: "1px solid rgba(255,120,120,0.25)",
-    background: "rgba(255,120,120,0.09)",
-    color: "#ffd4d4",
+    border: "1px solid var(--owner-staff-danger-border)",
+    background: "var(--owner-staff-danger-bg)",
+    color: "var(--owner-staff-danger-text)",
     borderRadius: 18,
     padding: 18,
   },
@@ -1143,8 +1147,8 @@ const styles: Record<string, CSSProperties> = {
   primaryLink: {
     display: "inline-flex",
     marginTop: 16,
-    color: "#0b1020",
-    background: "#eef2ff",
+    color: "var(--owner-staff-primary-text)",
+    background: "var(--owner-staff-primary-bg)",
     textDecoration: "none",
     fontWeight: 800,
     padding: "10px 14px",
@@ -1155,8 +1159,8 @@ const styles: Record<string, CSSProperties> = {
     gap: 16,
   },
   card: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
+    border: "1px solid var(--owner-staff-soft-border)",
+    background: "var(--owner-staff-card-bg)",
     borderRadius: 18,
     padding: 20,
     display: "grid",
@@ -1178,7 +1182,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     flexWrap: "wrap",
     marginTop: 8,
-    color: "rgba(238,242,255,0.72)",
+    color: "var(--owner-staff-muted)",
     fontSize: 14,
   },
   detailGrid: {

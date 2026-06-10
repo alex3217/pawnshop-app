@@ -1,0 +1,138 @@
+/* Owner Staff theme-aware readability.
+   Scoped to OwnerStaffPage only. */
+
+.owner-staff-page {
+  --owner-staff-page-bg: #f8fafc;
+  --owner-staff-card-bg: #ffffff;
+  --owner-staff-soft-bg: #f8fafc;
+  --owner-staff-text: #0f172a;
+  --owner-staff-muted: #475569;
+  --owner-staff-subtle: #64748b;
+  --owner-staff-accent: #1d4ed8;
+  --owner-staff-primary-bg: #2563eb;
+  --owner-staff-primary-text: #ffffff;
+  --owner-staff-button-bg: #ffffff;
+  --owner-staff-button-text: #0f172a;
+  --owner-staff-input-bg: #ffffff;
+  --owner-staff-input-text: #0f172a;
+  --owner-staff-chip-bg: #eff6ff;
+  --owner-staff-chip-text: #1e3a8a;
+  --owner-staff-border: rgba(15, 23, 42, 0.14);
+  --owner-staff-soft-border: rgba(15, 23, 42, 0.12);
+  --owner-staff-accent-border: rgba(37, 99, 235, 0.22);
+  --owner-staff-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+
+  --owner-staff-success-bg: #dcfce7;
+  --owner-staff-success-text: #14532d;
+  --owner-staff-success-border: rgba(22, 101, 52, 0.28);
+  --owner-staff-warning-bg: #fef3c7;
+  --owner-staff-warning-text: #78350f;
+  --owner-staff-warning-border: rgba(146, 64, 14, 0.34);
+  --owner-staff-danger-bg: #fee2e2;
+  --owner-staff-danger-text: #7f1d1d;
+  --owner-staff-danger-border: rgba(153, 27, 27, 0.28);
+  --owner-staff-neutral-bg: #e2e8f0;
+  --owner-staff-neutral-text: #334155;
+  --owner-staff-neutral-border: rgba(71, 85, 105, 0.24);
+
+  background: var(--owner-staff-page-bg);
+  color: var(--owner-staff-text);
+}
+
+:root[data-theme="dark"] .owner-staff-page,
+.dark .owner-staff-page,
+html[data-theme="dark"] .owner-staff-page {
+  --owner-staff-page-bg: #020617;
+  --owner-staff-card-bg: rgba(255, 255, 255, 0.04);
+  --owner-staff-soft-bg: rgba(15, 23, 42, 0.55);
+  --owner-staff-text: #eef2ff;
+  --owner-staff-muted: rgba(238, 242, 255, 0.72);
+  --owner-staff-subtle: rgba(238, 242, 255, 0.64);
+  --owner-staff-accent: rgba(147, 197, 253, 0.9);
+  --owner-staff-primary-bg: #eef2ff;
+  --owner-staff-primary-text: #0f172a;
+  --owner-staff-button-bg: rgba(255, 255, 255, 0.06);
+  --owner-staff-button-text: #eef2ff;
+  --owner-staff-input-bg: rgba(15, 23, 42, 0.9);
+  --owner-staff-input-text: #eef2ff;
+  --owner-staff-chip-bg: rgba(15, 23, 42, 0.55);
+  --owner-staff-chip-text: rgba(238, 242, 255, 0.82);
+  --owner-staff-border: rgba(255, 255, 255, 0.14);
+  --owner-staff-soft-border: rgba(255, 255, 255, 0.08);
+  --owner-staff-accent-border: rgba(147, 197, 253, 0.28);
+  --owner-staff-shadow: none;
+
+  --owner-staff-success-bg: rgba(34, 197, 94, 0.18);
+  --owner-staff-success-text: #bbf7d0;
+  --owner-staff-success-border: rgba(74, 222, 128, 0.3);
+  --owner-staff-warning-bg: rgba(245, 158, 11, 0.18);
+  --owner-staff-warning-text: #fde68a;
+  --owner-staff-warning-border: rgba(251, 191, 36, 0.3);
+  --owner-staff-danger-bg: rgba(248, 113, 113, 0.12);
+  --owner-staff-danger-text: #fecaca;
+  --owner-staff-danger-border: rgba(248, 113, 113, 0.32);
+  --owner-staff-neutral-bg: rgba(148, 163, 184, 0.14);
+  --owner-staff-neutral-text: #e2e8f0;
+  --owner-staff-neutral-border: rgba(148, 163, 184, 0.25);
+}
+
+.owner-staff-page h1,
+.owner-staff-page h2,
+.owner-staff-page h3,
+.owner-staff-page h4,
+.owner-staff-page strong {
+  color: var(--owner-staff-text);
+}
+
+.owner-staff-page p,
+.owner-staff-page span,
+.owner-staff-page small,
+.owner-staff-page label,
+.owner-staff-page div {
+  color: inherit;
+}
+
+.owner-staff-page input,
+.owner-staff-page select,
+.owner-staff-page textarea {
+  background: var(--owner-staff-input-bg);
+  color: var(--owner-staff-input-text);
+  border-color: var(--owner-staff-border);
+}
+
+.owner-staff-page input::placeholder,
+.owner-staff-page textarea::placeholder {
+  color: var(--owner-staff-subtle);
+  opacity: 1;
+}
+
+.owner-staff-presets {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.owner-staff-presets button {
+  border: 1px solid var(--owner-staff-border);
+  background: var(--owner-staff-button-bg);
+  color: var(--owner-staff-button-text);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.owner-staff-control-note {
+  border: 1px solid var(--owner-staff-accent-border);
+  background: var(--owner-staff-chip-bg);
+  color: var(--owner-staff-chip-text);
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-weight: 700;
+}
+
+.owner-staff-page button:disabled,
+.owner-staff-page [aria-disabled="true"] {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
