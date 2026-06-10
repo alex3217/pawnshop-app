@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { deleteItem, getMyItems, markItemSold, type Item } from "../services/items";
+import "../styles/owner-inventory-readability.css";
 
 type StatusFilter = "ALL" | "ACTIVE" | "PENDING" | "SOLD" | "DELETED";
 type SortKey = "createdAt" | "title" | "price" | "status" | "category";
@@ -29,32 +30,32 @@ function getItemStatusTone(status: string): CSSProperties {
 
   if (["AVAILABLE", "ACTIVE"].includes(normalized)) {
     return {
-      color: "#7ef0b3",
-      background: "rgba(46, 204, 113, 0.12)",
-      border: "1px solid rgba(46, 204, 113, 0.24)",
+      color: "var(--owner-inv-success-text)",
+      background: "var(--owner-inv-success-bg)",
+      border: "1px solid var(--owner-inv-success-border)",
     };
   }
 
   if (["PENDING"].includes(normalized)) {
     return {
-      color: "#ffd98a",
-      background: "rgba(255, 193, 7, 0.12)",
-      border: "1px solid rgba(255, 193, 7, 0.24)",
+      color: "var(--owner-inv-warning-text)",
+      background: "var(--owner-inv-warning-bg)",
+      border: "1px solid var(--owner-inv-warning-border)",
     };
   }
 
   if (["SOLD", "INACTIVE", "REMOVED", "DELETED"].includes(normalized)) {
     return {
-      color: "#ffb2bc",
-      background: "rgba(255, 128, 143, 0.10)",
-      border: "1px solid rgba(255, 128, 143, 0.18)",
+      color: "var(--owner-inv-danger-text)",
+      background: "var(--owner-inv-danger-bg)",
+      border: "1px solid var(--owner-inv-danger-border)",
     };
   }
 
   return {
-    color: "#c7d2fe",
-    background: "rgba(199, 210, 254, 0.10)",
-    border: "1px solid rgba(199, 210, 254, 0.18)",
+    color: "var(--owner-inv-neutral-text)",
+    background: "var(--owner-inv-neutral-bg)",
+    border: "1px solid var(--owner-inv-neutral-border)",
   };
 }
 
@@ -592,7 +593,8 @@ const styles: Record<string, CSSProperties> = {
   page: {
     display: "grid",
     gap: 20,
-    color: "#eef2ff",
+    color: "var(--owner-inv-text)",
+    background: "var(--owner-inv-page-bg)",
   },
   header: {
     display: "flex",
@@ -608,7 +610,7 @@ const styles: Record<string, CSSProperties> = {
   },
   subtitle: {
     marginTop: 8,
-    color: "#a7b0d8",
+    color: "var(--owner-inv-muted)",
     lineHeight: 1.5,
   },
   actions: {
@@ -622,7 +624,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 18,
     padding: 18,
     background:
-      "radial-gradient(circle at top left, rgba(110,168,254,0.20), transparent 30%), #121935",
+      "var(--owner-inv-command-bg)",
     display: "grid",
     gap: 16,
   },
@@ -641,20 +643,20 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     padding: "11px 12px",
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "#121935",
-    color: "#eef2ff",
+    border: "1px solid var(--owner-inv-border)",
+    background: "var(--owner-inv-control-bg)",
+    color: "var(--owner-inv-text)",
   },
   select: {
     minWidth: 170,
     padding: "11px 12px",
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "#121935",
-    color: "#eef2ff",
+    border: "1px solid var(--owner-inv-border)",
+    background: "var(--owner-inv-control-bg)",
+    color: "var(--owner-inv-text)",
   },
   summary: {
-    color: "#c7d2fe",
+    color: "var(--owner-inv-neutral-text)",
     fontWeight: 700,
   },
   grid: {
@@ -663,7 +665,7 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
   },
   card: {
-    background: "#121935",
+    background: "var(--owner-inv-control-bg)",
     border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 18,
     padding: 18,
@@ -697,7 +699,7 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 8,
   },
   meta: {
-    color: "#a7b0d8",
+    color: "var(--owner-inv-muted)",
     marginTop: 6,
   },
   metaRow: {
@@ -709,14 +711,14 @@ const styles: Record<string, CSSProperties> = {
   metaPill: {
     padding: "8px 12px",
     borderRadius: 999,
-    background: "rgba(110,168,254,0.12)",
-    color: "#cfe0ff",
-    border: "1px solid rgba(110,168,254,0.2)",
+    background: "var(--owner-inv-chip-bg)",
+    color: "var(--owner-inv-chip-text)",
+    border: "1px solid var(--owner-inv-accent-border)",
     fontSize: 13,
     fontWeight: 700,
   },
   description: {
-    color: "#d7def7",
+    color: "var(--owner-inv-muted)",
     lineHeight: 1.5,
     marginTop: 12,
   },
@@ -729,8 +731,8 @@ const styles: Record<string, CSSProperties> = {
   primaryLink: {
     textDecoration: "none",
     border: "none",
-    color: "#08111f",
-    background: "#6ea8fe",
+    color: "var(--owner-inv-primary-text)",
+    background: "var(--owner-inv-primary-bg)",
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 800,
@@ -738,43 +740,43 @@ const styles: Record<string, CSSProperties> = {
   primarySmallLink: {
     textDecoration: "none",
     border: "none",
-    color: "#08111f",
-    background: "#6ea8fe",
+    color: "var(--owner-inv-primary-text)",
+    background: "var(--owner-inv-primary-bg)",
     padding: "9px 12px",
     borderRadius: 12,
     fontWeight: 800,
   },
   linkButton: {
     textDecoration: "none",
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#eef2ff",
-    background: "#121935",
+    border: "1px solid var(--owner-inv-border)",
+    color: "var(--owner-inv-text)",
+    background: "var(--owner-inv-control-bg)",
     padding: "9px 12px",
     borderRadius: 12,
     fontWeight: 700,
   },
   smallButton: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#eef2ff",
-    background: "#121935",
+    border: "1px solid var(--owner-inv-border)",
+    color: "var(--owner-inv-text)",
+    background: "var(--owner-inv-control-bg)",
     padding: "9px 12px",
     borderRadius: 12,
     fontWeight: 700,
     cursor: "pointer",
   },
   secondaryButton: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#eef2ff",
-    background: "#121935",
+    border: "1px solid var(--owner-inv-border)",
+    color: "var(--owner-inv-text)",
+    background: "var(--owner-inv-control-bg)",
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 700,
     cursor: "pointer",
   },
   dangerSmallButton: {
-    border: "1px solid rgba(248,113,113,0.35)",
-    color: "#fecaca",
-    background: "rgba(220,38,38,0.14)",
+    border: "1px solid var(--owner-inv-danger-border)",
+    color: "var(--owner-inv-danger-text)",
+    background: "var(--owner-inv-danger-bg)",
     padding: "9px 12px",
     borderRadius: 12,
     fontWeight: 800,
@@ -785,11 +787,11 @@ const styles: Record<string, CSSProperties> = {
     cursor: "not-allowed",
   },
   notice: {
-    color: "#c7f9d3",
+    color: "var(--owner-inv-success-text)",
     fontWeight: 700,
   },
   error: {
-    color: "#ff9ead",
+    color: "var(--owner-inv-danger-text)",
     fontWeight: 700,
   },
 };
