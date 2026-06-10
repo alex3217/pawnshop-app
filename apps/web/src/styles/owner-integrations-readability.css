@@ -1,79 +1,106 @@
-/* Owner Integrations readability polish.
-   Scoped to OwnerIntegrationsPage because the page uses inline styles heavily. */
+/* Owner Integrations theme-aware readability.
+   OwnerIntegrationsPage.tsx uses these variables from inline styles.
+   Do not force light mode into dark surfaces or white text. */
 
-:root:not([data-theme="dark"]) .owner-integrations-readability {
-  background: #0b1020 !important;
-  background-color: #0b1020 !important;
-  color: #f8fafc !important;
+.owner-integrations-readability {
+  --owner-int-page-bg: #f8fafc;
+  --owner-int-surface: #ffffff;
+  --owner-int-card-bg: #ffffff;
+  --owner-int-panel-bg: #ffffff;
+  --owner-int-text: #0f172a;
+  --owner-int-muted: #475569;
+  --owner-int-subtle: #64748b;
+  --owner-int-accent: #1d4ed8;
+  --owner-int-primary-bg: #2563eb;
+  --owner-int-primary-text: #ffffff;
+  --owner-int-button-bg: #ffffff;
+  --owner-int-button-text: #0f172a;
+  --owner-int-input-bg: #ffffff;
+  --owner-int-input-text: #0f172a;
+  --owner-int-border: rgba(15, 23, 42, 0.14);
+  --owner-int-soft-border: rgba(15, 23, 42, 0.12);
+  --owner-int-command-bg: radial-gradient(circle at top left, rgba(219, 234, 254, 0.9), transparent 32%), #ffffff;
+  --owner-int-command-border: rgba(37, 99, 235, 0.18);
+  --owner-int-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  --owner-int-danger-bg: #fee2e2;
+  --owner-int-danger-text: #991b1b;
+  --owner-int-danger-border: rgba(153, 27, 27, 0.22);
+  --owner-int-success-badge-bg: #dcfce7;
+  --owner-int-success-badge-text: #14532d;
+  --owner-int-success-badge-border: rgba(22, 101, 52, 0.28);
+  --owner-int-warning-badge-bg: #fef3c7;
+  --owner-int-warning-badge-text: #78350f;
+  --owner-int-warning-badge-border: rgba(146, 64, 14, 0.34);
+  --owner-int-error-badge-bg: #fee2e2;
+  --owner-int-error-badge-text: #7f1d1d;
+  --owner-int-error-badge-border: rgba(153, 27, 27, 0.28);
+  --owner-int-neutral-badge-bg: #e2e8f0;
+  --owner-int-neutral-badge-text: #334155;
+  --owner-int-neutral-badge-border: rgba(71, 85, 105, 0.24);
+
+  background: var(--owner-int-page-bg);
+  color: var(--owner-int-text);
 }
 
-:root:not([data-theme="dark"]) .owner-integrations-readability [style*="rgba"],
-:root:not([data-theme="dark"]) .owner-integrations-readability [style*="linear-gradient"],
-:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#121935"],
-:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#0f172a"] {
-  background-color: #101936 !important;
-  color: #f8fafc !important;
+:root[data-theme="dark"] .owner-integrations-readability,
+.dark .owner-integrations-readability,
+html[data-theme="dark"] .owner-integrations-readability {
+  --owner-int-page-bg: #020617;
+  --owner-int-surface: #0b1020;
+  --owner-int-card-bg: #121935;
+  --owner-int-panel-bg: rgba(255, 255, 255, 0.04);
+  --owner-int-text: #eef2ff;
+  --owner-int-muted: rgba(238, 242, 255, 0.72);
+  --owner-int-subtle: rgba(238, 242, 255, 0.66);
+  --owner-int-accent: rgba(147, 197, 253, 0.9);
+  --owner-int-primary-bg: #eef2ff;
+  --owner-int-primary-text: #0f172a;
+  --owner-int-button-bg: rgba(255, 255, 255, 0.06);
+  --owner-int-button-text: #eef2ff;
+  --owner-int-input-bg: rgba(15, 23, 42, 0.92);
+  --owner-int-input-text: #eef2ff;
+  --owner-int-border: rgba(255, 255, 255, 0.14);
+  --owner-int-soft-border: rgba(255, 255, 255, 0.08);
+  --owner-int-command-bg: radial-gradient(circle at top left, rgba(110, 168, 254, 0.20), transparent 30%), #121935;
+  --owner-int-command-border: rgba(110, 168, 254, 0.28);
+  --owner-int-shadow: none;
+  --owner-int-danger-bg: rgba(248, 113, 113, 0.12);
+  --owner-int-danger-text: #fecaca;
+  --owner-int-danger-border: rgba(248, 113, 113, 0.34);
 }
 
-:root:not([data-theme="dark"]) .owner-integrations-readability h1,
-:root:not([data-theme="dark"]) .owner-integrations-readability h2,
-:root:not([data-theme="dark"]) .owner-integrations-readability h3,
-:root:not([data-theme="dark"]) .owner-integrations-readability h4,
-:root:not([data-theme="dark"]) .owner-integrations-readability strong,
-:root:not([data-theme="dark"]) .owner-integrations-readability b {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+.owner-integrations-readability h1,
+.owner-integrations-readability h2,
+.owner-integrations-readability h3,
+.owner-integrations-readability h4,
+.owner-integrations-readability strong,
+.owner-integrations-readability b {
+  color: var(--owner-int-text);
 }
 
-:root:not([data-theme="dark"]) .owner-integrations-readability p,
-:root:not([data-theme="dark"]) .owner-integrations-readability span,
-:root:not([data-theme="dark"]) .owner-integrations-readability small,
-:root:not([data-theme="dark"]) .owner-integrations-readability label,
-:root:not([data-theme="dark"]) .owner-integrations-readability li,
-:root:not([data-theme="dark"]) .owner-integrations-readability div {
-  color: #e2e8f0 !important;
-  -webkit-text-fill-color: #e2e8f0 !important;
+.owner-integrations-readability p,
+.owner-integrations-readability span,
+.owner-integrations-readability small,
+.owner-integrations-readability label,
+.owner-integrations-readability li,
+.owner-integrations-readability div {
+  color: inherit;
 }
 
-:root:not([data-theme="dark"]) .owner-integrations-readability button,
-:root:not([data-theme="dark"]) .owner-integrations-readability a {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  background-color: #1d4ed8 !important;
-  border-color: #93c5fd !important;
-  font-weight: 800 !important;
+.owner-integrations-readability input,
+.owner-integrations-readability select,
+.owner-integrations-readability textarea {
+  color: var(--owner-int-input-text);
 }
 
-:root:not([data-theme="dark"]) .owner-integrations-readability button:disabled,
-:root:not([data-theme="dark"]) .owner-integrations-readability [aria-disabled="true"] {
-  color: #cbd5e1 !important;
-  -webkit-text-fill-color: #cbd5e1 !important;
-  background-color: #334155 !important;
-  border-color: #64748b !important;
-  opacity: 1 !important;
+.owner-integrations-readability input::placeholder,
+.owner-integrations-readability textarea::placeholder {
+  color: var(--owner-int-subtle);
+  opacity: 1;
 }
 
-:root:not([data-theme="dark"]) .owner-integrations-readability input,
-:root:not([data-theme="dark"]) .owner-integrations-readability select,
-:root:not([data-theme="dark"]) .owner-integrations-readability textarea {
-  background-color: #020617 !important;
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
-  border-color: #94a3b8 !important;
-}
-
-:root:not([data-theme="dark"]) .owner-integrations-readability input::placeholder,
-:root:not([data-theme="dark"]) .owner-integrations-readability textarea::placeholder {
-  color: #cbd5e1 !important;
-  opacity: 1 !important;
-}
-
-/* Keep status badges readable after inline statusStyle() colors are applied. */
-:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#bbf7d0"],
-:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#fde68a"],
-:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#fecaca"],
-:root:not([data-theme="dark"]) .owner-integrations-readability [style*="#cbd5e1"],
-:root:not([data-theme="dark"]) .owner-integrations-readability [style*="rgba(147,197,253"] {
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
+.owner-integrations-readability a,
+.owner-integrations-readability button,
+.owner-integrations-readability [role="button"] {
+  font-weight: 800;
 }
