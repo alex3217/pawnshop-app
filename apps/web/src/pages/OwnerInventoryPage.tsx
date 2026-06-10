@@ -200,6 +200,30 @@ export default function OwnerInventoryPage() {
     return sortItems(next, sortKey);
   }, [items, query, sortKey, statusFilter]);
 
+  const selectedItems = useMemo(
+    () => items.filter((item) => selectedItemIds.includes(item.id)),
+    [items, selectedItemIds],
+  );
+
+  const selectedValue = useMemo(
+    () =>
+      selectedItems.reduce((sum, item) => {
+        const value = Number(item.price || 0);
+        return Number.isFinite(value) ? sum + value : sum;
+      }, 0),
+    [selectedItems],
+  );
+
+  const filtersActive =
+    query.trim().length > 0 || statusFilter !== "ALL" || sortKey !== "createdAt";
+
+  function clearInventoryFilters() {
+    setQuery("");
+    setStatusFilter("ALL");
+    setSortKey("createdAt");
+    setNotice("Inventory filters cleared.");
+  }
+
 
   const visibleItemIds = useMemo(() => {
     return filteredItems
@@ -451,6 +475,36 @@ export default function OwnerInventoryPage() {
           <option value="category">Category</option>
         </select>
       </section>
+
+      {!loading && !error ? (
+        <div style={styles.inventoryUtilityBar}>
+          <div>
+            <strong>
+              Showing {filteredItems.length} of {items.length} inventory items
+            </strong>
+            <p style={styles.utilityText}>
+              Selected {selectedItemIds.length} item{selectedItemIds.length === 1 ? "" : "s"}
+              {selectedItemIds.length > 0
+                ? ` · Estimated selected value ${formatPrice(selectedValue)}`
+                : ""}
+            </p>
+          </div>
+
+          <div style={styles.utilityActions}>
+            <button
+              type="button"
+              onClick={clearInventoryFilters}
+              disabled={!filtersActive}
+              style={{
+                ...styles.utilityButton,
+                ...(!filtersActive ? styles.utilityButtonDisabled : {}),
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {!loading && !error ? (
         <div style={styles.summary}>
@@ -794,4 +848,40 @@ const styles: Record<string, CSSProperties> = {
     color: "var(--owner-inv-danger-text)",
     fontWeight: 700,
   },
+  inventoryUtilityBar: {
+    border: "1px solid var(--owner-inv-soft-border)",
+    background: "var(--owner-inv-card-bg)",
+    borderRadius: 18,
+    padding: 16,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 14,
+    flexWrap: "wrap",
+    boxShadow: "var(--owner-inv-shadow)",
+  },
+  utilityText: {
+    margin: "6px 0 0",
+    color: "var(--owner-inv-muted)",
+    lineHeight: 1.5,
+  },
+  utilityActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  utilityButton: {
+    border: "1px solid var(--owner-inv-border)",
+    background: "var(--owner-inv-button-bg)",
+    color: "var(--owner-inv-button-text)",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  utilityButtonDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
+  },
+
 };
