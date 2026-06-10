@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
 import { getMyLocations } from "../services/locations";
 import { getMyShops } from "../services/shops";
+import "../styles/owner-locations-readability.css";
 
 type LocationRecord = {
   id: string;
@@ -304,7 +305,12 @@ export default function OwnerLocationsPage() {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { display: "grid", gap: 20 },
+  page: {
+    display: "grid",
+    gap: 20,
+    background: "var(--owner-locations-page-bg)",
+    color: "var(--owner-locations-text)",
+  },
   hero: {
     display: "flex",
     justifyContent: "space-between",
@@ -333,7 +339,7 @@ const styles: Record<string, CSSProperties> = {
   subtitle: {
     margin: "10px 0 0",
     maxWidth: 760,
-    color: "rgba(238,242,255,0.78)",
+    color: "var(--owner-locations-muted)",
     lineHeight: 1.6,
   },
   statsGrid: {
@@ -342,14 +348,15 @@ const styles: Record<string, CSSProperties> = {
     gap: 16,
   },
   statCard: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "var(--owner-loc-soft-bg)",
+    border: "1px solid var(--owner-locations-soft-border)",
+    background: "var(--owner-locations-card-bg)",
     borderRadius: 18,
     padding: 18,
+    boxShadow: "var(--owner-locations-shadow)",
   },
   statLabel: {
     fontSize: 13,
-    color: "rgba(238,242,255,0.7)",
+    color: "var(--owner-locations-muted)",
     marginBottom: 8,
   },
   statValue: {
@@ -357,15 +364,16 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
   },
   stateCard: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "var(--owner-loc-soft-bg)",
+    border: "1px solid var(--owner-locations-soft-border)",
+    background: "var(--owner-locations-card-bg)",
     borderRadius: 18,
     padding: 22,
+    boxShadow: "var(--owner-locations-shadow)",
   },
   errorCard: {
-    border: "1px solid rgba(255,120,120,0.25)",
-    background: "rgba(255,120,120,0.09)",
-    color: "#ffd4d4",
+    border: "1px solid var(--owner-locations-danger-border)",
+    background: "var(--owner-locations-danger-bg)",
+    color: "var(--owner-locations-danger-text)",
     borderRadius: 18,
     padding: 22,
   },
@@ -381,16 +389,16 @@ const styles: Record<string, CSSProperties> = {
   primaryLink: {
     display: "inline-flex",
     textDecoration: "none",
-    color: "#0b1020",
-    background: "var(--owner-loc-text)",
+    color: "var(--owner-locations-primary-text)",
+    background: "var(--owner-locations-primary-bg)",
     fontWeight: 800,
     padding: "10px 14px",
     borderRadius: 12,
   },
   secondaryButton: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "var(--owner-loc-button-bg)",
-    color: "var(--owner-loc-text)",
+    border: "1px solid var(--owner-locations-border)",
+    background: "var(--owner-locations-button-bg)",
+    color: "var(--owner-locations-text)",
     borderRadius: 12,
     padding: "10px 14px",
     fontWeight: 700,
@@ -405,8 +413,8 @@ const styles: Record<string, CSSProperties> = {
     gap: 16,
   },
   card: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "var(--owner-loc-soft-bg)",
+    border: "1px solid var(--owner-locations-soft-border)",
+    background: "var(--owner-locations-card-bg)",
     borderRadius: 18,
     padding: 20,
     display: "grid",
@@ -428,15 +436,15 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     flexWrap: "wrap",
     marginTop: 8,
-    color: "rgba(238,242,255,0.72)",
+    color: "var(--owner-locations-muted)",
     fontSize: 14,
   },
   statusPill: {
     alignSelf: "flex-start",
     borderRadius: 999,
     padding: "10px 14px",
-    background: "rgba(34,197,94,0.18)",
-    border: "1px solid rgba(74,222,128,0.3)",
+    background: "var(--owner-locations-success-bg)",
+    border: "1px solid var(--owner-locations-success-border)",
     fontWeight: 900,
   },
   detailGrid: {
@@ -462,8 +470,8 @@ const styles: Record<string, CSSProperties> = {
   },
   secondaryLink: {
     textDecoration: "none",
-    color: "var(--owner-loc-text)",
-    border: "1px solid rgba(255,255,255,0.12)",
+    color: "var(--owner-locations-text)",
+    border: "1px solid var(--owner-locations-border)",
     borderRadius: 12,
     padding: "10px 14px",
     fontWeight: 700,

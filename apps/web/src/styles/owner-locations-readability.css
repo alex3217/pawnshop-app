@@ -1,0 +1,77 @@
+/* Owner Locations theme-aware readability.
+   Scoped to OwnerLocationsPage only. */
+
+.owner-locations-page {
+  --owner-locations-page-bg: #f8fafc;
+  --owner-locations-card-bg: #ffffff;
+  --owner-locations-text: #0f172a;
+  --owner-locations-muted: #475569;
+  --owner-locations-subtle: #64748b;
+  --owner-locations-accent: #1d4ed8;
+  --owner-locations-primary-bg: #2563eb;
+  --owner-locations-primary-text: #ffffff;
+  --owner-locations-button-bg: #ffffff;
+  --owner-locations-button-text: #0f172a;
+  --owner-locations-border: rgba(15, 23, 42, 0.14);
+  --owner-locations-soft-border: rgba(15, 23, 42, 0.12);
+  --owner-locations-accent-border: rgba(37, 99, 235, 0.22);
+  --owner-locations-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+
+  --owner-locations-success-bg: #dcfce7;
+  --owner-locations-success-text: #14532d;
+  --owner-locations-success-border: rgba(22, 101, 52, 0.28);
+  --owner-locations-danger-bg: #fee2e2;
+  --owner-locations-danger-text: #7f1d1d;
+  --owner-locations-danger-border: rgba(153, 27, 27, 0.28);
+
+  background: var(--owner-locations-page-bg);
+  color: var(--owner-locations-text);
+}
+
+:root[data-theme="dark"] .owner-locations-page,
+.dark .owner-locations-page,
+html[data-theme="dark"] .owner-locations-page {
+  --owner-locations-page-bg: #020617;
+  --owner-locations-card-bg: rgba(255, 255, 255, 0.04);
+  --owner-locations-text: #eef2ff;
+  --owner-locations-muted: rgba(238, 242, 255, 0.72);
+  --owner-locations-subtle: rgba(238, 242, 255, 0.64);
+  --owner-locations-accent: rgba(147, 197, 253, 0.9);
+  --owner-locations-primary-bg: #eef2ff;
+  --owner-locations-primary-text: #0f172a;
+  --owner-locations-button-bg: rgba(255, 255, 255, 0.06);
+  --owner-locations-button-text: #eef2ff;
+  --owner-locations-border: rgba(255, 255, 255, 0.14);
+  --owner-locations-soft-border: rgba(255, 255, 255, 0.08);
+  --owner-locations-accent-border: rgba(147, 197, 253, 0.28);
+  --owner-locations-shadow: none;
+
+  --owner-locations-success-bg: rgba(34, 197, 94, 0.18);
+  --owner-locations-success-text: #bbf7d0;
+  --owner-locations-success-border: rgba(74, 222, 128, 0.3);
+  --owner-locations-danger-bg: rgba(248, 113, 113, 0.12);
+  --owner-locations-danger-text: #fecaca;
+  --owner-locations-danger-border: rgba(248, 113, 113, 0.32);
+}
+
+.owner-locations-page h1,
+.owner-locations-page h2,
+.owner-locations-page h3,
+.owner-locations-page h4,
+.owner-locations-page strong {
+  color: var(--owner-locations-text);
+}
+
+.owner-locations-page p,
+.owner-locations-page span,
+.owner-locations-page small,
+.owner-locations-page label,
+.owner-locations-page div {
+  color: inherit;
+}
+
+.owner-locations-page button:disabled,
+.owner-locations-page [aria-disabled="true"] {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
