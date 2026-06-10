@@ -69,14 +69,15 @@ const ACTIONABLE_STATUSES = new Set(["SCHEDULED", "LIVE"]);
 
 const cardGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: 16,
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(430px, 100%), 1fr))",
+  gap: 18,
+  alignItems: "stretch",
 };
 
 const metricGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))",
-  gap: 10,
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(175px, 100%), 1fr))",
+  gap: 12,
 };
 
 const smallMutedStyle: CSSProperties = {
@@ -126,7 +127,7 @@ function getStatusBadgeStyle(label: string): CSSProperties {
   if (label === "LIVE") {
     return {
       ...base,
-      background: "rgba(34,197,94,0.95)",
+      background: "var(--owner-auction-success-bg)",
     };
   }
 
@@ -219,7 +220,7 @@ function Metric({
         display: "grid",
         gap: 6,
         minHeight: 92,
-        borderColor: strong ? "rgba(110, 168, 254, 0.45)" : undefined,
+        borderColor: strong ? "var(--owner-auction-active-border)" : undefined,
       }}
     >
       <div
@@ -233,7 +234,16 @@ function Metric({
       >
         {label}
       </div>
-      <div style={{ fontSize: strong ? 28 : 24, fontWeight: 900 }}>
+      <div
+        style={{
+          fontSize: strong ? "clamp(1.45rem, 2.4vw, 1.75rem)" : "clamp(1.25rem, 2vw, 1.5rem)",
+          fontWeight: 900,
+          lineHeight: 1.12,
+          maxWidth: "100%",
+          overflowWrap: "anywhere",
+          wordBreak: "normal",
+        }}
+      >
         {value}
       </div>
     </div>
@@ -1070,9 +1080,9 @@ export default function OwnerAuctionsPage() {
                 width: "100%",
                 padding: "11px 12px",
                 borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "#121935",
-                color: "#eef2ff",
+                border: "1px solid var(--owner-auction-border)",
+                background: "var(--owner-auction-input-bg)",
+                color: "var(--owner-auction-input-text)",
               }}
             >
               <option value="endingSoon">Ending soon first</option>
@@ -1090,17 +1100,17 @@ export default function OwnerAuctionsPage() {
 
         <section
           style={{
-            border: "1px solid rgba(110,168,254,0.28)",
-            borderRadius: 18,
-            padding: 18,
-            background:
-              "radial-gradient(circle at top left, rgba(110,168,254,0.20), transparent 30%), rgba(18,25,53,0.95)",
+            border: "1px solid var(--owner-auction-command-border)",
+              borderRadius: 18,
+              padding: 18,
+              background: "var(--owner-auction-command-bg)",
+              boxShadow: "var(--owner-auction-shadow)",
             display: "grid",
             gap: 14,
           }}
         >
           <div>
-            <div style={{ color: "#6ea8fe", fontWeight: 900, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase" }}>
+            <div style={{ color: "var(--owner-auction-accent)", fontWeight: 900, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase" }}>
               Auction Command Center
             </div>
             <h2 style={{ margin: "4px 0 0" }}>Daily Auction Controls</h2>
@@ -1127,9 +1137,9 @@ export default function OwnerAuctionsPage() {
                 width: "100%",
                 padding: "11px 12px",
                 borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "#121935",
-                color: "#eef2ff",
+                border: "1px solid var(--owner-auction-border)",
+                background: "var(--owner-auction-input-bg)",
+                color: "var(--owner-auction-input-text)",
               }}
             />
 
@@ -1157,13 +1167,13 @@ export default function OwnerAuctionsPage() {
           style={{
             display: "grid",
             gap: 14,
-            borderColor: "rgba(34,197,94,0.22)",
+            borderColor: "var(--owner-auction-success-border)",
           }}
         >
           <div>
             <div
               style={{
-                color: "#86efac",
+                color: "var(--owner-auction-success-accent)",
                 fontWeight: 900,
                 fontSize: 12,
                 letterSpacing: 0.5,
@@ -1263,7 +1273,7 @@ export default function OwnerAuctionsPage() {
           style={{
             display: "grid",
             gap: 12,
-            border: "1px solid rgba(34,197,94,0.28)",
+            border: "1px solid var(--owner-auction-success-border)",
           }}
         >
           <div>
@@ -1385,7 +1395,7 @@ export default function OwnerAuctionsPage() {
                     alignContent: "space-between",
                     border:
                       label === "LIVE"
-                        ? "1px solid rgba(34,197,94,0.35)"
+                        ? "1px solid var(--owner-auction-success-border)"
                         : undefined,
                   }}
                 >
@@ -1433,7 +1443,7 @@ export default function OwnerAuctionsPage() {
                     style={{
                       display: "grid",
                       gap: 8,
-                      borderTop: "1px solid rgba(148,163,184,0.25)",
+                      borderTop: "1px solid var(--owner-auction-soft-border)",
                       paddingTop: 12,
                     }}
                   >
@@ -1497,11 +1507,11 @@ export default function OwnerAuctionsPage() {
                     <div
                       data-owner-auction-warning="true"
                       style={{
-                        border: "1px solid rgba(250,204,21,0.32)",
+                        border: "1px solid var(--owner-auction-warning-border)",
                         borderRadius: 12,
                         padding: "10px 12px",
-                        background: "rgba(250,204,21,0.10)",
-                        color: "#fef3c7",
+                        background: "var(--owner-auction-warning-bg)",
+                        color: "var(--owner-auction-warning-text)",
                         display: "grid",
                         gap: 6,
                       }}
@@ -1559,7 +1569,7 @@ export default function OwnerAuctionsPage() {
                       padding: "10px 12px",
                       background: "rgba(110,168,254,0.10)",
                       border: "1px solid rgba(110,168,254,0.22)",
-                      color: "#dbeafe",
+                      color: "var(--owner-auction-muted)",
                       fontWeight: 800,
                       fontSize: 13,
                       marginTop: 10,
@@ -1574,9 +1584,9 @@ export default function OwnerAuctionsPage() {
                       style={{
                         borderRadius: 12,
                         padding: "10px 12px",
-                        background: "rgba(34,197,94,0.10)",
-                        border: "1px solid rgba(34,197,94,0.22)",
-                        color: "#dcfce7",
+                        background: "var(--owner-auction-success-bg)",
+                        border: "1px solid var(--owner-auction-success-soft-border)",
+                        color: "var(--owner-auction-success-text)",
                         display: "grid",
                         gap: 5,
                         marginTop: 10,
@@ -1676,7 +1686,7 @@ export default function OwnerAuctionsPage() {
                       gap: 8,
                       flexWrap: "wrap",
                       alignItems: "center",
-                      borderTop: "1px solid rgba(148,163,184,0.25)",
+                      borderTop: "1px solid var(--owner-auction-soft-border)",
                       paddingTop: 12,
                     }}
                   >
@@ -1724,7 +1734,7 @@ export default function OwnerAuctionsPage() {
                           minHeight: 32,
                           borderRadius: 999,
                           padding: "6px 10px",
-                          background: "rgba(148,163,184,0.12)",
+                          background: "var(--owner-auction-closed-bg)",
                         }}
                       >
                         {reviewedAuction
