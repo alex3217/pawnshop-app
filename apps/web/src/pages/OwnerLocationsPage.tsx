@@ -9,7 +9,7 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
-import { getMyLocations } from "../services/locations";
+import { getMyLocations, updateLocation } from "../services/locations";
 import { getMyShops } from "../services/shops";
 import "../styles/owner-locations-readability.css";
 
@@ -38,6 +38,8 @@ type ApiLocationRecord = Partial<{
   itemCount: number;
   status: string;
 }>;
+
+type LocationEditForm = Pick<LocationRecord, "name" | "address" | "phone" | "hours">;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -137,6 +139,16 @@ export default function OwnerLocationsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [editForm, setEditForm] = useState<LocationEditForm>({
+    name: "",
+    address: "",
+    phone: "",
+    hours: "",
+  });
 
   const load = useCallback(
     async (
@@ -167,6 +179,80 @@ export default function OwnerLocationsPage() {
     void load("initial", controller.signal);
     return () => controller.abort();
   }, [load]);
+
+  function beginEditLocation(location: LocationRecord) {
+    setActionMessage("");
+    setActionError("");
+    setEditingId(location.id);
+    setEditForm({
+      name: location.name || "",
+      address: location.address || "",
+      phone: location.phone === "—" ? "" : location.phone,
+      hours: location.hours === "—" ? "" : location.hours,
+    });
+  }
+
+  function cancelEditLocation() {
+    setEditingId(null);
+    setActionError("");
+    setEditForm({
+      name: "",
+      address: "",
+      phone: "",
+      hours: "",
+    });
+  }
+
+  async function saveLocation(id: string) {
+    const name = editForm.name.trim();
+
+    if (!name) {
+      setActionError("Location name is required.");
+      return;
+    }
+
+    setSavingId(id);
+    setActionMessage("");
+    setActionError("");
+
+    try {
+      const address = editForm.address.trim();
+      const phone = editForm.phone.trim();
+      const hours = editForm.hours.trim();
+
+      await updateLocation(id, {
+        name,
+        address,
+        phone,
+        hours,
+      });
+
+      setLocations((current) =>
+        sortLocations(
+          current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  name,
+                  address: address || "Address not available",
+                  phone: phone || "—",
+                  hours: hours || "—",
+                }
+              : item,
+          ),
+        ),
+      );
+
+      setEditingId(null);
+      setActionMessage("Location details updated.");
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to update location.",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   const summary = useMemo(() => {
     return {
@@ -211,6 +297,14 @@ export default function OwnerLocationsPage() {
           </Link>
         </div>
       </div>
+
+        {actionMessage ? (
+          <div style={styles.actionBanner}>{actionMessage}</div>
+        ) : null}
+
+        {actionError ? (
+          <div style={styles.actionError}>{actionError}</div>
+        ) : null}
 
       <div style={styles.statsGrid}>
         <div style={styles.statCard}>
@@ -288,14 +382,123 @@ export default function OwnerLocationsPage() {
                 </div>
               </div>
 
-              <div style={styles.cardActions}>
-                <Link to="/owner/inventory" style={styles.secondaryLink}>
-                  View inventory
-                </Link>
-                <Link to="/owner/staff" style={styles.secondaryLink}>
-                  View staff
-                </Link>
-              </div>
+                {editingId === location.id ? (
+                  <form
+                    style={styles.editForm}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void saveLocation(location.id);
+                    }}
+                  >
+                    <div style={styles.fieldGrid}>
+                      <label style={styles.fieldLabel}>
+                        Location name
+                        <input
+                          value={editForm.name}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              name: event.target.value,
+                            }))
+                          }
+                          style={styles.input}
+                        />
+                      </label>
+
+                      <label style={styles.fieldLabel}>
+                        Address
+                        <input
+                          value={editForm.address}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              address: event.target.value,
+                            }))
+                          }
+                          style={styles.input}
+                        />
+                      </label>
+
+                      <label style={styles.fieldLabel}>
+                        Phone
+                        <input
+                          value={editForm.phone}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              phone: event.target.value,
+                            }))
+                          }
+                          style={styles.input}
+                        />
+                      </label>
+
+                      <label style={styles.fieldLabel}>
+                        Hours
+                        <input
+                          value={editForm.hours}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              hours: event.target.value,
+                            }))
+                          }
+                          style={styles.input}
+                        />
+                      </label>
+                    </div>
+
+                    <div style={styles.formActions}>
+                      <button
+                        type="submit"
+                        disabled={savingId === location.id}
+                        style={{
+                          ...styles.primaryButton,
+                          ...(savingId === location.id
+                            ? styles.buttonDisabled
+                            : {}),
+                        }}
+                      >
+                        {savingId === location.id ? "Saving..." : "Save changes"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={cancelEditLocation}
+                        disabled={savingId === location.id}
+                        style={{
+                          ...styles.secondaryButton,
+                          ...(savingId === location.id
+                            ? styles.buttonDisabled
+                            : {}),
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+
+                <div style={styles.cardActions}>
+                  <button
+                    type="button"
+                    onClick={() => beginEditLocation(location)}
+                    disabled={savingId === location.id}
+                    style={{
+                      ...styles.secondaryButton,
+                      ...(savingId === location.id ? styles.buttonDisabled : {}),
+                    }}
+                  >
+                    Edit details
+                  </button>
+
+                  <Link to="/owner/inventory" style={styles.secondaryLink}>
+                    View inventory
+                  </Link>
+                  <Link to="/owner/staff" style={styles.secondaryLink}>
+                    View staff
+                  </Link>
+                </div>
             </article>
           ))}
         </div>
@@ -384,7 +587,7 @@ const styles: Record<string, CSSProperties> = {
   },
   emptyText: {
     margin: 0,
-    color: "rgba(238,242,255,0.76)",
+    color: "var(--owner-locations-muted)",
   },
   primaryLink: {
     display: "inline-flex",
@@ -419,6 +622,7 @@ const styles: Record<string, CSSProperties> = {
     padding: 20,
     display: "grid",
     gap: 18,
+    boxShadow: "var(--owner-locations-shadow)",
   },
   cardHeader: {
     display: "flex",
@@ -456,7 +660,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    color: "rgba(238,242,255,0.6)",
+    color: "var(--owner-locations-subtle)",
     marginBottom: 6,
   },
   detailValue: {
@@ -476,4 +680,68 @@ const styles: Record<string, CSSProperties> = {
     padding: "10px 14px",
     fontWeight: 700,
   },
+  actionBanner: {
+    border: "1px solid var(--owner-locations-success-border)",
+    background: "var(--owner-locations-success-bg)",
+    color: "var(--owner-locations-success-text)",
+    borderRadius: 16,
+    padding: "12px 14px",
+    fontWeight: 800,
+  },
+  actionError: {
+    border: "1px solid var(--owner-locations-danger-border)",
+    background: "var(--owner-locations-danger-bg)",
+    color: "var(--owner-locations-danger-text)",
+    borderRadius: 16,
+    padding: "12px 14px",
+    fontWeight: 800,
+  },
+  editForm: {
+    border: "1px solid var(--owner-locations-accent-border)",
+    background: "var(--owner-locations-card-bg)",
+    borderRadius: 16,
+    padding: 16,
+    display: "grid",
+    gap: 14,
+  },
+  fieldGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 12,
+  },
+  fieldLabel: {
+    display: "grid",
+    gap: 8,
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "var(--owner-locations-subtle)",
+    fontWeight: 800,
+  },
+  input: {
+    border: "1px solid var(--owner-locations-border)",
+    background: "var(--owner-locations-input-bg)",
+    color: "var(--owner-locations-input-text)",
+    borderRadius: 12,
+    padding: "11px 12px",
+    fontSize: 14,
+    fontWeight: 700,
+    textTransform: "none",
+    letterSpacing: 0,
+  },
+  formActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  primaryButton: {
+    border: "1px solid var(--owner-locations-primary-bg)",
+    background: "var(--owner-locations-primary-bg)",
+    color: "var(--owner-locations-primary-text)",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
 };

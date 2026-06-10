@@ -34,6 +34,7 @@ export type CreateLocationInput = {
   postalCode?: string;
   country?: string;
   phone?: string;
+  hours?: string;
   email?: string;
 };
 
