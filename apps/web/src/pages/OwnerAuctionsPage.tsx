@@ -913,6 +913,24 @@ export default function OwnerAuctionsPage() {
     return prioritizeOwnerAuctionFulfillment(sortOwnerAuctions(visible, sortKey));
   }, [auctions, fulfillmentFilter, query, showArchivedTestHistory, sortKey, viewFilter]);
 
+  const auctionFiltersActive =
+    query.trim().length > 0 ||
+    viewFilter !== "ALL" ||
+    statusFilter !== "ALL" ||
+    fulfillmentFilter !== "ALL" ||
+    sortKey !== "endingSoon" ||
+    showArchivedTestHistory;
+
+  function clearAuctionFilters() {
+    setQuery("");
+    setViewFilter("ALL");
+    setStatusFilter("ALL");
+    setFulfillmentFilter("ALL");
+    setSortKey("endingSoon");
+    setShowArchivedTestHistory(false);
+    setMessage({ type: "success", text: "Auction filters cleared." });
+  }
+
   function getViewFilterCount(filter: OwnerAuctionViewFilter) {
     return auctions.filter((auction) => ownerAuctionMatchesViewFilter(auction, filter)).length;
   }
@@ -1419,7 +1437,43 @@ export default function OwnerAuctionsPage() {
                     <span style={getStatusBadgeStyle(label)}>{label}</span>
                   </div>
 
-                  <div style={metricGridStyle}>
+                  <section
+            data-owner-auction-utility-bar="true"
+            className="page-card"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 14,
+              flexWrap: "wrap",
+              border: "1px solid var(--owner-auction-command-border)",
+              background: "var(--owner-auction-command-bg)",
+              boxShadow: "var(--owner-auction-shadow)",
+            }}
+          >
+            <div>
+              <strong>
+                Showing {filteredAuctions.length} of {auctions.length} auctions
+              </strong>
+              <p className="muted" style={{ margin: "6px 0 0" }}>
+                Paid needing fulfillment:{" "}
+                {getFulfillmentFilterCount("PAID_NEEDS_FULFILLMENT")} · Needs
+                attention: {warningAuctionCount} · Closed reviewed:{" "}
+                {reviewedClosedAuctionCount}/{closedAuctions.length}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="btn"
+              onClick={clearAuctionFilters}
+              disabled={!auctionFiltersActive || loading || refreshing || actionInProgress}
+            >
+              Clear filters
+            </button>
+          </section>
+
+          <div style={metricGridStyle}>
                     <Metric
                       label="Current Price"
                       value={formatMoney(auction.currentPrice)}
