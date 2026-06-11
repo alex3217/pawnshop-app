@@ -1437,8 +1437,7 @@ export default function OwnerAuctionsPage() {
                     <span style={getStatusBadgeStyle(label)}>{label}</span>
                   </div>
 
-
-          <section
+                  <section
             data-owner-auction-utility-bar="true"
             className="page-card"
             style={{
