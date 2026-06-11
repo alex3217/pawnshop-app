@@ -541,3 +541,193 @@
   -webkit-text-fill-color: #ffffff !important;
   border-color: #4f46e5 !important;
 }
+
+/* My Wins buyer controls polish: search, sort, clear filters, summary, and CTA contrast. */
+.wins2-control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.35fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.wins2-control-row label {
+  display: grid;
+  gap: 8px;
+}
+
+.wins2-control-row span {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.wins2-control-row input,
+.wins2-control-row select {
+  min-height: 46px;
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0 14px;
+  font-weight: 850;
+  outline: none;
+}
+
+.wins2-control-row input::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+.wins2-clear-controls {
+  margin-top: 12px;
+  min-height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  background: #ffffff;
+  color: #1d4ed8;
+  -webkit-text-fill-color: #1d4ed8;
+  padding: 0.85rem 1rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.wins2-clear-controls:disabled {
+  background: #f8fafc;
+  color: #64748b;
+  -webkit-text-fill-color: #64748b;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.wins2-control-summary {
+  margin-top: 10px;
+  color: #334155;
+  font-weight: 800;
+}
+
+.wins2-hero-actions a:first-child {
+  background: linear-gradient(135deg, #4f46e5, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(191, 219, 254, 0.35) !important;
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.30) !important;
+}
+
+:root:not([data-theme="dark"]) .wins2-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+:root:not([data-theme="dark"]) .wins2-filter-tabs button {
+  width: auto !important;
+  min-width: 74px !important;
+  min-height: 46px !important;
+  aspect-ratio: auto !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px !important;
+  padding: 0.78rem 1rem !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.38) !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06) !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .wins2-filter-tabs button.active {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+  box-shadow: 0 12px 26px rgba(79, 70, 229, 0.24) !important;
+}
+
+:root[data-theme="dark"] .wins2-control-row span {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .wins2-control-row input,
+:root[data-theme="dark"] .wins2-control-row select {
+  background: #111827;
+  color: #e5e7eb;
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+:root[data-theme="dark"] .wins2-control-row input::placeholder {
+  color: #94a3b8;
+}
+
+:root[data-theme="dark"] .wins2-clear-controls {
+  background: #1e293b;
+  color: #bfdbfe;
+  -webkit-text-fill-color: #bfdbfe;
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+:root[data-theme="dark"] .wins2-clear-controls:disabled {
+  background: #111827;
+  color: #94a3b8;
+  -webkit-text-fill-color: #94a3b8;
+}
+
+:root[data-theme="dark"] .wins2-control-summary {
+  color: #dbeafe;
+}
+
+:root[data-theme="dark"] .wins2-hero-actions a:first-child,
+.dark .wins2-hero-actions a:first-child {
+  background: linear-gradient(135deg, #6366f1, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(191, 219, 254, 0.45) !important;
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.36) !important;
+}
+
+@media (max-width: 760px) {
+  .wins2-control-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* My Wins dark-mode hero pill contrast fix. */
+:root[data-theme="dark"] .wins2-page .wins2-pill,
+.dark .wins2-page .wins2-pill {
+  background: linear-gradient(135deg, #6366f1, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(191, 219, 254, 0.45) !important;
+  box-shadow: 0 14px 36px rgba(37, 99, 235, 0.28) !important;
+  text-shadow: none !important;
+}
+
+:root[data-theme="dark"] .wins2-page .wins2-pill *,
+.dark .wins2-page .wins2-pill * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* My Wins dark-mode hero pill contrast fix. */
+:root[data-theme="dark"] .wins2-page .wins2-pill,
+.dark .wins2-page .wins2-pill {
+  background: linear-gradient(135deg, #6366f1, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(191, 219, 254, 0.45) !important;
+  box-shadow: 0 14px 36px rgba(37, 99, 235, 0.28) !important;
+  text-shadow: none !important;
+}
+
+:root[data-theme="dark"] .wins2-page .wins2-pill *,
+.dark .wins2-page .wins2-pill * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
