@@ -365,6 +365,16 @@ export default function MyBidsPage() {
 
   const hiddenBidCount = Math.max(filteredRows.length - visibleRows.length, 0);
 
+  const hasActiveBidControls =
+    filter !== "ALL" || sortMode !== "ENDING_SOON" || query.trim().length > 0;
+
+  function clearBidControls() {
+    setFilter("ALL");
+    setSortMode("ENDING_SOON");
+    setQuery("");
+    setVisibleCount(MY_BIDS_PAGE_SIZE);
+  }
+
   return (
     <main className="mybids2-page">
       <section className="mybids2-hero">
@@ -422,7 +432,10 @@ export default function MyBidsPage() {
               key={item.value}
               type="button"
               className={filter === item.value ? "active" : ""}
-              onClick={() => setFilter(item.value)}
+              onClick={() => {
+                  setFilter(item.value);
+                  setVisibleCount(MY_BIDS_PAGE_SIZE);
+                }}
             >
               {item.label}
             </button>
@@ -434,7 +447,10 @@ export default function MyBidsPage() {
             <span>Search</span>
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                  setQuery(event.target.value);
+                  setVisibleCount(MY_BIDS_PAGE_SIZE);
+                }}
               placeholder="Search item, shop, status..."
             />
           </label>
@@ -443,7 +459,10 @@ export default function MyBidsPage() {
             <span>Sort</span>
             <select
               value={sortMode}
-              onChange={(event) => setSortMode(event.target.value as BidSort)}
+              onChange={(event) => {
+                  setSortMode(event.target.value as BidSort);
+                  setVisibleCount(MY_BIDS_PAGE_SIZE);
+                }}
             >
               <option value="ENDING_SOON">Ending soon</option>
               <option value="LIVE_FIRST">Live first</option>
@@ -452,6 +471,20 @@ export default function MyBidsPage() {
               <option value="RECENT">Recently placed</option>
             </select>
           </label>
+        </div>
+
+        <button
+          type="button"
+          className="mybids2-clear-controls"
+          onClick={clearBidControls}
+          disabled={!hasActiveBidControls || loading || refreshing}
+        >
+          Clear filters
+        </button>
+
+        <div className="mybids2-control-summary">
+          Showing {filteredRows.length} of {rows.length} bid records
+          {hiddenBidCount > 0 ? ` · ${hiddenBidCount} hidden until you load more` : ""}
         </div>
       </section>
 
