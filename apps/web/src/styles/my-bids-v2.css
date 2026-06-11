@@ -713,3 +713,117 @@
   padding: 0.28rem 0.62rem !important;
   font-weight: 900 !important;
 }
+
+.mybids2-clear-controls {
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-weight: 800;
+  min-height: 46px;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+}
+
+.mybids2-clear-controls:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mybids2-control-summary {
+  color: #334155;
+  font-weight: 700;
+}
+
+:root[data-theme="dark"] .mybids2-clear-controls {
+  background: #1e293b;
+  color: #bfdbfe;
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+:root[data-theme="dark"] .mybids2-control-summary {
+  color: #dbeafe;
+}
+
+/* Light-mode My Bids filter chip readability + sizing fix.
+   Prevents the active "All" filter from collapsing into an unreadable circle. */
+:root:not([data-theme="dark"]) .mybids2-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+:root:not([data-theme="dark"]) .mybids2-filter-tabs button {
+  width: auto !important;
+  min-width: 68px !important;
+  min-height: 46px !important;
+  aspect-ratio: auto !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px !important;
+  padding: 0.78rem 1rem !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.38) !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06) !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-filter-tabs button.active {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+  box-shadow: 0 12px 26px rgba(79, 70, 229, 0.24) !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-clear-controls {
+  background: #ffffff !important;
+  color: #1d4ed8 !important;
+  -webkit-text-fill-color: #1d4ed8 !important;
+  border-color: rgba(37, 99, 235, 0.28) !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-clear-controls:disabled {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+  opacity: 1 !important;
+}
+
+/* My Bids final CTA + filter readability polish. */
+.mybids2-hero-actions a:first-child {
+  background: linear-gradient(135deg, #4f46e5, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(191, 219, 254, 0.35) !important;
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.30) !important;
+}
+
+.mybids2-hero-actions a:first-child:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 42px rgba(79, 70, 229, 0.38) !important;
+}
+
+:root[data-theme="dark"] .mybids2-hero-actions a:first-child,
+.dark .mybids2-hero-actions a:first-child {
+  background: linear-gradient(135deg, #6366f1, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(191, 219, 254, 0.45) !important;
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.36) !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-filter-tabs button.active {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #4f46e5 !important;
+  box-shadow: 0 12px 26px rgba(79, 70, 229, 0.24) !important;
+}
+
