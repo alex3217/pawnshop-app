@@ -1,0 +1,191 @@
+/* Home page responsive/dark readability polish.
+   Keeps this scoped to the public landing page and avoids touching owner/buyer dashboards. */
+
+.home-page,
+.homepage,
+.home {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.home-page .page-card,
+.homepage .page-card,
+.home .page-card {
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.home-page h1,
+.homepage h1,
+.home h1 {
+  max-width: 920px;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+}
+
+.home-page p,
+.homepage p,
+.home p {
+  max-width: 880px;
+}
+
+.home-page .toolbar,
+.homepage .toolbar,
+.home .toolbar {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.home-page a,
+.homepage a,
+.home a,
+.home-page button,
+.homepage button,
+.home button {
+  min-height: 42px;
+}
+
+.home-page [class*="hero"],
+.homepage [class*="hero"],
+.home [class*="hero"] {
+  max-width: 100%;
+}
+
+.home-page [class*="hero"] .btn,
+.homepage [class*="hero"] .btn,
+.home [class*="hero"] .btn,
+.home-page [class*="hero"] a,
+.homepage [class*="hero"] a,
+.home [class*="hero"] a {
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .home-page,
+:root[data-theme="dark"] .homepage,
+:root[data-theme="dark"] .home,
+.dark .home-page,
+.dark .homepage,
+.dark .home {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .home-page .page-card,
+:root[data-theme="dark"] .homepage .page-card,
+:root[data-theme="dark"] .home .page-card,
+.dark .home-page .page-card,
+.dark .homepage .page-card,
+.dark .home .page-card {
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.18), transparent 32%),
+    rgba(15, 23, 42, 0.92);
+  border-color: rgba(148, 163, 184, 0.24);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+}
+
+:root[data-theme="dark"] .home-page h1,
+:root[data-theme="dark"] .homepage h1,
+:root[data-theme="dark"] .home h1,
+.dark .home-page h1,
+.dark .homepage h1,
+.dark .home h1 {
+  color: #f8fafc;
+  text-wrap: balance;
+}
+
+:root[data-theme="dark"] .home-page p,
+:root[data-theme="dark"] .homepage p,
+:root[data-theme="dark"] .home p,
+.dark .home-page p,
+.dark .homepage p,
+.dark .home p {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .home-page .section-title,
+:root[data-theme="dark"] .homepage .section-title,
+:root[data-theme="dark"] .home .section-title,
+.dark .home-page .section-title,
+.dark .homepage .section-title,
+.dark .home .section-title {
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .home-page .section-subtitle,
+:root[data-theme="dark"] .homepage .section-subtitle,
+:root[data-theme="dark"] .home .section-subtitle,
+.dark .home-page .section-subtitle,
+.dark .homepage .section-subtitle,
+.dark .home .section-subtitle {
+  color: #cbd5e1;
+}
+
+@media (max-width: 1100px) {
+  .home-page h1,
+  .homepage h1,
+  .home h1 {
+    font-size: clamp(2.7rem, 8vw, 4.7rem) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .home-page,
+  .homepage,
+  .home {
+    padding-inline: 14px;
+  }
+
+  .home-page h1,
+  .homepage h1,
+  .home h1 {
+    font-size: clamp(2.35rem, 12vw, 3.5rem) !important;
+    line-height: 1.02;
+  }
+
+  .home-page [class*="hero"],
+  .homepage [class*="hero"],
+  .home [class*="hero"] {
+    padding: 1.2rem !important;
+  }
+
+  .home-page [class*="hero"] .toolbar,
+  .homepage [class*="hero"] .toolbar,
+  .home [class*="hero"] .toolbar,
+  .home-page [class*="hero"] [class*="actions"],
+  .homepage [class*="hero"] [class*="actions"],
+  .home [class*="hero"] [class*="actions"] {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .home-page [class*="hero"] a,
+  .homepage [class*="hero"] a,
+  .home [class*="hero"] a,
+  .home-page [class*="hero"] button,
+  .homepage [class*="hero"] button,
+  .home [class*="hero"] button {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+/* Dark-mode pill contrast fix for the hero eyebrow label. */
+:root[data-theme="dark"] .home-page.home2-page .home2-pill,
+:root[data-theme="dark"] .home2-page .home2-pill,
+.dark .home-page.home2-page .home2-pill,
+.dark .home2-page .home2-pill {
+  background: linear-gradient(135deg, #4f46e5, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(191, 219, 254, 0.45) !important;
+  box-shadow: 0 14px 36px rgba(37, 99, 235, 0.24) !important;
+  text-shadow: none !important;
+}
+
+:root[data-theme="dark"] .home-page.home2-page .home2-pill *,
+:root[data-theme="dark"] .home2-page .home2-pill *,
+.dark .home-page.home2-page .home2-pill *,
+.dark .home2-page .home2-pill * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
