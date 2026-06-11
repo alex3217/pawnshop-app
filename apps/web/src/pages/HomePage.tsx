@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import "../styles/home-page-v2.css";
+import "../styles/home-responsive-polish.css";
 
 const buyerFeatures = [
   {
@@ -41,7 +42,7 @@ const ownerFeatures = [
 
 export default function HomePage() {
   return (
-    <main className="home2-page">
+    <main className="home-page home2-page">
       <section className="home2-hero">
         <div className="home2-hero-copy">
           <span className="home2-pill">Live marketplace + auction platform</span>
