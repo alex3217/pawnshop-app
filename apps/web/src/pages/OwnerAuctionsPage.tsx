@@ -1258,6 +1258,76 @@ export default function OwnerAuctionsPage() {
           <div className={`alert alert-${message.type}`}>{message.text}</div>
         ) : null}
 
+        <section
+
+          data-owner-auction-utility-bar="true"
+
+          className="page-card"
+
+          style={{
+
+            display: "flex",
+
+            justifyContent: "space-between",
+
+            alignItems: "center",
+
+            gap: 14,
+
+            flexWrap: "wrap",
+
+            border: "1px solid var(--owner-auction-command-border)",
+
+            background: "var(--owner-auction-command-bg)",
+
+            boxShadow: "var(--owner-auction-shadow)",
+
+          }}
+
+        >
+
+          <div>
+
+            <strong>
+
+              Showing {filteredAuctions.length} of {auctions.length} auctions
+
+            </strong>
+
+            <p className="muted" style={{ margin: "6px 0 0" }}>
+
+              Paid needing fulfillment:{" "}
+
+              {getFulfillmentFilterCount("PAID_NEEDS_FULFILLMENT")} · Needs
+
+              attention: {warningAuctionCount} · Closed reviewed:{" "}
+
+              {reviewedClosedAuctionCount}/{closedAuctions.length}
+
+            </p>
+
+          </div>
+
+
+          <button
+
+            type="button"
+
+            className="btn"
+
+            onClick={clearAuctionFilters}
+
+            disabled={!auctionFiltersActive || loading || refreshing || actionInProgress}
+
+          >
+
+            Clear filters
+
+          </button>
+
+        </section>
+
+
         <div style={metricGridStyle}>
           <Metric label="Total Loaded" value={String(counts.ALL)} strong />
           <Metric label="Live" value={String(liveCount)} />
@@ -1437,41 +1507,6 @@ export default function OwnerAuctionsPage() {
                     <span style={getStatusBadgeStyle(label)}>{label}</span>
                   </div>
 
-                  <section
-            data-owner-auction-utility-bar="true"
-            className="page-card"
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 14,
-              flexWrap: "wrap",
-              border: "1px solid var(--owner-auction-command-border)",
-              background: "var(--owner-auction-command-bg)",
-              boxShadow: "var(--owner-auction-shadow)",
-            }}
-          >
-            <div>
-              <strong>
-                Showing {filteredAuctions.length} of {auctions.length} auctions
-              </strong>
-              <p className="muted" style={{ margin: "6px 0 0" }}>
-                Paid needing fulfillment:{" "}
-                {getFulfillmentFilterCount("PAID_NEEDS_FULFILLMENT")} · Needs
-                attention: {warningAuctionCount} · Closed reviewed:{" "}
-                {reviewedClosedAuctionCount}/{closedAuctions.length}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="btn"
-              onClick={clearAuctionFilters}
-              disabled={!auctionFiltersActive || loading || refreshing || actionInProgress}
-            >
-              Clear filters
-            </button>
-          </section>
 
           <div style={metricGridStyle}>
                     <Metric
