@@ -2,55 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { getAuctions } from "../services/auctions";
+import { getAuctions, type Auction } from "../services/auctions";
 
 type AuctionStatusFilter = "LIVE" | "ENDED" | "CANCELED" | "ALL";
+type AuctionSortKey = "ENDING_SOON" | "NEWEST" | "PRICE_HIGH" | "PRICE_LOW" | "STATUS";
 
-type AuctionRow = {
-  id: string;
-  itemId: string;
-  shopId: string;
-  status: "LIVE" | "ENDED" | "CANCELED" | string;
-  startingPrice: string | number | null;
-  minIncrement: string | number | null;
-  reservePrice: string | number | null;
-  buyItNowPrice: string | number | null;
-  startsAt: string | null;
-  endsAt: string | null;
-  extendedEndsAt: string | null;
-  currentPrice: string | number | null;
-  version: number | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-  item?: {
-    id: string;
-    title: string;
-    description?: string | null;
-    price?: string | number | null;
-    currency?: string | null;
-    category?: string | null;
-    condition?: string | null;
-    status?: string | null;
-  } | null;
-  shop?: {
-    id: string;
-    name: string;
-    address?: string | null;
-    phone?: string | null;
-  } | null;
-};
+type AuctionRow = Auction;
 
-type AuctionsResponse =
-  | {
-      page?: number;
-      limit?: number;
-      total?: number;
-      rows?: AuctionRow[];
-      auctions?: AuctionRow[];
-      items?: AuctionRow[];
-    }
-  | AuctionRow[]
-  | null;
 
 
 
@@ -88,6 +46,54 @@ function getStatusTone(status: string): string {
   }
 }
 
+function auctionTimeMs(value: string | null | undefined) {
+  if (!value) return Number.MAX_SAFE_INTEGER;
+
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
+}
+
+function auctionSearchText(auction: AuctionRow) {
+  return [
+    auction.id,
+    auction.status,
+    auction.itemId,
+    auction.shopId,
+    auction.item?.title,
+    auction.item?.description,
+    auction.item?.category,
+    auction.item?.condition,
+    auction.shop?.name,
+    auction.shop?.address,
+    auction.shop?.phone,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function sortAuctionRows(rows: AuctionRow[], sortKey: AuctionSortKey) {
+  return [...rows].sort((left, right) => {
+    if (sortKey === "NEWEST") {
+      return auctionTimeMs(right.createdAt || right.startsAt) - auctionTimeMs(left.createdAt || left.startsAt);
+    }
+
+    if (sortKey === "PRICE_HIGH") {
+      return Number(right.currentPrice || right.startingPrice || 0) - Number(left.currentPrice || left.startingPrice || 0);
+    }
+
+    if (sortKey === "PRICE_LOW") {
+      return Number(left.currentPrice || left.startingPrice || 0) - Number(right.currentPrice || right.startingPrice || 0);
+    }
+
+    if (sortKey === "STATUS") {
+      return String(left.status || "").localeCompare(String(right.status || ""));
+    }
+
+    return auctionTimeMs(left.extendedEndsAt || left.endsAt) - auctionTimeMs(right.extendedEndsAt || right.endsAt);
+  });
+}
+
 const FILTERS: AuctionStatusFilter[] = ["LIVE", "ENDED", "CANCELED", "ALL"];
 const POLL_MS = 30000;
 
@@ -100,6 +106,8 @@ export default function AuctionsPage() {
   );
   const [rows, setRows] = useState<AuctionRow[]>([]);
   const [total, setTotal] = useState<number>(0);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<AuctionSortKey>("ENDING_SOON");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,10 +144,10 @@ export default function AuctionsPage() {
       setError(null);
 
       try {
-        const normalizedRows = (await getAuctions(statusFilter)) as AuctionsResponse;
-        const rows = Array.isArray(normalizedRows) ? normalizedRows : [];
-        setRows(rows);
-        setTotal(rows.length);
+        const response = await getAuctions(statusFilter);
+        const nextRows = response.auctions || [];
+        setRows(nextRows);
+        setTotal(response.total ?? nextRows.length);
       } catch (err: unknown) {
         setRows([]);
         setTotal(0);
@@ -191,6 +199,19 @@ export default function AuctionsPage() {
     }
   }, [statusFilter]);
 
+  const filteredRows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+
+    const visible = needle
+      ? rows.filter((auction) => auctionSearchText(auction).includes(needle))
+      : rows;
+
+    return sortAuctionRows(visible, sortKey);
+  }, [query, rows, sortKey]);
+
+  const hasActiveFilters =
+    query.trim().length > 0 || sortKey !== "ENDING_SOON" || statusFilter !== "LIVE";
+
   const handleFilterChange = useCallback(
     (nextFilter: AuctionStatusFilter) => {
       setStatusFilter(nextFilter);
@@ -198,6 +219,12 @@ export default function AuctionsPage() {
     },
     [syncUrl]
   );
+
+  function clearAuctionControls() {
+    setQuery("");
+    setSortKey("ENDING_SOON");
+    handleFilterChange("LIVE");
+  }
 
   return (
     <div className="page-stack">
@@ -243,16 +270,70 @@ export default function AuctionsPage() {
           })}
         </div>
 
+          <section
+            className="list-card"
+            style={{
+              display: "grid",
+              gap: 12,
+              marginBottom: 18,
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "minmax(220px, 1fr) repeat(auto-fit, minmax(160px, 220px))",
+                gap: 10,
+                alignItems: "end",
+              }}
+            >
+              <label style={{ display: "grid", gap: 6 }}>
+                <span className="muted">Search auctions</span>
+                <input
+                  aria-label="Search auctions"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search item, shop, status, category..."
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 6 }}>
+                <span className="muted">Sort auctions</span>
+                <select
+                  aria-label="Sort auctions"
+                  value={sortKey}
+                  onChange={(event) =>
+                    setSortKey(event.target.value as AuctionSortKey)
+                  }
+                >
+                  <option value="ENDING_SOON">Ending soon first</option>
+                  <option value="NEWEST">Newest first</option>
+                  <option value="PRICE_HIGH">Highest price</option>
+                  <option value="PRICE_LOW">Lowest price</option>
+                  <option value="STATUS">Status</option>
+                </select>
+              </label>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={clearAuctionControls}
+                disabled={!hasActiveFilters || loading || refreshing}
+              >
+                Clear filters
+              </button>
+            </div>
+
+            <div className="muted">
+              Showing {filteredRows.length} of {rows.length} loaded auctions
+              {total !== rows.length ? ` · ${total} total from server` : ""}.
+            </div>
+          </section>
+
         {error ? <div className="error-text">{error}</div> : null}
         {loading ? <p className="muted">Loading auctions…</p> : null}
 
-        {!loading ? (
-          <div className="muted" style={{ marginBottom: 14 }}>
-            Showing {total} auction{total === 1 ? "" : "s"}.
-          </div>
-        ) : null}
-
-        {!loading && rows.length === 0 ? (
+        {!loading && filteredRows.length === 0 ? (
           <div className="list-card">
             <strong>
               {statusFilter === "LIVE"
@@ -270,7 +351,7 @@ export default function AuctionsPage() {
         ) : null}
 
         <div className="grid">
-          {rows.map((auction) => {
+          {filteredRows.map((auction) => {
             const statusTone = getStatusTone(auction.status);
 
             return (
