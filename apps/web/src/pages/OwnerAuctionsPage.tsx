@@ -1115,41 +1115,148 @@ export default function OwnerAuctionsPage() {
             </Link>
           </div>
         </div>
+
         <section
-          data-owner-auction-utility-bar="true"
-          className="page-card"
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 14,
-            flexWrap: "wrap",
             border: "1px solid var(--owner-auction-command-border)",
-            background: "var(--owner-auction-command-bg)",
-            boxShadow: "var(--owner-auction-shadow)",
+              borderRadius: 18,
+              padding: 18,
+              background: "var(--owner-auction-command-bg)",
+              boxShadow: "var(--owner-auction-shadow)",
+            display: "grid",
+            gap: 14,
           }}
         >
           <div>
-            <strong>
-              Showing {filteredAuctions.length} of {auctions.length} auctions
-            </strong>
+            <div style={{ color: "var(--owner-auction-accent)", fontWeight: 900, fontSize: 12, letterSpacing: 0.5, textTransform: "uppercase" }}>
+              Auction Command Center
+            </div>
+            <h2 style={{ margin: "4px 0 0" }}>Daily Auction Controls</h2>
             <p className="muted" style={{ margin: "6px 0 0" }}>
-              Paid needing fulfillment:{" "}
-              {getFulfillmentFilterCount("PAID_NEEDS_FULFILLMENT")} · Needs
-              attention: {warningAuctionCount} · Closed reviewed:{" "}
-              {reviewedClosedAuctionCount}/{closedAuctions.length}
+              Search auctions, filter by status, create auction listings, review item/shop context,
+              cancel scheduled/live auctions, end auctions, refresh, and export CSV.
             </p>
           </div>
 
-          <button
-            type="button"
-            className="btn"
-            onClick={clearAuctionFilters}
-            disabled={!auctionFiltersActive || loading || refreshing || actionInProgress}
+          <div
+            style={{
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "minmax(220px, 1fr) repeat(auto-fit, minmax(150px, 210px))",
+              alignItems: "center",
+            }}
           >
-            Clear filters
-          </button>
+            <input
+              aria-label="Search auctions"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search auctions by item, shop, status, or id..."
+              style={{
+                width: "100%",
+                padding: "11px 12px",
+                borderRadius: 12,
+                border: "1px solid var(--owner-auction-border)",
+                background: "var(--owner-auction-input-bg)",
+                color: "var(--owner-auction-input-text)",
+              }}
+            />
+
+            <Link className="btn btn-primary" to="/owner/auctions/new">
+              Create Auction
+            </Link>
+
+            <Link className="btn" to="/owner/inventory">
+              Inventory
+            </Link>
+
+            <button type="button" className="btn" onClick={exportAuctionsCsv}>
+              Export CSV
+            </button>
+          </div>
+
+          <div className="muted">
+            View auction, view item, cancel auction, and end auction controls are available on each auction card.
+          </div>
         </section>
+
+        <section
+          data-owner-auction-operational-actions="true"
+          className="page-card"
+          style={{
+            display: "grid",
+            gap: 14,
+            borderColor: "var(--owner-auction-success-border)",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                color: "var(--owner-auction-success-accent)",
+                fontWeight: 900,
+                fontSize: 12,
+                letterSpacing: 0.5,
+                textTransform: "uppercase",
+              }}
+            >
+              Operational Actions
+            </div>
+            <h2 style={{ margin: "4px 0 0" }}>Closed Auction Workflow</h2>
+            <p className="muted" style={{ margin: "6px 0 0" }}>
+              Mark ended/canceled auctions reviewed locally, relist closed inventory,
+              and scan for missing price/time data before creating the next auction.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 10,
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            }}
+          >
+            <Metric
+              label="Closed auctions"
+              value={String(closedAuctions.length)}
+              strong
+            />
+            <Metric
+              label="Reviewed locally"
+              value={`${reviewedClosedAuctionCount}/${closedAuctions.length}`}
+            />
+            <Metric
+              label="Needs attention warnings"
+              value={String(warningAuctionCount)}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={markClosedAuctionsReviewed}
+              disabled={closedAuctions.length === 0}
+            >
+              Mark closed auctions reviewed
+            </button>
+
+            <button
+              type="button"
+              className="btn"
+              onClick={clearReviewedAuctionMarks}
+              disabled={reviewedAuctionIds.size === 0}
+            >
+              Clear reviewed marks
+            </button>
+
+            <Link className="btn" to="/owner/auctions/new">
+              Create fresh auction
+            </Link>
+          </div>
+        </section>
+
+        {message ? (
+          <div className={`alert alert-${message.type}`}>{message.text}</div>
+        ) : null}
 
         <div style={metricGridStyle}>
           <Metric label="Total Loaded" value={String(counts.ALL)} strong />
@@ -1330,7 +1437,43 @@ export default function OwnerAuctionsPage() {
                     <span style={getStatusBadgeStyle(label)}>{label}</span>
                   </div>
 
-                  <div style={metricGridStyle}>
+                  <section
+            data-owner-auction-utility-bar="true"
+            className="page-card"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 14,
+              flexWrap: "wrap",
+              border: "1px solid var(--owner-auction-command-border)",
+              background: "var(--owner-auction-command-bg)",
+              boxShadow: "var(--owner-auction-shadow)",
+            }}
+          >
+            <div>
+              <strong>
+                Showing {filteredAuctions.length} of {auctions.length} auctions
+              </strong>
+              <p className="muted" style={{ margin: "6px 0 0" }}>
+                Paid needing fulfillment:{" "}
+                {getFulfillmentFilterCount("PAID_NEEDS_FULFILLMENT")} · Needs
+                attention: {warningAuctionCount} · Closed reviewed:{" "}
+                {reviewedClosedAuctionCount}/{closedAuctions.length}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="btn"
+              onClick={clearAuctionFilters}
+              disabled={!auctionFiltersActive || loading || refreshing || actionInProgress}
+            >
+              Clear filters
+            </button>
+          </section>
+
+          <div style={metricGridStyle}>
                     <Metric
                       label="Current Price"
                       value={formatMoney(auction.currentPrice)}
