@@ -513,25 +513,6 @@ export default function MyWinsPage() {
         </aside>
       </section>
 
-      <section className="wins2-control-panel">
-        <div className="wins2-filter-tabs">
-          {[
-            ["ALL", "All"],
-            ["PENDING", "Pending"],
-            ["PAID", "Paid"],
-            ["FAILED", "Failed"],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className={filter === value ? "active" : ""}
-              onClick={() => setFilter(value as typeof filter)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
         <section className="wins2-control-panel">
           <div className="wins2-filter-tabs">
             {[
