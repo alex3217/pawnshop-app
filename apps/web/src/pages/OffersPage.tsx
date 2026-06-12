@@ -183,6 +183,7 @@ export default function OffersPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [fulfillmentFilter, setFulfillmentFilter] = useState<OfferFulfillmentQueueFilter>("ALL");
+  const [sortMode, setSortMode] = useState<"SMART_QUEUE" | "NEWEST" | "AMOUNT_HIGH" | "PENDING_FIRST" | "ACCEPTED_FIRST">("SMART_QUEUE");
   const [showArchivedTestHistory, setShowArchivedTestHistory] = useState(false);
 
   const [newItemId, setNewItemId] = useState("");
@@ -212,31 +213,59 @@ export default function OffersPage() {
   }, [loadOffers]);
 
   const filteredOffers = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const normalizedQuery = query.trim().toLowerCase();
 
-    const visible = offers
-      .filter((offer) => {
-        const status = normalizeStatus(offer.status);
-        const searchable = [
-          offerTitle(offer),
-          shopName(offer),
-          offer.message || "",
-          offer.counterMessage || "",
-          status,
-          getOfferPaymentStatus(offer),
-          getOfferFulfillmentStatus(offer),
-        ].join(" ").toLowerCase();
+    const visible = offers.filter((offer) => {
+      const status = normalizeStatus(offer.status);
+      const searchable = [
+        offerTitle(offer),
+        shopName(offer),
+        offer.message || "",
+        offer.counterMessage || "",
+        status,
+        getOfferPaymentStatus(offer),
+        getOfferFulfillmentStatus(offer),
+      ].join(" ").toLowerCase();
 
-        if (!showArchivedTestHistory && offerUsesDeletedItem(offer)) return false;
-        if (statusFilter !== "ALL" && status !== statusFilter) return false;
-        if (!offerMatchesFulfillmentQueueFilter(offer, fulfillmentFilter)) return false;
-        if (q && !searchable.includes(q)) return false;
+      if (!showArchivedTestHistory && offerUsesDeletedItem(offer)) return false;
+      if (statusFilter !== "ALL" && status !== statusFilter) return false;
+      if (!offerMatchesFulfillmentQueueFilter(offer, fulfillmentFilter)) return false;
+      if (!normalizedQuery) return true;
+      return searchable.includes(normalizedQuery);
+    });
 
-        return true;
-      });
+    const queued = sortOffersByFulfillmentQueue(visible);
 
-    return sortOffersByFulfillmentQueue(visible);
-  }, [fulfillmentFilter, offers, query, showArchivedTestHistory, statusFilter]);
+    if (sortMode === "NEWEST") {
+      return [...queued].sort(
+        (a, b) =>
+          new Date(b.updatedAt || b.createdAt || 0).getTime() -
+          new Date(a.updatedAt || a.createdAt || 0).getTime(),
+      );
+    }
+
+    if (sortMode === "AMOUNT_HIGH") {
+      return [...queued].sort((a, b) => toNumber(b.amount) - toNumber(a.amount));
+    }
+
+    if (sortMode === "PENDING_FIRST") {
+      return [...queued].sort(
+        (a, b) =>
+          Number(normalizeStatus(b.status) === "PENDING") -
+          Number(normalizeStatus(a.status) === "PENDING"),
+      );
+    }
+
+    if (sortMode === "ACCEPTED_FIRST") {
+      return [...queued].sort(
+        (a, b) =>
+          Number(normalizeStatus(b.status) === "ACCEPTED") -
+          Number(normalizeStatus(a.status) === "ACCEPTED"),
+      );
+    }
+
+    return queued;
+  }, [fulfillmentFilter, offers, query, showArchivedTestHistory, sortMode, statusFilter]);
 
   const statusOptions = useMemo(() => {
     return Array.from(new Set(offers.map((offer) => normalizeStatus(offer.status)))).sort();
@@ -662,6 +691,7 @@ export default function OffersPage() {
             setQuery("");
             setStatusFilter("ALL");
             setFulfillmentFilter("ALL");
+            setSortMode("SMART_QUEUE");
             setShowArchivedTestHistory(false);
           }}>
             Clear filters
@@ -693,6 +723,20 @@ export default function OffersPage() {
             </select>
           </label>
 
+            <label>
+              <span>Sort</span>
+              <select
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+              >
+                <option value="SMART_QUEUE">Smart queue</option>
+                <option value="NEWEST">Newest activity</option>
+                <option value="AMOUNT_HIGH">Highest amount</option>
+                <option value="PENDING_FIRST">Pending first</option>
+                <option value="ACCEPTED_FIRST">Accepted first</option>
+              </select>
+            </label>
+
           <label>
             <span>Fulfillment queue</span>
             <select
@@ -718,6 +762,10 @@ export default function OffersPage() {
             <span>Show archived/test history</span>
           </label>
         </div>
+
+          <div className="offers2-control-summary">
+            Showing {filteredOffers.length} of {offers.length} offers
+          </div>
 
         {!isOwnerView ? (
           <form className="offers2-create-form" onSubmit={handleCreateOffer}>
