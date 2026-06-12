@@ -303,6 +303,8 @@ export default function MyWinsPage() {
   const [activePayment, setActivePayment] = useState<ActivePayment | null>(null);
   const [paymentError, setPaymentError] = useState("");
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "PAID" | "FAILED">("ALL");
+  const [query, setQuery] = useState("");
+  const [sortMode, setSortMode] = useState<"NEWEST" | "AMOUNT_HIGH" | "PENDING_FIRST" | "PAID_FIRST">("NEWEST");
 
   const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
     if (mode === "refresh") setRefreshing(true);
@@ -403,14 +405,65 @@ export default function MyWinsPage() {
   }, [wins]);
 
   const filteredWins = useMemo(() => {
-    return wins.filter((win) => {
-      if (filter === "ALL") return true;
-      if (filter === "PENDING") return isPayableStatus(win.status);
-      if (filter === "PAID") return isPaidStatus(win.status);
-      if (filter === "FAILED") return isFailedStatus(win.status);
-      return true;
+    const q = query.trim().toLowerCase();
+
+    const nextWins = wins.filter((win) => {
+      const matchesFilter =
+        filter === "ALL" ||
+        (filter === "PENDING" && isPayableStatus(win.status)) ||
+        (filter === "PAID" && isPaidStatus(win.status)) ||
+        (filter === "FAILED" && isFailedStatus(win.status));
+
+      if (!matchesFilter) return false;
+      if (!q) return true;
+
+      const searchable = [
+        win.auctionTitle,
+        win.shopName,
+        win.status,
+        normalizeFulfillmentStatus(win.fulfillmentStatus),
+        win.settlementId,
+        win.stripePaymentIntent || "",
+        formatCurrency(win.finalAmountCents, win.currency),
+      ].join(" ").toLowerCase();
+
+      return searchable.includes(q);
     });
-  }, [filter, wins]);
+
+    return [...nextWins].sort((a, b) => {
+      if (sortMode === "AMOUNT_HIGH") {
+        return b.finalAmountCents - a.finalAmountCents;
+      }
+
+      if (sortMode === "PENDING_FIRST") {
+        return Number(isPayableStatus(b.status)) - Number(isPayableStatus(a.status));
+      }
+
+      if (sortMode === "PAID_FIRST") {
+        return Number(isPaidStatus(b.status)) - Number(isPaidStatus(a.status));
+      }
+
+      const aTime =
+        toValidDate(a.settledAt)?.getTime() ??
+        toValidDate(a.endedAt)?.getTime() ??
+        0;
+      const bTime =
+        toValidDate(b.settledAt)?.getTime() ??
+        toValidDate(b.endedAt)?.getTime() ??
+        0;
+
+      return bTime - aTime;
+    });
+  }, [filter, query, sortMode, wins]);
+
+  const hasActiveWinControls =
+    filter !== "ALL" || query.trim().length > 0 || sortMode !== "NEWEST";
+
+  function clearWinControls() {
+    setFilter("ALL");
+    setQuery("");
+    setSortMode("NEWEST");
+  }
 
   return (
     <main className="wins2-page">
@@ -479,6 +532,63 @@ export default function MyWinsPage() {
           ))}
         </div>
       </section>
+        <section className="wins2-control-panel">
+          <div className="wins2-filter-tabs">
+            {[
+              ["ALL", "All"],
+              ["PENDING", "Pending"],
+              ["PAID", "Paid"],
+              ["FAILED", "Failed"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={filter === value ? "active" : ""}
+                onClick={() => setFilter(value as typeof filter)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="wins2-control-row">
+            <label>
+              <span>Search</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search item, shop, status, settlement..."
+              />
+            </label>
+
+            <label>
+              <span>Sort</span>
+              <select
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+              >
+                <option value="NEWEST">Newest first</option>
+                <option value="AMOUNT_HIGH">Highest amount</option>
+                <option value="PENDING_FIRST">Pending payment first</option>
+                <option value="PAID_FIRST">Paid first</option>
+              </select>
+            </label>
+          </div>
+
+          <button
+            type="button"
+            className="wins2-clear-controls"
+            onClick={clearWinControls}
+            disabled={!hasActiveWinControls || loading || refreshing || Boolean(activePayment)}
+          >
+            Clear filters
+          </button>
+
+          <div className="wins2-control-summary">
+            Showing {filteredWins.length} of {wins.length} win records
+          </div>
+        </section>
+
 
       <section className="wins2-discovery-strip">
         <Link to="/buyer/dashboard">
