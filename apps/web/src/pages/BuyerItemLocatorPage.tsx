@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getMarketplaceItemsPaged, type Item } from "../services/items";
+import { addToWatchlist } from "../services/watchlist";
 import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import "../styles/buyer-item-locator.css";
 
@@ -88,11 +89,15 @@ function LocatorResultCard({
   userPoint,
   selected,
   onSelect,
+  onWatchItem,
+  watchingItemId,
 }: {
   item: Item;
   userPoint: GeoPoint | null;
   selected: boolean;
   onSelect: () => void;
+  onWatchItem: (item: Item) => void;
+  watchingItemId: string | null;
 }) {
   const image = itemImage(item);
 
@@ -140,9 +145,14 @@ function LocatorResultCard({
             Directions
           </a>
         ) : null}
-        <Link to="/watchlist" className="locator-secondary-small">
-          Watch
-        </Link>
+        <button
+          type="button"
+          className="locator-secondary-small"
+          onClick={() => onWatchItem(item)}
+          disabled={watchingItemId === item.id}
+        >
+          {watchingItemId === item.id ? "Saving..." : "Watch"}
+        </button>
       </div>
     </article>
   );
@@ -216,6 +226,8 @@ export default function BuyerItemLocatorPage() {
   const [radius, setRadius] = useState(initialRadius);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [watchingItemId, setWatchingItemId] = useState<string | null>(null);
 
   const radiusMiles = Number(radius) || 25;
 
@@ -347,6 +359,23 @@ export default function BuyerItemLocatorPage() {
     };
   }, [appliedQuery]);
 
+  async function handleWatchItem(item: Item) {
+    if (!item.id || watchingItemId) return;
+
+    try {
+      setWatchingItemId(item.id);
+      setError(null);
+      setNotice(null);
+
+      await addToWatchlist(item.id);
+      setNotice(`Added ${normalizeLabel(item.title, "item")} to your watchlist.`);
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Failed to add item to watchlist.");
+    } finally {
+      setWatchingItemId(null);
+    }
+  }
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -440,6 +469,7 @@ export default function BuyerItemLocatorPage() {
           </form>
 
           {locationMessage ? <div className="locator-message">{locationMessage}</div> : null}
+          {notice ? <div className="locator-message">{notice}</div> : null}
         </div>
 
         <aside className="locator-hero-panel">
@@ -529,6 +559,8 @@ export default function BuyerItemLocatorPage() {
                   userPoint={userPoint}
                   selected={selectedItemId === item.id}
                   onSelect={() => setSelectedItemId(item.id)}
+                  onWatchItem={handleWatchItem}
+                  watchingItemId={watchingItemId}
                 />
               ))}
             </div>

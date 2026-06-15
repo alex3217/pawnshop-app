@@ -1181,3 +1181,17 @@
   box-shadow: 0 22px 54px rgba(59, 130, 246, 0.42) !important;
 }
 /* END final Buyer Item Locator query-param discovery card highlights. */
+
+/* FINAL override: Item Locator real watch action button. */
+.item-locator-page button.locator-secondary-small {
+  border: 0 !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+}
+
+.item-locator-page button.locator-secondary-small:disabled {
+  opacity: 0.68 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+/* END final Item Locator real watch action button. */
