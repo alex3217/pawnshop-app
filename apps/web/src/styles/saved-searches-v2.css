@@ -345,3 +345,197 @@
   color: #334155 !important;
   -webkit-text-fill-color: #334155 !important;
 }
+
+/* Saved Searches controls polish: filters, summary, CTA, and refresh button. */
+.saved2-filter-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 0.8fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+}
+
+.saved2-filter-row label {
+  display: grid;
+  gap: 7px;
+  color: #334155;
+  font-weight: 900;
+}
+
+.saved2-filter-row label span {
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.saved2-filter-row input,
+.saved2-filter-row select {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: #ffffff;
+  color: #0f172a;
+  padding: 12px 14px;
+  font-weight: 800;
+}
+
+.saved2-filter-row button,
+.saved2-hero-actions button {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.saved2-filter-row button:disabled,
+.saved2-hero-actions button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.saved2-control-summary {
+  margin-top: 12px;
+  color: #334155;
+  font-weight: 850;
+}
+
+.saved2-hero-actions a:first-child,
+.saved2-hero-actions a:nth-of-type(2),
+.saved2-hero-actions button {
+  background: linear-gradient(135deg, #4f46e5, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(191, 219, 254, 0.35) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.30) !important;
+  font-weight: 900 !important;
+}
+
+.saved2-hero-actions a:nth-of-type(2) {
+  background: linear-gradient(135deg, #0f172a, #334155) !important;
+}
+
+:root[data-theme="dark"] .saved2-control-summary,
+.dark .saved2-control-summary,
+:root[data-theme="dark"] .saved2-filter-row label,
+.dark .saved2-filter-row label,
+:root[data-theme="dark"] .saved2-filter-row label span,
+.dark .saved2-filter-row label span {
+  color: #dbeafe !important;
+}
+
+:root[data-theme="dark"] .saved2-filter-row input,
+:root[data-theme="dark"] .saved2-filter-row select,
+.dark .saved2-filter-row input,
+.dark .saved2-filter-row select {
+  background: rgba(15, 23, 42, 0.92) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.45) !important;
+}
+
+@media (max-width: 760px) {
+  .saved2-filter-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Highlight Saved Searches "Item locator" actions. */
+.saved2-hero-actions a:nth-of-type(2) {
+  background: linear-gradient(135deg, #0f172a, #334155) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(203, 213, 225, 0.45) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.34) !important;
+  font-weight: 900 !important;
+}
+
+.saved2-discovery-strip a:nth-child(3) {
+  background: linear-gradient(135deg, #eef2ff, #dbeafe) !important;
+  border-color: rgba(79, 70, 229, 0.28) !important;
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.14) !important;
+}
+
+:root[data-theme="dark"] .saved2-hero-actions a:nth-of-type(2),
+.dark .saved2-hero-actions a:nth-of-type(2) {
+  background: linear-gradient(135deg, #1e293b, #475569) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(203, 213, 225, 0.5) !important;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.5) !important;
+}
+
+:root[data-theme="dark"] .saved2-discovery-strip a:nth-child(3),
+.dark .saved2-discovery-strip a:nth-child(3) {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(51, 65, 85, 0.95)) !important;
+  border-color: rgba(203, 213, 225, 0.34) !important;
+}
+
+/* FINAL override: make Saved Searches Item Locator clearly highlighted. */
+.saved2-page .saved2-hero-actions a[href="/buyer/item-locator"],
+.saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"] {
+  background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(221, 214, 254, 0.65) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 18px 44px rgba(124, 58, 237, 0.42) !important;
+  font-weight: 950 !important;
+}
+
+.saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"] span {
+  color: #eef2ff !important;
+  -webkit-text-fill-color: #eef2ff !important;
+}
+
+:root[data-theme="dark"] .saved2-page .saved2-hero-actions a[href="/buyer/item-locator"],
+:root[data-theme="dark"] .saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"],
+.dark .saved2-page .saved2-hero-actions a[href="/buyer/item-locator"],
+.dark .saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"] {
+  background: linear-gradient(135deg, #8b5cf6, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(221, 214, 254, 0.7) !important;
+  box-shadow: 0 22px 54px rgba(59, 130, 246, 0.48) !important;
+}
+
+/* FINAL override: highlight all Saved Searches discovery action cards. */
+.saved2-page .saved2-discovery-strip a[href="/buyer/dashboard"],
+.saved2-page .saved2-discovery-strip a[href="/marketplace"],
+.saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"],
+.saved2-page .saved2-discovery-strip a[href="/watchlist"] {
+  background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(221, 214, 254, 0.65) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 18px 44px rgba(124, 58, 237, 0.42) !important;
+  font-weight: 950 !important;
+}
+
+.saved2-page .saved2-discovery-strip a[href="/buyer/dashboard"] span,
+.saved2-page .saved2-discovery-strip a[href="/marketplace"] span,
+.saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"] span,
+.saved2-page .saved2-discovery-strip a[href="/watchlist"] span {
+  color: #eef2ff !important;
+  -webkit-text-fill-color: #eef2ff !important;
+}
+
+:root[data-theme="dark"] .saved2-page .saved2-discovery-strip a[href="/buyer/dashboard"],
+:root[data-theme="dark"] .saved2-page .saved2-discovery-strip a[href="/marketplace"],
+:root[data-theme="dark"] .saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"],
+:root[data-theme="dark"] .saved2-page .saved2-discovery-strip a[href="/watchlist"],
+.dark .saved2-page .saved2-discovery-strip a[href="/buyer/dashboard"],
+.dark .saved2-page .saved2-discovery-strip a[href="/marketplace"],
+.dark .saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"],
+.dark .saved2-page .saved2-discovery-strip a[href="/watchlist"] {
+  background: linear-gradient(135deg, #8b5cf6, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(221, 214, 254, 0.7) !important;
+  box-shadow: 0 22px 54px rgba(59, 130, 246, 0.48) !important;
+}
+/* END final Saved Searches discovery action card highlights. */
