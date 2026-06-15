@@ -1168,3 +1168,73 @@
   -webkit-text-fill-color: #0f172a !important;
   border-color: #64748b !important;
 }
+
+/* FINAL override: Marketplace empty-state readability and clear filters button. */
+.marketplace-v2 .mp2-empty {
+  color: #0f172a !important;
+}
+
+.marketplace-v2 .mp2-empty h2 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 950 !important;
+}
+
+.marketplace-v2 .mp2-empty p {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+  font-weight: 750 !important;
+}
+
+.marketplace-v2 .mp2-empty button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 150px !important;
+  min-height: 48px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  padding: 12px 18px !important;
+  background: linear-gradient(135deg, #0f172a, #1e293b) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-weight: 950 !important;
+  cursor: pointer !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.22) !important;
+}
+
+.marketplace-v2 .mp2-empty button::before {
+  content: "Clear filters";
+}
+
+.marketplace-v2 .mp2-empty button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-empty,
+.dark .marketplace-v2 .mp2-empty {
+  background: rgba(15, 23, 42, 0.94) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-empty h2,
+.dark .marketplace-v2 .mp2-empty h2 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-empty p,
+.dark .marketplace-v2 .mp2-empty p {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+:root[data-theme="dark"] .marketplace-v2 .mp2-empty button,
+.dark .marketplace-v2 .mp2-empty button {
+  background: linear-gradient(135deg, #8b5cf6, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+/* END final Marketplace empty-state readability and clear filters button. */
