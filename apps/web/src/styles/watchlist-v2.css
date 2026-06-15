@@ -465,3 +465,141 @@
   color: #334155 !important;
   -webkit-text-fill-color: #334155 !important;
 }
+
+/* Watchlist controls polish: summary, primary CTA, and compact checkboxes. */
+.watch2-control-summary {
+  margin-top: 12px;
+  color: #334155;
+  font-weight: 850;
+}
+
+.watch2-hero-actions a:first-child {
+  background: linear-gradient(135deg, #4f46e5, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(191, 219, 254, 0.35) !important;
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.30) !important;
+}
+
+.watch2-select-row input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  accent-color: #4f46e5;
+}
+
+:root[data-theme="dark"] .watch2-control-summary,
+.dark .watch2-control-summary {
+  color: #dbeafe;
+}
+
+:root[data-theme="dark"] .watch2-hero-actions a:first-child,
+.dark .watch2-hero-actions a:first-child {
+  background: linear-gradient(135deg, #6366f1, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(191, 219, 254, 0.45) !important;
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.36) !important;
+}
+
+/* Watchlist visual fixes: summary, CTA, refresh button, and compact checkboxes. */
+.watch2-control-summary {
+  margin-top: 12px;
+  color: #334155;
+  font-weight: 850;
+}
+
+.watch2-hero-actions a:first-child,
+.watch2-hero-actions button {
+  background: linear-gradient(135deg, #4f46e5, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(191, 219, 254, 0.35) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 34px rgba(79, 70, 229, 0.30) !important;
+  font-weight: 900 !important;
+}
+
+.watch2-hero-actions button:disabled {
+  opacity: 0.68 !important;
+  cursor: not-allowed !important;
+}
+
+.watch2-select-row input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  accent-color: #4f46e5;
+}
+
+:root[data-theme="dark"] .watch2-control-summary,
+.dark .watch2-control-summary {
+  color: #dbeafe;
+}
+
+:root[data-theme="dark"] .watch2-hero-actions a:first-child,
+:root[data-theme="dark"] .watch2-hero-actions button,
+.dark .watch2-hero-actions a:first-child,
+.dark .watch2-hero-actions button {
+  background: linear-gradient(135deg, #6366f1, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(191, 219, 254, 0.45) !important;
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.36) !important;
+}
+
+/* Highlight Watchlist "Find an item" hero action. */
+.watch2-hero-actions a:nth-of-type(2) {
+  background: linear-gradient(135deg, #0f172a, #334155) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(203, 213, 225, 0.45) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.34) !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .watch2-hero-actions a:nth-of-type(2),
+.dark .watch2-hero-actions a:nth-of-type(2) {
+  background: linear-gradient(135deg, #1e293b, #475569) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(203, 213, 225, 0.5) !important;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.5) !important;
+}
+
+/* Highlight Watchlist "Find an item" hero action. */
+.watch2-hero-actions a:nth-of-type(2) {
+  background: linear-gradient(135deg, #0f172a, #334155) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(203, 213, 225, 0.45) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.34) !important;
+  font-weight: 900 !important;
+}
+
+:root[data-theme="dark"] .watch2-hero-actions a:nth-of-type(2),
+.dark .watch2-hero-actions a:nth-of-type(2) {
+  background: linear-gradient(135deg, #1e293b, #475569) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(203, 213, 225, 0.5) !important;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.5) !important;
+}
