@@ -36,6 +36,14 @@ function formatPrice(value: string | number | null | undefined) {
   }).format(amount);
 }
 
+function formatTrackedValue(value: string | number | null | undefined) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(toPriceNumber(value));
+}
+
 function itemImage(entry: WatchlistEntry) {
   const images = entry.item?.images;
   return Array.isArray(images) && images.length ? images[0] : "";
@@ -319,6 +327,15 @@ export default function WatchlistPage() {
   const allVisibleSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
 
+  const hasActiveWatchlistControls =
+    query.trim().length > 0 || statusFilter !== "ALL" || sortKey !== "NEWEST";
+
+  function clearWatchlistControls() {
+    setQuery("");
+    setStatusFilter("ALL");
+    setSortKey("NEWEST");
+  }
+
   function toggleAllVisible() {
     setSelectedIds((current) => {
       const currentSet = new Set(current);
@@ -436,7 +453,7 @@ export default function WatchlistPage() {
           </div>
           <div>
             <span>Value</span>
-            <strong>{formatPrice(stats.totalValue)}</strong>
+            <strong>{formatTrackedValue(stats.totalValue)}</strong>
             <small>tracked price total</small>
           </div>
         </aside>
@@ -456,73 +473,84 @@ export default function WatchlistPage() {
           My offers <span>Review offer activity</span>
         </Link>
       </section>
+        <section className="watch2-control-panel">
+          <div className="watch2-control-head">
+            <div>
+              <span>Controls</span>
+              <h2>Search, filter, sort, and bulk manage watchlist</h2>
+              <p>
+                Use this page to remove old saved items, check item/shop details,
+                make offers, find similar inventory, and look for auction activity.
+              </p>
+            </div>
 
-      <section className="watch2-control-panel">
-        <div className="watch2-control-head">
-          <div>
-            <span>Controls</span>
-            <h2>Search, filter, sort, and bulk manage watchlist</h2>
-            <p>
-              Use this page to remove old saved items, check item/shop details,
-              make offers, find similar inventory, and look for auction activity.
-            </p>
+            <div className="watch2-control-actions">
+              <button type="button" onClick={toggleAllVisible} disabled={!visibleIds.length}>
+                {allVisibleSelected ? "Unselect visible" : "Select visible"}
+              </button>
+              <button
+                type="button"
+                onClick={clearWatchlistControls}
+                disabled={!hasActiveWatchlistControls}
+              >
+                Clear filters
+              </button>
+              <button type="button" onClick={() => setSelectedIds([])} disabled={!selectedIds.length}>
+                Clear selection
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={() => void handleBulkRemove()}
+                disabled={!selectedIds.length || bulkRemoving}
+              >
+                {bulkRemoving ? "Removing..." : `Bulk remove (${selectedIds.length})`}
+              </button>
+            </div>
           </div>
 
-          <div className="watch2-control-actions">
-            <button type="button" onClick={toggleAllVisible} disabled={!visibleIds.length}>
-              {allVisibleSelected ? "Unselect visible" : "Select visible"}
-            </button>
-            <button type="button" onClick={() => setSelectedIds([])} disabled={!selectedIds.length}>
-              Clear selection
-            </button>
-            <button
-              type="button"
-              className="danger"
-              onClick={() => void handleBulkRemove()}
-              disabled={!selectedIds.length || bulkRemoving}
-            >
-              {bulkRemoving ? "Removing..." : `Bulk remove (${selectedIds.length})`}
-            </button>
+          <div className="watch2-filter-row">
+            <label>
+              Search watchlist
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search title, shop, category, status..."
+              />
+            </label>
+
+            <label>
+              Status
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+              >
+                <option value="ALL">All statuses</option>
+                <option value="AVAILABLE">Available only</option>
+                <option value="UNAVAILABLE">Unavailable / sold</option>
+              </select>
+            </label>
+
+            <label>
+              Sort
+              <select
+                value={sortKey}
+                onChange={(event) => setSortKey(event.target.value as SortKey)}
+              >
+                <option value="NEWEST">Newest saved</option>
+                <option value="PRICE_HIGH">Price high to low</option>
+                <option value="PRICE_LOW">Price low to high</option>
+                <option value="TITLE">Title A-Z</option>
+                <option value="SHOP">Shop A-Z</option>
+              </select>
+            </label>
           </div>
-        </div>
 
-        <div className="watch2-filter-row">
-          <label>
-            Search watchlist
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search title, shop, category, status..."
-            />
-          </label>
+          <div className="watch2-control-summary">
+            Showing {filteredEntries.length} of {entries.length} saved items · {selectedIds.length} selected
+          </div>
+        </section>
 
-          <label>
-            Status
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-            >
-              <option value="ALL">All statuses</option>
-              <option value="AVAILABLE">Available only</option>
-              <option value="UNAVAILABLE">Unavailable / sold</option>
-            </select>
-          </label>
-
-          <label>
-            Sort
-            <select
-              value={sortKey}
-              onChange={(event) => setSortKey(event.target.value as SortKey)}
-            >
-              <option value="NEWEST">Newest saved</option>
-              <option value="PRICE_HIGH">Price high to low</option>
-              <option value="PRICE_LOW">Price low to high</option>
-              <option value="TITLE">Title A-Z</option>
-              <option value="SHOP">Shop A-Z</option>
-            </select>
-          </label>
-        </div>
-      </section>
 
       {notice ? <section className="watch2-notice">{notice}</section> : null}
 
