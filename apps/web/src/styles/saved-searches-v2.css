@@ -501,3 +501,41 @@
   border-color: rgba(221, 214, 254, 0.7) !important;
   box-shadow: 0 22px 54px rgba(59, 130, 246, 0.48) !important;
 }
+
+/* FINAL override: highlight all Saved Searches discovery action cards. */
+.saved2-page .saved2-discovery-strip a[href="/buyer/dashboard"],
+.saved2-page .saved2-discovery-strip a[href="/marketplace"],
+.saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"],
+.saved2-page .saved2-discovery-strip a[href="/watchlist"] {
+  background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(221, 214, 254, 0.65) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 18px 44px rgba(124, 58, 237, 0.42) !important;
+  font-weight: 950 !important;
+}
+
+.saved2-page .saved2-discovery-strip a[href="/buyer/dashboard"] span,
+.saved2-page .saved2-discovery-strip a[href="/marketplace"] span,
+.saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"] span,
+.saved2-page .saved2-discovery-strip a[href="/watchlist"] span {
+  color: #eef2ff !important;
+  -webkit-text-fill-color: #eef2ff !important;
+}
+
+:root[data-theme="dark"] .saved2-page .saved2-discovery-strip a[href="/buyer/dashboard"],
+:root[data-theme="dark"] .saved2-page .saved2-discovery-strip a[href="/marketplace"],
+:root[data-theme="dark"] .saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"],
+:root[data-theme="dark"] .saved2-page .saved2-discovery-strip a[href="/watchlist"],
+.dark .saved2-page .saved2-discovery-strip a[href="/buyer/dashboard"],
+.dark .saved2-page .saved2-discovery-strip a[href="/marketplace"],
+.dark .saved2-page .saved2-discovery-strip a[href="/buyer/item-locator"],
+.dark .saved2-page .saved2-discovery-strip a[href="/watchlist"] {
+  background: linear-gradient(135deg, #8b5cf6, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(221, 214, 254, 0.7) !important;
+  box-shadow: 0 22px 54px rgba(59, 130, 246, 0.48) !important;
+}
+/* END final Saved Searches discovery action card highlights. */
