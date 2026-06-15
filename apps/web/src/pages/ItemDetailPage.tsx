@@ -300,15 +300,15 @@ export default function ItemDetailPage() {
           {locationMessage ? <div className="item-detail-notice">{locationMessage}</div> : null}
 
           <div className="item-detail-actions">
-            <button type="button" onClick={handleSaveItem} disabled={savingWatchlist}>
+            <button type="button" onClick={handleSaveItem} disabled={savingWatchlist} className="item-detail-action-force-label item-detail-primary-action item-detail-watch-action item-detail-big-button" data-label="Watch item" aria-label="Watch item" title="Watch item">
               {savingWatchlist ? "Saving..." : "Watch item"}
             </button>
 
-            <Link to={shopHrefFor(item)}>View shop</Link>
-            <button type="button" onClick={handleUseLocation}>
+            <Link to={shopHrefFor(item)} className="item-detail-action-force-label item-detail-secondary-action item-detail-shop-action item-detail-big-button" data-label="View shop" aria-label="View shop" title="View shop">View shop</Link>
+            <button type="button" onClick={handleUseLocation} className="item-detail-action-force-label item-detail-big-button item-detail-location-action" data-label="Use my location" aria-label="Use my location" title="Use my location">
               Use my location
             </button>
-            <Link to="/buyer/item-locator">Find similar</Link>
+            <Link to="/buyer/item-locator" className="item-detail-action-force-label item-detail-primary-action item-detail-offer-action item-detail-secondary-action item-detail-similar-action item-detail-big-button" data-label="Make offer" aria-label="Make offer" title="Make offer">Find similar</Link>
           </div>
         </div>
       </section>

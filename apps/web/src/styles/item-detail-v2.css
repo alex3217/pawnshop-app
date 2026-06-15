@@ -533,3 +533,363 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* FINAL override: Item Detail forced visible buyer action labels. */
+.item-detail-action-force-label,
+.item-detail-action-force-label * {
+  opacity: 1 !important;
+  visibility: visible !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+.item-detail-action-force-label {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 48px !important;
+  min-width: 168px !important;
+  padding: 0 22px !important;
+  border-radius: 16px !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+}
+
+.item-detail-action-force-label::before {
+  content: attr(data-label) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1rem !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.01em !important;
+}
+
+:root:not([data-theme="dark"]) .item-detail-primary-action,
+body:not(.dark) .item-detail-primary-action {
+  background: #0f172a !important;
+  border: 1px solid #0f172a !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18) !important;
+}
+
+:root:not([data-theme="dark"]) .item-detail-primary-action::before,
+body:not(.dark) .item-detail-primary-action::before {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .item-detail-secondary-action,
+body:not(.dark) .item-detail-secondary-action {
+  background: #f1f5f9 !important;
+  border: 1px solid rgba(148, 163, 184, 0.42) !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  box-shadow: none !important;
+}
+
+:root:not([data-theme="dark"]) .item-detail-secondary-action::before,
+body:not(.dark) .item-detail-secondary-action::before {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+/* Fallback: any dark Item Detail button must show readable text. */
+:root:not([data-theme="dark"]) [class*="item-detail"] button,
+:root:not([data-theme="dark"]) [class*="item-detail"] button *,
+body:not(.dark) [class*="item-detail"] button,
+body:not(.dark) [class*="item-detail"] button * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .item-detail-primary-action,
+.dark .item-detail-primary-action {
+  background: #4f46e5 !important;
+  border-color: #818cf8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .item-detail-primary-action::before,
+.dark .item-detail-primary-action::before {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .item-detail-secondary-action,
+.dark .item-detail-secondary-action {
+  background: #1e293b !important;
+  border-color: rgba(148, 163, 184, 0.48) !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+:root[data-theme="dark"] .item-detail-secondary-action::before,
+.dark .item-detail-secondary-action::before {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+/* END final Item Detail forced visible buyer action labels. */
+
+/* FINAL override: Item Detail action buttons with visible backgrounds. */
+.item-detail-big-button,
+.item-detail-big-button * {
+  opacity: 1 !important;
+  visibility: visible !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+.item-detail-big-button {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 52px !important;
+  min-width: 172px !important;
+  padding: 0 22px !important;
+  border-radius: 16px !important;
+  border: 1px solid transparent !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.20) !important;
+}
+
+.item-detail-big-button::before {
+  content: attr(data-label) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1rem !important;
+  line-height: 1.05 !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.01em !important;
+  text-align: center !important;
+}
+
+/* Primary buyer actions */
+.item-detail-watch-action,
+.item-detail-offer-action {
+  background: linear-gradient(135deg, #4f46e5, #2563eb) !important;
+  border-color: rgba(129, 140, 248, 0.72) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Shop action */
+.item-detail-shop-action {
+  background: linear-gradient(135deg, #0f172a, #1e293b) !important;
+  border-color: rgba(148, 163, 184, 0.56) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Location action */
+.item-detail-location-action {
+  background: linear-gradient(135deg, #059669, #0d9488) !important;
+  border-color: rgba(45, 212, 191, 0.55) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Similar/search action */
+.item-detail-similar-action {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
+  border-color: rgba(196, 181, 253, 0.62) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.item-detail-watch-action::before,
+.item-detail-offer-action::before,
+.item-detail-shop-action::before,
+.item-detail-location-action::before,
+.item-detail-similar-action::before {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Force any text inside the action row to stay readable. */
+:root:not([data-theme="dark"]) .item-detail-big-button,
+:root:not([data-theme="dark"]) .item-detail-big-button *,
+body:not(.dark) .item-detail-big-button,
+body:not(.dark) .item-detail-big-button *,
+:root[data-theme="dark"] .item-detail-big-button,
+:root[data-theme="dark"] .item-detail-big-button *,
+.dark .item-detail-big-button,
+.dark .item-detail-big-button * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Make the action layout wrap cleanly and avoid floating text buttons. */
+.item2-actions,
+.item-detail-actions,
+[class*="action-row"],
+[class*="actions"] {
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+@media (max-width: 760px) {
+  .item-detail-big-button {
+    width: 100% !important;
+    min-width: 100% !important;
+  }
+}
+/* END final Item Detail action buttons with visible backgrounds. */
+
+/* FINAL override: Item Detail equal action button grid. */
+.item2-actions,
+.item-detail-actions,
+.item-detail-action-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-top: 18px !important;
+}
+
+.item2-actions > a,
+.item2-actions > button,
+.item2-actions > .item-detail-big-button,
+.item-detail-actions > a,
+.item-detail-actions > button,
+.item-detail-actions > .item-detail-big-button,
+.item-detail-action-grid > a,
+.item-detail-action-grid > button,
+.item-detail-action-grid > .item-detail-big-button {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  min-height: 54px !important;
+  height: 54px !important;
+  padding: 0 18px !important;
+  border-radius: 16px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+  text-decoration: none !important;
+  white-space: normal !important;
+  overflow: hidden !important;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16) !important;
+  border: 1px solid transparent !important;
+}
+
+.item2-actions > a::before,
+.item2-actions > button::before,
+.item-detail-actions > a::before,
+.item-detail-actions > button::before,
+.item-detail-action-grid > a::before,
+.item-detail-action-grid > button::before {
+  content: attr(data-label) !important;
+  font-size: 1rem !important;
+  line-height: 1.05 !important;
+  font-weight: 950 !important;
+  letter-spacing: -0.01em !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* If a button does not have data-label yet, keep its real text visible. */
+.item2-actions > a:not([data-label]),
+.item2-actions > button:not([data-label]),
+.item-detail-actions > a:not([data-label]),
+.item-detail-actions > button:not([data-label]),
+.item-detail-action-grid > a:not([data-label]),
+.item-detail-action-grid > button:not([data-label]) {
+  font-size: 1rem !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Force every Item Detail action to have a real background. */
+.item2-actions > :nth-child(1),
+.item-detail-actions > :nth-child(1),
+.item-detail-action-grid > :nth-child(1),
+.item-detail-watch-action {
+  background: linear-gradient(135deg, #4f46e5, #2563eb) !important;
+  border-color: rgba(129, 140, 248, 0.72) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.item2-actions > :nth-child(2),
+.item-detail-actions > :nth-child(2),
+.item-detail-action-grid > :nth-child(2),
+.item-detail-shop-action {
+  background: linear-gradient(135deg, #0f172a, #334155) !important;
+  border-color: rgba(148, 163, 184, 0.56) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.item2-actions > :nth-child(3),
+.item-detail-actions > :nth-child(3),
+.item-detail-action-grid > :nth-child(3),
+.item-detail-location-action {
+  background: linear-gradient(135deg, #059669, #0d9488) !important;
+  border-color: rgba(45, 212, 191, 0.55) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.item2-actions > :nth-child(4),
+.item-detail-actions > :nth-child(4),
+.item-detail-action-grid > :nth-child(4),
+.item-detail-offer-action {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
+  border-color: rgba(196, 181, 253, 0.62) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.item2-actions > :nth-child(5),
+.item-detail-actions > :nth-child(5),
+.item-detail-action-grid > :nth-child(5),
+.item-detail-similar-action {
+  background: linear-gradient(135deg, #ea580c, #db2777) !important;
+  border-color: rgba(251, 146, 60, 0.60) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Keep all nested text readable. */
+.item2-actions > * *,
+.item-detail-actions > * *,
+.item-detail-action-grid > * *,
+.item-detail-big-button *,
+.item-detail-big-button::before {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Prevent Use my location from overflowing the card. */
+.item-detail-location-action {
+  max-width: 100% !important;
+  white-space: normal !important;
+}
+
+@media (max-width: 760px) {
+  .item2-actions,
+  .item-detail-actions,
+  .item-detail-action-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+/* END final Item Detail equal action button grid. */
