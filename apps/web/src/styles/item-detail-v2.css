@@ -893,3 +893,44 @@ body:not(.dark) .item-detail-big-button *,
   }
 }
 /* END final Item Detail equal action button grid. */
+
+/* FINAL HARD FIX: Browse shops must be visible. */
+.item-detail-v2 a[href="/shops"],
+.item-detail-v2 a[href="/shops/"],
+.item-detail-v2 .item-detail-shop-actions a[href="/shops"],
+.item-detail-v2 .item-detail-shop-actions a[href="/shops/"],
+.item-detail-v2 .item-detail-next-grid a[href="/shops"],
+.item-detail-v2 .item-detail-next-grid a[href="/shops/"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-height: 54px !important;
+  padding: 0 18px !important;
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
+  border: 1px solid rgba(129, 140, 248, 0.78) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 1rem !important;
+  line-height: 1.05 !important;
+  font-weight: 950 !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.24) !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+.item-detail-v2 a[href="/shops"] *,
+.item-detail-v2 a[href="/shops/"] *,
+.item-detail-v2 .item-detail-shop-actions a[href="/shops"] *,
+.item-detail-v2 .item-detail-shop-actions a[href="/shops/"] *,
+.item-detail-v2 .item-detail-next-grid a[href="/shops"] *,
+.item-detail-v2 .item-detail-next-grid a[href="/shops/"] * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+/* END final hard Browse shops visibility fix. */
