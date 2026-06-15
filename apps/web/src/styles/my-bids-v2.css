@@ -827,3 +827,100 @@
   box-shadow: 0 12px 26px rgba(79, 70, 229, 0.24) !important;
 }
 
+/* FINAL override: My Bids light-mode readability. */
+:root:not([data-theme="dark"]) .mybids2-page,
+body:not(.dark) .mybids2-page {
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.10), transparent 30rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-hero,
+:root:not([data-theme="dark"]) .mybids2-control-panel,
+:root:not([data-theme="dark"]) .mybids2-empty,
+:root:not([data-theme="dark"]) .mybids2-error,
+:root:not([data-theme="dark"]) .mybids2-card,
+body:not(.dark) .mybids2-hero,
+body:not(.dark) .mybids2-control-panel,
+body:not(.dark) .mybids2-empty,
+body:not(.dark) .mybids2-error,
+body:not(.dark) .mybids2-card {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.30) !important;
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.08) !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-page h1,
+:root:not([data-theme="dark"]) .mybids2-page h2,
+:root:not([data-theme="dark"]) .mybids2-page h3,
+:root:not([data-theme="dark"]) .mybids2-page strong,
+:root:not([data-theme="dark"]) .mybids2-title,
+body:not(.dark) .mybids2-page h1,
+body:not(.dark) .mybids2-page h2,
+body:not(.dark) .mybids2-page h3,
+body:not(.dark) .mybids2-page strong,
+body:not(.dark) .mybids2-title {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-page p,
+:root:not([data-theme="dark"]) .mybids2-page span,
+:root:not([data-theme="dark"]) .mybids2-page small,
+:root:not([data-theme="dark"]) .mybids2-page label,
+body:not(.dark) .mybids2-page p,
+body:not(.dark) .mybids2-page span,
+body:not(.dark) .mybids2-page small,
+body:not(.dark) .mybids2-page label {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-empty h2,
+:root:not([data-theme="dark"]) .mybids2-error h2,
+body:not(.dark) .mybids2-empty h2,
+body:not(.dark) .mybids2-error h2 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 950 !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-empty p,
+:root:not([data-theme="dark"]) .mybids2-error p,
+body:not(.dark) .mybids2-empty p,
+body:not(.dark) .mybids2-error p {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  font-weight: 750 !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-page input,
+:root:not([data-theme="dark"]) .mybids2-page select,
+body:not(.dark) .mybids2-page input,
+body:not(.dark) .mybids2-page select {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.50) !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-discovery-strip a,
+:root:not([data-theme="dark"]) .mybids2-empty a,
+:root:not([data-theme="dark"]) .mybids2-primary-small,
+body:not(.dark) .mybids2-discovery-strip a,
+body:not(.dark) .mybids2-empty a,
+body:not(.dark) .mybids2-primary-small {
+  background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(221, 214, 254, 0.70) !important;
+}
+
+:root:not([data-theme="dark"]) .mybids2-discovery-strip a span,
+body:not(.dark) .mybids2-discovery-strip a span {
+  color: #eef2ff !important;
+  -webkit-text-fill-color: #eef2ff !important;
+}
+/* END final My Bids light-mode readability. */
