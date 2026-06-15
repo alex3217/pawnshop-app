@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   addSavedSearch,
   getMySavedSearches,
@@ -21,12 +21,26 @@ function formatSavedDate(value?: string) {
   return date.toLocaleString();
 }
 
-function marketplaceHref(query: string) {
-  return `/marketplace?search=${encodeURIComponent(query)}`;
+function handoffHref(path: string, query: string, radius = "25") {
+  const cleanQuery = normalizeQuery(query);
+
+  if (!cleanQuery) return path;
+
+  const params = new URLSearchParams();
+  params.set("q", cleanQuery);
+  params.set("query", cleanQuery);
+  params.set("search", cleanQuery);
+  params.set("radius", radius);
+
+  return `${path}?${params.toString()}`;
 }
 
-function locatorHref(query: string) {
-  return `/buyer/item-locator?search=${encodeURIComponent(query)}`;
+function marketplaceHref(query: string, radius = "25") {
+  return handoffHref("/marketplace", query, radius);
+}
+
+function locatorHref(query: string, radius = "25") {
+  return handoffHref("/buyer/item-locator", query, radius);
 }
 
 const starterSearches = [
@@ -39,8 +53,17 @@ const starterSearches = [
 ];
 
 export default function SavedSearchesPage() {
+  const [searchParams] = useSearchParams();
+  const initialQuery = normalizeQuery(
+    searchParams.get("q") || searchParams.get("query") || searchParams.get("search"),
+  );
+  const initialRadiusParam = searchParams.get("radius") || "25";
+  const initialRadius = ["10", "25", "50", "100"].includes(initialRadiusParam)
+    ? initialRadiusParam
+    : "25";
+
   const [entries, setEntries] = useState<SavedSearch[]>([]);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,8 +173,8 @@ export default function SavedSearchesPage() {
           </p>
 
           <div className="saved2-hero-actions">
-            <Link to="/marketplace">Browse marketplace</Link>
-            <Link to="/buyer/item-locator">Item locator</Link>
+            <Link to={marketplaceHref(query, initialRadius)}>Browse marketplace</Link>
+            <Link to={locatorHref(query, initialRadius)}>Item locator</Link>
             <button
               type="button"
               onClick={() => void loadSavedSearches({ silent: true })}
@@ -265,7 +288,7 @@ export default function SavedSearchesPage() {
             Save searches for items you want to track, then return here to run
             those searches across marketplace inventory and item locator.
           </p>
-          <Link to="/marketplace">Browse marketplace</Link>
+          <Link to={marketplaceHref(query, initialRadius)}>Browse marketplace</Link>
         </section>
       ) : (
         <section className="saved2-grid">
@@ -282,10 +305,10 @@ export default function SavedSearchesPage() {
                 </div>
 
                 <div className="saved2-card-actions">
-                  <Link to={marketplaceHref(entryQuery)} className="saved2-primary-small">
+                  <Link to={marketplaceHref(entryQuery, initialRadius)} className="saved2-primary-small">
                     Search marketplace
                   </Link>
-                  <Link to={locatorHref(entryQuery)} className="saved2-secondary-small">
+                  <Link to={locatorHref(entryQuery, initialRadius)} className="saved2-secondary-small">
                     Search item locator
                   </Link>
                   <button
