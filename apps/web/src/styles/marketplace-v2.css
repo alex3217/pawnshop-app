@@ -1238,3 +1238,17 @@
   -webkit-text-fill-color: #ffffff !important;
 }
 /* END final Marketplace empty-state readability and clear filters button. */
+
+/* FINAL override: Marketplace real watch action button. */
+.marketplace-v2 button.mp2-secondary-small {
+  border: 0 !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+}
+
+.marketplace-v2 button.mp2-secondary-small:disabled {
+  opacity: 0.68 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+/* END final Marketplace real watch action button. */
