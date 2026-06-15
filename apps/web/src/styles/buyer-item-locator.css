@@ -961,3 +961,196 @@
   color: #e5e7eb !important;
   -webkit-text-fill-color: #e5e7eb !important;
 }
+
+/* FINAL override: Buyer Item Locator control and discovery polish. */
+.item-locator-page {
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 34rem),
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.10), transparent 30rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+}
+
+.locator-search-row {
+  border: 1px solid rgba(191, 219, 254, 0.62) !important;
+  box-shadow: 0 18px 46px rgba(59, 130, 246, 0.18) !important;
+}
+
+.locator-search-row input:focus,
+.locator-search-row select:focus {
+  box-shadow: inset 0 0 0 2px rgba(79, 70, 229, 0.38) !important;
+}
+
+.locator-search-row button,
+.locator-result-card a,
+.locator-result-card button,
+.locator-shop-panel a,
+.locator-shop-panel button,
+.locator-empty a,
+.locator-empty button,
+.locator-error a,
+.locator-error button {
+  min-height: 44px;
+  border-radius: 15px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.locator-search-row button:hover,
+.locator-result-card a:hover,
+.locator-result-card button:hover,
+.locator-shop-panel a:hover,
+.locator-shop-panel button:hover,
+.locator-empty a:hover,
+.locator-empty button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.locator-search-row button:disabled,
+.locator-result-card button:disabled,
+.locator-shop-panel button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.locator-discovery-strip a[href="/buyer/dashboard"],
+.locator-discovery-strip a[href="/marketplace"],
+.locator-discovery-strip a[href="/buyer/sell-item"],
+.locator-discovery-strip a[href="/saved-searches"],
+.locator-discovery-strip a[href="/watchlist"],
+.locator-discovery-strip a[href="/shops"] {
+  background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(221, 214, 254, 0.7) !important;
+  box-shadow: 0 18px 44px rgba(124, 58, 237, 0.34) !important;
+}
+
+.locator-discovery-strip a[href="/buyer/dashboard"] span,
+.locator-discovery-strip a[href="/marketplace"] span,
+.locator-discovery-strip a[href="/buyer/sell-item"] span,
+.locator-discovery-strip a[href="/saved-searches"] span,
+.locator-discovery-strip a[href="/watchlist"] span,
+.locator-discovery-strip a[href="/shops"] span {
+  color: #eef2ff !important;
+  -webkit-text-fill-color: #eef2ff !important;
+}
+
+.locator-result-card.selected {
+  border-color: rgba(124, 58, 237, 0.78) !important;
+  box-shadow: 0 18px 44px rgba(124, 58, 237, 0.18) !important;
+}
+
+.locator-empty,
+.locator-error {
+  padding: 24px !important;
+}
+
+:root[data-theme="dark"] .item-locator-page,
+.dark .item-locator-page {
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.22), transparent 34rem),
+    linear-gradient(180deg, #020617 0%, #0f172a 100%) !important;
+  color: #f8fafc !important;
+}
+
+:root[data-theme="dark"] .locator-results-main,
+:root[data-theme="dark"] .locator-side-panel,
+:root[data-theme="dark"] .locator-map-shell,
+:root[data-theme="dark"] .locator-shop-panel,
+:root[data-theme="dark"] .locator-empty,
+:root[data-theme="dark"] .locator-error,
+:root[data-theme="dark"] .locator-result-card,
+.dark .locator-results-main,
+.dark .locator-side-panel,
+.dark .locator-map-shell,
+.dark .locator-shop-panel,
+.dark .locator-empty,
+.dark .locator-error,
+.dark .locator-result-card {
+  background: rgba(15, 23, 42, 0.94) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+}
+
+:root[data-theme="dark"] .locator-search-row,
+.dark .locator-search-row {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: rgba(147, 197, 253, 0.34) !important;
+}
+
+:root[data-theme="dark"] .locator-search-row input,
+:root[data-theme="dark"] .locator-search-row select,
+.dark .locator-search-row input,
+.dark .locator-search-row select {
+  background: rgba(30, 41, 59, 0.98) !important;
+  color: #f8fafc !important;
+}
+
+:root[data-theme="dark"] .locator-discovery-strip a[href="/buyer/dashboard"],
+:root[data-theme="dark"] .locator-discovery-strip a[href="/marketplace"],
+:root[data-theme="dark"] .locator-discovery-strip a[href="/buyer/sell-item"],
+:root[data-theme="dark"] .locator-discovery-strip a[href="/saved-searches"],
+:root[data-theme="dark"] .locator-discovery-strip a[href="/watchlist"],
+:root[data-theme="dark"] .locator-discovery-strip a[href="/shops"],
+.dark .locator-discovery-strip a[href="/buyer/dashboard"],
+.dark .locator-discovery-strip a[href="/marketplace"],
+.dark .locator-discovery-strip a[href="/buyer/sell-item"],
+.dark .locator-discovery-strip a[href="/saved-searches"],
+.dark .locator-discovery-strip a[href="/watchlist"],
+.dark .locator-discovery-strip a[href="/shops"] {
+  background: linear-gradient(135deg, #8b5cf6, #2563eb) !important;
+  color: #ffffff !important;
+  border-color: rgba(221, 214, 254, 0.72) !important;
+  box-shadow: 0 22px 54px rgba(59, 130, 246, 0.42) !important;
+}
+
+@media (max-width: 980px) {
+  .locator-hero,
+  .locator-results-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .locator-discovery-strip {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .locator-search-row {
+    grid-template-columns: 1fr 150px !important;
+  }
+
+  .locator-search-row button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .item-locator-page {
+    padding: 16px !important;
+  }
+
+  .locator-hero {
+    padding: 20px !important;
+    border-radius: 24px !important;
+  }
+
+  .locator-hero h1 {
+    font-size: clamp(34px, 13vw, 46px) !important;
+  }
+
+  .locator-hero-panel,
+  .locator-discovery-strip,
+  .locator-search-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .locator-results-main,
+  .locator-shop-panel,
+  .locator-empty,
+  .locator-error {
+    padding: 16px !important;
+    border-radius: 22px !important;
+  }
+}
+/* END final Buyer Item Locator control and discovery polish. */
