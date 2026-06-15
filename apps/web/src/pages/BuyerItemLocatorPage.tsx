@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { getMarketplaceItemsPaged, type Item } from "../services/items";
 import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import "../styles/buyer-item-locator.css";
@@ -198,22 +198,49 @@ function LocatorMap({
 }
 
 export default function BuyerItemLocatorPage() {
-  const [query, setQuery] = useState("");
-  const [appliedQuery, setAppliedQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQuery = searchParams.get("q") || searchParams.get("query") || "";
+  const initialRadiusParam = searchParams.get("radius") || "25";
+  const initialRadius = ["10", "25", "50", "100"].includes(initialRadiusParam)
+    ? initialRadiusParam
+    : "25";
+
+  const [query, setQuery] = useState(initialQuery);
+  const [appliedQuery, setAppliedQuery] = useState(initialQuery);
   const [items, setItems] = useState<Item[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState("your area");
   const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
-  const [radius, setRadius] = useState("25");
+  const [radius, setRadius] = useState(initialRadius);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const radiusMiles = Number(radius) || 25;
+
+  function locatorHandoffHref(path: string) {
+    const params = new URLSearchParams();
+    const searchTerm = (appliedQuery || query).trim();
+
+    if (!searchTerm) return path;
+
+    params.set("q", searchTerm);
+    params.set("query", searchTerm);
+    params.set("radius", radius);
+
+    return `${path}?${params.toString()}`;
+  }
+
   const rankedItems = useMemo(() => {
-    const ranked = [...items];
+    let ranked = [...items];
 
     if (userPoint) {
+      ranked = ranked.filter((item) => {
+        const distance = itemDistanceMiles(item, userPoint);
+        return distance === null || distance <= radiusMiles;
+      });
+
       ranked.sort((a, b) => {
         const aDistance = itemDistanceMiles(a, userPoint);
         const bDistance = itemDistanceMiles(b, userPoint);
@@ -227,7 +254,7 @@ export default function BuyerItemLocatorPage() {
     }
 
     return ranked;
-  }, [items, userPoint]);
+  }, [items, radiusMiles, userPoint]);
 
   const groupedByShop = useMemo(() => {
     const map = new Map<string, {
@@ -322,7 +349,35 @@ export default function BuyerItemLocatorPage() {
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setAppliedQuery(query.trim());
+
+    const nextQuery = query.trim();
+    setAppliedQuery(nextQuery);
+    setError(null);
+
+    const nextParams = new URLSearchParams();
+
+    if (nextQuery) {
+      nextParams.set("q", nextQuery);
+      nextParams.set("query", nextQuery);
+    }
+
+    nextParams.set("radius", radius);
+    setSearchParams(nextParams, { replace: false });
+  }
+
+  function handleRadiusChange(nextRadius: string) {
+    setRadius(nextRadius);
+
+    const nextQuery = (appliedQuery || query).trim();
+    const nextParams = new URLSearchParams();
+
+    if (nextQuery) {
+      nextParams.set("q", nextQuery);
+      nextParams.set("query", nextQuery);
+    }
+
+    nextParams.set("radius", nextRadius);
+    setSearchParams(nextParams, { replace: true });
   }
 
   function handleUseLocation() {
@@ -371,14 +426,14 @@ export default function BuyerItemLocatorPage() {
               aria-label="Search item keyword"
             />
 
-            <select value={radius} onChange={(event) => setRadius(event.target.value)}>
+            <select value={radius} onChange={(event) => handleRadiusChange(event.target.value)}>
               <option value="10">10 miles</option>
               <option value="25">25 miles</option>
               <option value="50">50 miles</option>
               <option value="100">100 miles</option>
             </select>
 
-            <button type="submit">Locate item</button>
+            <button type="submit" disabled={!query.trim() || loading}>{loading ? "Locating..." : "Locate item"}</button>
             <button type="button" className="secondary" onClick={handleUseLocation}>
               Use location
             </button>
@@ -415,13 +470,13 @@ export default function BuyerItemLocatorPage() {
         <Link to="/buyer/dashboard">
           Buyer dashboard <span>Return to command center</span>
         </Link>
-        <Link to="/marketplace">
+        <Link to={locatorHandoffHref("/marketplace")}>
           Marketplace <span>Browse all inventory</span>
         </Link>
         <Link to="/shops">
           Pawnshops <span>View local shops</span>
         </Link>
-        <Link to="/saved-searches">
+        <Link to={locatorHandoffHref("/saved-searches")}>
           Saved searches <span>Track this type of item</span>
         </Link>
       </section>
@@ -451,7 +506,7 @@ export default function BuyerItemLocatorPage() {
           <p>
             Try a broader keyword or save this search so you can track when shops add matching inventory.
           </p>
-          <Link to="/saved-searches">Go to saved searches</Link>
+          <Link to={locatorHandoffHref("/saved-searches")}>Go to saved searches</Link>
         </section>
       ) : (
         <section className="locator-results-layout">
