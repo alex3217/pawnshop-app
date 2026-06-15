@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { addSavedSearch } from "../services/savedSearches";
+import { addToWatchlist } from "../services/watchlist";
 import { getMarketplaceItemsPaged, type Item } from "../services/items";
 import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import {
@@ -97,13 +98,18 @@ function ItemCard({
   item,
   userPoint,
   compact = false,
+  onWatchItem,
+  watchingItemId,
 }: {
   item: Item;
   userPoint: GeoPoint | null;
   compact?: boolean;
+  onWatchItem: (item: Item) => void;
+  watchingItemId: string | null;
 }) {
   const image = itemImage(item);
   const shopName = itemShopName(item);
+  const watching = watchingItemId === item.id;
 
   return (
     <article className={compact ? "mp2-item-card mp2-item-card-list" : "mp2-item-card"}>
@@ -149,9 +155,14 @@ function ItemCard({
               Directions
             </a>
           ) : null}
-          <Link to="/watchlist" className="mp2-secondary-small">
-            Watch
-          </Link>
+          <button
+            type="button"
+            className="mp2-secondary-small"
+            onClick={() => onWatchItem(item)}
+            disabled={watching}
+          >
+            {watching ? "Saving..." : "Watch"}
+          </button>
         </div>
       </div>
     </article>
@@ -276,6 +287,7 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [watchingItemId, setWatchingItemId] = useState<string | null>(null);
 
   const distanceMilesFilter = Number(distanceFilter) || 25;
 
@@ -469,6 +481,23 @@ export default function MarketplacePage() {
       setSaveMessage(
         err instanceof Error ? err.message : "Failed to save search.",
       );
+    }
+  }
+
+  async function handleWatchItem(item: Item) {
+    if (!item.id || watchingItemId) return;
+
+    try {
+      setWatchingItemId(item.id);
+      setError("");
+      setSaveMessage("");
+
+      await addToWatchlist(item.id);
+      setSaveMessage(`Added ${normalizeLabel(item.title, "item")} to your watchlist.`);
+    } catch (err) {
+      setSaveMessage(err instanceof Error ? err.message : "Failed to add item to watchlist.");
+    } finally {
+      setWatchingItemId(null);
     }
   }
 
@@ -741,6 +770,8 @@ export default function MarketplacePage() {
               item={item}
               userPoint={userPoint}
               compact={viewMode === "list"}
+              onWatchItem={handleWatchItem}
+              watchingItemId={watchingItemId}
             />
           ))}
         </section>
