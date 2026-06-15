@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { addSavedSearch } from "../services/savedSearches";
 import { getMarketplaceItemsPaged, type Item } from "../services/items";
 import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
@@ -246,16 +246,24 @@ function MarketplaceMap({
 }
 
 export default function MarketplacePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialQuery =
+    searchParams.get("q") || searchParams.get("query") || searchParams.get("search") || "";
+  const initialDistanceParam = searchParams.get("radius") || searchParams.get("distance") || "25";
+  const initialDistance = ["10", "25", "50", "100"].includes(initialDistanceParam)
+    ? initialDistanceParam
+    : "25";
+
   const [items, setItems] = useState<Item[]>([]);
   const [totalItems, setTotalItems] = useState(0);
 
-  const [query, setQuery] = useState("");
-  const [appliedQuery, setAppliedQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+  const [appliedQuery, setAppliedQuery] = useState(initialQuery);
 
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [conditionFilter, setConditionFilter] = useState("ALL");
   const [shopFilter, setShopFilter] = useState("ALL");
-  const [distanceFilter, setDistanceFilter] = useState("25");
+  const [distanceFilter, setDistanceFilter] = useState(initialDistance);
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [sort, setSort] = useState("newest");
@@ -269,6 +277,8 @@ export default function MarketplacePage() {
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
+  const distanceMilesFilter = Number(distanceFilter) || 25;
+
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setAppliedQuery(query);
@@ -276,6 +286,37 @@ export default function MarketplacePage() {
 
     return () => window.clearTimeout(timeout);
   }, [query]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    const searchTerm = appliedQuery.trim();
+
+    if (searchTerm) {
+      params.set("q", searchTerm);
+      params.set("query", searchTerm);
+      params.set("search", searchTerm);
+    }
+
+    if (categoryFilter !== "ALL") params.set("category", categoryFilter);
+    if (conditionFilter !== "ALL") params.set("condition", conditionFilter);
+    if (shopFilter !== "ALL") params.set("shop", shopFilter);
+    if (searchTerm || distanceFilter !== "25") params.set("radius", distanceFilter);
+    if (minPrice.trim()) params.set("minPrice", minPrice.trim());
+    if (maxPrice.trim()) params.set("maxPrice", maxPrice.trim());
+    if (sort !== "newest") params.set("sort", sort);
+
+    setSearchParams(params, { replace: true });
+  }, [
+    appliedQuery,
+    categoryFilter,
+    conditionFilter,
+    distanceFilter,
+    maxPrice,
+    minPrice,
+    setSearchParams,
+    shopFilter,
+    sort,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -347,9 +388,14 @@ export default function MarketplacePage() {
   }, [items]);
 
   const rankedItems = useMemo(() => {
-    const ranked = [...items];
+    let ranked = [...items];
 
     if (userPoint) {
+      ranked = ranked.filter((item) => {
+        const distance = itemDistanceMiles(item, userPoint);
+        return distance === null || distance <= distanceMilesFilter;
+      });
+
       ranked.sort((a, b) => {
         const aDistance = itemDistanceMiles(a, userPoint);
         const bDistance = itemDistanceMiles(b, userPoint);
@@ -363,7 +409,7 @@ export default function MarketplacePage() {
     }
 
     return ranked;
-  }, [items, userPoint]);
+  }, [distanceMilesFilter, items, userPoint]);
 
   const stats = useMemo(() => {
     const totalValue = items.reduce(
