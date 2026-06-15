@@ -1195,3 +1195,65 @@
   transform: none !important;
 }
 /* END final Item Locator real watch action button. */
+
+/* FINAL override: Item Locator forced visible use-location label. */
+.locator-action-force-label {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 48px !important;
+  min-width: 150px !important;
+  padding: 0 20px !important;
+  border-radius: 16px !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.locator-action-force-label::before {
+  content: attr(data-label) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1rem !important;
+  line-height: 1 !important;
+  font-weight: 950 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-use-location-readable,
+body:not(.dark) .locator-use-location-readable,
+:root:not([data-theme="dark"]) .locator-page button.secondary,
+body:not(.dark) .locator-page button.secondary,
+:root:not([data-theme="dark"]) .item-locator-page button.secondary,
+body:not(.dark) .item-locator-page button.secondary {
+  background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid rgba(37, 99, 235, 0.55) !important;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.20) !important;
+  font-weight: 950 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-use-location-readable::before,
+body:not(.dark) .locator-use-location-readable::before {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .locator-use-location-readable,
+.dark .locator-use-location-readable {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #818cf8 !important;
+}
+
+:root[data-theme="dark"] .locator-use-location-readable::before,
+.dark .locator-use-location-readable::before {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+/* END final Item Locator forced visible use-location label. */

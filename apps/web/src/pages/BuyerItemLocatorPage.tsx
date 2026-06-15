@@ -463,7 +463,7 @@ export default function BuyerItemLocatorPage() {
             </select>
 
             <button type="submit" disabled={!query.trim() || loading}>{loading ? "Locating..." : "Locate item"}</button>
-            <button type="button" className="secondary" onClick={handleUseLocation}>
+            <button type="button" className="secondary locator-action-force-label locator-use-location-readable" onClick={handleUseLocation} data-label="Use location" aria-label="Use location" title="Use location">
               Use location
             </button>
           </form>
