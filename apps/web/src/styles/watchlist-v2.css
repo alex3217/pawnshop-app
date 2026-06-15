@@ -1022,3 +1022,151 @@
   box-shadow: 0 22px 54px rgba(59, 130, 246, 0.48) !important;
 }
 /* END final Watchlist Find an item highlighted background. */
+
+/* FINAL override: Watchlist light-mode readable surface fix. */
+:root:not([data-theme="dark"]) .watch2-page,
+body:not(.dark) .watch2-page {
+  background:
+    radial-gradient(circle at top left, rgba(79, 70, 229, 0.10), transparent 30rem),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-hero,
+body:not(.dark) .watch2-hero {
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.14), transparent 28rem),
+    linear-gradient(135deg, #ffffff 0%, #f8fafc 54%, #eef2ff 100%) !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.10) !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-hero h1,
+body:not(.dark) .watch2-hero h1 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-hero-copy p,
+body:not(.dark) .watch2-hero-copy p {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-hero-panel div,
+body:not(.dark) .watch2-hero-panel div {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07) !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-hero-panel span,
+:root:not([data-theme="dark"]) .watch2-hero-panel small,
+body:not(.dark) .watch2-hero-panel span,
+body:not(.dark) .watch2-hero-panel small {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-hero-panel strong,
+body:not(.dark) .watch2-hero-panel strong {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-control-panel,
+body:not(.dark) .watch2-control-panel {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.26) !important;
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.07) !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-control-head span,
+:root:not([data-theme="dark"]) .watch2-control-head h2,
+:root:not([data-theme="dark"]) .watch2-filter-row label,
+:root:not([data-theme="dark"]) .watch2-filter-row label span,
+:root:not([data-theme="dark"]) .watch2-control-summary,
+body:not(.dark) .watch2-control-head span,
+body:not(.dark) .watch2-control-head h2,
+body:not(.dark) .watch2-filter-row label,
+body:not(.dark) .watch2-filter-row label span,
+body:not(.dark) .watch2-control-summary {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-control-head p,
+body:not(.dark) .watch2-control-head p {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-filter-row input,
+:root:not([data-theme="dark"]) .watch2-filter-row select,
+body:not(.dark) .watch2-filter-row input,
+body:not(.dark) .watch2-filter-row select {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.5) !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-filter-row input::placeholder,
+body:not(.dark) .watch2-filter-row input::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-control-actions button,
+body:not(.dark) .watch2-control-actions button {
+  background: #eef2ff !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border: 1px solid rgba(99, 102, 241, 0.25) !important;
+  border-radius: 14px !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-control-actions button:disabled,
+body:not(.dark) .watch2-control-actions button:disabled {
+  opacity: 0.62 !important;
+  cursor: not-allowed !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-empty,
+body:not(.dark) .watch2-empty {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.28) !important;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.10) !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-empty h2,
+body:not(.dark) .watch2-empty h2 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-empty p,
+body:not(.dark) .watch2-empty p {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-discovery-strip a,
+body:not(.dark) .watch2-discovery-strip a {
+  background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(221, 214, 254, 0.7) !important;
+}
+
+:root:not([data-theme="dark"]) .watch2-discovery-strip a span,
+body:not(.dark) .watch2-discovery-strip a span {
+  color: #eef2ff !important;
+  -webkit-text-fill-color: #eef2ff !important;
+}
+/* END final Watchlist light-mode readable surface fix. */
