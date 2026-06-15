@@ -1,0 +1,67 @@
+
+
+/* FINAL override: Auctions readable empty state v2. */
+.auctions-readable-empty,
+.auctions-readable-empty * {
+  opacity: 1 !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+:root:not([data-theme="dark"]) .auctions-readable-empty,
+body:not(.dark) .auctions-readable-empty {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(148, 163, 184, 0.32) !important;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.10) !important;
+}
+
+:root:not([data-theme="dark"]) .auctions-readable-empty h1,
+:root:not([data-theme="dark"]) .auctions-readable-empty h2,
+:root:not([data-theme="dark"]) .auctions-readable-empty h3,
+:root:not([data-theme="dark"]) .auctions-readable-empty strong,
+body:not(.dark) .auctions-readable-empty h1,
+body:not(.dark) .auctions-readable-empty h2,
+body:not(.dark) .auctions-readable-empty h3,
+body:not(.dark) .auctions-readable-empty strong {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  opacity: 1 !important;
+  font-weight: 950 !important;
+}
+
+:root:not([data-theme="dark"]) .auctions-readable-empty p,
+:root:not([data-theme="dark"]) .auctions-readable-empty span,
+body:not(.dark) .auctions-readable-empty p,
+body:not(.dark) .auctions-readable-empty span {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+  opacity: 1 !important;
+  font-weight: 750 !important;
+}
+
+:root[data-theme="dark"] .auctions-readable-empty,
+.dark .auctions-readable-empty {
+  background: rgba(15, 23, 42, 0.96) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+}
+
+:root[data-theme="dark"] .auctions-readable-empty h1,
+:root[data-theme="dark"] .auctions-readable-empty h2,
+:root[data-theme="dark"] .auctions-readable-empty h3,
+.dark .auctions-readable-empty h1,
+.dark .auctions-readable-empty h2,
+.dark .auctions-readable-empty h3 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .auctions-readable-empty p,
+:root[data-theme="dark"] .auctions-readable-empty span,
+.dark .auctions-readable-empty p,
+.dark .auctions-readable-empty span {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+/* END final Auctions readable empty state v2. */
