@@ -1,5 +1,6 @@
 // File: apps/web/src/pages/AuctionsPage.tsx
 
+import "../styles/auctions-readable-fix.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getAuctions, type Auction } from "../services/auctions";
@@ -334,7 +335,7 @@ export default function AuctionsPage() {
         {loading ? <p className="muted">Loading auctions…</p> : null}
 
         {!loading && filteredRows.length === 0 ? (
-          <div className="list-card">
+          <div className="list-card auctions-readable-empty">
             <strong>
               {statusFilter === "LIVE"
                 ? "No live auctions are available right now."
