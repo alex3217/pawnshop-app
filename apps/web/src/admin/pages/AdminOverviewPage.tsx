@@ -321,7 +321,7 @@ export default function AdminOverviewPage() {
   return (
     <AdminPageShell
       title="Admin Command Center"
-      subtitle="Daily marketplace operations for users, shops, inventory, auctions, settlements, and support workflows."
+      subtitle="Daily marketplace operations for users, shops, items, inventory, auctions, settlements, and support workflows."
       actions={
         <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
@@ -355,7 +355,7 @@ export default function AdminOverviewPage() {
           <div style={styles.sectionHeader}>
             <div>
               <h2 style={styles.sectionTitle}>Operations Overview</h2>
-              <p style={styles.sectionSubtitle}>Fast view of marketplace users, owners, shops, listings, and auctions.</p>
+              <p style={styles.sectionSubtitle}>Fast view of marketplace users, owners, shops, items, inventory listings, and auctions.</p>
             </div>
           </div>
 
@@ -365,7 +365,7 @@ export default function AdminOverviewPage() {
             <MetricCard label="Consumers" value={derived.consumers.length} helper="Buyer accounts" to="/admin/users" tone="green" />
             <MetricCard label="Admins" value={derived.admins.length} helper="Admin-level accounts" to="/admin/users" tone="yellow" />
             <MetricCard label="Shops" value={state.shops.length} helper="Marketplace shops" to="/admin/shops" tone="blue" />
-            <MetricCard label="Inventory" value={state.items.length} helper="Marketplace listings" to="/admin/inventory" tone="green" />
+            <MetricCard label="Items / Inventory" value={state.items.length} helper="Marketplace item listings" to="/admin/inventory" tone="green" />
             <MetricCard label="Live Auctions" value={derived.liveAuctions.length} helper="Currently active auctions" to="/admin/auctions" tone="purple" />
             <MetricCard label="Settlements" value={state.settlements.length} helper="Payment records visible to admin" to="/admin/orders" tone="yellow" />
           </div>
@@ -381,9 +381,9 @@ export default function AdminOverviewPage() {
 
           <div style={styles.queueGrid}>
             <QueueCard
-              title="Inventory Moderation"
+              title="Items / Inventory Moderation"
               value={derived.deletedItems.length}
-              description="Deleted or moderated marketplace listings."
+              description="Deleted or moderated marketplace item listings."
               to="/admin/inventory"
               tone={derived.deletedItems.length ? "warning" : "success"}
             />
@@ -435,7 +435,7 @@ export default function AdminOverviewPage() {
             <Link style={styles.actionButton} to="/admin/users">Manage Users</Link>
             <Link style={styles.actionButton} to="/admin/owners">Review Owners</Link>
             <Link style={styles.actionButton} to="/admin/shops">Manage Shops</Link>
-            <Link style={styles.actionButton} to="/admin/inventory">Moderate Inventory</Link>
+            <Link style={styles.actionButton} to="/admin/inventory">Moderate Items / Inventory</Link>
             <Link style={styles.actionButton} to="/admin/auctions">Review Auctions</Link>
             <Link style={styles.actionButton} to="/admin/offers">Manage Offers</Link>
             <Link style={styles.actionButton} to="/admin/orders">Settlement Queue</Link>
@@ -493,9 +493,9 @@ export default function AdminOverviewPage() {
           />
 
           <MiniTable
-            title="Recent Inventory"
+            title="Recent Items / Inventory"
             rows={derived.recentItems}
-            empty="No inventory found."
+            empty="No items or inventory found."
             to="/admin/inventory"
             columns={[
               {
