@@ -1197,3 +1197,35 @@
   border: 1px solid #93c5fd !important;
   font-weight: 900 !important;
 }
+
+/* Buyer Dashboard tap-target polish.
+   Keeps all dashboard links/buttons easier to tap without changing behavior. */
+.buyer-dashboard .bd-section-link,
+.buyer-dashboard .bd-primary-small,
+.buyer-dashboard .bd-secondary-small,
+.buyer-dashboard .bd-view-toggle button,
+.buyer-dashboard .bd-hero-panel-top a,
+.buyer-dashboard .bd-attention-card a,
+.buyer-dashboard .bd-empty-panel a,
+.buyer-dashboard .bd-auction-mini-card a {
+  min-height: 44px !important;
+  min-width: 44px !important;
+  padding: 11px 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1.1 !important;
+}
+
+.buyer-dashboard .bd-section-link {
+  border-radius: 14px !important;
+}
+
+.buyer-dashboard .bd-view-toggle button {
+  border-radius: 14px !important;
+}
+
+.buyer-dashboard .bd-item-actions {
+  gap: 10px !important;
+}
+/* END Buyer Dashboard tap-target polish. */
