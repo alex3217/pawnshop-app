@@ -129,3 +129,28 @@ html[data-theme="dark"] .owner-inventory-page {
   gap: 10px;
   color: var(--owner-inv-text);
 }
+
+/* Owner Inventory checkbox tap-target polish.
+   Keeps inventory select checkboxes above the audit's tiny-control threshold. */
+.owner-inventory-page .owner-inventory-select-row input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  flex: 0 0 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  accent-color: #2563eb;
+}
+
+.owner-inventory-page .owner-inventory-select-row {
+  min-height: 44px !important;
+  align-items: center !important;
+  cursor: pointer !important;
+}
+/* END Owner Inventory checkbox tap-target polish. */
