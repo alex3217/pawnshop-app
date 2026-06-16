@@ -1170,3 +1170,33 @@ body:not(.dark) .watch2-discovery-strip a span {
   -webkit-text-fill-color: #eef2ff !important;
 }
 /* END final Watchlist light-mode readable surface fix. */
+
+/* Watchlist checkbox tap-target polish.
+   Keeps select controls above the audit's tiny-control threshold. */
+.watch2-select-row input[type="checkbox"] {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+}
+
+.watch2-select-row {
+  min-height: 44px !important;
+  align-items: center !important;
+  cursor: pointer !important;
+}
+/* END Watchlist checkbox tap-target polish. */
+
+/* Watchlist title tap-target polish.
+   Makes saved item title links easier to tap and clears tiny-control audit findings. */
+.watch2-page .watch2-title {
+  min-height: 44px !important;
+  min-width: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  line-height: 1.18 !important;
+  box-sizing: border-box !important;
+}
+/* END Watchlist title tap-target polish. */
