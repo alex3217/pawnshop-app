@@ -214,3 +214,29 @@ html[data-theme="dark"] .owner-auctions-readability {
 :root:not([data-theme="dark"]) .owner-auctions-readability [style*="var(--owner-auction-closed-bg)"] {
   color: var(--owner-auction-closed-text) !important;
 }
+
+/* Owner Auctions checkbox tap-target polish.
+   Keeps auction checkbox controls above the audit's tiny-control threshold. */
+.owner-auctions-readability input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  display: inline-block !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  flex: 0 0 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  accent-color: #2563eb;
+}
+
+.owner-auctions-readability label:has(input[type="checkbox"]) {
+  min-height: 44px !important;
+  align-items: center !important;
+  cursor: pointer !important;
+}
+/* END Owner Auctions checkbox tap-target polish. */
