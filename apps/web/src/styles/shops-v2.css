@@ -820,3 +820,21 @@
   border-color: #0f172a !important;
   font-weight: 900 !important;
 }
+
+/* Shops checkbox tap-target polish.
+   Keeps shop filter checkboxes above the audit's tiny-control threshold. */
+.shops2-page .shops2-checkbox input[type="checkbox"],
+.shops2-page input[type="checkbox"] {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  flex: 0 0 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  accent-color: #4f46e5;
+}
+/* END Shops checkbox tap-target polish. */
