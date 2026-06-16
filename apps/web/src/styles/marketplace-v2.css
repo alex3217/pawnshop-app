@@ -1252,3 +1252,36 @@
   transform: none !important;
 }
 /* END final Marketplace real watch action button. */
+
+/* Marketplace tap-target polish.
+   Fixes item action buttons and view-toggle controls below the 44px tap target. */
+.marketplace-v2 .mp2-item-actions .mp2-primary-small,
+.marketplace-v2 .mp2-item-actions .mp2-secondary-small,
+.marketplace-v2 .mp2-item-actions button.mp2-secondary-small,
+.marketplace-v2 .mp2-view-toggle button {
+  min-height: 44px !important;
+  min-width: 44px !important;
+  padding: 12px 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1.1 !important;
+  box-sizing: border-box !important;
+}
+
+.marketplace-v2 .mp2-item-actions {
+  gap: 10px !important;
+}
+/* END Marketplace tap-target polish. */
+
+/* Marketplace item-title tap-target polish.
+   Makes item title links easier to tap without changing their destination. */
+.marketplace-v2 .mp2-item-title {
+  min-height: 44px !important;
+  min-width: 44px !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.18 !important;
+  box-sizing: border-box !important;
+}
+/* END Marketplace item-title tap-target polish. */
