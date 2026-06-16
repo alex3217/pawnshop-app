@@ -173,8 +173,8 @@ export default function SavedSearchesPage() {
           </p>
 
           <div className="saved2-hero-actions">
-            <Link to={marketplaceHref(query, initialRadius)}>Browse marketplace</Link>
-            <Link to={locatorHref(query, initialRadius)}>Item locator</Link>
+            <Link to={marketplaceHref(query, initialRadius)}>Search marketplace</Link>
+            <Link to={locatorHref(query, initialRadius)}>Search item locator</Link>
             <button
               type="button"
               onClick={() => void loadSavedSearches({ silent: true })}
@@ -209,10 +209,10 @@ export default function SavedSearchesPage() {
           Buyer dashboard <span>Return to command center</span>
         </Link>
         <Link to="/marketplace">
-          Marketplace <span>Browse all inventory</span>
+          Search marketplace <span>Browse all inventory</span>
         </Link>
         <Link to="/buyer/item-locator">
-          Item locator <span>Find who has an item</span>
+          Search item locator <span>Find who has an item</span>
         </Link>
         <Link to="/watchlist">
           Watchlist <span>Track saved items</span>
