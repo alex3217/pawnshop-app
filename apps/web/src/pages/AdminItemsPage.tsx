@@ -354,11 +354,11 @@ export default function AdminItemsPage() {
   return (
     <div className="admin-items-readability">
       <AdminPageShell
-      title={isSuperAdminSurface ? "Super Admin Inventory Control" : "Admin Inventory Control"}
+      title={isSuperAdminSurface ? "Super Admin Items / Inventory Control" : "Admin Items / Inventory Control"}
       subtitle={
         isSuperAdminSurface
-          ? "Search, add, edit, change status, delete, restore, and govern marketplace listings."
-          : "Search, filter, export, edit, delete, and restore marketplace listings."
+          ? "Search, add, edit, change status, delete, restore, and govern marketplace items and inventory listings."
+          : "Search, filter, export, edit, delete, and restore marketplace items and inventory listings."
       }
       actions={
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -403,7 +403,7 @@ export default function AdminItemsPage() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search inventory by title, category, shop, condition, status, or id..."
+          placeholder="Search items / inventory by title, category, shop, condition, status, or id..."
           className="admin-control-input"
         />
 
@@ -412,7 +412,7 @@ export default function AdminItemsPage() {
           onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
           className="admin-control-select"
         >
-          <option value="ALL">All listings</option>
+          <option value="ALL">All items / listings</option>
           <option value="ACTIVE">Active only</option>
           <option value="DELETED">Deleted only</option>
         </select>
@@ -444,14 +444,14 @@ export default function AdminItemsPage() {
 
       <div className="admin-table-card">
         <div className="admin-table-meta">
-          Showing {filteredItems.length} of {items.length} listings
+          Showing {filteredItems.length} of {items.length} items / listings
         </div>
 
         <div className="admin-table-scroll">
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Listing</th>
+                <th>Item / Listing</th>
                 <th>Shop</th>
                 <th>Price</th>
                 <th>Status</th>
@@ -463,11 +463,11 @@ export default function AdminItemsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6}>Loading inventory...</td>
+                  <td colSpan={6}>Loading items / inventory...</td>
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>No listings match your filters.</td>
+                  <td colSpan={6}>No items / listings match your filters.</td>
                 </tr>
               ) : (
                 filteredItems.map((item) => {
