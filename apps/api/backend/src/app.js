@@ -173,7 +173,7 @@ export function createApp() {
   app.use(
     morgan(morganFormat, {
       skip(req) {
-        return req.path === "/health" || req.path === "/api/health";
+        return ["/health", "/api/health", "/ready", "/api/ready"].includes(req.path);
       },
     })
   );
@@ -196,6 +196,8 @@ export function createApp() {
   app.get("/api", noStore, rootHandler);
   app.get("/health", noStore, healthHandler);
   app.get("/api/health", noStore, healthHandler);
+  app.get("/ready", noStore, healthHandler);
+  app.get("/api/ready", noStore, healthHandler);
 
   /**
    * Stripe webhook must stay before express.json().
