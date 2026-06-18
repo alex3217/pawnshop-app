@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../services/apiClient";
+import "../../styles/super-admin-audit-readability.css";
 
 type AuditLog = {
   id: string;
@@ -184,13 +185,13 @@ export default function SuperAdminAuditPage() {
   }
 
   return (
-    <div style={styles.page}>
+    <div className="super-admin-audit-readability" style={styles.page}>
       <section style={styles.hero}>
         <div>
           <div style={styles.eyebrow}>Governance</div>
           <h1 style={styles.title}>Audit Logs</h1>
           <p style={styles.subtitle}>
-            Track sensitive Super Admin actions, route mutations, actors, request IDs,
+            Track time, sensitive Super Admin actions, route mutations, actors, request IDs,
             target resources, metadata, and success/failure state.
           </p>
         </div>
