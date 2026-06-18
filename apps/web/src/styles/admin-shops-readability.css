@@ -73,3 +73,18 @@
   background-color: #101936 !important;
   color: #f8fafc !important;
 }
+
+/* Admin Shops shell tap-target polish.
+   Keeps shell Home/Admin links above tiny-control thresholds only on Admin Shops. */
+body:has(.admin-shops-readability) a[href="/"],
+body:has(.admin-shops-readability) a[href="/admin"] {
+  min-height: 44px !important;
+  min-width: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 10px 12px !important;
+  box-sizing: border-box !important;
+  line-height: 1.15 !important;
+}
+/* END Admin Shops shell tap-target polish. */
