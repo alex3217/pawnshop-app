@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
+import "../../styles/super-admin-overview-readability.css";
 
 type CommandCard = {
   title: string;
@@ -217,6 +218,7 @@ function CommandCardView({ card }: { card: CommandCard }) {
 
 export default function SuperAdminOverviewPage() {
   return (
+    <div className="super-admin-overview-readability">
     <AdminPageShell
       title="Platform Control"
       subtitle="Control users, shops, plans, billing, settings, and platform oversight from one place."
@@ -317,5 +319,6 @@ export default function SuperAdminOverviewPage() {
         </div>
       </section>
     </AdminPageShell>
+    </div>
   );
 }
