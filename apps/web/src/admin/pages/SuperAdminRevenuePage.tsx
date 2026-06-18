@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { exportCsv } from "../utils/exportCsv";
 import { adminApi, type SuperAdminRevenueSummary } from "../services/adminApi";
+import "../../styles/super-admin-revenue-readability.css";
 
 type RevenueRecord = Record<string, unknown>;
 
@@ -212,7 +213,7 @@ export default function SuperAdminRevenuePage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="super-admin-revenue-readability space-y-6">
       <div className="flex flex-col gap-4 rounded-2xl border bg-background p-5 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
