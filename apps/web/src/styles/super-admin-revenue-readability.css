@@ -1,0 +1,17 @@
+/* Super Admin Revenue tap-target polish.
+   Keeps shell links and revenue action links above tiny-control thresholds only on Super Admin Revenue. */
+body:has(.super-admin-revenue-readability) a[href="/"],
+body:has(.super-admin-revenue-readability) a[href="/super-admin"],
+.super-admin-revenue-readability a.button,
+.super-admin-revenue-readability button.button,
+.super-admin-revenue-readability .button {
+  min-height: 44px !important;
+  min-width: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 10px 12px !important;
+  box-sizing: border-box !important;
+  line-height: 1.15 !important;
+}
+/* END Super Admin Revenue tap-target polish. */
