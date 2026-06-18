@@ -7,6 +7,7 @@ import {
   type SavePlatformPricingRuleInput,
 } from "../services/adminApi";
 import { exportCsv } from "../utils/exportCsv";
+import "../../styles/super-admin-pricing-readability.css";
 
 type PricingForm = SavePlatformPricingRuleInput;
 
@@ -277,7 +278,7 @@ export default function SuperAdminPricingPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="super-admin-pricing-readability space-y-6">
       <section className="rounded-2xl border bg-background p-5 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
