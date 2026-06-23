@@ -19,6 +19,7 @@ import {
   type OwnerBuyerItemSubmission,
 } from "../services/ownerWorkspace";
 import "../styles/owner-dashboard-readability.css";
+import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
 
 type Shop = {
   id: string;
@@ -357,6 +358,24 @@ function getItemStatusTone(status: string): CSSProperties {
 }
 
 export default function OwnerDashboardPage() {
+  const [foundingProgram, setFoundingProgram] = useState(DEFAULT_FOUNDING_SHOP_PROGRAM);
+
+  useEffect(() => {
+    let mounted = true;
+
+    getFoundingShopProgramSettings()
+      .then((program) => {
+        if (mounted) setFoundingProgram(program);
+      })
+      .catch(() => {
+        if (mounted) setFoundingProgram(DEFAULT_FOUNDING_SHOP_PROGRAM);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const [shops, setShops] = useState<Shop[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [buyerItemSubmissions, setBuyerItemSubmissions] = useState<OwnerBuyerItemSubmission[]>([]);
@@ -708,6 +727,32 @@ export default function OwnerDashboardPage() {
       {dashboardMessage ? <div style={styles.success}>{dashboardMessage}</div> : null}
       {pageError ? <div style={styles.error}>{pageError}</div> : null}
       {entitlementsError ? <div style={styles.error}>{entitlementsError}</div> : null}
+
+      {foundingProgram.enabled ? (
+        <section
+          style={{
+            ...styles.card,
+            border: "1px solid rgba(37, 99, 235, 0.28)",
+            background:
+              "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(15,23,42,0.04))",
+            marginBottom: 18,
+          }}
+        >
+          <div style={styles.kicker}>Founding Shop Program</div>
+          <h3 style={styles.sectionTitle}>{foundingProgram.headline}</h3>
+          <p style={styles.subtitle}>{foundingProgram.subtitle}</p>
+          <div style={styles.muted}>
+            {foundingProgram.trialDays} days free · first {foundingProgram.shopLimit} shops ·
+            free setup for {foundingProgram.freeUploadCount} items.
+          </div>
+          <div style={styles.muted}>
+            Trial starts after your profile is complete and {foundingProgram.minimumLiveItems} items are live.
+          </div>
+          <Link to="/owner/subscription" style={styles.linkButtonPrimary}>
+            View Trial & Plans
+          </Link>
+        </section>
+      ) : null}
 
       {!pageLoading ? (
         <section

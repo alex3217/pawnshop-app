@@ -16,6 +16,7 @@ import {
   updateShopSubscription,
 } from "../services/ownerWorkspace";
 import "../styles/owner-subscription-readability.css";
+import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
 
 type SellerPlan = {
   code: "FREE" | "PRO" | "PREMIUM" | "ULTRA" | string;
@@ -315,6 +316,24 @@ function getStatusTone(status: string): CSSProperties {
 }
 
 export default function OwnerSubscriptionPage() {
+  const [foundingProgram, setFoundingProgram] = useState(DEFAULT_FOUNDING_SHOP_PROGRAM);
+
+  useEffect(() => {
+    let mounted = true;
+
+    getFoundingShopProgramSettings()
+      .then((program) => {
+        if (mounted) setFoundingProgram(program);
+      })
+      .catch(() => {
+        if (mounted) setFoundingProgram(DEFAULT_FOUNDING_SHOP_PROGRAM);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const [plans, setPlans] = useState<SellerPlan[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShopId, setSelectedShopId] = useState("");
@@ -655,6 +674,40 @@ export default function OwnerSubscriptionPage() {
           compare Feature access and limits, Upgrade or Downgrade plans,
           Cancel or Renew service, and launch Stripe Checkout for paid seller plans.
         </div>
+
+        {foundingProgram.enabled ? (
+          <div
+            style={{
+              ...styles.card,
+              border: "1px solid rgba(37, 99, 235, 0.28)",
+              background:
+                "linear-gradient(135deg, rgba(37,99,235,0.10), rgba(15,23,42,0.04))",
+              marginBottom: 18,
+            }}
+          >
+            <div style={styles.sectionLabel}>Founding Shop Program</div>
+            <h2 style={{ ...styles.planName, marginTop: 6 }}>
+              {foundingProgram.headline}
+            </h2>
+            <p style={styles.muted}>{foundingProgram.subtitle}</p>
+            <div style={styles.planMeta}>
+              {foundingProgram.trialDays} days free for the first{" "}
+              {foundingProgram.shopLimit} shops.
+            </div>
+            <div style={styles.planMeta}>
+              Trial starts after the shop profile is complete and{" "}
+              {foundingProgram.minimumLiveItems} items are live.
+            </div>
+            <div style={styles.planMeta}>
+              Free setup support for the first {foundingProgram.freeUploadCount} items.
+            </div>
+            <div style={styles.planMeta}>
+              After trial: Starter ${foundingProgram.starterMonthlyPrice}/mo · Pro $
+              {foundingProgram.proMonthlyPrice}/mo · Premium $
+              {foundingProgram.premiumMonthlyPrice}/mo.
+            </div>
+          </div>
+        ) : null}
 
         {pageLoading ? (
           <div style={styles.card}>Loading subscription data...</div>

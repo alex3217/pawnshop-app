@@ -1,11 +1,12 @@
 // File: apps/web/src/pages/RegisterPage.tsx
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { persistAuth, register } from "../services/auth";
 import type { Role } from "../services/auth";
 import "../styles/register-readability.css";
+import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
 
 type PublicRole = Extract<Role, "CONSUMER" | "OWNER">;
 
@@ -26,6 +27,23 @@ export default function RegisterPage() {
   const [role, setRole] = useState<PublicRole>("CONSUMER");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [foundingProgram, setFoundingProgram] = useState(DEFAULT_FOUNDING_SHOP_PROGRAM);
+
+  useEffect(() => {
+    let mounted = true;
+
+    getFoundingShopProgramSettings()
+      .then((program) => {
+        if (mounted) setFoundingProgram(program);
+      })
+      .catch(() => {
+        if (mounted) setFoundingProgram(DEFAULT_FOUNDING_SHOP_PROGRAM);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -112,6 +130,27 @@ export default function RegisterPage() {
           <option value="CONSUMER">Buyer</option>
           <option value="OWNER">Pawn Shop Owner</option>
         </select>
+
+        {role === "OWNER" && foundingProgram.enabled ? (
+          <div
+            style={{
+              border: "1px solid rgba(37, 99, 235, 0.25)",
+              background: "rgba(37, 99, 235, 0.08)",
+              borderRadius: 14,
+              padding: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            <strong>{foundingProgram.headline}</strong>
+            <p style={{ margin: "6px 0 0" }}>{foundingProgram.subtitle}</p>
+            <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+              <li>{foundingProgram.trialDays} days free for the first {foundingProgram.shopLimit} shops.</li>
+              <li>Free setup support for the first {foundingProgram.freeUploadCount} items.</li>
+              <li>Trial starts after your profile is complete and {foundingProgram.minimumLiveItems} items are live.</li>
+              <li>Plans start at ${foundingProgram.starterMonthlyPrice}/month after trial.</li>
+            </ul>
+          </div>
+        ) : null}
 
         <button type="submit" disabled={submitting}>
           {submitting ? "Creating Account..." : "Create Account"}
