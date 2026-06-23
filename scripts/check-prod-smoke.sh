@@ -18,13 +18,31 @@ request_json() {
     let input = "";
     process.stdin.on("data", (chunk) => input += chunk);
     process.stdin.on("end", () => {
+      let json;
       try {
-        JSON.parse(input || "{}");
-        process.exit(0);
+        json = JSON.parse(input || "{}");
       } catch {
         console.error("Response was not valid JSON.");
         process.exit(1);
       }
+
+      if (json && typeof json === "object" && json.error) {
+        console.error("Response contained an error field.");
+        console.error(String(json.error));
+        process.exit(1);
+      }
+
+      if (json && typeof json === "object" && json.success === false) {
+        console.error("Response reported success=false.");
+        process.exit(1);
+      }
+
+      if (json && typeof json === "object" && json.ok === false) {
+        console.error("Response reported ok=false.");
+        process.exit(1);
+      }
+
+      process.exit(0);
     });
   '
 
