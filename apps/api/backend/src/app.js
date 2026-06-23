@@ -28,6 +28,7 @@ import settlementsRoutes from "./routes/settlements.routes.js";
 import stripeRoutes from "./routes/stripe.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
+import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes.js";
 
 function parseAllowedOrigins(...values) {
   return new Set(
@@ -241,6 +242,7 @@ export function createApp() {
   mountApi(app, "/ai", aiRoutes);
 
   app.use("/api", sellerPlansRoutes);
+  app.use("/api", platformSettingsPublicRoutes);
   app.use("/api", buyerPlansRoutes);
 
   app.use((req, res) => {

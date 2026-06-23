@@ -40,6 +40,66 @@ const DEFAULT_SETTINGS: SettingDraft[] = [
     description: "Commission in basis points. 500 = 5%.",
     value: "500",
   },
+  {
+    key: "foundingShop.programEnabled",
+    label: "Founding Shop Program Enabled",
+    description: "Turn the 60-day founding shop trial offer on or off.",
+    value: "true",
+  },
+  {
+    key: "foundingShop.trialDays",
+    label: "Founding Shop Trial Days",
+    description: "Number of free trial days offered to founding pawn shops.",
+    value: "60",
+  },
+  {
+    key: "foundingShop.shopLimit",
+    label: "Founding Shop Limit",
+    description: "Maximum number of shops eligible for the founding offer.",
+    value: "25",
+  },
+  {
+    key: "foundingShop.minimumLiveItems",
+    label: "Minimum Live Items",
+    description: "Minimum live inventory count before the trial should begin.",
+    value: "10",
+  },
+  {
+    key: "foundingShop.freeUploadCount",
+    label: "Free Upload Count",
+    description: "How many initial items PawnLoop helps upload during onboarding.",
+    value: "25",
+  },
+  {
+    key: "foundingShop.starterMonthlyPrice",
+    label: "Starter Monthly Price",
+    description: "Monthly starter plan price after the founding trial.",
+    value: "49",
+  },
+  {
+    key: "foundingShop.proMonthlyPrice",
+    label: "Pro Monthly Price",
+    description: "Monthly pro plan price after the founding trial.",
+    value: "99",
+  },
+  {
+    key: "foundingShop.premiumMonthlyPrice",
+    label: "Premium Monthly Price",
+    description: "Monthly premium plan price after the founding trial.",
+    value: "199",
+  },
+  {
+    key: "foundingShop.headline",
+    label: "Founding Shop Headline",
+    description: "Headline shown on owner registration and subscription pages.",
+    value: "60-Day Founding Shop Trial",
+  },
+  {
+    key: "foundingShop.subtitle",
+    label: "Founding Shop Subtitle",
+    description: "Supporting copy shown with the founding shop offer.",
+    value: "We help pawn shops build inventory before buyer traffic scales.",
+  },
 ];
 
 function formatDate(value?: string | null) {
