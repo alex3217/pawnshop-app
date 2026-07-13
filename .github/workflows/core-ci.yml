@@ -1,0 +1,101 @@
+name: PawnShop Core CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pawnshop-core-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-api-validation:
+    name: Web and API Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pawnshop_ci?schema=public
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+            apps/api/backend/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm --prefix apps/web ci
+
+      - name: Install backend dependencies
+        run: npm --prefix apps/api/backend ci
+
+      - name: Frontend lint
+        run: npm --prefix apps/web run lint
+
+      - name: Frontend production build
+        run: npm run build:web
+
+      - name: Generate and validate Prisma client
+        working-directory: apps/api/backend
+        run: |
+          npx prisma generate
+          npx prisma validate
+
+      - name: Static safety checks
+        run: npm run check:static-safety
+
+      - name: Frontend route audit
+        run: npm run check:frontend-routes
+
+      - name: Backend route audit
+        run: npm run check:backend-routes
+
+      - name: Root production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Frontend production dependency audit
+        run: npm --prefix apps/web audit --omit=dev --audit-level=high
+
+      - name: Backend production dependency audit
+        run: npm --prefix apps/api/backend audit --omit=dev --audit-level=high
+
+  mobile-validation:
+    name: Mobile TypeScript Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        run: npm --prefix apps/mobile ci
+
+      - name: Mobile TypeScript compilation
+        working-directory: apps/mobile
+        run: npx tsc --noEmit
