@@ -417,7 +417,7 @@ export default function OwnerSubscriptionPage() {
         setRefreshing(false);
       }
     },
-    [shops, selectedShop]
+    []
   );
 
   useEffect(() => {

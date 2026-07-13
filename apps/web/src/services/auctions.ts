@@ -1,4 +1,5 @@
 import { api } from "./apiClient";
+import type { FulfillmentStatus } from "./settlements";
 
 export type AuctionStatus =
   | "SCHEDULED"
@@ -50,6 +51,9 @@ export type AuctionSettlementSummary = {
   currency?: string | null;
   status?: string | null;
   settledAt?: string | null;
+  fulfillmentStatus?: FulfillmentStatus;
+  fulfillmentNote?: string | null;
+  fulfilledAt?: string | null;
 };
 
 export type EndAuctionResult = {

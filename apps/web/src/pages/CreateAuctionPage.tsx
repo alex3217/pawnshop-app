@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createAuction, getAuctions } from "../services/auctions";
-import { getMyItems } from "../services/items";
+import { getMyItems, type Item } from "../services/items";
 import { getAuthRole, getAuthToken } from "../services/auth";
 
 type FormState = {
@@ -72,7 +72,7 @@ export default function CreateAuctionPage() {
 
   const [msg, setMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [existingAuctionItemIds, setExistingAuctionItemIds] = useState<string[]>([]);
 
 
@@ -91,13 +91,15 @@ export default function CreateAuctionPage() {
           getAuctions(),
         ]);
 
-        const auctionsData = Array.isArray(auctionsRaw) ? auctionsRaw : [];
+        const auctionsData = Array.isArray(auctionsRaw.auctions)
+          ? auctionsRaw.auctions
+          : [];
 
-        setItems(itemsData || []);
+        setItems(itemsData);
 
-        const usedIds = (auctionsData || [])
-          .filter((a: any) => a.itemId)
-          .map((a: any) => String(a.itemId));
+        const usedIds = auctionsData
+          .filter((auction) => Boolean(auction.itemId))
+          .map((auction) => String(auction.itemId));
 
         setExistingAuctionItemIds(usedIds);
       } catch {

@@ -125,6 +125,9 @@ export default function SuperAdminAuditPage() {
 
   useEffect(() => {
     void loadAuditLogs();
+
+    // Initial loading intentionally uses the default filter state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const csv = useMemo(() => {

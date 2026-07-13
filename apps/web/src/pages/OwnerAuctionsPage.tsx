@@ -1702,19 +1702,19 @@ export default function OwnerAuctionsPage() {
                           <span>
                             Fulfillment:{" "}
                             {formatOwnerAuctionFulfillmentStatus(
-                              (auction.settlement as any).fulfillmentStatus,
+                              auction.settlement.fulfillmentStatus,
                             )}
                           </span>
-                          {(auction.settlement as any).fulfillmentNote ? (
+                          {auction.settlement.fulfillmentNote ? (
                             <span>
-                              Note: {(auction.settlement as any).fulfillmentNote}
+                              Note: {auction.settlement.fulfillmentNote}
                             </span>
                           ) : null}
-                          {(auction.settlement as any).fulfilledAt ? (
+                          {auction.settlement.fulfilledAt ? (
                             <span>
                               Fulfilled:{" "}
                               {formatOwnerAuctionDateTime(
-                                (auction.settlement as any).fulfilledAt,
+                                auction.settlement.fulfilledAt,
                               )}
                             </span>
                           ) : null}
