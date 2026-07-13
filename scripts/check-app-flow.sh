@@ -11,7 +11,7 @@ OWNER_EMAIL="${OWNER_EMAIL:-owner1@pawn.local}"
 OWNER_PASSWORD="${OWNER_PASSWORD:-Owner123!}"
 
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin1@example.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123!}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT

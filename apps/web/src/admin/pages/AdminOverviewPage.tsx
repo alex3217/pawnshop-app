@@ -284,7 +284,11 @@ export default function AdminOverviewPage() {
   }
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   const derived = useMemo(() => {

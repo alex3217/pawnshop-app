@@ -87,54 +87,6 @@ function getSuggestedBidValue(auction: Auction | null) {
   return (current + increment).toFixed(2);
 }
 
-export async function safeJson<T = unknown>(
-  response: Response,
-): Promise<T | null> {
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-export function extractApiError(payload: unknown) {
-  if (!isObject(payload)) return "";
-
-  const errorText = String(
-    payload.error || payload.message || payload.details || "",
-  ).trim();
-
-  const minRequired = Number(payload.minRequired);
-
-  if (Number.isFinite(minRequired) && !errorText.includes(String(minRequired))) {
-    return `${errorText || "Bid is too low"} minimum ${formatMoney(minRequired)}`;
-  }
-
-  return errorText;
-}
-
-export function getAuctionPayload(payload: unknown): Auction | null {
-  if (!isObject(payload)) return null;
-
-  if (typeof payload.id === "string") return payload as Auction;
-
-  if (isObject(payload.auction)) {
-    return payload.auction as Auction;
-  }
-
-  if (isObject(payload.data)) {
-    if (isObject(payload.data.auction)) {
-      return payload.data.auction as Auction;
-    }
-
-    if (typeof payload.data.id === "string") {
-      return payload.data as Auction;
-    }
-  }
-
-  return null;
-}
-
 function getRealtimePayload(payload: unknown): AuctionRealtimePayload | null {
   if (!isObject(payload)) return null;
 

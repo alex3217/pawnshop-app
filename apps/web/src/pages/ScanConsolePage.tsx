@@ -29,9 +29,26 @@ function getResultItem(result: ScanResult | null) {
   return getPayload(result)?.item || null;
 }
 
-function getDetectorCtor(): any {
+type BarcodeDetection = {
+  rawValue?: string;
+};
+
+type BarcodeDetectorInstance = {
+  detect(source: HTMLVideoElement): Promise<BarcodeDetection[]>;
+};
+
+type BarcodeDetectorConstructor = new (options?: {
+  formats?: string[];
+}) => BarcodeDetectorInstance;
+
+function getDetectorCtor(): BarcodeDetectorConstructor | null {
   if (typeof window === "undefined") return null;
-  return (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector || null;
+
+  return (
+    window as typeof window & {
+      BarcodeDetector?: BarcodeDetectorConstructor;
+    }
+  ).BarcodeDetector ?? null;
 }
 
 function getResultTitle(result: ScanResult | null, code: string) {
