@@ -9,7 +9,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "test:core": "prisma generate && node --test --test-concurrency=1 test/app.contract.test.js",
-    "test:integration": "node scripts/assert-test-database.mjs && prisma migrate deploy && prisma generate && node --test --test-concurrency=1 test/auth.integration.test.js",
+    "test:integration": "node scripts/assert-test-database.mjs && prisma migrate deploy && prisma generate && node --test --test-concurrency=1 test/*.integration.test.js",
     "test:all": "npm run test:core && npm run test:integration"
   },
   "keywords": [],
