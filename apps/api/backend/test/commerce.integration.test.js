@@ -5,6 +5,7 @@ import test, {
   beforeEach,
 } from "node:test";
 
+import jwt from "jsonwebtoken";
 import request from "supertest";
 
 const TEST_JWT_SECRET =
@@ -824,5 +825,571 @@ test(
       145,
     );
     assert.equal(settlement.status, "PENDING");
+  },
+);
+
+
+async function createAdminActor(prefix) {
+  const user = await prisma.user.create({
+    data: {
+      name: `Admin ${prefix}`,
+      email: email(prefix),
+      password: "integration-admin-password-not-used",
+      role: "ADMIN",
+      isActive: true,
+    },
+  });
+
+  const token = jwt.sign(
+    {
+      sub: user.id,
+      id: user.id,
+      userId: user.id,
+      role: user.role,
+      email: user.email,
+    },
+    TEST_JWT_SECRET,
+    {
+      expiresIn: "1h",
+    },
+  );
+
+  return {
+    token,
+    user,
+  };
+}
+
+async function createAuctionSettlementScenario(prefix) {
+  const owner = await registerActor(
+    `${prefix}-owner`,
+    "OWNER",
+  );
+
+  const otherOwner = await registerActor(
+    `${prefix}-other-owner`,
+    "OWNER",
+  );
+
+  const buyerOne = await registerActor(
+    `${prefix}-buyer-one`,
+    "CONSUMER",
+  );
+
+  const buyerTwo = await registerActor(
+    `${prefix}-buyer-two`,
+    "CONSUMER",
+  );
+
+  const admin = await createAdminActor(
+    `${prefix}-admin`,
+  );
+
+  const shop = await createShop(
+    owner,
+    `${prefix}-shop`,
+  );
+
+  await prisma.pawnShop.update({
+    where: {
+      id: shop.id,
+    },
+    data: {
+      subscriptionPlan: "PRO",
+      subscriptionStatus: "ACTIVE",
+    },
+  });
+
+  const item = await createItem(owner, shop, {
+    title: `${prefix} auction settlement item`,
+    price: 250,
+  });
+
+  const auction = await createLiveAuction(
+    owner,
+    shop,
+    item,
+  );
+
+  return {
+    owner,
+    otherOwner,
+    buyerOne,
+    buyerTwo,
+    admin,
+    shop,
+    item,
+    auction,
+  };
+}
+
+test(
+  "auto-bid competition selects the highest bidder and creates a settlement",
+  async () => {
+    const {
+      owner,
+      buyerOne,
+      buyerTwo,
+      auction,
+    } = await createAuctionSettlementScenario(
+      "auto-bid",
+    );
+
+    const ownerDenied = await authorize(
+      request(app).post(
+        `/api/auctions/${auction.id}/auto-bid`,
+      ),
+      owner.token,
+    ).send({
+      maxAmount: 200,
+    });
+
+    assert.equal(ownerDenied.status, 403);
+
+    const buyerOneAutoBid = await authorize(
+      request(app).post(
+        `/api/auctions/${auction.id}/auto-bid`,
+      ),
+      buyerOne.token,
+    ).send({
+      maxAmount: 150,
+    });
+
+    assert.equal(
+      buyerOneAutoBid.status,
+      200,
+      JSON.stringify(buyerOneAutoBid.body),
+    );
+
+    assert.equal(
+      Number(
+        buyerOneAutoBid.body.autoBid.maxAmount,
+      ),
+      150,
+    );
+
+    const buyerTwoAutoBid = await authorize(
+      request(app).post(
+        `/api/auctions/${auction.id}/auto-bid`,
+      ),
+      buyerTwo.token,
+    ).send({
+      maxAmount: 130,
+    });
+
+    assert.equal(
+      buyerTwoAutoBid.status,
+      200,
+      JSON.stringify(buyerTwoAutoBid.body),
+    );
+
+    const triggeringBid = await authorize(
+      request(app).post(
+        `/api/auctions/${auction.id}/bids`,
+      ),
+      buyerTwo.token,
+    ).send({
+      amount: 105,
+    });
+
+    assert.equal(
+      triggeringBid.status,
+      201,
+      JSON.stringify(triggeringBid.body),
+    );
+
+    assert.equal(
+      triggeringBid.body.autoBids.length,
+      5,
+    );
+
+    assert.equal(
+      Number(
+        triggeringBid.body.auction.currentPrice,
+      ),
+      130,
+    );
+
+    const highestBid =
+      await prisma.bid.findFirst({
+        where: {
+          auctionId: auction.id,
+        },
+        orderBy: [
+          {
+            amount: "desc",
+          },
+          {
+            createdAt: "asc",
+          },
+        ],
+      });
+
+    assert.ok(highestBid);
+
+    assert.equal(
+      highestBid.userId,
+      buyerOne.user.id,
+    );
+
+    assert.equal(
+      Number(highestBid.amount),
+      130,
+    );
+
+    const storedAuction =
+      await prisma.auction.findUnique({
+        where: {
+          id: auction.id,
+        },
+      });
+
+    assert.ok(storedAuction);
+
+    assert.equal(
+      Number(storedAuction.currentPrice),
+      130,
+    );
+
+    const ended = await authorize(
+      request(app).post(
+        `/api/auctions/${auction.id}/end`,
+      ),
+      owner.token,
+    ).send({});
+
+    assert.equal(
+      ended.status,
+      200,
+      JSON.stringify(ended.body),
+    );
+
+    assert.equal(ended.body.success, true);
+    assert.equal(ended.body.auction.status, "ENDED");
+    assert.ok(ended.body.settlement);
+
+    assert.equal(
+      ended.body.settlement.winnerUserId,
+      buyerOne.user.id,
+    );
+
+    assert.equal(
+      ended.body.settlement.finalAmountCents,
+      13000,
+    );
+
+    assert.equal(
+      ended.body.settlement.status,
+      "PENDING",
+    );
+
+    assert.equal(
+      ended.body.settlementReason,
+      "CREATED_OR_UPDATED",
+    );
+
+    const settlement =
+      await prisma.settlement.findUnique({
+        where: {
+          auctionId: auction.id,
+        },
+      });
+
+    assert.ok(settlement);
+
+    assert.equal(
+      settlement.winnerUserId,
+      buyerOne.user.id,
+    );
+
+    assert.equal(
+      Number(settlement.finalPrice),
+      130,
+    );
+
+    assert.equal(settlement.status, "PENDING");
+  },
+);
+
+test(
+  "settlement access and fulfillment enforce buyer owner and admin permissions",
+  async () => {
+    const {
+      owner,
+      otherOwner,
+      buyerOne,
+      buyerTwo,
+      admin,
+      auction,
+    } = await createAuctionSettlementScenario(
+      "fulfillment",
+    );
+
+    const bid = await authorize(
+      request(app).post(
+        `/api/auctions/${auction.id}/bids`,
+      ),
+      buyerOne.token,
+    ).send({
+      amount: 110,
+    });
+
+    assert.equal(
+      bid.status,
+      201,
+      JSON.stringify(bid.body),
+    );
+
+    const ended = await authorize(
+      request(app).post(
+        `/api/auctions/${auction.id}/end`,
+      ),
+      owner.token,
+    ).send({});
+
+    assert.equal(
+      ended.status,
+      200,
+      JSON.stringify(ended.body),
+    );
+
+    const settlementId =
+      ended.body.settlement?.id;
+
+    assert.ok(settlementId);
+
+    const winnerRead = await authorize(
+      request(app).get(
+        `/api/settlements/${settlementId}`,
+      ),
+      buyerOne.token,
+    );
+
+    assert.equal(winnerRead.status, 200);
+
+    assert.equal(
+      winnerRead.body.winnerId,
+      buyerOne.user.id,
+    );
+
+    const winnerAuctionRead = await authorize(
+      request(app).get(
+        `/api/settlements/auction/${auction.id}`,
+      ),
+      buyerOne.token,
+    );
+
+    assert.equal(
+      winnerAuctionRead.status,
+      200,
+    );
+
+    const winnerList = await authorize(
+      request(app).get(
+        "/api/settlements/mine",
+      ),
+      buyerOne.token,
+    );
+
+    assert.equal(winnerList.status, 200);
+    assert.ok(Array.isArray(winnerList.body));
+
+    assert.ok(
+      winnerList.body.some(
+        (row) => row.id === settlementId,
+      ),
+    );
+
+    const losingBuyerRead = await authorize(
+      request(app).get(
+        `/api/settlements/${settlementId}`,
+      ),
+      buyerTwo.token,
+    );
+
+    assert.equal(losingBuyerRead.status, 403);
+
+    const ownerRead = await authorize(
+      request(app).get(
+        `/api/settlements/${settlementId}`,
+      ),
+      owner.token,
+    );
+
+    assert.equal(ownerRead.status, 200);
+
+    const unrelatedOwnerRead = await authorize(
+      request(app).get(
+        `/api/settlements/${settlementId}`,
+      ),
+      otherOwner.token,
+    );
+
+    assert.equal(
+      unrelatedOwnerRead.status,
+      403,
+    );
+
+    const pendingFulfillment = await authorize(
+      request(app).patch(
+        `/api/settlements/${settlementId}/fulfillment`,
+      ),
+      owner.token,
+    ).send({
+      fulfillmentStatus:
+        "READY_FOR_PICKUP",
+    });
+
+    assert.equal(
+      pendingFulfillment.status,
+      400,
+    );
+
+    assert.equal(
+      pendingFulfillment.body.error,
+      "Only charged settlements can be fulfilled.",
+    );
+
+    const charged = await authorize(
+      request(app).post(
+        "/api/settlements",
+      ),
+      admin.token,
+    ).send({
+      auctionId: auction.id,
+      winnerId: buyerOne.user.id,
+      finalAmountCents: 11000,
+      currency: "USD",
+      status: "CHARGED",
+    });
+
+    assert.equal(
+      charged.status,
+      201,
+      JSON.stringify(charged.body),
+    );
+
+    assert.equal(
+      charged.body.settlement.status,
+      "CHARGED",
+    );
+
+    assert.equal(
+      charged.body.settlement.finalAmountCents,
+      11000,
+    );
+
+    const unrelatedFulfillment =
+      await authorize(
+        request(app).patch(
+          `/api/settlements/${settlementId}/fulfillment`,
+        ),
+        otherOwner.token,
+      ).send({
+        fulfillmentStatus:
+          "READY_FOR_PICKUP",
+      });
+
+    assert.equal(
+      unrelatedFulfillment.status,
+      403,
+    );
+
+    const readyForPickup = await authorize(
+      request(app).patch(
+        `/api/settlements/${settlementId}/fulfillment`,
+      ),
+      owner.token,
+    ).send({
+      fulfillmentStatus:
+        "READY_FOR_PICKUP",
+      fulfillmentNote:
+        "Customer may collect the item.",
+    });
+
+    assert.equal(
+      readyForPickup.status,
+      200,
+      JSON.stringify(readyForPickup.body),
+    );
+
+    assert.equal(
+      readyForPickup.body.settlement
+        .fulfillmentStatus,
+      "READY_FOR_PICKUP",
+    );
+
+    assert.equal(
+      readyForPickup.body.settlement
+        .fulfillmentNote,
+      "Customer may collect the item.",
+    );
+
+    assert.equal(
+      readyForPickup.body.settlement
+        .fulfilledAt,
+      null,
+    );
+
+    const completed = await authorize(
+      request(app).patch(
+        `/api/settlements/${settlementId}/fulfillment`,
+      ),
+      admin.token,
+    ).send({
+      fulfillmentStatus: "COMPLETED",
+      fulfillmentNote:
+        "Transaction completed by administrator.",
+    });
+
+    assert.equal(
+      completed.status,
+      200,
+      JSON.stringify(completed.body),
+    );
+
+    assert.equal(
+      completed.body.settlement
+        .fulfillmentStatus,
+      "COMPLETED",
+    );
+
+    assert.ok(
+      completed.body.settlement.fulfilledAt,
+    );
+
+    const adminList = await authorize(
+      request(app).get("/api/settlements"),
+      admin.token,
+    );
+
+    assert.equal(adminList.status, 200);
+    assert.ok(Array.isArray(adminList.body));
+
+    assert.ok(
+      adminList.body.some(
+        (row) =>
+          row.id === settlementId &&
+          row.fulfillmentStatus ===
+            "COMPLETED",
+      ),
+    );
+
+    const stored =
+      await prisma.settlement.findUnique({
+        where: {
+          id: settlementId,
+        },
+      });
+
+    assert.ok(stored);
+    assert.equal(stored.status, "CHARGED");
+
+    assert.equal(
+      stored.fulfillmentStatus,
+      "COMPLETED",
+    );
+
+    assert.ok(stored.fulfilledAt);
   },
 );
