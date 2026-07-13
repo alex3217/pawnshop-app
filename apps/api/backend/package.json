@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm run prisma:generate && node --test --test-concurrency=1 test/*.test.js",
     "dev": "nodemon --watch src --ext js --exec node src/server.js",
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "test:core": "npm run prisma:generate && node --test --test-concurrency=1 test/app.contract.test.js"
   },
   "keywords": [],
   "author": "",
@@ -36,6 +37,7 @@
   "devDependencies": {
     "@prisma/client": "^6.19.3",
     "nodemon": "^3.1.11",
-    "prisma": "^6.19.3"
+    "prisma": "^6.19.3",
+    "supertest": "^7.2.2"
   }
 }

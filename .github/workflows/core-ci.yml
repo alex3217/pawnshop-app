@@ -99,3 +99,32 @@ jobs:
       - name: Mobile TypeScript compilation
         working-directory: apps/mobile
         run: npx tsc --noEmit
+
+  backend-tests:
+    name: Backend Automated Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      NODE_ENV: test
+      APP_ENV: test
+      AUCTION_SCHEDULER_ENABLED: "false"
+      JWT_SECRET: pawnloop-core-tests-only-secret-2026-not-for-production
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pawnshop_test?schema=public
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: npm
+          cache-dependency-path: apps/api/backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm --prefix apps/api/backend ci
+
+      - name: Run backend automated tests
+        run: npm --prefix apps/api/backend test
