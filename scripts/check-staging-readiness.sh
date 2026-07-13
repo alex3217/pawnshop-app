@@ -49,8 +49,8 @@ if (String(process.env.PORT) !== "6003" || String(process.env.PAWN_PORT) !== "60
 console.log("✅ Staging env required values are present.");
 NODE
 
-DEV_DB="$(node --env-file="$DEV_ENV" -e 'const u=new URL(process.env.DATABASE_URL||"");u.searchParams.delete("schema");process.stdout.write(u.toString())')"
-STAGING_DB="$(node --env-file="$STAGING_ENV" -e 'const u=new URL(process.env.DATABASE_URL||"");u.searchParams.delete("schema");process.stdout.write(u.toString())')"
+DEV_DB="$(env -u DATABASE_URL -u DIRECT_URL node --env-file="$DEV_ENV" -e 'const u=new URL(process.env.DATABASE_URL||"");u.searchParams.delete("schema");process.stdout.write(u.toString())')"
+STAGING_DB="$(env -u DATABASE_URL -u DIRECT_URL node --env-file="$STAGING_ENV" -e 'const u=new URL(process.env.DATABASE_URL||"");u.searchParams.delete("schema");process.stdout.write(u.toString())')"
 
 if [ "$DEV_DB" = "$STAGING_DB" ]; then
   echo "Staging DATABASE_URL matches development DATABASE_URL. Refusing staging readiness." >&2
