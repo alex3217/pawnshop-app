@@ -105,6 +105,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pawnshop_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pawnshop_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       NODE_ENV: test
       APP_ENV: test
@@ -126,5 +141,8 @@ jobs:
       - name: Install backend dependencies
         run: npm --prefix apps/api/backend ci
 
+      - name: Audit backend dependencies
+        run: npm --prefix apps/api/backend audit --audit-level=high
+
       - name: Run backend automated tests
-        run: npm --prefix apps/api/backend test
+        run: npm --prefix apps/api/backend run test:all
