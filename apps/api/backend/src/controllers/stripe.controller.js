@@ -1,10 +1,12 @@
 import { prisma } from "../lib/prisma.js";
 import { assertPaidSellerPlanCode } from "../config/sellerPlans.js";
-import { getSellerPlanCatalog } from "../services/platformPricingCatalog.service.js";
+import {
+  createValidatedSellerSubscriptionCheckoutSession,
+  normalizeSellerBillingInterval,
+} from "../services/stripeSubscriptionPrice.service.js";
 import {
   getStripe,
   getStripeCurrency,
-  getSubscriptionPriceId,
   getStripePublishableKey,
   mapStripeSubscriptionStatus,
   toAmountCents,
@@ -18,9 +20,20 @@ const PI_REUSABLE_STATUSES = new Set([
 ]);
 
 function errorResponse(res, err, fallback = "Internal Server Error") {
-  const status = Number(err?.statusCode) || Number(err?.status) || 500;
+  const status =
+    Number(err?.statusCode) ||
+    Number(err?.status) ||
+    500;
+
   const message = err?.message || fallback;
-  return res.status(status).json({ error: message });
+
+  return res.status(status).json({
+    error: message,
+    ...(err?.code ? { code: err.code } : {}),
+    ...(err?.details
+      ? { details: err.details }
+      : {}),
+  });
 }
 
 function createHttpError(message, statusCode = 500, details = undefined) {
@@ -36,36 +49,6 @@ function normalizeId(value) {
 
 function normalizePlanCode(value) {
   return String(value || "").trim().toUpperCase();
-}
-
-async function resolveSellerSubscriptionPriceId(
-  planCode
-) {
-  const normalizedPlanCode =
-    normalizePlanCode(planCode);
-
-  const catalog =
-    await getSellerPlanCatalog();
-
-  const plan =
-    catalog.find(
-      (candidate) =>
-        normalizePlanCode(candidate?.code) ===
-        normalizedPlanCode
-    ) || null;
-
-  const databasePriceId =
-    String(
-      plan?.stripeMonthlyPriceId || ""
-    ).trim();
-
-  if (databasePriceId) {
-    return databasePriceId;
-  }
-
-  return getSubscriptionPriceId(
-    normalizedPlanCode
-  );
 }
 
 function getRequestUser(req) {
@@ -280,46 +263,76 @@ export async function createSubscriptionCheckoutSession(req, res) {
     getRequestUser(req);
 
     const shopId = normalizeId(req?.body?.shopId);
-    const planCode = assertPaidSellerPlanCode(req?.body?.planCode);
+    const planCode =
+      assertPaidSellerPlanCode(
+        req?.body?.planCode
+      );
+
+    const billingInterval =
+      normalizeSellerBillingInterval(
+        req?.body?.billingInterval || "MONTH"
+      );
+
     const successUrl = assertAbsoluteHttpUrl(
       req?.body?.successUrl,
       "successUrl"
     );
-    const cancelUrl = assertAbsoluteHttpUrl(req?.body?.cancelUrl, "cancelUrl");
+
+    const cancelUrl = assertAbsoluteHttpUrl(
+      req?.body?.cancelUrl,
+      "cancelUrl"
+    );
 
     if (!shopId || !planCode) {
       return res.status(400).json({
-        error: "Missing shopId, planCode, successUrl, or cancelUrl",
+        error:
+          "Missing shopId, planCode, successUrl, or cancelUrl",
       });
     }
 
-    const shop = await ensureShopAccess(req, shopId);
-    const stripe = getStripe();
-    const stripeCustomerId = await ensureStripeCustomerForShop(stripe, shop);
-    const priceId = await resolveSellerSubscriptionPriceId(planCode);
+    const shop =
+      await ensureShopAccess(req, shopId);
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: stripeCustomerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      allow_promotion_codes: true,
-      billing_address_collection: "auto",
-      client_reference_id: shop.id,
-      metadata: {
-        shopId: shop.id,
+    const stripe = getStripe();
+
+    const stripeCustomerId =
+      await ensureStripeCustomerForShop(
+        stripe,
+        shop
+      );
+
+    const {
+      session,
+      config: priceConfig,
+    } =
+      await createValidatedSellerSubscriptionCheckoutSession({
+        stripe,
         planCode,
-        ownerId: shop.ownerId,
-      },
-      subscription_data: {
-        metadata: {
-          shopId: shop.id,
-          planCode,
-          ownerId: shop.ownerId,
+        billingInterval,
+        checkoutParams: {
+          mode: "subscription",
+          customer: stripeCustomerId,
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          allow_promotion_codes: true,
+          billing_address_collection: "auto",
+          client_reference_id: shop.id,
+          metadata: {
+            shopId: shop.id,
+            planCode,
+            billingInterval,
+            ownerId: shop.ownerId,
+          },
+          subscription_data: {
+            metadata: {
+              shopId: shop.id,
+              planCode,
+              billingInterval,
+              ownerId: shop.ownerId,
+            },
+          },
         },
-      },
-    });
+      });
 
     return res.status(201).json({
       success: true,
@@ -327,6 +340,11 @@ export async function createSubscriptionCheckoutSession(req, res) {
       sessionId: session.id,
       customerId: stripeCustomerId,
       planCode,
+      billingInterval,
+      priceId: priceConfig.priceId,
+      amountCents:
+        priceConfig.amountCents,
+      currency: priceConfig.currency,
     });
   } catch (err) {
     return errorResponse(
