@@ -34,6 +34,7 @@ const BUYER_SECONDARY_NAV: NavItem[] = [
 
 const OWNER_PRIMARY_NAV: NavItem[] = [
   { to: "/owner", label: "Owner Dashboard", end: true },
+  { to: "/owner/onboarding", label: "Setup Wizard" },
   { to: "/owner/inventory", label: "Inventory" },
   { to: "/owner/integrations", label: "Integrations" },
   { to: "/owner/locations", label: "Locations" },

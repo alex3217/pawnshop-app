@@ -1,0 +1,447 @@
+.owner-onboarding-page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 18px 0 52px;
+  color: #172033;
+}
+
+.owner-onboarding-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 30px;
+  border: 1px solid #dbe4f0;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.13), transparent 42%),
+    #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+}
+
+.owner-onboarding-eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.owner-onboarding-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 1;
+}
+
+.owner-onboarding-hero p {
+  max-width: 700px;
+  margin: 14px 0 0;
+  color: #526078;
+  line-height: 1.65;
+}
+
+.owner-onboarding-dashboard-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border: 1px solid #b9c7da;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #172033;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.owner-onboarding-progress {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.owner-onboarding-progress li {
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbe4f0;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #68758b;
+}
+
+.owner-onboarding-progress li span {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #e8eef7;
+  color: #334155;
+  font-weight: 850;
+}
+
+.owner-onboarding-progress li.is-active {
+  border-color: #2563eb;
+  color: #172033;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.owner-onboarding-progress li.is-active span,
+.owner-onboarding-progress li.is-complete span {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.owner-onboarding-progress li.is-complete {
+  border-color: #93c5fd;
+  color: #1e3a8a;
+}
+
+.owner-onboarding-alert {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-weight: 700;
+}
+
+.owner-onboarding-alert.is-error {
+  border: 1px solid #fca5a5;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.owner-onboarding-alert.is-success {
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.owner-onboarding-card,
+.owner-onboarding-state {
+  padding: 28px;
+  border: 1px solid #dbe4f0;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.07);
+}
+
+.owner-onboarding-state {
+  text-align: center;
+  font-weight: 750;
+}
+
+.owner-onboarding-card-heading {
+  margin-bottom: 24px;
+}
+
+.owner-onboarding-card-heading > span {
+  color: #2563eb;
+  font-size: 0.82rem;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.owner-onboarding-card-heading h2 {
+  margin: 7px 0;
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+}
+
+.owner-onboarding-card-heading p {
+  max-width: 760px;
+  margin: 0;
+  color: #5c687d;
+  line-height: 1.6;
+}
+
+.owner-onboarding-form {
+  display: grid;
+  gap: 18px;
+}
+
+.owner-onboarding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.owner-onboarding-form label,
+.owner-onboarding-existing label {
+  display: grid;
+  gap: 8px;
+  color: #273449;
+  font-weight: 750;
+}
+
+.owner-onboarding-form input,
+.owner-onboarding-form select,
+.owner-onboarding-form textarea,
+.owner-onboarding-existing select {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 13px;
+  border: 1px solid #b9c7da;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+}
+
+.owner-onboarding-form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.owner-onboarding-form input::placeholder,
+.owner-onboarding-form textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+.owner-onboarding-existing {
+  display: grid;
+  gap: 18px;
+  max-width: 680px;
+}
+
+.owner-onboarding-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.owner-onboarding-actions button,
+.owner-onboarding-existing button {
+  min-height: 46px;
+  padding: 11px 18px;
+  border: 1px solid #1d4ed8;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.owner-onboarding-actions button.is-secondary {
+  border-color: #b9c7da;
+  background: #ffffff;
+  color: #273449;
+}
+
+.owner-onboarding-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.owner-onboarding-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+.owner-onboarding-plan {
+  min-height: 230px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px;
+  border: 2px solid #dbe4f0;
+  border-radius: 18px;
+  background: #ffffff;
+  color: #172033;
+  text-align: left;
+  cursor: pointer;
+}
+
+.owner-onboarding-plan > span {
+  color: #526078;
+  font-weight: 800;
+}
+
+.owner-onboarding-plan > strong {
+  margin-top: 8px;
+  font-size: 1.45rem;
+}
+
+.owner-onboarding-plan ul {
+  margin: 18px 0 0;
+  padding-left: 20px;
+  color: #526078;
+  line-height: 1.55;
+}
+
+.owner-onboarding-plan.is-selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.owner-onboarding-selection {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eef4fb;
+}
+
+.owner-onboarding-review {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.owner-onboarding-review article {
+  display: grid;
+  gap: 7px;
+  padding: 18px;
+  border: 1px solid #dbe4f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.owner-onboarding-review article span {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.owner-onboarding-review article strong {
+  font-size: 1.1rem;
+}
+
+.owner-onboarding-review article small {
+  color: #5c687d;
+  line-height: 1.45;
+}
+
+.owner-onboarding-next-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.owner-onboarding-next-links a {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 14px;
+  border: 1px solid #b9c7da;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+:root[data-theme="dark"] .owner-onboarding-page {
+  color: #edf3ff;
+}
+
+:root[data-theme="dark"] .owner-onboarding-hero,
+:root[data-theme="dark"] .owner-onboarding-card,
+:root[data-theme="dark"] .owner-onboarding-state,
+:root[data-theme="dark"] .owner-onboarding-progress li,
+:root[data-theme="dark"] .owner-onboarding-plan {
+  border-color: #33466a;
+  background: #111a2f;
+  color: #edf3ff;
+}
+
+:root[data-theme="dark"] .owner-onboarding-hero p,
+:root[data-theme="dark"] .owner-onboarding-card-heading p,
+:root[data-theme="dark"] .owner-onboarding-plan ul,
+:root[data-theme="dark"] .owner-onboarding-plan > span {
+  color: #c2cee2;
+}
+
+:root[data-theme="dark"] .owner-onboarding-dashboard-link,
+:root[data-theme="dark"] .owner-onboarding-actions button.is-secondary,
+:root[data-theme="dark"] .owner-onboarding-next-links a {
+  border-color: #506487;
+  background: #18243e;
+  color: #edf3ff;
+}
+
+:root[data-theme="dark"] .owner-onboarding-form label,
+:root[data-theme="dark"] .owner-onboarding-existing label {
+  color: #edf3ff;
+}
+
+:root[data-theme="dark"] .owner-onboarding-form input,
+:root[data-theme="dark"] .owner-onboarding-form select,
+:root[data-theme="dark"] .owner-onboarding-form textarea,
+:root[data-theme="dark"] .owner-onboarding-existing select {
+  border-color: #506487;
+  background: #0b1325;
+  color: #edf3ff;
+}
+
+:root[data-theme="dark"] .owner-onboarding-form input::placeholder,
+:root[data-theme="dark"] .owner-onboarding-form textarea::placeholder {
+  color: #b7c5dd;
+}
+
+:root[data-theme="dark"] .owner-onboarding-plan.is-selected {
+  border-color: #60a5fa;
+  background: #14264a;
+}
+
+:root[data-theme="dark"] .owner-onboarding-selection,
+:root[data-theme="dark"] .owner-onboarding-review article {
+  border-color: #33466a;
+  background: #17233b;
+  color: #edf3ff;
+}
+
+:root[data-theme="dark"] .owner-onboarding-review article span,
+:root[data-theme="dark"] .owner-onboarding-review article small {
+  color: #c2cee2;
+}
+
+@media (max-width: 760px) {
+  .owner-onboarding-hero {
+    flex-direction: column;
+    padding: 22px;
+  }
+
+  .owner-onboarding-progress {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .owner-onboarding-grid,
+  .owner-onboarding-review {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-onboarding-card {
+    padding: 21px;
+  }
+
+  .owner-onboarding-actions {
+    justify-content: stretch;
+  }
+
+  .owner-onboarding-actions button {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 470px) {
+  .owner-onboarding-progress {
+    grid-template-columns: 1fr;
+  }
+}

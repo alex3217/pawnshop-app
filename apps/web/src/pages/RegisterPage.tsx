@@ -15,7 +15,7 @@ function isPublicRole(value: string): value is PublicRole {
 }
 
 function getPostRegisterRoute(role: PublicRole) {
-  return role === "OWNER" ? "/owner/shops/new" : "/auctions";
+  return role === "OWNER" ? "/owner/onboarding" : "/auctions";
 }
 
 export default function RegisterPage() {

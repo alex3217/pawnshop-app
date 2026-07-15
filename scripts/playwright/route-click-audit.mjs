@@ -28,6 +28,7 @@ const accounts = [
       "/",
       "/owner",
       "/owner/dashboard",
+      "/owner/onboarding",
       "/owner/inventory",
       "/owner/auctions",
       "/owner/staff",
