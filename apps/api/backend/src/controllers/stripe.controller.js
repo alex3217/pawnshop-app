@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { assertPaidSellerPlanCode } from "../config/sellerPlans.js";
+import { getSellerPlanCatalog } from "../services/platformPricingCatalog.service.js";
 import {
   getStripe,
   getStripeCurrency,
@@ -35,6 +36,36 @@ function normalizeId(value) {
 
 function normalizePlanCode(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+async function resolveSellerSubscriptionPriceId(
+  planCode
+) {
+  const normalizedPlanCode =
+    normalizePlanCode(planCode);
+
+  const catalog =
+    await getSellerPlanCatalog();
+
+  const plan =
+    catalog.find(
+      (candidate) =>
+        normalizePlanCode(candidate?.code) ===
+        normalizedPlanCode
+    ) || null;
+
+  const databasePriceId =
+    String(
+      plan?.stripeMonthlyPriceId || ""
+    ).trim();
+
+  if (databasePriceId) {
+    return databasePriceId;
+  }
+
+  return getSubscriptionPriceId(
+    normalizedPlanCode
+  );
 }
 
 function getRequestUser(req) {
@@ -265,7 +296,7 @@ export async function createSubscriptionCheckoutSession(req, res) {
     const shop = await ensureShopAccess(req, shopId);
     const stripe = getStripe();
     const stripeCustomerId = await ensureStripeCustomerForShop(stripe, shop);
-    const priceId = getSubscriptionPriceId(planCode);
+    const priceId = await resolveSellerSubscriptionPriceId(planCode);
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",

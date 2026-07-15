@@ -109,6 +109,7 @@ function normalizeForm(rule: PlatformPricingRuleRow): PricingForm {
 export default function SuperAdminPricingPage() {
   const [rules, setRules] = useState<PlatformPricingRuleRow[]>([]);
   const [form, setForm] = useState<PricingForm>(defaultForm);
+  const [metadataText, setMetadataText] = useState("{}");
   const [editingId, setEditingId] = useState("");
   const [query, setQuery] = useState("");
   const [areaFilter, setAreaFilter] = useState("ALL");
@@ -184,11 +185,15 @@ export default function SuperAdminPricingPage() {
   function resetForm() {
     setEditingId("");
     setForm(defaultForm);
+    setMetadataText("{}");
   }
 
   function editRule(rule: PlatformPricingRuleRow) {
     setEditingId(rule.id);
     setForm(normalizeForm(rule));
+    setMetadataText(
+      JSON.stringify(rule.metadata || {}, null, 2),
+    );
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -198,12 +203,34 @@ export default function SuperAdminPricingPage() {
     setNotice("");
 
     try {
+      let metadata: Record<string, unknown> | null = null;
+      const trimmedMetadata = metadataText.trim();
+
+      if (trimmedMetadata) {
+        const parsedMetadata: unknown =
+          JSON.parse(trimmedMetadata);
+
+        if (
+          !parsedMetadata ||
+          typeof parsedMetadata !== "object" ||
+          Array.isArray(parsedMetadata)
+        ) {
+          throw new Error(
+            "Rule metadata must be a JSON object.",
+          );
+        }
+
+        metadata =
+          parsedMetadata as Record<string, unknown>;
+      }
+
       const payload: PricingForm = {
         ...form,
         key: form.key.trim(),
         label: form.label.trim(),
         description: form.description?.trim() || "",
         stripePriceId: form.stripePriceId?.trim() || null,
+        metadata,
         amountCents: Number(form.amountCents ?? 0),
         percentBps: form.percentBps === null || form.percentBps === undefined
           ? null
@@ -428,6 +455,23 @@ export default function SuperAdminPricingPage() {
         <label className="mt-3 grid gap-1 text-sm font-medium">
           Description
           <textarea className="min-h-24 rounded-xl border bg-background p-3" value={form.description || ""} onChange={(event) => updateForm("description", event.target.value)} />
+        </label>
+
+        <label className="mt-3 grid gap-1 text-sm font-medium">
+          Rule metadata (JSON)
+          <textarea
+            className="min-h-48 rounded-xl border bg-background p-3 font-mono text-xs"
+            value={metadataText}
+            onChange={(event) =>
+              setMetadataText(event.target.value)
+            }
+            placeholder='{"maxActiveListings":50,"trialMaxActiveListings":50}'
+          />
+          <span className="text-xs text-muted-foreground">
+            Seller-plan limit rules can define listing limits,
+            trial limits, locations, staff, feature flags,
+            analytics level, and displayed feature text.
+          </span>
         </label>
 
         <div className="mt-4 flex flex-wrap gap-2">

@@ -10,6 +10,7 @@ import {
   normalizeSellerPlanCode,
   normalizeSubscriptionStatus,
 } from "../config/sellerPlans.js";
+import { getSellerPlanCatalog } from "./platformPricingCatalog.service.js";
 
 /**
  * Statuses that consume a listing slot for plan-limit checks.
@@ -112,18 +113,81 @@ function getCountedListingStatuses() {
   return uniqueNonEmptyStrings(ACTIVE_LISTING_STATUSES);
 }
 
-function buildEntitlements(shop, activeListingCount) {
+function buildEntitlements(
+  shop,
+  activeListingCount,
+  planOverride = null
+) {
   const storedPlan = normalizeStoredPlan(shop);
-  const normalizedStatus = normalizeStoredSubscriptionStatus(shop);
-  const effectivePlanCode = getEffectivePlanCode(shop);
-  const plan = getSellerPlanSummary(effectivePlanCode);
+  const normalizedStatus =
+    normalizeStoredSubscriptionStatus(shop);
 
-  const countedStatuses = getCountedListingStatuses();
-  const safeActiveListingCount = toSafeNonNegativeInteger(activeListingCount);
-  const isUnlimitedListings = isUnlimited(plan.maxActiveListings);
-  const maxActiveListings = isUnlimitedListings
-    ? plan.maxActiveListings
-    : toSafeNonNegativeInteger(plan.maxActiveListings);
+  const effectivePlanCode =
+    getEffectivePlanCode(shop);
+
+  const fallbackPlan =
+    getSellerPlanSummary(effectivePlanCode);
+
+  const overrideMatches =
+    planOverride &&
+    normalizeSellerPlanCode(planOverride.code) ===
+      effectivePlanCode;
+
+  const plan = overrideMatches
+    ? {
+        ...fallbackPlan,
+        ...planOverride,
+        features: Array.isArray(planOverride.features)
+          ? [...planOverride.features]
+          : [...(fallbackPlan.features || [])],
+      }
+    : fallbackPlan;
+
+  const countedStatuses =
+    getCountedListingStatuses();
+
+  const safeActiveListingCount =
+    toSafeNonNegativeInteger(activeListingCount);
+
+  const standardListingLimit =
+    isUnlimited(plan.maxActiveListings)
+      ? null
+      : toSafeNonNegativeInteger(
+          plan.maxActiveListings
+        );
+
+  const rawTrialListingLimit =
+    Object.prototype.hasOwnProperty.call(
+      plan,
+      "trialMaxActiveListings"
+    )
+      ? plan.trialMaxActiveListings
+      : plan.maxActiveListings;
+
+  const trialListingLimit =
+    isUnlimited(rawTrialListingLimit)
+      ? null
+      : toSafeNonNegativeInteger(
+          rawTrialListingLimit
+        );
+
+  const usingTrialLimit =
+    normalizedStatus === "TRIALING";
+
+  const appliedListingLimit =
+    usingTrialLimit
+      ? trialListingLimit
+      : standardListingLimit;
+
+  const isUnlimitedListings =
+    isUnlimited(appliedListingLimit);
+
+  const maxActiveListings =
+    isUnlimitedListings
+      ? null
+      : toSafeNonNegativeInteger(
+          appliedListingLimit
+        );
 
   return {
     shopId: shop.id,
@@ -134,43 +198,75 @@ function buildEntitlements(shop, activeListingCount) {
       storedPlan,
       effectivePlan: effectivePlanCode,
       status: normalizedStatus,
-      isUsable: isSubscriptionUsable(normalizedStatus),
+      isUsable:
+        isSubscriptionUsable(normalizedStatus),
       isPaid: Boolean(plan.isPaid),
       isFree: Boolean(plan.isFree),
       rank: Number(plan.rank || 0),
       label: plan.label,
-      currentPeriodEnd: shop.subscriptionCurrentPeriodEnd || null,
-      cancelAtPeriodEnd: Boolean(shop.cancelAtPeriodEnd),
-      stripeCustomerId: shop.stripeCustomerId || null,
-      stripeSubscriptionId: shop.stripeSubscriptionId || null,
+      currentPeriodEnd:
+        shop.subscriptionCurrentPeriodEnd || null,
+      cancelAtPeriodEnd:
+        Boolean(shop.cancelAtPeriodEnd),
+      stripeCustomerId:
+        shop.stripeCustomerId || null,
+      stripeSubscriptionId:
+        shop.stripeSubscriptionId || null,
     },
 
     limits: {
       maxActiveListings,
+      standardMaxActiveListings:
+        standardListingLimit,
+      trialMaxActiveListings:
+        trialListingLimit,
+      listingLimitSource:
+        usingTrialLimit ? "TRIAL" : "PLAN",
       maxLocations: plan.maxLocations,
       maxStaffUsers: plan.maxStaffUsers,
     },
 
     features: {
-      canCreateAuctions: Boolean(plan.canCreateAuctions),
-      canFeatureListings: Boolean(plan.canFeatureListings),
+      canCreateAuctions:
+        Boolean(plan.canCreateAuctions),
+      canFeatureListings:
+        Boolean(plan.canFeatureListings),
       analyticsLevel: plan.analyticsLevel,
     },
 
     billing: {
-      commissionBps: toSafeNonNegativeInteger(plan.commissionBps),
-      commissionPercent: Number(plan.commissionPercent || 0),
-      monthlyPriceCents: toSafeNonNegativeInteger(plan.monthlyPriceCents),
-      yearlyPriceCents: toSafeNonNegativeInteger(plan.yearlyPriceCents),
-      annualSavingsCents: toSafeNonNegativeInteger(plan.annualSavingsCents),
+      commissionBps:
+        toSafeNonNegativeInteger(
+          plan.commissionBps
+        ),
+      commissionPercent:
+        Number(plan.commissionPercent || 0),
+      monthlyPriceCents:
+        toSafeNonNegativeInteger(
+          plan.monthlyPriceCents
+        ),
+      yearlyPriceCents:
+        toSafeNonNegativeInteger(
+          plan.yearlyPriceCents
+        ),
+      annualSavingsCents:
+        toSafeNonNegativeInteger(
+          plan.annualSavingsCents
+        ),
     },
 
     usage: {
-      activeListingCount: safeActiveListingCount,
+      activeListingCount:
+        safeActiveListingCount,
       countedStatuses,
-      remainingActiveListings: isUnlimitedListings
-        ? null
-        : Math.max(maxActiveListings - safeActiveListingCount, 0),
+      remainingActiveListings:
+        isUnlimitedListings
+          ? null
+          : Math.max(
+              maxActiveListings -
+                safeActiveListingCount,
+              0
+            ),
       isUnlimitedListings,
     },
   };
@@ -300,9 +396,32 @@ export async function getSellerPlanSnapshot(shopId) {
   };
 }
 
-export async function getSellerEntitlementsForShop(shopId) {
-  const { shop, activeListingCount } = await getSellerPlanSnapshot(shopId);
-  return buildEntitlements(shop, activeListingCount);
+export async function getSellerEntitlementsForShop(
+  shopId
+) {
+  const [
+    { shop, activeListingCount },
+    catalog,
+  ] = await Promise.all([
+    getSellerPlanSnapshot(shopId),
+    getSellerPlanCatalog(),
+  ]);
+
+  const effectivePlanCode =
+    getEffectivePlanCode(shop);
+
+  const planOverride =
+    catalog.find(
+      (candidate) =>
+        normalizeSellerPlanCode(candidate?.code) ===
+        effectivePlanCode
+    ) || null;
+
+  return buildEntitlements(
+    shop,
+    activeListingCount,
+    planOverride
+  );
 }
 
 export async function assertCanCreateListingForShop(
