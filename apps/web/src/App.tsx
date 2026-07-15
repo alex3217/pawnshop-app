@@ -132,6 +132,9 @@ const OwnerIntegrationsPage = lazyPage(() =>
   import("./pages/OwnerIntegrationsPage"),
 );
 const OwnerLocationsPage = lazyPage(() => import("./pages/OwnerLocationsPage"));
+const OwnerOnboardingPage = lazyPage(() =>
+  import("./pages/OwnerOnboardingPage"),
+);
 const OwnerStaffPage = lazyPage(() => import("./pages/OwnerStaffPage"));
 const OwnerSubscriptionPage = lazyPage(() =>
   import("./pages/OwnerSubscriptionPage"),
@@ -227,6 +230,7 @@ const offerRoutes: RouteConfig[] = [
 const ownerRoutes: RouteConfig[] = [
   { path: "/owner", element: <OwnerDashboardPage /> },
   { path: "/owner/dashboard", element: <Navigate to="/owner" replace /> },
+  { path: "/owner/onboarding", element: <OwnerOnboardingPage /> },
   { path: "/owner/shops/new", element: <CreateShopPage /> },
   { path: "/owner/items/new", element: <CreateItemPage /> },
   { path: "items/:id/edit", element: <OwnerItemEditPage /> },
