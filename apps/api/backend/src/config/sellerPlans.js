@@ -109,6 +109,10 @@ function createSellerPlan(config) {
       config.maxActiveListings,
       `${code}.maxActiveListings`
     ),
+    trialMaxActiveListings: toNonNegativeIntegerOrNull(
+      config.trialMaxActiveListings ?? config.maxActiveListings,
+      `${code}.trialMaxActiveListings`
+    ),
     maxLocations: toNonNegativeIntegerOrNull(
       config.maxLocations,
       `${code}.maxLocations`
@@ -137,7 +141,8 @@ export const SELLER_PLANS = Object.freeze({
     label: "Free",
     monthlyPriceCents: 0,
     yearlyPriceCents: 0,
-    maxActiveListings: 10,
+    maxActiveListings: 50,
+    trialMaxActiveListings: 50,
     maxLocations: 1,
     maxStaffUsers: 1,
     canCreateAuctions: false,
@@ -145,7 +150,8 @@ export const SELLER_PLANS = Object.freeze({
     analyticsLevel: "none",
     commissionBps: 1200,
     features: [
-      "Up to 10 active listings",
+      "Up to 50 active listings",
+      "50 active listings during trial",
       "Basic shop profile",
       "Standard support",
     ],
@@ -157,6 +163,7 @@ export const SELLER_PLANS = Object.freeze({
     monthlyPriceCents: 4900,
     yearlyPriceCents: 49000,
     maxActiveListings: 100,
+    trialMaxActiveListings: 50,
     maxLocations: 1,
     maxStaffUsers: 3,
     canCreateAuctions: true,
@@ -178,6 +185,7 @@ export const SELLER_PLANS = Object.freeze({
     monthlyPriceCents: 14900,
     yearlyPriceCents: 149000,
     maxActiveListings: null,
+    trialMaxActiveListings: 50,
     maxLocations: 5,
     maxStaffUsers: 15,
     canCreateAuctions: true,
@@ -200,6 +208,7 @@ export const SELLER_PLANS = Object.freeze({
     monthlyPriceCents: 29900,
     yearlyPriceCents: 299000,
     maxActiveListings: null,
+    trialMaxActiveListings: 50,
     maxLocations: null,
     maxStaffUsers: null,
     canCreateAuctions: true,

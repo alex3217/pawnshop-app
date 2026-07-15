@@ -56,6 +56,16 @@ if [ -n "$PG_SCHEMA" ]; then
   PG_DUMP_ARGS+=(--schema="$PG_SCHEMA")
 fi
 
-pg_dump "${PG_DUMP_ARGS[@]}"
+if ! pg_dump "${PG_DUMP_ARGS[@]}"; then
+  rm -f "$OUT_FILE"
+  echo "❌ Database backup failed; incomplete output removed: $OUT_FILE" >&2
+  exit 1
+fi
+
+if [ ! -s "$OUT_FILE" ]; then
+  rm -f "$OUT_FILE"
+  echo "❌ Database backup was empty; output removed: $OUT_FILE" >&2
+  exit 1
+fi
 
 echo "✅ Database backup created: $OUT_FILE"
