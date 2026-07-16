@@ -410,7 +410,12 @@ export default function ShopsPage() {
             </p>
           </div>
 
-          <button type="button" onClick={clearFilters} disabled={!hasActiveFilters}>
+          <button
+            type="button"
+            className="shops2-clear-filters"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+          >
             Clear filters
           </button>
         </div>
