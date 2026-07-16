@@ -2,9 +2,12 @@
 
 import { api } from "./apiClient";
 
+export type SellerBillingInterval = "MONTH" | "YEAR";
+
 export type CreateSubscriptionCheckoutInput = {
   shopId: string;
   planCode: string;
+  billingInterval: SellerBillingInterval;
   successUrl: string;
   cancelUrl: string;
 };
@@ -24,6 +27,10 @@ export type CheckoutSessionResponse = {
   sessionId?: string;
   customerId?: string;
   planCode?: string;
+  billingInterval?: SellerBillingInterval;
+  priceId?: string;
+  amountCents?: number;
+  currency?: string;
 };
 
 export type OwnerBuyerItemSubmission = {
@@ -182,6 +189,9 @@ export async function createSubscriptionCheckoutSession(
 ): Promise<CheckoutSessionResponse> {
   if (!input.shopId) throw new Error("Missing shop id.");
   if (!input.planCode) throw new Error("Missing plan code.");
+  if (!["MONTH", "YEAR"].includes(input.billingInterval)) {
+    throw new Error("Invalid billing interval.");
+  }
   if (!input.successUrl) throw new Error("Missing success URL.");
   if (!input.cancelUrl) throw new Error("Missing cancel URL.");
 

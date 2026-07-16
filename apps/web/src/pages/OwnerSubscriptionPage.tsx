@@ -14,6 +14,7 @@ import {
   getSellerPlans,
   getShopEntitlements,
   updateShopSubscription,
+  type SellerBillingInterval,
 } from "../services/ownerWorkspace";
 import "../styles/owner-subscription-readability.css";
 import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
@@ -23,6 +24,9 @@ type SellerPlan = {
   label: string;
   monthlyPriceCents: number;
   yearlyPriceCents: number;
+  annualSavingsCents: number;
+  stripeMonthlyPriceId: string | null;
+  stripeYearlyPriceId: string | null;
   maxActiveListings: number | null;
   maxLocations: number | null;
   maxStaffUsers: number | null;
@@ -128,12 +132,14 @@ function getBaseReturnUrl() {
 function buildCheckoutReturnUrl(
   result: "success" | "cancelled",
   shopId: string,
-  planCode: string
+  planCode: string,
+  billingInterval: SellerBillingInterval,
 ) {
   const url = new URL(getBaseReturnUrl());
   url.searchParams.set("checkout", result);
   url.searchParams.set("shopId", shopId);
   url.searchParams.set("plan", planCode);
+  url.searchParams.set("billing", billingInterval);
   return url.toString();
 }
 
@@ -183,6 +189,22 @@ function toSellerPlan(value: unknown): SellerPlan | null {
     label: String(v.label || code),
     monthlyPriceCents: Number(v.monthlyPriceCents || 0),
     yearlyPriceCents: Number(v.yearlyPriceCents || 0),
+    annualSavingsCents: Number(
+      v.annualSavingsCents ??
+        Math.max(
+          Number(v.monthlyPriceCents || 0) * 12 -
+            Number(v.yearlyPriceCents || 0),
+          0,
+        ),
+    ),
+    stripeMonthlyPriceId:
+      typeof v.stripeMonthlyPriceId === "string"
+        ? v.stripeMonthlyPriceId
+        : null,
+    stripeYearlyPriceId:
+      typeof v.stripeYearlyPriceId === "string"
+        ? v.stripeYearlyPriceId
+        : null,
     maxActiveListings:
       v.maxActiveListings === null || v.maxActiveListings === undefined
         ? null
@@ -292,12 +314,18 @@ function resolveCurrentPlan(plans: SellerPlan[], effectivePlanCode: string) {
 function getPlanButtonLabel(
   plan: SellerPlan,
   currentPlanCode: string,
-  switchingPlan: string
+  switchingPlan: string,
+  billingInterval: SellerBillingInterval,
 ) {
-  if (switchingPlan === plan.code) return "Switching...";
+  const switchingKey = `${plan.code}:${billingInterval}`;
+
+  if (switchingPlan === switchingKey) return "Opening checkout...";
   if (plan.code === currentPlanCode) return "Current Plan";
+
   return isPaidPlanCode(plan.code)
-    ? `Upgrade to ${plan.label}`
+    ? `Choose ${plan.label} ${
+        billingInterval === "YEAR" ? "yearly" : "monthly"
+      }`
     : `Switch to ${plan.label}`;
 }
 
@@ -343,6 +371,8 @@ export default function OwnerSubscriptionPage() {
   const [entitlementsLoading, setEntitlementsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [switchingPlan, setSwitchingPlan] = useState("");
+  const [billingInterval, setBillingInterval] =
+    useState<SellerBillingInterval>("MONTH");
 
   const [pageError, setPageError] = useState("");
   const [entitlementsError, setEntitlementsError] = useState("");
@@ -366,6 +396,24 @@ export default function OwnerSubscriptionPage() {
     currentPlanCode ||
     entitlements?.subscription?.storedPlan ||
     "Unavailable";
+
+  const foundingPaidPlanSummary = useMemo(
+    () =>
+      plans
+        .filter(
+          (plan) =>
+            isPaidPlanCode(plan.code) &&
+            plan.monthlyPriceCents > 0,
+        )
+        .map(
+          (plan) =>
+            `${plan.label} ${formatMoney(
+              plan.monthlyPriceCents,
+            )}/mo`,
+        )
+        .join(" · "),
+    [plans],
+  );
 
   const loadEntitlements = useCallback(
     async (shopId: string, opts?: { silent?: boolean; signal?: AbortSignal }) => {
@@ -509,10 +557,21 @@ export default function OwnerSubscriptionPage() {
     const url = new URL(window.location.href);
     const checkout = url.searchParams.get("checkout");
     const plan = url.searchParams.get("plan");
+    const returnedBillingInterval =
+      url.searchParams.get("billing");
 
     if (checkout === "success") {
+      const billingLabel =
+        returnedBillingInterval === "YEAR"
+          ? "yearly"
+          : returnedBillingInterval === "MONTH"
+            ? "monthly"
+            : "";
+
       setCheckoutMessage(
-        `Checkout completed${plan ? ` for ${plan}` : ""}. Refreshing subscription details.`
+        `Checkout completed${plan ? ` for ${plan}` : ""}${
+          billingLabel ? ` (${billingLabel})` : ""
+        }. Refreshing subscription details.`,
       );
     } else if (checkout === "cancelled") {
       setCheckoutMessage("Checkout was cancelled. No billing changes were made.");
@@ -522,6 +581,7 @@ export default function OwnerSubscriptionPage() {
 
     url.searchParams.delete("checkout");
     url.searchParams.delete("plan");
+    url.searchParams.delete("billing");
     url.searchParams.delete("shopId");
     window.history.replaceState({}, "", url.toString());
 
@@ -537,7 +597,11 @@ export default function OwnerSubscriptionPage() {
     if (!selectedShopId || !entitlements) return;
 
     const normalizedPlanCode = String(planCode || "").trim().toUpperCase();
-    setSwitchingPlan(normalizedPlanCode);
+    const selectedBillingInterval = billingInterval;
+
+    setSwitchingPlan(
+      `${normalizedPlanCode}:${selectedBillingInterval}`,
+    );
     setPageError("");
     setEntitlementsError("");
     setCheckoutMessage("");
@@ -549,17 +613,21 @@ export default function OwnerSubscriptionPage() {
         const successUrl = buildCheckoutReturnUrl(
           "success",
           selectedShopId,
-          normalizedPlanCode
+          normalizedPlanCode,
+          selectedBillingInterval,
         );
+
         const cancelUrl = buildCheckoutReturnUrl(
           "cancelled",
           selectedShopId,
-          normalizedPlanCode
+          normalizedPlanCode,
+          selectedBillingInterval,
         );
 
         const checkoutSession = await createSubscriptionCheckoutSession({
           shopId: selectedShopId,
           planCode: normalizedPlanCode,
+          billingInterval: selectedBillingInterval,
           successUrl,
           cancelUrl,
         });
@@ -702,9 +770,10 @@ export default function OwnerSubscriptionPage() {
               Free setup support for the first {foundingProgram.freeUploadCount} items.
             </div>
             <div style={styles.planMeta}>
-              After trial: Starter ${foundingProgram.starterMonthlyPrice}/mo · Pro $
-              {foundingProgram.proMonthlyPrice}/mo · Premium $
-              {foundingProgram.premiumMonthlyPrice}/mo.
+              After trial:{" "}
+              {foundingPaidPlanSummary ||
+                "Paid seller-plan pricing is loading."}
+              {foundingPaidPlanSummary ? "." : ""}
             </div>
           </div>
         ) : null}
@@ -829,11 +898,82 @@ export default function OwnerSubscriptionPage() {
               </div>
             </div>
 
+            <div style={styles.billingIntervalPanel}>
+              <div>
+                <div style={styles.billingIntervalTitle}>
+                  Choose your billing cycle
+                </div>
+                <div style={styles.billingIntervalHint}>
+                  Yearly billing includes two months free compared with
+                  paying monthly for 12 months.
+                </div>
+              </div>
+
+              <div
+                role="group"
+                aria-label="Seller plan billing cycle"
+                style={styles.billingToggle}
+              >
+                <button
+                  type="button"
+                  aria-pressed={billingInterval === "MONTH"}
+                  onClick={() => setBillingInterval("MONTH")}
+                  disabled={Boolean(switchingPlan)}
+                  style={{
+                    ...styles.billingToggleButton,
+                    ...(billingInterval === "MONTH"
+                      ? styles.billingToggleButtonActive
+                      : {}),
+                  }}
+                >
+                  Monthly
+                </button>
+
+                <button
+                  type="button"
+                  aria-pressed={billingInterval === "YEAR"}
+                  onClick={() => setBillingInterval("YEAR")}
+                  disabled={Boolean(switchingPlan)}
+                  style={{
+                    ...styles.billingToggleButton,
+                    ...(billingInterval === "YEAR"
+                      ? styles.billingToggleButtonActive
+                      : {}),
+                  }}
+                >
+                  Yearly · 2 months free
+                </button>
+              </div>
+            </div>
+
             <div style={styles.planGrid}>
               {plans.map((plan) => {
                 const active = plan.code === currentPlanCode;
                 const disabled =
-                  !selectedShopId || active || Boolean(switchingPlan) || entitlementsLoading;
+                  !selectedShopId ||
+                  active ||
+                  Boolean(switchingPlan) ||
+                  entitlementsLoading;
+
+                const selectedPriceCents =
+                  billingInterval === "YEAR"
+                    ? plan.yearlyPriceCents
+                    : plan.monthlyPriceCents;
+
+                const alternativePriceCents =
+                  billingInterval === "YEAR"
+                    ? plan.monthlyPriceCents
+                    : plan.yearlyPriceCents;
+
+                const selectedCadence =
+                  billingInterval === "YEAR"
+                    ? "year"
+                    : "month";
+
+                const alternativeCadence =
+                  billingInterval === "YEAR"
+                    ? "month"
+                    : "year";
 
                 return (
                   <div
@@ -847,15 +987,23 @@ export default function OwnerSubscriptionPage() {
                       <div>
                         <div style={styles.planTitle}>{plan.label}</div>
                         <div style={styles.planPrice}>
-                          {plan.monthlyPriceCents === 0
+                          {selectedPriceCents === 0
                             ? "Free"
-                            : `${formatMoney(plan.monthlyPriceCents)}/month`}
+                            : `${formatMoney(selectedPriceCents)}/${selectedCadence}`}
                         </div>
+
                         <div style={styles.planSubPrice}>
-                          {plan.yearlyPriceCents === 0
-                            ? "No yearly billing"
-                            : `${formatMoney(plan.yearlyPriceCents)}/year`}
+                          {alternativePriceCents === 0
+                            ? "No alternate billing charge"
+                            : `${formatMoney(alternativePriceCents)}/${alternativeCadence}`}
                         </div>
+
+                        {billingInterval === "YEAR" &&
+                        plan.annualSavingsCents > 0 ? (
+                          <div style={styles.savingsBadge}>
+                            Save {formatMoney(plan.annualSavingsCents)} per year
+                          </div>
+                        ) : null}
                       </div>
 
                       {active ? <div style={styles.activeBadge}>Current</div> : null}
@@ -899,7 +1047,12 @@ export default function OwnerSubscriptionPage() {
                         ...(disabled ? styles.disabledButton : {}),
                       }}
                     >
-                      {getPlanButtonLabel(plan, currentPlanCode, switchingPlan)}
+                      {getPlanButtonLabel(
+                        plan,
+                        currentPlanCode,
+                        switchingPlan,
+                        billingInterval,
+                      )}
                     </button>
                   </div>
                 );
@@ -1073,6 +1226,62 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 6,
     fontSize: 12,
     color: "var(--owner-sub-muted)",
+  },
+  billingIntervalPanel: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 16,
+    flexWrap: "wrap",
+    padding: 16,
+    marginBottom: 16,
+    borderRadius: 18,
+    background: "var(--owner-sub-card-bg)",
+    border: "1px solid var(--owner-sub-soft-border)",
+    boxShadow: "var(--owner-sub-shadow)",
+  },
+  billingIntervalTitle: {
+    fontSize: 18,
+    fontWeight: 800,
+  },
+  billingIntervalHint: {
+    color: "var(--owner-sub-muted)",
+    fontSize: 13,
+    marginTop: 4,
+    maxWidth: 620,
+    lineHeight: 1.5,
+  },
+  billingToggle: {
+    display: "inline-flex",
+    gap: 6,
+    padding: 5,
+    borderRadius: 14,
+    background: "var(--owner-sub-input-bg)",
+    border: "1px solid var(--owner-sub-border)",
+  },
+  billingToggleButton: {
+    border: "1px solid transparent",
+    background: "transparent",
+    color: "var(--owner-sub-text)",
+    borderRadius: 10,
+    padding: "10px 14px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  billingToggleButtonActive: {
+    background: "var(--owner-sub-primary-bg)",
+    color: "var(--owner-sub-primary-text)",
+  },
+  savingsBadge: {
+    display: "inline-flex",
+    marginTop: 8,
+    padding: "5px 9px",
+    borderRadius: 999,
+    background: "var(--owner-sub-success-bg)",
+    color: "var(--owner-sub-success-text)",
+    border: "1px solid var(--owner-sub-success-border)",
+    fontSize: 12,
+    fontWeight: 800,
   },
   planGrid: {
     display: "grid",
