@@ -150,9 +150,9 @@
 .site-footer-inner {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: 32px 20px;
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
 .site-footer p {
@@ -283,4 +283,1330 @@
   background: #4f46e5 !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
+}
+
+/* PawnLoop production branding */
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 4px 0;
+  border-radius: 14px;
+  transition:
+    transform 160ms ease,
+    opacity 160ms ease;
+}
+
+.site-brand:hover {
+  transform: translateY(-1px);
+  opacity: 0.96;
+}
+
+.site-brand-logo {
+  display: block;
+  width: clamp(220px, 25vw, 340px);
+  height: auto;
+  max-height: 82px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.site-footer-logo {
+  display: block;
+  width: min(280px, 100%);
+  height: auto;
+  object-fit: contain;
+  object-position: left center;
+}
+
+@media (max-width: 900px) {
+  .site-top-row {
+    align-items: flex-start;
+  }
+
+  .site-brand-logo {
+    width: clamp(190px, 42vw, 280px);
+    max-height: 70px;
+  }
+
+  .site-top-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 620px) {
+  .site-top-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .site-brand {
+    justify-self: center;
+  }
+
+  .site-brand-logo {
+    width: min(280px, 88vw);
+    max-height: 72px;
+  }
+
+  .site-top-actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .site-primary-nav,
+  .site-workspace-row {
+    justify-content: center;
+  }
+}
+
+/* Compact PawnLoop header branding */
+.site-header-inner {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.site-top-row {
+  min-height: 66px;
+}
+
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 4px 6px 4px 2px;
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.site-brand:hover {
+  transform: translateY(-1px);
+}
+
+.site-brand-mark {
+  display: block;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  object-fit: contain;
+}
+
+.site-brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1;
+}
+
+.site-brand-name {
+  color: #0f172a;
+  font-size: clamp(24px, 2.25vw, 34px);
+  font-weight: 950;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+
+.site-brand-accent {
+  color: #d4a72c;
+}
+
+.site-brand-tagline {
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .site-brand-name {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .site-brand-tagline {
+  color: #94a3b8;
+}
+
+.site-top-actions {
+  margin-left: auto;
+}
+
+@media (max-width: 780px) {
+  .site-top-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .site-brand {
+    justify-self: center;
+  }
+
+  .site-top-actions {
+    justify-content: center;
+    margin-left: 0;
+  }
+
+  .site-brand-mark {
+    width: 50px;
+    height: 50px;
+    flex-basis: 50px;
+  }
+
+  .site-brand-name {
+    font-size: 27px;
+  }
+
+  .site-brand-tagline {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+  }
+
+  .site-primary-nav,
+  .site-workspace-row {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 460px) {
+  .site-brand-tagline {
+    display: none;
+  }
+
+  .site-brand-mark {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+
+  .site-brand-name {
+    font-size: 24px;
+  }
+}
+
+/* Final compact PawnLoop header symbol */
+.site-brand-symbol {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 32px;
+  line-height: 1;
+  color: #d4a72c;
+  background:
+    radial-gradient(circle at 35% 30%, #17396e 0%, #0d1b2a 72%);
+  border: 2px solid rgba(212, 167, 44, 0.72);
+  box-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.18),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.05);
+}
+
+.site-brand {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 780px) {
+  .site-brand-symbol {
+    width: 48px;
+    height: 48px;
+    flex-basis: 48px;
+    font-size: 28px;
+  }
+}
+
+@media (max-width: 460px) {
+  .site-brand-symbol {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+    font-size: 25px;
+  }
+}
+
+/* Keep the full PawnLoop artwork readable in both themes */
+.site-footer-brand {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      135deg,
+      #07152f 0%,
+      #0d2347 100%
+    );
+  border: 1px solid rgba(212, 167, 44, 0.32);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+.site-footer-logo {
+  display: block;
+  width: min(300px, 72vw);
+  height: auto;
+  object-fit: contain;
+}
+
+/* Avoid inherited text-brand rules affecting the image container */
+.site-footer-brand {
+  color: inherit;
+  font-size: inherit;
+  letter-spacing: normal;
+}
+
+:root[data-theme="dark"] .site-footer-brand {
+  background:
+    linear-gradient(
+      135deg,
+      #0b1734 0%,
+      #13274d 100%
+    );
+  border-color: rgba(212, 167, 44, 0.42);
+}
+
+@media (max-width: 620px) {
+  .site-footer-brand {
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  .site-footer-logo {
+    width: min(280px, 84vw);
+  }
+}
+
+/* High-contrast PawnLoop brand symbol */
+.site-brand-symbol {
+  width: 62px !important;
+  height: 62px !important;
+  flex: 0 0 62px !important;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #07152f !important;
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      #f8df88 0%,
+      #d4a72c 58%,
+      #a97810 100%
+    ) !important;
+
+  border: 3px solid #f8fafc !important;
+  border-radius: 18px !important;
+
+  font-size: 38px !important;
+  line-height: 1 !important;
+  font-family:
+    "Arial Unicode MS",
+    "Apple Symbols",
+    "Segoe UI Symbol",
+    sans-serif !important;
+
+  box-shadow:
+    0 0 0 2px rgba(212, 167, 44, 0.82),
+    0 10px 28px rgba(0, 0, 0, 0.3) !important;
+}
+
+.site-brand-name {
+  font-size: clamp(27px, 2.4vw, 36px) !important;
+}
+
+.site-brand-accent {
+  color: #e2b53d !important;
+}
+
+:root[data-theme="dark"] .site-brand-symbol {
+  color: #07152f !important;
+  border-color: #ffffff !important;
+}
+
+@media (max-width: 780px) {
+  .site-brand-symbol {
+    width: 54px !important;
+    height: 54px !important;
+    flex-basis: 54px !important;
+    font-size: 33px !important;
+  }
+}
+
+@media (max-width: 460px) {
+  .site-brand-symbol {
+    width: 48px !important;
+    height: 48px !important;
+    flex-basis: 48px !important;
+    font-size: 29px !important;
+  }
+}
+
+/* Final PawnLoop production brand treatment */
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+}
+
+.site-brand-symbol {
+  width: 58px !important;
+  height: 58px !important;
+  flex: 0 0 58px !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border-radius: 50% !important;
+  background: #07152f !important;
+  border: 2px solid rgba(212, 167, 44, 0.9) !important;
+  box-shadow:
+    0 0 0 3px rgba(212, 167, 44, 0.12),
+    0 8px 18px rgba(15, 23, 42, 0.18) !important;
+}
+
+
+.site-brand-name {
+  color: #07152f !important;
+}
+
+.site-brand-accent {
+  color: #c99720 !important;
+}
+
+.site-brand-tagline {
+  color: #475569 !important;
+}
+
+:root[data-theme="dark"] .site-brand {
+  background: rgba(17, 29, 54, 0.92) !important;
+  border-color: rgba(212, 167, 44, 0.2);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24) !important;
+}
+
+:root[data-theme="dark"] .site-brand-name {
+  color: #f8fafc !important;
+}
+
+:root[data-theme="dark"] .site-brand-accent {
+  color: #e3b94c !important;
+}
+
+:root[data-theme="dark"] .site-brand-tagline {
+  color: #b9c4d6 !important;
+}
+
+.site-footer-brand {
+  background:
+    linear-gradient(
+      135deg,
+      #07152f 0%,
+      #10284f 100%
+    ) !important;
+  border: 1px solid rgba(212, 167, 44, 0.35) !important;
+}
+
+.site-footer-logo {
+  width: min(360px, 82vw) !important;
+}
+
+@media (max-width: 780px) {
+  .site-brand-symbol {
+    width: 52px !important;
+    height: 52px !important;
+    flex-basis: 52px !important;
+  }
+}
+
+@media (max-width: 460px) {
+  .site-brand {
+    gap: 9px;
+    padding: 5px 8px 5px 5px;
+  }
+
+  .site-brand-symbol {
+    width: 46px !important;
+    height: 46px !important;
+    flex-basis: 46px !important;
+  }
+}
+
+/* Final PawnLoop infinity brand */
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 13px 7px 7px;
+  border-radius: 18px;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.94) !important;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.10) !important;
+}
+
+.site-brand-symbol {
+  position: relative;
+  width: 64px !important;
+  height: 64px !important;
+  flex: 0 0 64px !important;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+  border-radius: 50% !important;
+
+  background:
+    radial-gradient(
+      circle at 35% 28%,
+      #173a70 0%,
+      #0a1d3e 62%,
+      #051126 100%
+    ) !important;
+
+  border: 3px solid #d9aa32 !important;
+
+  box-shadow:
+    0 0 0 3px rgba(217, 170, 50, 0.18),
+    0 8px 24px rgba(2, 6, 23, 0.32) !important;
+}
+
+.site-brand-symbol-infinity {
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+
+  color: #f3c64e;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 52px;
+  font-weight: 900;
+  line-height: 0.72;
+
+  text-shadow:
+    0 1px 0 #8b6410,
+    0 0 10px rgba(243, 198, 78, 0.28);
+}
+
+.site-brand-symbol-pawn {
+  position: relative;
+  z-index: 2;
+  margin-top: -7px;
+
+  color: #ffffff;
+  font-family:
+    "Apple Symbols",
+    "Segoe UI Symbol",
+    Arial,
+    sans-serif;
+  font-size: 35px;
+  line-height: 1;
+
+  text-shadow:
+    0 2px 2px rgba(0, 0, 0, 0.55),
+    0 0 8px rgba(255, 255, 255, 0.25);
+}
+
+.site-brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1;
+}
+
+.site-brand-name {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+
+  font-size: clamp(27px, 2.3vw, 36px);
+  font-weight: 950;
+  letter-spacing: -0.045em;
+}
+
+.site-brand-name-pawn {
+  color: #07152f;
+}
+
+.site-brand-name-infinity {
+  display: inline-block;
+  margin: 0 -1px;
+
+  color: #d4a72c;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 1.16em;
+  font-weight: 900;
+  line-height: 0.8;
+  transform: translateY(0.03em);
+}
+
+.site-brand-name-loop-end {
+  color: #d4a72c;
+}
+
+.site-brand-tagline {
+  margin-top: 7px;
+  color: #475569 !important;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .site-brand {
+  background: rgba(18, 31, 57, 0.96) !important;
+  border-color: rgba(217, 170, 50, 0.30);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.28) !important;
+}
+
+:root[data-theme="dark"] .site-brand-name-pawn {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .site-brand-name-infinity,
+:root[data-theme="dark"] .site-brand-name-loop-end {
+  color: #f0c44f;
+}
+
+:root[data-theme="dark"] .site-brand-tagline {
+  color: #c5cfdf !important;
+}
+
+@media (max-width: 780px) {
+  .site-brand-symbol {
+    width: 56px !important;
+    height: 56px !important;
+    flex-basis: 56px !important;
+  }
+
+  .site-brand-symbol-infinity {
+    font-size: 46px;
+  }
+
+  .site-brand-symbol-pawn {
+    font-size: 31px;
+  }
+
+  .site-brand-name {
+    font-size: 28px;
+  }
+}
+
+@media (max-width: 460px) {
+  .site-brand {
+    gap: 9px;
+    padding: 5px 9px 5px 5px;
+  }
+
+  .site-brand-symbol {
+    width: 48px !important;
+    height: 48px !important;
+    flex-basis: 48px !important;
+  }
+
+  .site-brand-symbol-infinity {
+    font-size: 39px;
+  }
+
+  .site-brand-symbol-pawn {
+    font-size: 27px;
+  }
+
+  .site-brand-name {
+    font-size: 24px;
+  }
+
+  .site-brand-tagline {
+    display: none;
+  }
+}
+
+/* =========================================================
+   PawnLoop production header — final user-friendly treatment
+   ========================================================= */
+
+.site-header-inner {
+  padding: 12px 20px 10px;
+  gap: 10px;
+}
+
+.site-top-row {
+  min-height: 62px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+/* Remove the card-like box around the brand */
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.site-brand:hover {
+  transform: none;
+  opacity: 0.96;
+}
+
+/* Clear circular symbol */
+.site-brand-symbol {
+  position: relative;
+  width: 56px !important;
+  height: 56px !important;
+  flex: 0 0 56px !important;
+  overflow: visible !important;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50% !important;
+  background:
+    radial-gradient(
+      circle at 38% 30%,
+      #173b73 0%,
+      #0a1d3e 64%,
+      #051126 100%
+    ) !important;
+
+  border: 2px solid #d8aa36 !important;
+
+  box-shadow:
+    0 0 0 3px rgba(216, 170, 54, 0.13),
+    0 8px 20px rgba(2, 6, 23, 0.22) !important;
+}
+
+/* Circle around the pawn */
+.site-brand-symbol::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  border-radius: 50%;
+  z-index: 1;
+}
+
+/* Infinity loop sits across the lower part of the circle */
+.site-brand-symbol-infinity {
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  transform: translateX(-50%);
+  z-index: 2;
+
+  color: #e7bd4d;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 38px;
+  font-weight: 900;
+  line-height: 0.65;
+
+  text-shadow:
+    0 1px 0 #7a5810,
+    0 0 7px rgba(231, 189, 77, 0.25);
+}
+
+/* Pawn remains the main visual */
+.site-brand-symbol-pawn {
+  position: relative;
+  z-index: 3;
+  margin-top: -4px;
+
+  color: #ffffff;
+  font-family:
+    "Apple Symbols",
+    "Segoe UI Symbol",
+    Arial,
+    sans-serif;
+  font-size: 29px;
+  line-height: 1;
+
+  text-shadow:
+    0 2px 2px rgba(0, 0, 0, 0.52),
+    0 0 6px rgba(255, 255, 255, 0.22);
+}
+
+.site-brand-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.site-brand-name {
+  display: inline-flex;
+  align-items: baseline;
+  color: #0f172a;
+  font-size: clamp(26px, 2.15vw, 33px) !important;
+  font-weight: 950;
+  letter-spacing: -0.045em;
+  line-height: 0.96;
+  white-space: nowrap;
+}
+
+.site-brand-name-pawn {
+  color: inherit;
+}
+
+.site-brand-name-infinity {
+  margin: 0 1px;
+  color: #d6a62d;
+  font-size: 1.02em;
+  line-height: 0.8;
+  transform: translateY(0.01em);
+}
+
+.site-brand-name-loop-end {
+  color: #d6a62d;
+}
+
+.site-brand-tagline {
+  margin-top: 6px;
+  color: #64748b !important;
+  font-size: 9px !important;
+  font-weight: 900;
+  letter-spacing: 0.15em !important;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Account controls */
+.site-top-actions {
+  margin-left: auto;
+  flex-wrap: nowrap;
+  gap: 9px;
+}
+
+/* Cleaner navigation */
+.site-primary-nav,
+.site-workspace-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  padding-bottom: 3px;
+}
+
+.site-primary-nav {
+  gap: 6px;
+}
+
+.site-workspace-row {
+  gap: 6px;
+  padding-top: 10px;
+}
+
+.site-nav-link {
+  flex: 0 0 auto;
+  padding: 10px 13px;
+  font-size: 14px;
+}
+
+.site-workspace-link {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  font-size: 12px;
+}
+
+/* Dark mode */
+:root[data-theme="dark"] .site-brand-name-pawn {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .site-brand-name-infinity,
+:root[data-theme="dark"] .site-brand-name-loop-end {
+  color: #edc654;
+}
+
+:root[data-theme="dark"] .site-brand-tagline {
+  color: #c7d0df !important;
+}
+
+/* Tablet */
+@media (max-width: 900px) {
+  .site-top-row {
+    flex-wrap: wrap;
+  }
+
+  .site-top-actions {
+    margin-left: auto;
+  }
+
+  .site-brand-symbol {
+    width: 52px !important;
+    height: 52px !important;
+    flex-basis: 52px !important;
+  }
+
+  .site-brand-symbol-infinity {
+    font-size: 35px;
+  }
+
+  .site-brand-symbol-pawn {
+    font-size: 27px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 680px) {
+  .site-header-inner {
+    padding: 10px 12px;
+  }
+
+  .site-top-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .site-brand {
+    justify-self: start;
+  }
+
+  .site-top-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .site-primary-nav,
+  .site-workspace-row {
+    justify-content: flex-start;
+  }
+
+  .site-brand-name {
+    font-size: 27px !important;
+  }
+}
+
+/* Very small phones */
+@media (max-width: 430px) {
+  .site-brand-symbol {
+    width: 46px !important;
+    height: 46px !important;
+    flex-basis: 46px !important;
+  }
+
+  .site-brand-symbol-infinity {
+    font-size: 31px;
+  }
+
+  .site-brand-symbol-pawn {
+    font-size: 24px;
+  }
+
+  .site-brand-name {
+    font-size: 24px !important;
+  }
+
+  .site-brand-tagline {
+    display: none;
+  }
+}
+
+/* Final production PawnLoop header */
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  text-decoration: none;
+}
+
+
+.site-top-row {
+  align-items: center;
+}
+
+.site-top-actions {
+  margin-left: auto;
+}
+
+@media (max-width: 900px) {
+  .site-brand-header-image {
+    width: clamp(220px, 42vw, 330px);
+    max-height: 82px;
+  }
+}
+
+@media (max-width: 680px) {
+  .site-top-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .site-brand {
+    justify-self: center;
+  }
+
+  .site-brand-header-image {
+    width: min(360px, 92vw);
+    max-height: 86px;
+  }
+
+  .site-top-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: center;
+  }
+}
+
+/* Final responsive PawnLoop brand */
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  text-decoration: none;
+}
+
+.site-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.site-brand-svg {
+  display: block;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  overflow: visible;
+  filter: drop-shadow(0 7px 12px rgba(15, 23, 42, 0.2));
+}
+
+.site-brand-svg-ring {
+  fill: #0a1d3e;
+  stroke: #d6a72d;
+  stroke-width: 3;
+}
+
+.site-brand-svg-pawn {
+  fill: #ffffff;
+}
+
+.site-brand-svg-infinity {
+  fill: none;
+  stroke: #e3b53c;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.site-brand-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1;
+}
+
+.site-brand-name {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: clamp(27px, 2.2vw, 34px);
+  font-weight: 950;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+
+.site-brand-name-main {
+  color: #0f172a;
+}
+
+.site-brand-name-infinity {
+  color: #d6a72d;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 1.08em;
+  font-weight: 900;
+  line-height: 0.8;
+  margin: 0 1px;
+}
+
+.site-brand-name-end {
+  color: #d6a72d;
+}
+
+.site-brand-tagline {
+  margin-top: 7px;
+  color: #64748b !important;
+  font-size: 9px !important;
+  font-weight: 900;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .site-brand-name-main {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .site-brand-name-infinity,
+:root[data-theme="dark"] .site-brand-name-end {
+  color: #edc653;
+}
+
+:root[data-theme="dark"] .site-brand-tagline {
+  color: #cbd5e1 !important;
+}
+
+.site-top-row {
+  min-height: 66px;
+  align-items: center;
+}
+
+.site-top-actions {
+  margin-left: auto;
+}
+
+@media (max-width: 700px) {
+  .site-top-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 11px;
+  }
+
+  .site-brand {
+    justify-self: start;
+  }
+
+  .site-top-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  .site-brand-svg {
+    width: 52px;
+    height: 52px;
+    flex-basis: 52px;
+  }
+
+  .site-brand-name {
+    font-size: 27px;
+  }
+}
+
+@media (max-width: 430px) {
+  .site-brand-svg {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
+  }
+
+  .site-brand-name {
+    font-size: 24px;
+  }
+
+  .site-brand-tagline {
+    display: none;
+  }
+}
+
+/* =========================================================
+   User-friendly compact navigation
+   ========================================================= */
+
+.site-header-inner {
+  position: relative;
+  padding: 10px 20px;
+  gap: 9px;
+}
+
+.site-top-row {
+  min-height: 58px;
+}
+
+.site-primary-nav {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 0 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.site-nav-link {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.site-workspace-menu {
+  position: relative;
+  width: fit-content;
+}
+
+.site-workspace-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  min-width: 132px;
+  padding: 9px 14px;
+
+  color: #334155;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  border-radius: 999px;
+
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.site-workspace-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.site-workspace-trigger:hover {
+  background: #f8fafc;
+  border-color: rgba(79, 70, 229, 0.4);
+}
+
+.site-workspace-menu[open] .site-workspace-trigger {
+  color: #ffffff;
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.site-workspace-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 100;
+
+  width: min(620px, calc(100vw - 40px));
+  padding: 12px;
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 8px;
+
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 18px;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
+}
+
+.site-workspace-menu-link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+
+  font-size: 13px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.site-workspace-menu-link:hover {
+  color: #312e81;
+  background: #eef2ff;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.site-workspace-menu-link.active {
+  color: #ffffff;
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+
+:root[data-theme="dark"] .site-workspace-trigger {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+:root[data-theme="dark"] .site-workspace-menu[open] .site-workspace-trigger {
+  color: #ffffff;
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+
+:root[data-theme="dark"] .site-workspace-panel {
+  background: #0f172a;
+  border-color: rgba(148, 163, 184, 0.22);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="dark"] .site-workspace-menu-link {
+  color: #dbe4f0;
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+:root[data-theme="dark"] .site-workspace-menu-link:hover {
+  color: #ffffff;
+  background: rgba(99, 102, 241, 0.20);
+}
+
+:root[data-theme="dark"] .site-workspace-menu-link.active {
+  color: #ffffff;
+  background: #4f46e5;
+}
+
+@media (max-width: 760px) {
+  .site-workspace-menu {
+    width: 100%;
+  }
+
+  .site-workspace-trigger {
+    width: 100%;
+  }
+
+  .site-workspace-panel {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+    grid-template-columns: repeat(2, minmax(130px, 1fr));
+  }
+}
+
+@media (max-width: 460px) {
+  .site-workspace-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+.site-workspace-row {
+  display: none !important;
 }
