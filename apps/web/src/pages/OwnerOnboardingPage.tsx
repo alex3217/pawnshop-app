@@ -291,6 +291,7 @@ export default function OwnerOnboardingPage() {
         const checkout = await createSubscriptionCheckoutSession({
           shopId: selectedShopId,
           planCode,
+          billingInterval: "MONTH",
           successUrl:
             `${baseUrl}?step=3&checkout=success` +
             `&shopId=${encodedShopId}&plan=${encodedPlan}`,
