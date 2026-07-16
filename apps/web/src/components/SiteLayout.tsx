@@ -199,59 +199,12 @@ export default function SiteLayout() {
               className="site-brand"
               aria-label="PawnLoop home"
             >
-              <span className="site-brand-lockup">
-                <svg
-                  className="site-brand-svg"
-                  viewBox="0 0 72 72"
-                  role="img"
-                  aria-label="PawnLoop pawn and infinity symbol"
-                >
-                  <circle
-                    cx="36"
-                    cy="36"
-                    r="32"
-                    className="site-brand-svg-ring"
-                  />
-
-                  <path
-                    className="site-brand-svg-pawn"
-                    d="M36 14
-                       C30.5 14 26 18.5 26 24
-                       C26 28.1 28.5 31.6 32 33.1
-                       L29.5 37
-                       L27.5 43
-                       L22 50
-                       L22 55
-                       L50 55
-                       L50 50
-                       L44.5 43
-                       L42.5 37
-                       L40 33.1
-                       C43.5 31.6 46 28.1 46 24
-                       C46 18.5 41.5 14 36 14Z"
-                  />
-
-                  <path
-                    className="site-brand-svg-infinity"
-                    d="M16 43
-                       C20 35 27 35 36 43
-                       C45 51 52 51 56 43
-                       C52 35 45 35 36 43
-                       C27 51 20 51 16 43Z"
-                  />
-                </svg>
-
-                <span className="site-brand-copy">
-                  <span className="site-brand-name">
-                    <span className="site-brand-name-main">PawnL</span>
-                    <span className="site-brand-name-infinity">∞</span>
-                    <span className="site-brand-name-end">p</span>
-                  </span>
-
-                  <span className="site-brand-tagline">
-                    Buy. Sell. Loan. Repeat.
-                  </span>
-                </span>
+              <span className="site-header-logo-frame">
+                <img
+                  src="/branding/pawnloop-header-final.png"
+                  alt="PawnLoop — Buy. Sell. Loan. Repeat."
+                  className="site-header-logo"
+                />
               </span>
             </Link>
 
@@ -348,7 +301,7 @@ export default function SiteLayout() {
           <div>
             <div className="site-footer-brand">
               <img
-                src="/branding/pawnloop-logo.png"
+                src="/branding/pawnloop-header-final.png"
                 alt="PawnLoop — Buy. Sell. Loan. Repeat."
                 className="site-footer-logo"
               />
