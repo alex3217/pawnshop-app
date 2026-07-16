@@ -1610,3 +1610,981 @@
 .site-workspace-row {
   display: none !important;
 }
+
+/* Match the header branding to the footer PawnLoop logo */
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.site-header-logo-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 238px;
+  height: 74px;
+  overflow: hidden;
+  border: 1px solid rgba(216, 170, 54, 0.42);
+  border-radius: 16px;
+  background: #081a3a;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
+}
+
+.site-header-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+:root[data-theme="light"] .site-header-logo-frame {
+  border-color: rgba(180, 132, 24, 0.48);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+@media (max-width: 700px) {
+  .site-header-logo-frame {
+    width: 210px;
+    height: 66px;
+  }
+}
+
+@media (max-width: 430px) {
+  .site-header-logo-frame {
+    width: 184px;
+    height: 58px;
+  }
+}
+
+/* =========================================================
+   PawnLoop header logo — enlarge artwork and wordmark
+   ========================================================= */
+
+.site-header-logo-frame {
+  width: 340px !important;
+  height: 96px !important;
+  flex: 0 0 340px;
+  overflow: hidden;
+  padding: 0 !important;
+  border-radius: 16px;
+  background: #081a3a;
+}
+
+.site-header-logo {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: cover !important;
+  object-position: center !important;
+
+  /* Enlarges the actual pawn and PawnLoop words inside the image */
+  transform: scale(1.75);
+  transform-origin: center;
+}
+
+/* Give the larger logo enough room */
+.site-top-row {
+  min-height: 104px !important;
+}
+
+@media (max-width: 900px) {
+  .site-header-logo-frame {
+    width: 300px !important;
+    height: 86px !important;
+    flex-basis: 300px;
+  }
+
+  .site-header-logo {
+    transform: scale(1.72);
+  }
+}
+
+@media (max-width: 600px) {
+  .site-header-logo-frame {
+    width: min(310px, 90vw) !important;
+    height: 82px !important;
+    flex-basis: auto;
+  }
+
+  .site-header-logo {
+    transform: scale(1.68);
+  }
+}
+
+/* Final PawnLoop header artwork */
+.site-header-logo-frame {
+  width: 430px !important;
+  height: 122px !important;
+  flex: 0 0 430px;
+  overflow: hidden;
+  padding: 0 !important;
+  border-radius: 18px;
+  background: #06142d;
+  border: 1px solid rgba(226, 178, 58, 0.55);
+}
+
+.site-header-logo {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+}
+
+.site-top-row {
+  min-height: 130px !important;
+}
+
+@media (max-width: 900px) {
+  .site-header-logo-frame {
+    width: 360px !important;
+    height: 104px !important;
+    flex-basis: 360px;
+  }
+}
+
+@media (max-width: 600px) {
+  .site-header-logo-frame {
+    width: min(360px, 92vw) !important;
+    height: 100px !important;
+    flex-basis: auto;
+  }
+}
+
+/* Final safe PawnLoop header logo rendering */
+.site-header-logo-frame {
+  width: 430px !important;
+  height: 122px !important;
+  flex: 0 0 430px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  border-radius: 18px !important;
+  background: #06142d !important;
+  border: 1px solid rgba(226, 178, 58, 0.55) !important;
+}
+
+.site-header-logo {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 900px) {
+  .site-header-logo-frame {
+    width: 360px !important;
+    height: 104px !important;
+    flex-basis: 360px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .site-header-logo-frame {
+    width: min(360px, 92vw) !important;
+    height: 100px !important;
+    flex-basis: auto !important;
+  }
+}
+
+/* Stable PawnLoop header and footer logo rendering */
+.site-header-logo-frame {
+  width: 430px !important;
+  height: 122px !important;
+  flex: 0 0 430px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  background: #06142d !important;
+  border: 1px solid rgba(226, 178, 58, 0.55) !important;
+  border-radius: 18px !important;
+}
+
+.site-header-logo {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: scale(1.35) !important;
+  transform-origin: center !important;
+  opacity: 1 !important;
+}
+
+.site-footer-logo {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  object-fit: contain !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 900px) {
+  .site-header-logo-frame {
+    width: 360px !important;
+    height: 104px !important;
+    flex-basis: 360px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .site-header-logo-frame {
+    width: min(360px, 92vw) !important;
+    height: 100px !important;
+    flex-basis: auto !important;
+  }
+}
+
+/* =========================================================
+   Final approved PawnLoop header and footer logo proportions
+   ========================================================= */
+
+/* Header logo: large enough to read, without dominating the page */
+.site-header-logo-frame {
+  width: 380px !important;
+  height: 126px !important;
+  flex: 0 0 380px !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  overflow: hidden !important;
+  padding: 8px 14px !important;
+
+  background: #071630 !important;
+  border: 1px solid rgba(218, 171, 50, 0.58) !important;
+  border-radius: 16px !important;
+
+  box-sizing: border-box !important;
+}
+
+.site-header-logo {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+
+  object-fit: contain !important;
+  object-position: center !important;
+
+  transform: scale(1.15) !important;
+  transform-origin: center !important;
+  opacity: 1 !important;
+}
+
+/* Keep the header balanced around the larger logo */
+.site-top-row {
+  min-height: 134px !important;
+  align-items: center !important;
+}
+
+/* Footer logo: compact and centered */
+.site-footer-brand {
+  width: 290px !important;
+  height: 105px !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  overflow: hidden !important;
+  padding: 8px 12px !important;
+
+  background: #071630 !important;
+  border: 1px solid rgba(218, 171, 50, 0.42) !important;
+  border-radius: 14px !important;
+
+  box-sizing: border-box !important;
+}
+
+.site-footer-logo {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+
+  object-fit: contain !important;
+  object-position: center !important;
+
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+/* Prevent the footer image from stretching the page */
+.site-footer,
+.site-footer-inner {
+  min-height: 0 !important;
+}
+
+.site-footer-inner {
+  align-items: flex-start !important;
+  padding-top: 28px !important;
+  padding-bottom: 28px !important;
+}
+
+/* Tablet */
+@media (max-width: 900px) {
+  .site-header-logo-frame {
+    width: 330px !important;
+    height: 110px !important;
+    flex-basis: 330px !important;
+  }
+
+  .site-footer-brand {
+    width: 260px !important;
+    height: 94px !important;
+  }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .site-header-logo-frame {
+    width: min(340px, 92vw) !important;
+    height: 108px !important;
+    flex-basis: auto !important;
+  }
+
+  .site-header-logo {
+    transform: scale(1.08) !important;
+  }
+
+  .site-footer-brand {
+    width: min(260px, 88vw) !important;
+    height: 94px !important;
+  }
+}
+
+/* =========================================================
+   Final readable PawnLoop header brand
+   ========================================================= */
+
+.site-header-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 100px;
+}
+
+.site-header-symbol-frame {
+  position: relative;
+  width: 94px;
+  height: 94px;
+  flex: 0 0 94px;
+  overflow: hidden;
+  border: 2px solid #d9aa32;
+  border-radius: 50%;
+  background: #071630;
+  box-shadow:
+    0 0 0 4px rgba(217, 170, 50, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+/*
+ * Crop the left side of the existing logo image so the pawn
+ * symbol fills the circle instead of showing the empty canvas.
+ */
+.site-header-symbol-image {
+  position: absolute;
+  width: 380px !important;
+  height: 260px !important;
+  max-width: none !important;
+  left: -77px;
+  top: -83px;
+  object-fit: cover !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+.site-header-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  position: relative;
+  padding-bottom: 27px;
+  white-space: nowrap;
+  font-size: clamp(42px, 4vw, 62px);
+  font-weight: 950;
+  line-height: 0.92;
+  letter-spacing: -0.055em;
+}
+
+.site-header-wordmark-main {
+  color: #f8fafc;
+}
+
+.site-header-wordmark-loop,
+.site-header-wordmark-end {
+  color: #e4b83f;
+}
+
+.site-header-wordmark-loop {
+  margin: 0 2px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 1.03em;
+  font-weight: 900;
+}
+
+.site-header-wordmark-tagline {
+  position: absolute;
+  left: 2px;
+  bottom: 0;
+  color: #d6deed;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+:root[data-theme="light"] .site-header-wordmark-main {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .site-header-wordmark-tagline {
+  color: #475569;
+}
+
+.site-top-row {
+  min-height: 118px !important;
+}
+
+/* Hide obsolete image-only header presentation */
+.site-header-logo-frame {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .site-header-symbol-frame {
+    width: 82px;
+    height: 82px;
+    flex-basis: 82px;
+  }
+
+  .site-header-symbol-image {
+    width: 330px !important;
+    height: 226px !important;
+    left: -67px;
+    top: -72px;
+  }
+
+  .site-header-wordmark {
+    font-size: clamp(38px, 6vw, 52px);
+  }
+}
+
+@media (max-width: 620px) {
+  .site-header-brand-lockup {
+    gap: 11px;
+    min-height: 82px;
+  }
+
+  .site-header-symbol-frame {
+    width: 68px;
+    height: 68px;
+    flex-basis: 68px;
+  }
+
+  .site-header-symbol-image {
+    width: 275px !important;
+    height: 188px !important;
+    left: -56px;
+    top: -60px;
+  }
+
+  .site-header-wordmark {
+    padding-bottom: 20px;
+    font-size: clamp(31px, 9vw, 42px);
+  }
+
+  .site-header-wordmark-tagline {
+    font-size: 8px;
+    letter-spacing: 0.11em;
+  }
+}
+
+@media (max-width: 410px) {
+  .site-header-symbol-frame {
+    width: 58px;
+    height: 58px;
+    flex-basis: 58px;
+  }
+
+  .site-header-symbol-image {
+    width: 235px !important;
+    height: 161px !important;
+    left: -48px;
+    top: -51px;
+  }
+
+  .site-header-wordmark {
+    font-size: 29px;
+  }
+
+  .site-header-wordmark-tagline {
+    display: none;
+  }
+}
+
+/* =========================================================
+   Final readable PawnLoop header brand
+   ========================================================= */
+
+.site-header-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 100px;
+}
+
+.site-header-symbol-frame {
+  position: relative;
+  width: 94px;
+  height: 94px;
+  flex: 0 0 94px;
+  overflow: hidden;
+  border: 2px solid #d9aa32;
+  border-radius: 50%;
+  background: #071630;
+  box-shadow:
+    0 0 0 4px rgba(217, 170, 50, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+/*
+ * Crop the left side of the existing logo image so the pawn
+ * symbol fills the circle instead of showing the empty canvas.
+ */
+.site-header-symbol-image {
+  position: absolute;
+  width: 380px !important;
+  height: 260px !important;
+  max-width: none !important;
+  left: -77px;
+  top: -83px;
+  object-fit: cover !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+.site-header-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  position: relative;
+  padding-bottom: 27px;
+  white-space: nowrap;
+  font-size: clamp(42px, 4vw, 62px);
+  font-weight: 950;
+  line-height: 0.92;
+  letter-spacing: -0.055em;
+}
+
+.site-header-wordmark-main {
+  color: #f8fafc;
+}
+
+.site-header-wordmark-loop,
+.site-header-wordmark-end {
+  color: #e4b83f;
+}
+
+.site-header-wordmark-loop {
+  margin: 0 2px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 1.03em;
+  font-weight: 900;
+}
+
+.site-header-wordmark-tagline {
+  position: absolute;
+  left: 2px;
+  bottom: 0;
+  color: #d6deed;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+:root[data-theme="light"] .site-header-wordmark-main {
+  color: #0f172a;
+}
+
+:root[data-theme="light"] .site-header-wordmark-tagline {
+  color: #475569;
+}
+
+.site-top-row {
+  min-height: 118px !important;
+}
+
+/* Hide obsolete image-only header presentation */
+.site-header-logo-frame {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .site-header-symbol-frame {
+    width: 82px;
+    height: 82px;
+    flex-basis: 82px;
+  }
+
+  .site-header-symbol-image {
+    width: 330px !important;
+    height: 226px !important;
+    left: -67px;
+    top: -72px;
+  }
+
+  .site-header-wordmark {
+    font-size: clamp(38px, 6vw, 52px);
+  }
+}
+
+@media (max-width: 620px) {
+  .site-header-brand-lockup {
+    gap: 11px;
+    min-height: 82px;
+  }
+
+  .site-header-symbol-frame {
+    width: 68px;
+    height: 68px;
+    flex-basis: 68px;
+  }
+
+  .site-header-symbol-image {
+    width: 275px !important;
+    height: 188px !important;
+    left: -56px;
+    top: -60px;
+  }
+
+  .site-header-wordmark {
+    padding-bottom: 20px;
+    font-size: clamp(31px, 9vw, 42px);
+  }
+
+  .site-header-wordmark-tagline {
+    font-size: 8px;
+    letter-spacing: 0.11em;
+  }
+}
+
+@media (max-width: 410px) {
+  .site-header-symbol-frame {
+    width: 58px;
+    height: 58px;
+    flex-basis: 58px;
+  }
+
+  .site-header-symbol-image {
+    width: 235px !important;
+    height: 161px !important;
+    left: -48px;
+    top: -51px;
+  }
+
+  .site-header-wordmark {
+    font-size: 29px;
+  }
+
+  .site-header-wordmark-tagline {
+    display: none;
+  }
+}
+
+/* =========================================================
+   Verified final PawnLoop header logo
+   ========================================================= */
+
+.site-brand {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.site-header-logo-frame {
+  display: block !important;
+  width: 430px !important;
+  height: 122px !important;
+  flex: 0 0 430px !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  border: 1px solid rgba(218, 171, 50, 0.58) !important;
+  border-radius: 16px !important;
+  background: #071630 !important;
+  box-sizing: border-box !important;
+}
+
+.site-header-logo {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+/* Disable the previous experimental header pieces */
+.site-header-brand-lockup,
+.site-header-symbol-frame,
+.site-header-wordmark,
+.site-brand-lockup,
+.site-brand-svg {
+  display: none !important;
+}
+
+.site-top-row {
+  min-height: 130px !important;
+  align-items: center !important;
+}
+
+@media (max-width: 900px) {
+  .site-header-logo-frame {
+    width: 360px !important;
+    height: 104px !important;
+    flex-basis: 360px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .site-header-logo-frame {
+    width: min(360px, 92vw) !important;
+    height: 102px !important;
+    flex-basis: auto !important;
+  }
+}
+
+/* Compact footer branding */
+.site-footer-brand {
+  width: 280px !important;
+  height: 96px !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  border-radius: 14px !important;
+  background: #071630 !important;
+}
+
+.site-footer-logo {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  transform: none !important;
+}
+
+/* Final compact PawnLoop footer logo */
+.site-footer-brand {
+  width: 360px !important;
+  height: 118px !important;
+  max-width: 100% !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  overflow: hidden !important;
+  padding: 6px 10px !important;
+
+  background: #06142d !important;
+  border: 1px solid rgba(218, 171, 50, 0.45) !important;
+  border-radius: 16px !important;
+  box-sizing: border-box !important;
+}
+
+.site-footer-logo {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+
+  object-fit: contain !important;
+  object-position: center !important;
+
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+.site-footer-inner {
+  padding-top: 24px !important;
+  padding-bottom: 24px !important;
+}
+
+@media (max-width: 600px) {
+  .site-footer-brand {
+    width: min(340px, 92vw) !important;
+    height: 110px !important;
+  }
+}
+
+/* Final visible compact footer logo */
+.site-footer-brand {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 340px !important;
+  height: 112px !important;
+  max-width: 100% !important;
+
+  overflow: hidden !important;
+  padding: 8px 12px !important;
+
+  background: #071630 !important;
+  border: 1px solid rgba(218, 171, 50, 0.48) !important;
+  border-radius: 16px !important;
+  box-sizing: border-box !important;
+}
+
+.site-footer-logo {
+  display: block !important;
+
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+
+  object-fit: contain !important;
+  object-position: center !important;
+
+  transform: scale(1.28) !important;
+  transform-origin: center !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.site-footer-inner {
+  padding-top: 24px !important;
+  padding-bottom: 24px !important;
+}
+
+@media (max-width: 600px) {
+  .site-footer-brand {
+    width: min(320px, 90vw) !important;
+    height: 106px !important;
+  }
+
+  .site-footer-logo {
+    transform: scale(1.2) !important;
+  }
+}
+
+/* =========================================================
+   Final PawnLoop footer logo — full image, no cropping
+   ========================================================= */
+
+.site-footer-brand {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 420px !important;
+  height: 128px !important;
+  max-width: 100% !important;
+
+  overflow: hidden !important;
+  padding: 8px 12px !important;
+
+  background: #071630 !important;
+  border: 1px solid rgba(218, 171, 50, 0.5) !important;
+  border-radius: 16px !important;
+  box-sizing: border-box !important;
+}
+
+.site-footer-brand .site-footer-logo {
+  position: static !important;
+  display: block !important;
+
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+
+  object-fit: contain !important;
+  object-position: center !important;
+
+  transform: none !important;
+  transform-origin: center !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.site-footer-inner {
+  min-height: 0 !important;
+  padding-top: 26px !important;
+  padding-bottom: 26px !important;
+}
+
+@media (max-width: 600px) {
+  .site-footer-brand {
+    width: min(390px, 92vw) !important;
+    height: 120px !important;
+  }
+}
+
+/* Final footer logo enlargement */
+.site-footer-brand {
+  width: 500px !important;
+  height: 150px !important;
+  max-width: 100% !important;
+}
+
+.site-footer-brand .site-footer-logo {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: scale(1.55) !important;
+  transform-origin: center !important;
+}
+
+@media (max-width: 700px) {
+  .site-footer-brand {
+    width: min(430px, 92vw) !important;
+    height: 138px !important;
+  }
+
+  .site-footer-brand .site-footer-logo {
+    transform: scale(1.45) !important;
+  }
+}
+
+/* Slightly larger final footer artwork */
+.site-footer-brand .site-footer-logo {
+  transform: scale(1.8) !important;
+  transform-origin: center !important;
+}
+
+@media (max-width: 700px) {
+  .site-footer-brand .site-footer-logo {
+    transform: scale(1.65) !important;
+  }
+}

@@ -79,3 +79,229 @@ html[data-theme="dark"] .owner-dashboard-readability {
 .owner-dashboard-readability [role="button"] {
   font-weight: 800;
 }
+
+/* =========================================================
+   Owner Dashboard production readability and spacing
+   ========================================================= */
+
+.owner-dashboard-readability {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 28px clamp(18px, 3vw, 42px) 48px;
+  box-sizing: border-box;
+  line-height: 1.55;
+}
+
+/* Improve dark-mode text contrast */
+:root[data-theme="dark"] .owner-dashboard-readability,
+.dark .owner-dashboard-readability,
+html[data-theme="dark"] .owner-dashboard-readability {
+  --owner-dashboard-page-bg: #030817;
+  --owner-dashboard-surface: #0d1529;
+  --owner-dashboard-card-bg: #141d38;
+  --owner-dashboard-secondary-bg: #1b2749;
+
+  --owner-dashboard-text: #f8fafc;
+  --owner-dashboard-muted: #d1d8eb;
+  --owner-dashboard-subtle: #bac4de;
+
+  --owner-dashboard-accent: #83b8ff;
+  --owner-dashboard-primary-bg: #73b0ff;
+  --owner-dashboard-primary-text: #071120;
+
+  --owner-dashboard-button-bg: #1c294c;
+  --owner-dashboard-button-text: #f8fafc;
+
+  --owner-dashboard-border: rgba(203, 213, 225, 0.28);
+  --owner-dashboard-soft-border: rgba(203, 213, 225, 0.20);
+  --owner-dashboard-accent-border: rgba(131, 184, 255, 0.38);
+  --owner-dashboard-active-border: rgba(131, 184, 255, 0.58);
+
+  --owner-dashboard-chip-bg: rgba(96, 165, 250, 0.20);
+  --owner-dashboard-chip-text: #e0edff;
+  --owner-dashboard-active-bg: rgba(96, 165, 250, 0.24);
+
+  --owner-dashboard-hero-bg:
+    radial-gradient(
+      circle at top left,
+      rgba(96, 165, 250, 0.25),
+      transparent 36%
+    ),
+    #111b35;
+
+  --owner-dashboard-hero-border: rgba(96, 165, 250, 0.40);
+}
+
+/* Main page heading */
+.owner-dashboard-readability > div:first-child {
+  padding: 2px 0 6px;
+}
+
+.owner-dashboard-readability h2 {
+  color: var(--owner-dashboard-text) !important;
+  font-size: clamp(28px, 3vw, 38px) !important;
+  line-height: 1.12 !important;
+  letter-spacing: -0.035em;
+}
+
+.owner-dashboard-readability h3 {
+  color: var(--owner-dashboard-text) !important;
+  line-height: 1.25 !important;
+}
+
+.owner-dashboard-readability h4 {
+  color: var(--owner-dashboard-text) !important;
+  line-height: 1.3 !important;
+}
+
+/* Body copy and secondary information */
+.owner-dashboard-readability p {
+  color: var(--owner-dashboard-muted) !important;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.owner-dashboard-readability small {
+  color: var(--owner-dashboard-subtle) !important;
+  line-height: 1.5;
+}
+
+.owner-dashboard-readability label {
+  color: var(--owner-dashboard-text) !important;
+  font-weight: 850;
+}
+
+/* Inline muted text uses these variables */
+.owner-dashboard-readability [style*="--owner-dashboard-muted"] {
+  color: var(--owner-dashboard-muted) !important;
+}
+
+.owner-dashboard-readability [style*="--owner-dashboard-subtle"] {
+  color: var(--owner-dashboard-subtle) !important;
+}
+
+/* Make cards visually distinct */
+.owner-dashboard-readability section {
+  border-color: var(--owner-dashboard-border) !important;
+}
+
+.owner-dashboard-readability section,
+.owner-dashboard-readability article {
+  color: var(--owner-dashboard-text);
+}
+
+:root[data-theme="dark"] .owner-dashboard-readability section,
+:root[data-theme="dark"] .owner-dashboard-readability article {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.025),
+    0 14px 34px rgba(0, 0, 0, 0.16);
+}
+
+/* Buttons and links */
+.owner-dashboard-readability a,
+.owner-dashboard-readability button,
+.owner-dashboard-readability [role="button"] {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--owner-dashboard-button-text);
+  font-weight: 850 !important;
+  line-height: 1.15;
+}
+
+.owner-dashboard-readability button:focus-visible,
+.owner-dashboard-readability a:focus-visible {
+  outline: 3px solid rgba(96, 165, 250, 0.42);
+  outline-offset: 3px;
+}
+
+/* Inputs */
+.owner-dashboard-readability input,
+.owner-dashboard-readability select,
+.owner-dashboard-readability textarea {
+  min-height: 44px;
+  color: var(--owner-dashboard-text) !important;
+  background: var(--owner-dashboard-surface) !important;
+  border-color: var(--owner-dashboard-border) !important;
+}
+
+.owner-dashboard-readability input::placeholder,
+.owner-dashboard-readability textarea::placeholder {
+  color: var(--owner-dashboard-subtle);
+  opacity: 1;
+}
+
+/* Mobile spacing */
+@media (max-width: 760px) {
+  .owner-dashboard-readability {
+    padding: 20px 14px 38px;
+    gap: 16px !important;
+  }
+
+  .owner-dashboard-readability > div:first-child {
+    gap: 14px !important;
+  }
+
+  .owner-dashboard-readability h2 {
+    font-size: 28px !important;
+  }
+
+  .owner-dashboard-readability a,
+  .owner-dashboard-readability button {
+    min-height: 44px;
+  }
+}
+
+/* Larger Owner Dashboard text */
+.owner-dashboard-readability {
+  font-size: 17px;
+}
+
+.owner-dashboard-readability h2 {
+  font-size: clamp(34px, 3.5vw, 44px) !important;
+  font-weight: 900 !important;
+}
+
+.owner-dashboard-readability h3 {
+  font-size: clamp(22px, 2vw, 28px) !important;
+  font-weight: 900 !important;
+}
+
+.owner-dashboard-readability h4 {
+  font-size: 20px !important;
+  font-weight: 850 !important;
+}
+
+.owner-dashboard-readability p,
+.owner-dashboard-readability div,
+.owner-dashboard-readability span,
+.owner-dashboard-readability label {
+  font-size: max(16px, 1em);
+}
+
+.owner-dashboard-readability small {
+  font-size: 14px !important;
+}
+
+.owner-dashboard-readability a,
+.owner-dashboard-readability button {
+  font-size: 16px !important;
+  min-height: 46px;
+  padding: 11px 16px !important;
+}
+
+@media (max-width: 700px) {
+  .owner-dashboard-readability {
+    font-size: 16px;
+  }
+
+  .owner-dashboard-readability h2 {
+    font-size: 32px !important;
+  }
+
+  .owner-dashboard-readability h3 {
+    font-size: 23px !important;
+  }
+}
