@@ -9,6 +9,8 @@ import { requestListingAssistant, type AiListingSuggestion } from "../services/a
 import {
   createItem,
   scanItem,
+  type ScanIntakeDestination,
+  type ScanIntakeSource,
   type ScanPayload,
   type ScanResult,
 } from "../services/items";
@@ -49,6 +51,30 @@ function getBarcodeDetector(): BarcodeDetectorConstructor | null {
 
 function getScanPayload(result: ScanResult | null): ScanPayload | null {
   return (result?.data as ScanPayload | undefined) || null;
+}
+
+function getScanIntakeSummary(result: ScanResult | null) {
+  const payload = getScanPayload(result);
+  const intake = result?.intake;
+
+  const status = intake?.status || payload?.intakeStatus || "";
+  const duplicateStatus =
+    intake?.duplicateStatus || payload?.duplicateStatus || "";
+  const screeningStatus =
+    intake?.screeningStatus || payload?.screeningStatus || "";
+
+  return {
+    id: intake?.id || payload?.intakeId || "",
+    status,
+    duplicateStatus,
+    screeningStatus,
+    destination: intake?.destination || payload?.destination || "",
+    codeType: intake?.codeType || payload?.codeType || "",
+    needsReview:
+      status === "NEEDS_REVIEW" ||
+      duplicateStatus === "MATCH_FOUND" ||
+      duplicateStatus === "REVIEW_REQUIRED",
+  };
 }
 
 function parsePositiveNumber(value: string, fieldName: string) {
@@ -128,6 +154,10 @@ export default function CreateItemPage() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [scanSource, setScanSource] =
+    useState<ScanIntakeSource>("MANUAL");
+  const [scanDestination, setScanDestination] =
+    useState<ScanIntakeDestination>("SHOP_INVENTORY");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -139,6 +169,11 @@ export default function CreateItemPage() {
   const selectedShop = useMemo(
     () => shops.find((shop) => shop.id === pawnShopId) ?? null,
     [shops, pawnShopId],
+  );
+
+  const scanIntakeSummary = useMemo(
+    () => getScanIntakeSummary(scanResult),
+    [scanResult],
   );
 
   const hasPrefill =
@@ -284,7 +319,10 @@ export default function CreateItemPage() {
     );
   }
 
-  async function resolveInlineScan(nextCode = scanCode) {
+  async function resolveInlineScan(
+    nextCode = scanCode,
+    source: ScanIntakeSource = scanSource,
+  ) {
     const normalizedCode = String(nextCode || "").trim();
 
     setScanError(null);
@@ -307,6 +345,13 @@ export default function CreateItemPage() {
       const result = await scanItem({
         shopId: pawnShopId,
         code: normalizedCode,
+        intakeSource: source,
+        destination: scanDestination,
+        title,
+        description,
+        category,
+        condition,
+        price,
       });
 
       setScanResult(result);
@@ -386,7 +431,7 @@ export default function CreateItemPage() {
 
           stopScannerCamera();
           setScanCode(value);
-          await resolveInlineScan(value);
+          await resolveInlineScan(value, "CAMERA");
         } catch {
           // Continue scanning while the video frame becomes ready.
         }
@@ -624,6 +669,50 @@ export default function CreateItemPage() {
           <div
             style={{
               display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 10,
+            }}
+          >
+            <label style={{ display: "grid", gap: 6 }}>
+              Manual scan method
+              <select
+                value={scanSource}
+                onChange={(event) =>
+                  setScanSource(event.target.value as ScanIntakeSource)
+                }
+              >
+                <option value="MANUAL">Manual entry</option>
+                <option value="HARDWARE_SCANNER">
+                  USB / Bluetooth scanner
+                </option>
+              </select>
+            </label>
+
+            <label style={{ display: "grid", gap: 6 }}>
+              Intake destination
+              <select
+                value={scanDestination}
+                onChange={(event) =>
+                  setScanDestination(
+                    event.target.value as ScanIntakeDestination,
+                  )
+                }
+              >
+                <option value="SHOP_INVENTORY">Shop inventory</option>
+                <option value="CUSTOMER_SELL">Customer selling</option>
+                <option value="CUSTOMER_PAWN">Customer pawn request</option>
+                <option value="CUSTOMER_MARKETPLACE">
+                  Customer marketplace listing
+                </option>
+                <option value="DEALER_LISTING">Dealer listing</option>
+                <option value="SHOP_TRANSFER">Shop transfer</option>
+              </select>
+            </label>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
               gridTemplateColumns: "minmax(0, 1fr) auto auto",
               gap: 10,
               alignItems: "end",
@@ -712,10 +801,45 @@ export default function CreateItemPage() {
           ) : null}
 
           {scanResult ? (
-            <small className="muted">
-              Scan complete. The listing form below has been populated where
-              matching data was available.
-            </small>
+            <div
+              style={{
+                display: "grid",
+                gap: 6,
+                padding: 12,
+                borderRadius: 12,
+                border: scanIntakeSummary.needsReview
+                  ? "1px solid rgba(251,191,36,0.45)"
+                  : "1px solid rgba(74,222,128,0.3)",
+                background: scanIntakeSummary.needsReview
+                  ? "rgba(245,158,11,0.12)"
+                  : "rgba(22,163,74,0.1)",
+              }}
+            >
+              <strong>
+                {scanIntakeSummary.needsReview
+                  ? "Intake recorded — review required"
+                  : "Intake recorded"}
+              </strong>
+
+              <span className="muted">
+                ID: {scanIntakeSummary.id || "—"} · Status:{" "}
+                {scanIntakeSummary.status || "—"} · Destination:{" "}
+                {scanIntakeSummary.destination || "—"}
+              </span>
+
+              <span className="muted">
+                Code type: {scanIntakeSummary.codeType || "—"} · Duplicate:{" "}
+                {scanIntakeSummary.duplicateStatus || "—"} · Screening:{" "}
+                {scanIntakeSummary.screeningStatus || "—"}
+              </span>
+
+              {scanIntakeSummary.needsReview ? (
+                <span>
+                  A duplicate or related inventory match was detected. Review
+                  the intake before publishing the item.
+                </span>
+              ) : null}
+            </div>
           ) : null}
         </section>
 

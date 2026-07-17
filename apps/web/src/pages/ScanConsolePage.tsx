@@ -11,6 +11,8 @@ import { useNavigate } from "react-router-dom";
 import {
   markItemSold,
   scanItem,
+  type ScanIntakeDestination,
+  type ScanIntakeSource,
   type ScanPayload,
   type ScanResult,
 } from "../services/items";
@@ -74,6 +76,30 @@ function getResultMeta(result: ScanResult | null) {
   };
 }
 
+function getIntakeMeta(result: ScanResult | null) {
+  const payload = getPayload(result);
+  const intake = result?.intake;
+
+  const status = intake?.status || payload?.intakeStatus || "—";
+  const duplicateStatus =
+    intake?.duplicateStatus || payload?.duplicateStatus || "—";
+
+  return {
+    id: intake?.id || payload?.intakeId || "—",
+    source: intake?.source || "—",
+    destination: intake?.destination || payload?.destination || "—",
+    status,
+    duplicateStatus,
+    screeningStatus:
+      intake?.screeningStatus || payload?.screeningStatus || "—",
+    codeType: intake?.codeType || payload?.codeType || "—",
+    needsReview:
+      status === "NEEDS_REVIEW" ||
+      duplicateStatus === "MATCH_FOUND" ||
+      duplicateStatus === "REVIEW_REQUIRED",
+  };
+}
+
 export default function ScanConsolePage() {
   const navigate = useNavigate();
 
@@ -84,6 +110,10 @@ export default function ScanConsolePage() {
   const [shops, setShops] = useState<Shop[]>([]);
   const [shopId, setShopId] = useState("");
   const [code, setCode] = useState("");
+  const [scanSource, setScanSource] =
+    useState<ScanIntakeSource>("MANUAL");
+  const [destination, setDestination] =
+    useState<ScanIntakeDestination>("SHOP_INVENTORY");
   const [result, setResult] = useState<ScanResult | null>(null);
   const [err, setErr] = useState("");
   const [success, setSuccess] = useState("");
@@ -96,6 +126,7 @@ export default function ScanConsolePage() {
   const item = useMemo(() => getResultItem(result), [result]);
   const resultTitle = useMemo(() => getResultTitle(result, code), [result, code]);
   const resultMeta = useMemo(() => getResultMeta(result), [result]);
+  const intakeMeta = useMemo(() => getIntakeMeta(result), [result]);
 
   const selectedShop = useMemo(
     () => shops.find((shop) => shop.id === shopId) || null,
@@ -148,7 +179,10 @@ export default function ScanConsolePage() {
     };
   }, [stopCamera]);
 
-  async function resolveCode(nextCode = code) {
+  async function resolveCode(
+    nextCode = code,
+    sourceOverride: ScanIntakeSource = scanSource,
+  ) {
     const normalizedCode = String(nextCode || "").trim();
 
     setErr("");
@@ -168,10 +202,22 @@ export default function ScanConsolePage() {
     setResolving(true);
 
     try {
-      const data = await scanItem({ shopId, code: normalizedCode });
+      const data = await scanItem({
+        shopId,
+        code: normalizedCode,
+        intakeSource: sourceOverride,
+        destination,
+      });
+
+      const nextIntake = getIntakeMeta(data);
+
       setResult(data);
       setCode(normalizedCode);
-      setSuccess("Scan resolved.");
+      setSuccess(
+        nextIntake.needsReview
+          ? "Scan recorded. Manual review is required."
+          : "Scan recorded successfully.",
+      );
     } catch (error) {
       setErr(error instanceof Error ? error.message : "Scan failed.");
     } finally {
@@ -294,7 +340,7 @@ export default function ScanConsolePage() {
           if (rawValue) {
             stopCamera();
             setCode(rawValue);
-            await resolveCode(rawValue);
+            await resolveCode(rawValue, "CAMERA");
           }
         } catch {
           // Keep scanning. Some browsers throw while the video frame is not ready.
@@ -388,6 +434,52 @@ export default function ScanConsolePage() {
               Active shop: <strong>{selectedShop.name}</strong>
             </div>
           ) : null}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+            }}
+          >
+            <label style={styles.label}>
+              Manual scan method
+              <select
+                value={scanSource}
+                onChange={(event) =>
+                  setScanSource(event.target.value as ScanIntakeSource)
+                }
+                style={styles.input}
+              >
+                <option value="MANUAL">Manual entry</option>
+                <option value="HARDWARE_SCANNER">
+                  USB / Bluetooth scanner
+                </option>
+              </select>
+            </label>
+
+            <label style={styles.label}>
+              Intake destination
+              <select
+                value={destination}
+                onChange={(event) =>
+                  setDestination(
+                    event.target.value as ScanIntakeDestination,
+                  )
+                }
+                style={styles.input}
+              >
+                <option value="SHOP_INVENTORY">Shop inventory</option>
+                <option value="CUSTOMER_SELL">Customer selling</option>
+                <option value="CUSTOMER_PAWN">Customer pawn request</option>
+                <option value="CUSTOMER_MARKETPLACE">
+                  Customer marketplace listing
+                </option>
+                <option value="DEALER_LISTING">Dealer listing</option>
+                <option value="SHOP_TRANSFER">Shop transfer</option>
+              </select>
+            </label>
+          </div>
 
           <div style={styles.cameraBox}>
             <video
@@ -501,12 +593,41 @@ export default function ScanConsolePage() {
               </p>
             </div>
 
-            {item?.id ? (
+            {intakeMeta.needsReview ? (
+              <span style={styles.statusPill}>Review required</span>
+            ) : item?.id ? (
               <span style={styles.statusPill}>Existing item matched</span>
             ) : (
               <span style={styles.statusPill}>New item draft</span>
             )}
           </div>
+
+          <div style={styles.infoCard}>
+            <strong>Persistent intake record</strong>
+            <div>
+              ID: {intakeMeta.id} · Status: {intakeMeta.status} · Source:{" "}
+              {intakeMeta.source}
+            </div>
+            <div>
+              Destination: {intakeMeta.destination} · Code type:{" "}
+              {intakeMeta.codeType}
+            </div>
+            <div>
+              Duplicate: {intakeMeta.duplicateStatus} · Screening:{" "}
+              {intakeMeta.screeningStatus}
+            </div>
+          </div>
+
+          {intakeMeta.needsReview ? (
+            <div style={styles.errorCard}>
+              <strong>Manual review required</strong>
+              <p style={styles.messageText}>
+                This scan matched a prior intake or existing inventory record.
+                Review the item before publishing, transferring, or completing
+                a pawn or seller workflow.
+              </p>
+            </div>
+          ) : null}
 
           <div style={styles.actions}>
             <button

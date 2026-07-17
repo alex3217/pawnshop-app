@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { canAccessShopWithStaffPermission, getStaffAccessibleShopIds } from "../middleware/staffAccess.middleware.js";
 import { assertCanCreateListingForShop } from "../services/sellerPlan.service.js";
+import { recordItemIntakeScan } from "../services/itemIntake.service.js";
 
 const VALID_CATEGORIES = [
   "Jewelry",
@@ -655,63 +656,128 @@ export async function scanItem(req, res) {
     });
 
     if (!shop || shop.isDeleted) {
-      return res.status(404).json({ error: "Shop not found" });
+      return res.status(404).json({
+        error: "Shop not found",
+      });
     }
 
-    if (!canWriteInventoryForShop(req, shop.id || shopId, shop.ownerId)) {
-      return res.status(403).json({ error: "Forbidden" });
+    if (
+      !canWriteInventoryForShop(
+        req,
+        shop.id || shopId,
+        shop.ownerId,
+      )
+    ) {
+      return res.status(403).json({
+        error: "Forbidden",
+      });
     }
 
-    const itemColumns = await getTableColumns("Item");
+    const normalizedCode = String(code)
+      .trim()
+      .toUpperCase();
+
+    const itemColumns =
+      await getTableColumns("Item");
+
     const lookupWhere = await buildItemWhere({
-      ...(itemColumns.has("pawnShopId") ? { pawnShopId: shopId } : {}),
+      ...(itemColumns.has("pawnShopId")
+        ? { pawnShopId: shopId }
+        : {}),
       ...(itemColumns.has("title")
-        ? { title: { contains: code, mode: "insensitive" } }
+        ? {
+            title: {
+              contains: normalizedCode,
+              mode: "insensitive",
+            },
+          }
         : {}),
     });
 
     const existing = await prisma.item.findFirst({
       where: lookupWhere,
-      select: await buildItemSelect({ includeShop: true }),
-      orderBy: { createdAt: "desc" },
+      select: await buildItemSelect({
+        includeShop: true,
+      }),
+      orderBy: {
+        createdAt: "desc",
+      },
     });
+
+    const {
+      intake,
+      analysis,
+    } = await recordItemIntakeScan({
+      prismaClient: prisma,
+      shopId,
+      capturedByUserId:
+        req?.user?.sub || null,
+      code,
+      input: rawBody,
+      existingItem: existing,
+    });
+
+    const intakeSummary = {
+      intakeId: intake.id,
+      intakeStatus: intake.status,
+      duplicateStatus:
+        intake.duplicateStatus,
+      screeningStatus:
+        intake.screeningStatus,
+      destination: intake.destination,
+      codeType: intake.codeType,
+    };
 
     if (existing) {
       return res.json({
         data: {
           item: existing,
           source: "existing-item-match",
-          code,
+          code: analysis.normalizedCode,
+          ...intakeSummary,
         },
+        intake,
       });
     }
 
-    const normalizedCode = String(code).trim().toUpperCase();
-
     let payload = {
       pawnShopId: shopId,
-      title: `Scanned Item ${normalizedCode}`,
-      description: `Created from scan code ${normalizedCode}`,
+      title:
+        `Scanned Item ${analysis.normalizedCode}`,
+      description:
+        `Created from scan code ${analysis.normalizedCode}`,
       price: "100",
       category: "Electronics",
       condition: "Good",
       source: "scan-console",
-      code: normalizedCode,
+      code: analysis.normalizedCode,
+      ...intakeSummary,
     };
 
-    if (/UPC|BARCODE|EAN/.test(normalizedCode)) {
+    if (
+      ["UPC", "EAN", "BARCODE"].includes(
+        analysis.codeType,
+      )
+    ) {
       payload = {
         ...payload,
-        title: `Scanned Barcode ${normalizedCode}`,
-        description: `Barcode lookup result for ${normalizedCode}`,
+        title:
+          `Scanned Barcode ${analysis.normalizedCode}`,
+        description:
+          `Barcode lookup result for ${analysis.normalizedCode}`,
       };
     }
 
     return res.json({
       data: payload,
+      intake,
     });
   } catch (err) {
-    return handleControllerError(res, err, "Failed to resolve scan");
+    return handleControllerError(
+      res,
+      err,
+      "Failed to resolve scan",
+    );
   }
 }
 
