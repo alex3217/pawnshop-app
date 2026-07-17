@@ -7,13 +7,13 @@ WEB_DIR="$REPO_ROOT/apps/web"
 
 echo "===== INSTALL BACKEND ====="
 cd "$BACKEND_DIR"
-npm ci
+npm ci --include=dev
 
 echo "===== GENERATE PRISMA CLIENT ====="
 npm run prisma:generate
 
 echo "===== INSTALL FRONTEND ====="
-npm --prefix "$WEB_DIR" ci
+npm --prefix "$WEB_DIR" ci --include=dev
 
 echo "===== BUILD FRONTEND ====="
 npm --prefix "$WEB_DIR" run build
