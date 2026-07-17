@@ -264,9 +264,76 @@ export async function getMarketplaceItemsPaged(
 }
 
 
+export type ScanIntakeSource =
+  | "CAMERA"
+  | "HARDWARE_SCANNER"
+  | "MANUAL"
+  | "FILE_UPLOAD"
+  | "API";
+
+export type ScanIntakeDestination =
+  | "SHOP_INVENTORY"
+  | "CUSTOMER_SELL"
+  | "CUSTOMER_PAWN"
+  | "CUSTOMER_MARKETPLACE"
+  | "DEALER_LISTING"
+  | "SHOP_TRANSFER";
+
+export type ScanIntakeStatus =
+  | "DRAFT"
+  | "SCANNED"
+  | "NEEDS_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "PUBLISHED"
+  | "ARCHIVED";
+
+export type ScanIntakeCheckStatus =
+  | "NOT_CHECKED"
+  | "PENDING"
+  | "CLEAR"
+  | "MATCH_FOUND"
+  | "REVIEW_REQUIRED"
+  | "FAILED";
+
 export type ScanItemInput = {
   shopId: string;
   code: string;
+  intakeSource?: ScanIntakeSource;
+  destination?: ScanIntakeDestination;
+  codeType?: string;
+  serialNumber?: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  condition?: string;
+  estimatedValue?: string | number;
+  price?: string | number;
+  images?: string[];
+  documentUrls?: string[];
+  receiptUrls?: string[];
+};
+
+export type ScanIntakeRecord = {
+  id?: string;
+  shopId?: string | null;
+  capturedByUserId?: string | null;
+  source?: ScanIntakeSource;
+  destination?: ScanIntakeDestination;
+  status?: ScanIntakeStatus;
+  code?: string | null;
+  normalizedCode?: string | null;
+  codeType?: string | null;
+  barcode?: string | null;
+  upc?: string | null;
+  ean?: string | null;
+  sku?: string | null;
+  serialNumber?: string | null;
+  duplicateStatus?: ScanIntakeCheckStatus;
+  duplicateMatches?: unknown;
+  screeningStatus?: ScanIntakeCheckStatus;
+  linkedItemId?: string | null;
+  createdAt?: string;
 };
 
 export type ScanPayload = {
@@ -278,6 +345,7 @@ export type ScanPayload = {
     category?: string;
     condition?: string;
     pawnShopId?: string;
+    status?: string;
   };
   title?: string;
   description?: string;
@@ -287,10 +355,18 @@ export type ScanPayload = {
   pawnShopId?: string;
   code?: string;
   source?: string;
+
+  intakeId?: string;
+  intakeStatus?: ScanIntakeStatus;
+  duplicateStatus?: ScanIntakeCheckStatus;
+  screeningStatus?: ScanIntakeCheckStatus;
+  destination?: ScanIntakeDestination;
+  codeType?: string;
 };
 
 export type ScanResult = {
   data?: ScanPayload;
+  intake?: ScanIntakeRecord;
   sold?: unknown;
   [key: string]: unknown;
 };
