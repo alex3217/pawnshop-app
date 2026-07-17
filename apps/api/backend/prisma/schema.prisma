@@ -31,6 +31,7 @@ model User {
   updatedPlatformSettings   PlatformSetting[]          @relation("PlatformSettingUpdatedByUser")
   staffMemberships          Staff[]                    @relation("StaffUser")
   autoBids                  AutoBid[]
+  capturedItemIntakes       ItemIntake[]               @relation("ItemIntakeCapturedBy")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -98,6 +99,7 @@ model PawnShop {
   owner                        User                       @relation(fields: [ownerId], references: [id])
   inventorySyncJobs            InventorySyncJob[]
   buyerItemSubmissionOffers    BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferShop")
+  itemIntakes                  ItemIntake[]               @relation("ShopItemIntakes")
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -230,25 +232,25 @@ model Bid {
 }
 
 model Settlement {
-  id                  String           @id @default(cuid())
-  auctionId           String?          @unique
-  offerId             String?          @unique
+  id                  String            @id @default(cuid())
+  auctionId           String?           @unique
+  offerId             String?           @unique
   winnerUserId        String
-  finalPrice          Decimal          @db.Decimal(10, 2)
-  status              SettlementStatus @default(PENDING)
-  stripePaymentIntent String?          @unique
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  finalPrice          Decimal           @db.Decimal(10, 2)
+  status              SettlementStatus  @default(PENDING)
+  stripePaymentIntent String?           @unique
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
   chargedAt           DateTime?
-  currency            String           @default("USD")
+  currency            String            @default("USD")
   failedAt            DateTime?
   failureMessage      String?
   fulfillmentStatus   FulfillmentStatus @default(PAYMENT_PENDING)
   fulfillmentNote     String?
   fulfilledAt         DateTime?
-  auction             Auction?         @relation(fields: [auctionId], references: [id])
-  offer               Offer?           @relation(fields: [offerId], references: [id])
-  winner              User             @relation("SettlementWinner", fields: [winnerUserId], references: [id])
+  auction             Auction?          @relation(fields: [auctionId], references: [id])
+  offer               Offer?            @relation(fields: [offerId], references: [id])
+  winner              User              @relation("SettlementWinner", fields: [winnerUserId], references: [id])
 
   @@index([winnerUserId, status])
   @@index([status, createdAt])
@@ -467,6 +469,115 @@ model IntegrationWebhookEvent {
   @@index([status, createdAt])
 }
 
+model ItemIntake {
+  id               String                @id @default(cuid())
+  shopId           String?
+  capturedByUserId String?
+  source           ItemIntakeSource      @default(MANUAL)
+  destination      ItemIntakeDestination @default(SHOP_INVENTORY)
+  status           ItemIntakeStatus      @default(DRAFT)
+
+  code           String?
+  normalizedCode String?
+  codeType       String?
+  barcode        String?
+  upc            String?
+  ean            String?
+  sku            String?
+  serialNumber   String?
+
+  title          String?
+  description    String?
+  category       String?
+  condition      String?
+  estimatedValue Decimal? @db.Decimal(10, 2)
+
+  images       String[] @default([])
+  documentUrls String[] @default([])
+  receiptUrls  String[] @default([])
+
+  ocrStatus ItemIntakeOcrStatus @default(NOT_REQUESTED)
+  ocrText   String?
+  ocrData   Json?
+
+  duplicateStatus  ItemIntakeCheckStatus @default(NOT_CHECKED)
+  duplicateMatches Json?
+  screeningStatus  ItemIntakeCheckStatus @default(NOT_CHECKED)
+  screeningResult  Json?
+
+  reviewMessage String?
+  reviewedAt    DateTime?
+  reviewedById  String?
+
+  linkedItemId       String?
+  linkedSubmissionId String?
+  metadata           Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop PawnShop? @relation("ShopItemIntakes", fields: [shopId], references: [id], onDelete: SetNull)
+
+  capturedBy User? @relation("ItemIntakeCapturedBy", fields: [capturedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, status, createdAt])
+  @@index([capturedByUserId, createdAt])
+  @@index([destination, status])
+  @@index([normalizedCode])
+  @@index([barcode])
+  @@index([upc])
+  @@index([ean])
+  @@index([sku])
+  @@index([serialNumber])
+  @@index([duplicateStatus, createdAt])
+  @@index([screeningStatus, createdAt])
+  @@index([linkedItemId])
+  @@index([linkedSubmissionId])
+}
+
+enum ItemIntakeSource {
+  CAMERA
+  HARDWARE_SCANNER
+  MANUAL
+  FILE_UPLOAD
+  API
+}
+
+enum ItemIntakeDestination {
+  SHOP_INVENTORY
+  CUSTOMER_SELL
+  CUSTOMER_PAWN
+  CUSTOMER_MARKETPLACE
+  DEALER_LISTING
+  SHOP_TRANSFER
+}
+
+enum ItemIntakeStatus {
+  DRAFT
+  SCANNED
+  NEEDS_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ItemIntakeOcrStatus {
+  NOT_REQUESTED
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum ItemIntakeCheckStatus {
+  NOT_CHECKED
+  PENDING
+  CLEAR
+  MATCH_FOUND
+  REVIEW_REQUIRED
+  FAILED
+}
+
 enum Role {
   OWNER
   CONSUMER
@@ -555,11 +666,9 @@ model PlatformSetting {
   @@index([updatedByUserId])
 }
 
-
-
 model PlatformPricingRule {
-  id               String   @id @default(cuid())
-  key              String   @unique
+  id               String    @id @default(cuid())
+  key              String    @unique
   label            String
   description      String?
   category         String
@@ -569,16 +678,16 @@ model PlatformPricingRule {
   percentBps       Int?
   minCents         Int?
   maxCents         Int?
-  currency         String   @default("USD")
-  status           String   @default("DRAFT")
+  currency         String    @default("USD")
+  status           String    @default("DRAFT")
   stripePriceId    String?
   effectiveStartAt DateTime?
   effectiveEndAt   DateTime?
   metadata         Json?
   createdByUserId  String?
   updatedByUserId  String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([category, status])
   @@index([appliesTo, status])
