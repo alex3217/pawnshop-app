@@ -1,12 +1,17 @@
 // File: apps/web/src/pages/CreateItemPage.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { getAuthToken } from "../services/auth";
 import { requestListingAssistant, type AiListingSuggestion } from "../services/aiListingAssistant";
-import { createItem } from "../services/items";
+import {
+  createItem,
+  scanItem,
+  type ScanPayload,
+  type ScanResult,
+} from "../services/items";
 import { getMyShops, type Shop } from "../services/shops";
 
 type ItemPrefill = {
@@ -19,6 +24,32 @@ type ItemPrefill = {
   source: string;
   code: string;
 };
+
+type BarcodeDetection = {
+  rawValue?: string;
+};
+
+type BarcodeDetectorInstance = {
+  detect(source: HTMLVideoElement): Promise<BarcodeDetection[]>;
+};
+
+type BarcodeDetectorConstructor = new (options?: {
+  formats?: string[];
+}) => BarcodeDetectorInstance;
+
+function getBarcodeDetector(): BarcodeDetectorConstructor | null {
+  if (typeof window === "undefined") return null;
+
+  return (
+    window as typeof window & {
+      BarcodeDetector?: BarcodeDetectorConstructor;
+    }
+  ).BarcodeDetector ?? null;
+}
+
+function getScanPayload(result: ScanResult | null): ScanPayload | null {
+  return (result?.data as ScanPayload | undefined) || null;
+}
 
 function parsePositiveNumber(value: string, fieldName: string) {
   const num = Number(value);
@@ -87,6 +118,17 @@ export default function CreateItemPage() {
   const [category, setCategory] = useState(prefill.category);
   const [condition, setCondition] = useState(prefill.condition);
 
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanIntervalRef = useRef<number | null>(null);
+
+  const [scanCode, setScanCode] = useState(prefill.code);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -113,6 +155,7 @@ export default function CreateItemPage() {
     setPrice(prefill.price);
     setCategory(prefill.category);
     setCondition(prefill.condition);
+    setScanCode(prefill.code);
   }, [prefill]);
 
   useEffect(() => {
@@ -163,6 +206,198 @@ export default function CreateItemPage() {
       cancelled = true;
     };
   }, [token, prefill.pawnShopId]);
+
+  const stopScannerCamera = useCallback(() => {
+    if (scanIntervalRef.current !== null) {
+      window.clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+
+    if (streamRef.current) {
+      for (const track of streamRef.current.getTracks()) {
+        track.stop();
+      }
+
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    setCameraActive(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopScannerCamera();
+    };
+  }, [stopScannerCamera]);
+
+  function applyScanResult(result: ScanResult, scannedCode: string) {
+    const payload = getScanPayload(result);
+
+    if (!payload) {
+      setScanError("The scanner returned no usable item information.");
+      return;
+    }
+
+    const sourceItem = payload.item ?? payload;
+
+    if (sourceItem.title) {
+      setTitle(String(sourceItem.title).trim());
+    }
+
+    if (sourceItem.description) {
+      setDescription(String(sourceItem.description).trim());
+    }
+
+    if (sourceItem.price) {
+      setPrice(sanitizePrice(String(sourceItem.price), price || "100"));
+    }
+
+    if (sourceItem.category) {
+      setCategory(
+        normalizeOption(
+          String(sourceItem.category).trim(),
+          ITEM_CATEGORY_OPTIONS,
+          category || "Electronics",
+        ),
+      );
+    }
+
+    if (sourceItem.condition) {
+      setCondition(
+        normalizeOption(
+          String(sourceItem.condition).trim(),
+          ITEM_CONDITION_OPTIONS,
+          condition || "Good",
+        ),
+      );
+    }
+
+    setScanCode(scannedCode);
+    setScanMessage(
+      payload.item
+        ? "Existing inventory match found. Review the populated details before saving."
+        : "Barcode resolved. Review the populated details before saving.",
+    );
+  }
+
+  async function resolveInlineScan(nextCode = scanCode) {
+    const normalizedCode = String(nextCode || "").trim();
+
+    setScanError(null);
+    setScanMessage(null);
+    setScanResult(null);
+
+    if (!pawnShopId) {
+      setScanError("Choose a shop before scanning an item.");
+      return;
+    }
+
+    if (!normalizedCode) {
+      setScanError("Enter or scan a barcode, UPC, EAN, QR code, SKU, or pawn tag.");
+      return;
+    }
+
+    setScanLoading(true);
+
+    try {
+      const result = await scanItem({
+        shopId: pawnShopId,
+        code: normalizedCode,
+      });
+
+      setScanResult(result);
+      applyScanResult(result, normalizedCode);
+    } catch (err: unknown) {
+      setScanError(err instanceof Error ? err.message : "Unable to resolve scanned item.");
+    } finally {
+      setScanLoading(false);
+    }
+  }
+
+  async function startInlineCameraScanner() {
+    setScanError(null);
+    setScanMessage(null);
+
+    if (!pawnShopId) {
+      setScanError("Choose a shop before starting the camera scanner.");
+      return;
+    }
+
+    const BarcodeDetectorCtor = getBarcodeDetector();
+
+    if (!BarcodeDetectorCtor) {
+      setScanError(
+        "Camera barcode detection is not supported in this browser. Use manual barcode entry or the Scan Console.",
+      );
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScanError(
+        "Camera access is unavailable in this browser. Use manual barcode entry.",
+      );
+      return;
+    }
+
+    try {
+      stopScannerCamera();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      const detector = new BarcodeDetectorCtor({
+        formats: [
+          "qr_code",
+          "ean_13",
+          "ean_8",
+          "upc_a",
+          "upc_e",
+          "code_128",
+          "code_39",
+        ],
+      });
+
+      setCameraActive(true);
+      setScanMessage("Camera active. Point the camera at the barcode.");
+
+      scanIntervalRef.current = window.setInterval(async () => {
+        if (!videoRef.current) return;
+
+        try {
+          const detections = await detector.detect(videoRef.current);
+          const value = String(detections?.[0]?.rawValue || "").trim();
+
+          if (!value) return;
+
+          stopScannerCamera();
+          setScanCode(value);
+          await resolveInlineScan(value);
+        } catch {
+          // Continue scanning while the video frame becomes ready.
+        }
+      }, 650);
+    } catch (err: unknown) {
+      stopScannerCamera();
+      setScanError(
+        err instanceof Error ? err.message : "Unable to start camera scanner.",
+      );
+    }
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -353,6 +588,136 @@ export default function CreateItemPage() {
             </button>
           </div>
         ) : null}
+
+        <section
+          style={{
+            padding: 16,
+            borderRadius: 16,
+            border: "1px solid rgba(59,130,246,0.35)",
+            background: "rgba(30,64,175,0.12)",
+            display: "grid",
+            gap: 14,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+            }}
+          >
+            <div>
+              <strong>Scan item barcode</strong>
+              <p className="muted" style={{ margin: "6px 0 0" }}>
+                Use the camera, a USB/Bluetooth scanner, or enter a UPC, EAN,
+                SKU, QR code, or pawn tag manually.
+              </p>
+            </div>
+
+            <Link className="btn" to="/owner/scan-console">
+              Open full Scan Console
+            </Link>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto auto",
+              gap: 10,
+              alignItems: "end",
+            }}
+          >
+            <label style={{ display: "grid", gap: 6 }}>
+              Barcode / SKU / QR value
+              <input
+                value={scanCode}
+                onChange={(event) => setScanCode(event.target.value)}
+                placeholder="Scan or enter item code"
+                autoComplete="off"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void resolveInlineScan();
+                  }
+                }}
+              />
+            </label>
+
+            <button
+              type="button"
+              className="btn"
+              disabled={scanLoading || !pawnShopId}
+              onClick={() => void resolveInlineScan()}
+            >
+              {scanLoading ? "Looking up..." : "Look up item"}
+            </button>
+
+            <button
+              type="button"
+              className="btn"
+              disabled={scanLoading || !pawnShopId}
+              onClick={() =>
+                cameraActive
+                  ? stopScannerCamera()
+                  : void startInlineCameraScanner()
+              }
+            >
+              {cameraActive ? "Stop camera" : "Start camera"}
+            </button>
+          </div>
+
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            style={{
+              display: cameraActive ? "block" : "none",
+              width: "100%",
+              maxHeight: 360,
+              objectFit: "cover",
+              borderRadius: 14,
+              background: "#020617",
+              border: "1px solid rgba(148,163,184,0.25)",
+            }}
+          />
+
+          {scanError ? (
+            <div
+              style={{
+                color: "#fecaca",
+                background: "rgba(220,38,38,0.12)",
+                border: "1px solid rgba(248,113,113,0.25)",
+                padding: 12,
+                borderRadius: 12,
+              }}
+            >
+              {scanError}
+            </div>
+          ) : null}
+
+          {scanMessage ? (
+            <div
+              style={{
+                color: "#bbf7d0",
+                background: "rgba(22,163,74,0.12)",
+                border: "1px solid rgba(74,222,128,0.25)",
+                padding: 12,
+                borderRadius: 12,
+              }}
+            >
+              {scanMessage}
+            </div>
+          ) : null}
+
+          {scanResult ? (
+            <small className="muted">
+              Scan complete. The listing form below has been populated where
+              matching data was available.
+            </small>
+          ) : null}
+        </section>
 
         {error ? (
           <div
