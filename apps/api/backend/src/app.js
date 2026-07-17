@@ -1,6 +1,8 @@
 // File: apps/api/backend/src/app.js
 
 import crypto from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import helmet from "helmet";
 import cors from "cors";
@@ -29,6 +31,45 @@ import stripeRoutes from "./routes/stripe.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes.js";
+
+const currentFile = fileURLToPath(import.meta.url);
+const currentDirectory = path.dirname(currentFile);
+const webDistDirectory = path.resolve(currentDirectory, "../../../web/dist");
+const webIndexFile = path.join(webDistDirectory, "index.html");
+
+function parseFrontendHosts(value) {
+  const configured = String(value || "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+
+  return new Set(
+    configured.length > 0
+      ? configured
+      : ["pawnloop.com", "www.pawnloop.com"]
+  );
+}
+
+function isFrontendRequest(req, frontendHosts) {
+  const hostname = String(req.hostname || "")
+    .trim()
+    .toLowerCase();
+
+  if (frontendHosts.has(hostname)) {
+    return true;
+  }
+
+  return process.env.SERVE_WEB === "1";
+}
+
+function isFrontendAssetRequest(req) {
+  return (
+    req.path.startsWith("/assets/") ||
+    req.path.startsWith("/branding/") ||
+    req.path === "/vite.svg" ||
+    req.path === "/favicon.ico"
+  );
+}
 
 function parseAllowedOrigins(...values) {
   return new Set(
@@ -147,6 +188,11 @@ export function createApp() {
     process.env.WEB_URL
   );
 
+  const frontendHosts = parseFrontendHosts(process.env.FRONTEND_HOSTS);
+  const webBuildAvailable =
+    process.env.NODE_ENV === "production" &&
+    path.extname(webIndexFile) === ".html";
+
   const jsonLimit = process.env.JSON_LIMIT || "2mb";
   const urlencodedLimit = process.env.URLENCODED_LIMIT || jsonLimit;
   const morganFormat = process.env.NODE_ENV === "production" ? "combined" : "dev";
@@ -178,6 +224,39 @@ export function createApp() {
       },
     })
   );
+
+  if (webBuildAvailable) {
+    app.use((req, res, next) => {
+      if (!isFrontendRequest(req, frontendHosts)) {
+        return next();
+      }
+
+      if (!["GET", "HEAD"].includes(req.method)) {
+        return next();
+      }
+
+      if (req.path.startsWith("/api/") || req.path === "/api") {
+        return next();
+      }
+
+      if (isFrontendAssetRequest(req)) {
+        return express.static(webDistDirectory, {
+          index: false,
+          fallthrough: true,
+          maxAge: "1y",
+          immutable: true,
+        })(req, res, next);
+      }
+
+      return res.sendFile(webIndexFile, (error) => {
+        if (error) {
+          return next(error);
+        }
+
+        return undefined;
+      });
+    });
+  }
 
   const healthHandler = (_req, res) => {
     return res.status(200).json(createHealthPayload(serviceName, env));

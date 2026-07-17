@@ -10,7 +10,8 @@
     "prisma:migrate": "prisma migrate dev",
     "test:core": "prisma generate && node --test --test-concurrency=1 test/app.contract.test.js test/stripe.subscription-price-validation.test.js",
     "test:integration": "node scripts/assert-test-database.mjs && prisma migrate deploy && prisma generate && node --test --test-concurrency=1 test/*.integration.test.js",
-    "test:all": "npm run test:core && npm run test:integration"
+    "test:all": "npm run test:core && npm run test:integration",
+    "build:combined": "bash scripts/build-combined-service.sh"
   },
   "keywords": [],
   "author": "",
