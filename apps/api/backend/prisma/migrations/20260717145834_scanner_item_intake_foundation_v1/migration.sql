@@ -100,4 +100,3 @@ ALTER TABLE "ItemIntake" ADD CONSTRAINT "ItemIntake_shopId_fkey" FOREIGN KEY ("s
 
 -- AddForeignKey
 ALTER TABLE "ItemIntake" ADD CONSTRAINT "ItemIntake_capturedByUserId_fkey" FOREIGN KEY ("capturedByUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
