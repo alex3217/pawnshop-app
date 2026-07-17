@@ -1,0 +1,47 @@
+/*
+ * Scan Console theme tokens.
+ * The main global variables default to dark colors, so this page supplies
+ * explicit light values and switches them when the root theme is dark.
+ */
+
+.scan-console-page {
+  color-scheme: light;
+
+  --text: #1e293b;
+  --text-strong: #0f172a;
+  --muted: #475569;
+
+  --bg-elevated: #f1f5f9;
+  --surface: #ffffff;
+  --surface-strong: #eff6ff;
+
+  --border: rgba(71, 85, 105, 0.28);
+  --border-strong: rgba(51, 65, 85, 0.48);
+
+  --primary: #2563eb;
+  --danger: #b91c1c;
+  --success: #166534;
+
+  --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.1);
+}
+
+:root[data-theme="dark"] .scan-console-page {
+  color-scheme: dark;
+
+  --text: #e5e7eb;
+  --text-strong: #ffffff;
+  --muted: #cbd5e1;
+
+  --bg-elevated: #121935;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-strong: rgba(255, 255, 255, 0.07);
+
+  --border: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.24);
+
+  --primary: #6ea8fe;
+  --danger: #ff8ea1;
+  --success: #7ef2a7;
+
+  --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
