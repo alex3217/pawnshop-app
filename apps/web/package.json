@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "check:dev-wiring": "bash ../../scripts/check-dev-wiring.sh",
     "check:auth-files": "bash ../../scripts/check-frontend-auth-files.sh",
-    "check:dev-safe": "npm run check:dev-wiring && npm run check:auth-files"
+    "check:dev-safe": "npm run check:dev-wiring && npm run check:auth-files",
+    "start": "serve -s dist -l tcp://0.0.0.0:${PORT:-10000}"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -22,6 +23,7 @@
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.72.1",
     "react-router-dom": "^7.11.0",
+    "serve": "^14.2.4",
     "socket.io-client": "^4.8.3",
     "zod": "^4.3.6"
   },
