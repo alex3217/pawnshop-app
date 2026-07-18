@@ -5,6 +5,7 @@ import {
   useState,
 } from "react";
 import { Link } from "react-router-dom";
+import { exportCsv } from "../admin/utils/exportCsv";
 import {
   getOwnerFinanceBalance,
   getOwnerFinanceLedger,
@@ -86,6 +87,26 @@ function formatLabel(value: string) {
     .join(" ");
 }
 
+function sanitizeFilename(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "shop";
+}
+
+function startOfDate(value: string) {
+  return value ? `${value}T00:00:00.000Z` : undefined;
+}
+
+function endOfDate(value: string) {
+  return value ? `${value}T23:59:59.999Z` : undefined;
+}
+
+function todayForFilename() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function getErrorMessage(error: unknown) {
   if (
     error &&
@@ -144,7 +165,12 @@ export default function OwnerFinancePage() {
 
   const [ledgerType, setLedgerType] = useState("");
   const [ledgerStatus, setLedgerStatus] = useState("");
+  const [ledgerFrom, setLedgerFrom] = useState("");
+  const [ledgerTo, setLedgerTo] = useState("");
+
   const [payoutStatus, setPayoutStatus] = useState("");
+  const [payoutFrom, setPayoutFrom] = useState("");
+  const [payoutTo, setPayoutTo] = useState("");
 
   const [loadingShops, setLoadingShops] = useState(true);
   const [loadingFinance, setLoadingFinance] =
@@ -207,12 +233,16 @@ export default function OwnerFinancePage() {
           limit: ledgerPagination.limit,
           type: ledgerType || undefined,
           status: ledgerStatus || undefined,
+          from: startOfDate(ledgerFrom),
+          to: endOfDate(ledgerTo),
         }),
 
         getOwnerFinancePayouts(selectedShopId, {
           page: payoutPagination.page,
           limit: payoutPagination.limit,
           status: payoutStatus || undefined,
+          from: startOfDate(payoutFrom),
+          to: endOfDate(payoutTo),
         }),
       ]);
 
@@ -229,11 +259,15 @@ export default function OwnerFinancePage() {
   }, [
     ledgerPagination.limit,
     ledgerPagination.page,
+    ledgerFrom,
     ledgerStatus,
+    ledgerTo,
     ledgerType,
+    payoutFrom,
     payoutPagination.limit,
     payoutPagination.page,
     payoutStatus,
+    payoutTo,
     selectedShopId,
   ]);
 
@@ -257,6 +291,79 @@ export default function OwnerFinancePage() {
       ...current,
       page: 1,
     }));
+  }
+
+  function clearLedgerFilters() {
+    setLedgerType("");
+    setLedgerStatus("");
+    setLedgerFrom("");
+    setLedgerTo("");
+    resetLedgerPage();
+  }
+
+  function clearPayoutFilters() {
+    setPayoutStatus("");
+    setPayoutFrom("");
+    setPayoutTo("");
+    resetPayoutPage();
+  }
+
+  function exportLedgerRows() {
+    if (ledgerRows.length === 0) return;
+
+    const shopName = sanitizeFilename(
+      selectedShop?.name || "shop",
+    );
+
+    exportCsv(
+      `${shopName}-finance-ledger-${todayForFilename()}.csv`,
+      ledgerRows.map((entry) => ({
+        Date: formatDate(entry.createdAt),
+        Type: formatLabel(entry.type),
+        Status: formatLabel(entry.status),
+        Description:
+          entry.description ||
+          entry.settlementId ||
+          "Ledger transaction",
+        Amount: formatMoney(
+          entry.amountCents,
+          entry.currency,
+        ),
+        Currency: entry.currency,
+        "Settlement ID": entry.settlementId || "",
+        "Payout ID": entry.payoutId || "",
+        "Ledger ID": entry.id,
+      })),
+    );
+  }
+
+  function exportPayoutRows() {
+    if (payoutRows.length === 0) return;
+
+    const shopName = sanitizeFilename(
+      selectedShop?.name || "shop",
+    );
+
+    exportCsv(
+      `${shopName}-payout-history-${todayForFilename()}.csv`,
+      payoutRows.map((payout) => ({
+        Requested: formatDate(payout.requestedAt),
+        Status: formatLabel(payout.status),
+        Amount: formatMoney(
+          payout.amountCents,
+          payout.currency,
+        ),
+        Currency: payout.currency,
+        Provider: payout.provider || "",
+        "Provider Reference":
+          payout.providerPayoutId || "",
+        "Failure Code": payout.failureCode || "",
+        "Failure Message":
+          payout.failureMessage || "",
+        "Paid At": formatDate(payout.paidAt),
+        "Payout ID": payout.id,
+      })),
+    );
   }
 
   return (
@@ -463,10 +570,7 @@ export default function OwnerFinancePage() {
                 <select
                   value={ledgerType}
                   onChange={(event) => {
-                    setLedgerType(
-                      event.target.value,
-                    );
-
+                    setLedgerType(event.target.value);
                     resetLedgerPage();
                   }}
                 >
@@ -488,27 +592,76 @@ export default function OwnerFinancePage() {
                 <select
                   value={ledgerStatus}
                   onChange={(event) => {
-                    setLedgerStatus(
-                      event.target.value,
-                    );
-
+                    setLedgerStatus(event.target.value);
                     resetLedgerPage();
                   }}
                 >
-                  {LEDGER_STATUSES.map(
-                    (value) => (
-                      <option
-                        key={value || "all"}
-                        value={value}
-                      >
-                        {value
-                          ? formatLabel(value)
-                          : "All statuses"}
-                      </option>
-                    ),
-                  )}
+                  {LEDGER_STATUSES.map((value) => (
+                    <option
+                      key={value || "all"}
+                      value={value}
+                    >
+                      {value
+                        ? formatLabel(value)
+                        : "All statuses"}
+                    </option>
+                  ))}
                 </select>
               </label>
+
+              <label>
+                From
+                <input
+                  type="date"
+                  value={ledgerFrom}
+                  max={ledgerTo || undefined}
+                  onChange={(event) => {
+                    setLedgerFrom(event.target.value);
+                    resetLedgerPage();
+                  }}
+                />
+              </label>
+
+              <label>
+                To
+                <input
+                  type="date"
+                  value={ledgerTo}
+                  min={ledgerFrom || undefined}
+                  onChange={(event) => {
+                    setLedgerTo(event.target.value);
+                    resetLedgerPage();
+                  }}
+                />
+              </label>
+
+              <div className="owner-finance-filter-actions">
+                <button
+                  type="button"
+                  className="owner-finance-filter-button"
+                  onClick={clearLedgerFilters}
+                  disabled={
+                    !ledgerType &&
+                    !ledgerStatus &&
+                    !ledgerFrom &&
+                    !ledgerTo
+                  }
+                >
+                  Clear filters
+                </button>
+
+                <button
+                  type="button"
+                  className="owner-finance-export-button"
+                  onClick={exportLedgerRows}
+                  disabled={
+                    loadingFinance ||
+                    ledgerRows.length === 0
+                  }
+                >
+                  Export current page
+                </button>
+              </div>
             </div>
 
             <div className="owner-finance-table-wrap">
@@ -640,27 +793,75 @@ export default function OwnerFinancePage() {
                 <select
                   value={payoutStatus}
                   onChange={(event) => {
-                    setPayoutStatus(
-                      event.target.value,
-                    );
-
+                    setPayoutStatus(event.target.value);
                     resetPayoutPage();
                   }}
                 >
-                  {PAYOUT_STATUSES.map(
-                    (value) => (
-                      <option
-                        key={value || "all"}
-                        value={value}
-                      >
-                        {value
-                          ? formatLabel(value)
-                          : "All statuses"}
-                      </option>
-                    ),
-                  )}
+                  {PAYOUT_STATUSES.map((value) => (
+                    <option
+                      key={value || "all"}
+                      value={value}
+                    >
+                      {value
+                        ? formatLabel(value)
+                        : "All statuses"}
+                    </option>
+                  ))}
                 </select>
               </label>
+
+              <label>
+                From
+                <input
+                  type="date"
+                  value={payoutFrom}
+                  max={payoutTo || undefined}
+                  onChange={(event) => {
+                    setPayoutFrom(event.target.value);
+                    resetPayoutPage();
+                  }}
+                />
+              </label>
+
+              <label>
+                To
+                <input
+                  type="date"
+                  value={payoutTo}
+                  min={payoutFrom || undefined}
+                  onChange={(event) => {
+                    setPayoutTo(event.target.value);
+                    resetPayoutPage();
+                  }}
+                />
+              </label>
+
+              <div className="owner-finance-filter-actions">
+                <button
+                  type="button"
+                  className="owner-finance-filter-button"
+                  onClick={clearPayoutFilters}
+                  disabled={
+                    !payoutStatus &&
+                    !payoutFrom &&
+                    !payoutTo
+                  }
+                >
+                  Clear filters
+                </button>
+
+                <button
+                  type="button"
+                  className="owner-finance-export-button"
+                  onClick={exportPayoutRows}
+                  disabled={
+                    loadingFinance ||
+                    payoutRows.length === 0
+                  }
+                >
+                  Export current page
+                </button>
+              </div>
             </div>
 
             <div className="owner-finance-table-wrap">
