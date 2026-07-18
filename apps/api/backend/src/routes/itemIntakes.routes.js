@@ -7,6 +7,7 @@ import {
   listItemIntakes,
   publishItemIntake,
   reviewItemIntake,
+  searchItemIntakeCustomers,
 } from "../controllers/itemIntakes.controller.js";
 
 const router = Router();
@@ -16,6 +17,13 @@ router.get(
   authRequired,
   requireOwnerAdminOrStaffPermission("inventory:read"),
   listItemIntakes,
+);
+
+router.get(
+  "/customers/search",
+  authRequired,
+  requireOwnerAdminOrStaffPermission("inventory:write"),
+  searchItemIntakeCustomers,
 );
 
 router.get(

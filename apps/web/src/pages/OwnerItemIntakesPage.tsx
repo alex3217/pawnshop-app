@@ -117,6 +117,25 @@ function getStatusClass(status: ItemIntakeStatus) {
   ].join(" ");
 }
 
+function canPublishIntakeDestination(
+  destination: ItemIntakeDestination,
+) {
+  return (
+    destination === "SHOP_INVENTORY" ||
+    destination === "CUSTOMER_SELL" ||
+    destination === "CUSTOMER_PAWN"
+  );
+}
+
+function isCustomerPublishDestination(
+  destination: ItemIntakeDestination,
+) {
+  return (
+    destination === "CUSTOMER_SELL" ||
+    destination === "CUSTOMER_PAWN"
+  );
+}
+
 function replaceRow(
   rows: ItemIntake[],
   replacement: ItemIntake,
@@ -475,15 +494,40 @@ export default function OwnerItemIntakesPage() {
       !selected ||
       actionId ||
       selected.status !== "APPROVED" ||
-      selected.destination !== "SHOP_INVENTORY"
+      !canPublishIntakeDestination(
+        selected.destination,
+      )
     ) {
       return;
     }
 
-    const confirmed = window.confirm(
-      selected.linkedItemId
+    const customerDestination =
+      isCustomerPublishDestination(
+        selected.destination,
+      );
+
+    const customerName =
+      selected.customer?.name ||
+      selected.customer?.email ||
+      "the assigned customer";
+
+    let confirmationMessage =
+      "Publish this approved intake?";
+
+    if (selected.destination === "SHOP_INVENTORY") {
+      confirmationMessage = selected.linkedItemId
         ? "Publish this approved intake using its linked inventory item?"
-        : "Publish this approved intake as a new available inventory item?",
+        : "Publish this approved intake as a new available inventory item?";
+    } else if (selected.destination === "CUSTOMER_PAWN") {
+      confirmationMessage =
+        `Publish this approved intake as a pawn request for ${customerName}?`;
+    } else if (selected.destination === "CUSTOMER_SELL") {
+      confirmationMessage =
+        `Publish this approved intake as a sell request for ${customerName}?`;
+    }
+
+    const confirmed = window.confirm(
+      confirmationMessage,
     );
 
     if (!confirmed) {
@@ -500,10 +544,11 @@ export default function OwnerItemIntakesPage() {
       );
 
       const updated = result.intake;
-      const itemTitle =
+      const publishedTitle =
         result.item?.title ||
+        result.submission?.title ||
         updated.title ||
-        "Inventory item";
+        "Item intake";
 
       setSelected(updated);
       setRows((current) =>
@@ -511,17 +556,38 @@ export default function OwnerItemIntakesPage() {
       );
       setReviewMessage(updated.reviewMessage || "");
 
-      if (result.alreadyPublished) {
+      if (customerDestination) {
+        const requestType =
+          updated.destination === "CUSTOMER_PAWN"
+            ? "pawn request"
+            : "sell request";
+
+        if (result.alreadyPublished) {
+          setNotice(
+            `${publishedTitle} was already published as a customer ${requestType}.`,
+          );
+        } else if (
+          result.reusedExistingSubmission
+        ) {
+          setNotice(
+            `${publishedTitle} was linked and published as a customer ${requestType}.`,
+          );
+        } else {
+          setNotice(
+            `${publishedTitle} was published as a customer ${requestType}.`,
+          );
+        }
+      } else if (result.alreadyPublished) {
         setNotice(
-          `${itemTitle} was already published.`,
+          `${publishedTitle} was already published.`,
         );
       } else if (result.reusedExistingItem) {
         setNotice(
-          `${itemTitle} was linked and published to inventory.`,
+          `${publishedTitle} was linked and published to inventory.`,
         );
       } else {
         setNotice(
-          `${itemTitle} was created in inventory.`,
+          `${publishedTitle} was created in inventory.`,
         );
       }
     } catch (actionError) {
@@ -1020,6 +1086,19 @@ export default function OwnerItemIntakesPage() {
                 </span>
 
                 <span>
+                  Customer:{" "}
+                  {selected.customer ? (
+                    <>
+                      {selected.customer.name ||
+                        "Unnamed customer"}{" "}
+                      ({selected.customer.email})
+                    </>
+                  ) : (
+                    selected.customerId || "—"
+                  )}
+                </span>
+
+                <span>
                   Linked item:{" "}
                   {selected.linkedItemId ? (
                     <Link
@@ -1034,14 +1113,21 @@ export default function OwnerItemIntakesPage() {
 
                 <span>
                   Linked submission:{" "}
-                  {selected.linkedSubmissionId || "—"}
+                  {selected.linkedSubmissionId ? (
+                    <Link to="/owner">
+                      Open customer submission
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
                 </span>
               </div>
 
               <div className="item-intake-review-actions">
                 {selected.status === "APPROVED" &&
-                selected.destination ===
-                  "SHOP_INVENTORY" ? (
+                canPublishIntakeDestination(
+                  selected.destination,
+                ) ? (
                   <button
                     type="button"
                     className="item-intake-primary-button"
@@ -1051,9 +1137,17 @@ export default function OwnerItemIntakesPage() {
                     {actionId ===
                     `${selected.id}:PUBLISH`
                       ? "Publishing…"
-                      : selected.linkedItemId
-                        ? "Publish linked item"
-                        : "Publish to inventory"}
+                      : selected.destination ===
+                          "SHOP_INVENTORY"
+                        ? selected.linkedItemId
+                          ? "Publish linked item"
+                          : "Publish to inventory"
+                        : selected.linkedSubmissionId
+                          ? "Publish linked submission"
+                          : selected.destination ===
+                              "CUSTOMER_PAWN"
+                            ? "Publish pawn request"
+                            : "Publish sell request"}
                   </button>
                 ) : null}
 
@@ -1126,8 +1220,9 @@ export default function OwnerItemIntakesPage() {
               </div>
 
               {selected.status === "APPROVED" &&
-              selected.destination !==
-                "SHOP_INVENTORY" ? (
+              !canPublishIntakeDestination(
+                selected.destination,
+              ) ? (
                 <div className="item-intake-lock-note">
                   Publishing for the{" "}
                   {humanize(selected.destination)} destination

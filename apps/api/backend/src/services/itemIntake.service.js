@@ -259,6 +259,8 @@ export async function recordItemIntakeScan({
   const data = {
     shopId,
     capturedByUserId: capturedByUserId || null,
+    customerId:
+      String(input.customerId || "").trim() || null,
     source: normalizeSource(
       input.intakeSource || input.source,
     ),
@@ -339,6 +341,7 @@ export async function recordItemIntakeScan({
       id: true,
       shopId: true,
       capturedByUserId: true,
+      customerId: true,
       source: true,
       destination: true,
       status: true,

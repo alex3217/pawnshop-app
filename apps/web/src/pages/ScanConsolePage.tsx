@@ -16,6 +16,10 @@ import {
   type ScanPayload,
   type ScanResult,
 } from "../services/items";
+import {
+  searchItemIntakeCustomers,
+  type ItemIntakeCustomer,
+} from "../services/itemIntakes";
 import { getMyShops, type Shop } from "../services/shops";
 import "../styles/scan-console.css";
 
@@ -115,6 +119,18 @@ export default function ScanConsolePage() {
     useState<ScanIntakeSource>("MANUAL");
   const [destination, setDestination] =
     useState<ScanIntakeDestination>("SHOP_INVENTORY");
+
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<
+    ItemIntakeCustomer[]
+  >([]);
+  const [selectedCustomer, setSelectedCustomer] =
+    useState<ItemIntakeCustomer | null>(null);
+  const [customerSearching, setCustomerSearching] =
+    useState(false);
+  const [customerSearchMessage, setCustomerSearchMessage] =
+    useState("");
+
   const [result, setResult] = useState<ScanResult | null>(null);
   const [err, setErr] = useState("");
   const [success, setSuccess] = useState("");
@@ -128,6 +144,10 @@ export default function ScanConsolePage() {
   const resultTitle = useMemo(() => getResultTitle(result, code), [result, code]);
   const resultMeta = useMemo(() => getResultMeta(result), [result]);
   const intakeMeta = useMemo(() => getIntakeMeta(result), [result]);
+
+  const customerRequired =
+    destination === "CUSTOMER_SELL" ||
+    destination === "CUSTOMER_PAWN";
 
   const selectedShop = useMemo(
     () => shops.find((shop) => shop.id === shopId) || null,
@@ -180,6 +200,47 @@ export default function ScanConsolePage() {
     };
   }, [stopCamera]);
 
+  async function searchCustomers() {
+    const normalizedQuery = String(
+      customerQuery || "",
+    ).trim();
+
+    setCustomerResults([]);
+    setCustomerSearchMessage("");
+
+    if (normalizedQuery.length < 2) {
+      setCustomerSearchMessage(
+        "Enter at least two characters of the customer name or email.",
+      );
+      return;
+    }
+
+    setCustomerSearching(true);
+    setErr("");
+
+    try {
+      const result = await searchItemIntakeCustomers(
+        normalizedQuery,
+      );
+
+      setCustomerResults(result.rows);
+
+      if (result.rows.length === 0) {
+        setCustomerSearchMessage(
+          "No active customer accounts matched this search.",
+        );
+      }
+    } catch (error) {
+      setErr(
+        error instanceof Error
+          ? error.message
+          : "Failed to search customers.",
+      );
+    } finally {
+      setCustomerSearching(false);
+    }
+  }
+
   async function resolveCode(
     nextCode = code,
     sourceOverride: ScanIntakeSource = scanSource,
@@ -200,6 +261,13 @@ export default function ScanConsolePage() {
       return;
     }
 
+    if (customerRequired && !selectedCustomer?.id) {
+      setErr(
+        "Search for and select a customer before recording this sell or pawn intake.",
+      );
+      return;
+    }
+
     setResolving(true);
 
     try {
@@ -208,6 +276,9 @@ export default function ScanConsolePage() {
         code: normalizedCode,
         intakeSource: sourceOverride,
         destination,
+        customerId: customerRequired
+          ? selectedCustomer?.id
+          : undefined,
       });
 
       const nextIntake = getIntakeMeta(data);
@@ -475,11 +546,27 @@ export default function ScanConsolePage() {
               Intake destination
               <select
                 value={destination}
-                onChange={(event) =>
-                  setDestination(
-                    event.target.value as ScanIntakeDestination,
-                  )
-                }
+                onChange={(event) => {
+                  const nextDestination =
+                    event.target
+                      .value as ScanIntakeDestination;
+
+                  setDestination(nextDestination);
+                  setResult(null);
+                  setSuccess("");
+                  setErr("");
+
+                  const nextCustomerRequired =
+                    nextDestination === "CUSTOMER_SELL" ||
+                    nextDestination === "CUSTOMER_PAWN";
+
+                  if (!nextCustomerRequired) {
+                    setSelectedCustomer(null);
+                    setCustomerQuery("");
+                    setCustomerResults([]);
+                    setCustomerSearchMessage("");
+                  }
+                }}
                 style={styles.input}
               >
                 <option value="SHOP_INVENTORY">Shop inventory</option>
@@ -493,6 +580,174 @@ export default function ScanConsolePage() {
               </select>
             </label>
           </div>
+
+          {customerRequired ? (
+            <section style={styles.infoCard}>
+              <div>
+                <strong>Customer required</strong>
+                <p style={styles.messageText}>
+                  Search active customer accounts by name or
+                  email, then select the customer connected to
+                  this {destination === "CUSTOMER_PAWN"
+                    ? "pawn request"
+                    : "sell intake"}.
+                </p>
+              </div>
+
+              {selectedCustomer ? (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 12,
+                    flexWrap: "wrap",
+                    marginTop: 12,
+                    padding: 12,
+                    border: "1px solid var(--success)",
+                    borderRadius: 12,
+                    background: "rgba(34,197,94,0.1)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 4,
+                    }}
+                  >
+                    <strong>Selected customer</strong>
+                    <span>{selectedCustomer.name}</span>
+                    <span>{selectedCustomer.email}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCustomer(null);
+                      setCustomerQuery("");
+                      setCustomerResults([]);
+                      setCustomerSearchMessage("");
+                    }}
+                    disabled={resolving}
+                    style={{
+                      ...styles.secondaryButton,
+                      ...(resolving
+                        ? styles.disabledButton
+                        : {}),
+                    }}
+                  >
+                    Change customer
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "minmax(0, 1fr) auto",
+                      gap: 10,
+                      marginTop: 12,
+                    }}
+                  >
+                    <input
+                      type="search"
+                      value={customerQuery}
+                      onChange={(event) => {
+                        setCustomerQuery(
+                          event.target.value,
+                        );
+                        setCustomerSearchMessage("");
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void searchCustomers();
+                        }
+                      }}
+                      placeholder="Customer name or email"
+                      aria-label="Search customers"
+                      autoComplete="off"
+                      style={styles.input}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void searchCustomers()
+                      }
+                      disabled={
+                        customerSearching ||
+                        customerQuery.trim().length < 2
+                      }
+                      style={{
+                        ...styles.secondaryButton,
+                        ...(customerSearching ||
+                        customerQuery.trim().length < 2
+                          ? styles.disabledButton
+                          : {}),
+                      }}
+                    >
+                      {customerSearching
+                        ? "Searching…"
+                        : "Search"}
+                    </button>
+                  </div>
+
+                  {customerSearchMessage ? (
+                    <p
+                      style={styles.messageText}
+                      aria-live="polite"
+                    >
+                      {customerSearchMessage}
+                    </p>
+                  ) : null}
+
+                  {customerResults.length > 0 ? (
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 8,
+                        marginTop: 12,
+                      }}
+                    >
+                      {customerResults.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCustomer(customer);
+                            setCustomerQuery(
+                              customer.email,
+                            );
+                            setCustomerResults([]);
+                            setCustomerSearchMessage("");
+                            setErr("");
+                          }}
+                          style={{
+                            border:
+                              "1px solid var(--border)",
+                            background:
+                              "var(--bg-elevated)",
+                            color: "var(--text)",
+                            borderRadius: 12,
+                            padding: 12,
+                            display: "grid",
+                            gap: 4,
+                            textAlign: "left",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <strong>{customer.name}</strong>
+                          <span>{customer.email}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </section>
+          ) : null}
 
           <div style={styles.cameraBox}>
             <video

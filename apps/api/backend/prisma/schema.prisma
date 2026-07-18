@@ -32,6 +32,7 @@ model User {
   staffMemberships          Staff[]                    @relation("StaffUser")
   autoBids                  AutoBid[]
   capturedItemIntakes       ItemIntake[]               @relation("ItemIntakeCapturedBy")
+  customerItemIntakes       ItemIntake[]               @relation("ItemIntakeCustomer")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -473,6 +474,7 @@ model ItemIntake {
   id               String                @id @default(cuid())
   shopId           String?
   capturedByUserId String?
+  customerId       String?
   source           ItemIntakeSource      @default(MANUAL)
   destination      ItemIntakeDestination @default(SHOP_INVENTORY)
   status           ItemIntakeStatus      @default(DRAFT)
@@ -520,8 +522,11 @@ model ItemIntake {
 
   capturedBy User? @relation("ItemIntakeCapturedBy", fields: [capturedByUserId], references: [id], onDelete: SetNull)
 
+  customer User? @relation("ItemIntakeCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+
   @@index([shopId, status, createdAt])
   @@index([capturedByUserId, createdAt])
+  @@index([customerId, createdAt])
   @@index([destination, status])
   @@index([normalizedCode])
   @@index([barcode])
