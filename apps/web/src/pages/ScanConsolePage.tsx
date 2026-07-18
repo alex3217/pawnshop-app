@@ -105,6 +105,103 @@ function getIntakeMeta(result: ScanResult | null) {
   };
 }
 
+type DestinationGuidance = {
+  title: string;
+  description: string;
+  steps: string[];
+};
+
+function getDestinationGuidance(
+  destination: ScanIntakeDestination,
+): DestinationGuidance {
+  switch (destination) {
+    case "CUSTOMER_SELL":
+      return {
+        title: "Customer sell workflow",
+        description:
+          "Connect the scanned item to a customer and publish it as a sell request for shop offers.",
+        steps: [
+          "Choose the shop/location handling the request.",
+          "Search for and select the customer.",
+          "Scan with the camera or enter the item code manually.",
+          "Review and approve the intake in the review queue.",
+          "Publish it as a customer sell request so shops can send sell offers.",
+        ],
+      };
+
+    case "CUSTOMER_PAWN":
+      return {
+        title: "Customer pawn workflow",
+        description:
+          "Connect the scanned item to a customer and publish it as a pawn request for shop offers.",
+        steps: [
+          "Choose the shop/location handling the request.",
+          "Search for and select the customer.",
+          "Scan with the camera or enter the pawn tag or item code manually.",
+          "Review and approve the intake in the review queue.",
+          "Publish it as a customer pawn request so shops can send pawn offers.",
+        ],
+      };
+
+    case "CUSTOMER_MARKETPLACE":
+      return {
+        title: "Customer marketplace workflow",
+        description:
+          "Capture the item for review before customer marketplace publishing is enabled.",
+        steps: [
+          "Choose the shop/location handling the intake.",
+          "Scan with the camera or enter the item code manually.",
+          "Review duplicate and screening results.",
+          "Open the intake in the review queue.",
+          "Keep it in review until marketplace publishing is available.",
+        ],
+      };
+
+    case "DEALER_LISTING":
+      return {
+        title: "Dealer listing workflow",
+        description:
+          "Capture dealer inventory information and route it through review.",
+        steps: [
+          "Choose the shop/location handling the dealer item.",
+          "Scan with the camera or enter the item code manually.",
+          "Review duplicate and screening results.",
+          "Open and review the intake record.",
+          "Keep it in review until dealer publishing is available.",
+        ],
+      };
+
+    case "SHOP_TRANSFER":
+      return {
+        title: "Shop transfer workflow",
+        description:
+          "Capture an item that will move between shop locations.",
+        steps: [
+          "Choose the shop/location currently handling the item.",
+          "Scan with the camera or enter the item code manually.",
+          "Confirm the item and duplicate results.",
+          "Open the intake in the review queue.",
+          "Keep it in review until transfer publishing is available.",
+        ],
+      };
+
+    case "SHOP_INVENTORY":
+    default:
+      return {
+        title: "Shop inventory workflow",
+        description:
+          "Scan, review, and publish an available item into the selected shop's inventory.",
+        steps: [
+          "Choose the shop/location.",
+          "Scan with the camera or enter the item code manually.",
+          "Review duplicate and screening results.",
+          "Approve the intake in the review queue.",
+          "Publish the item to the shop's marketplace inventory.",
+        ],
+      };
+  }
+}
+
 export default function ScanConsolePage() {
   const navigate = useNavigate();
 
@@ -148,6 +245,11 @@ export default function ScanConsolePage() {
   const customerRequired =
     destination === "CUSTOMER_SELL" ||
     destination === "CUSTOMER_PAWN";
+
+  const destinationGuidance = useMemo(
+    () => getDestinationGuidance(destination),
+    [destination],
+  );
 
   const selectedShop = useMemo(
     () => shops.find((shop) => shop.id === shopId) || null,
@@ -830,15 +932,18 @@ export default function ScanConsolePage() {
         <aside style={styles.card}>
           <div>
             <div style={styles.sectionLabel}>How it works</div>
-            <h2 style={styles.sectionTitle}>Fast intake workflow</h2>
+            <h2 style={styles.sectionTitle}>
+              {destinationGuidance.title}
+            </h2>
+            <p style={styles.sectionText}>
+              {destinationGuidance.description}
+            </p>
           </div>
 
           <ol style={styles.steps}>
-            <li>Choose the shop/location.</li>
-            <li>Scan with camera or enter a code manually.</li>
-            <li>If an item exists, update or mark it sold.</li>
-            <li>If not found, create a prefilled item draft.</li>
-            <li>Save the item and publish it to marketplace inventory.</li>
+            {destinationGuidance.steps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
           </ol>
 
           <div style={styles.infoCard}>
