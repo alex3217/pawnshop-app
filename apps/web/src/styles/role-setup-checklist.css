@@ -1,7 +1,8 @@
 .role-checklist {
   position: fixed;
+  top: 120px;
   right: 20px;
-  bottom: 142px;
+  bottom: auto;
   z-index: 8500;
   width: min(390px, calc(100vw - 32px));
   max-height: min(620px, calc(100vh - 180px));
@@ -156,10 +157,11 @@
 
 @media (max-width: 640px) {
   .role-checklist {
+    top: 96px;
     right: 12px;
-    bottom: 126px;
+    bottom: auto;
     width: calc(100vw - 24px);
-    max-height: 58vh;
+    max-height: calc(100vh - 120px);
   }
 
   .role-checklist-collapsed {
