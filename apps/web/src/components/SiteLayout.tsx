@@ -210,7 +210,17 @@ export default function SiteLayout() {
             </Link>
 
             <div className="site-top-actions">
-              <span className="site-role-badge">{roleBadge}</span>
+              <Link
+                to={dashboardHref}
+                className="site-role-badge"
+                aria-label={
+                  role
+                    ? `Open ${roleBadge} dashboard`
+                    : "Open login page"
+                }
+              >
+                {roleBadge}
+              </Link>
 
               <button
                 type="button"
