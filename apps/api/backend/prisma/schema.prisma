@@ -70,46 +70,6 @@ model BuyerSubscription {
 }
 
 model PawnShop {
-<<<<<<< HEAD
-  id                           String                     @id @default(cuid())
-  name                         String
-  address                      String?
-  city                         String?
-  state                        String?
-  zip                          String?
-  latitude                     Float?
-  longitude                    Float?
-  phone                        String?
-  description                  String?
-  hours                        String?
-  ownerId                      String
-  isDeleted                    Boolean                    @default(false)
-  createdAt                    DateTime                   @default(now())
-  updatedAt                    DateTime                   @updatedAt
-  cancelAtPeriodEnd            Boolean                    @default(false)
-  stripeCustomerId             String?
-  stripeSubscriptionId         String?                    @unique
-  subscriptionCurrentPeriodEnd DateTime?
-  subscriptionPlan             String                     @default("FREE")
-  subscriptionStatus           String                     @default("ACTIVE")
-  stripeCheckoutSessionId      String?
-  stripeLatestInvoiceId        String?
-  stripePriceId                String?
-  subscriptionBillingInterval  BillingInterval?
-  subscriptionCanceledAt       DateTime?
-  subscriptionStartedAt        DateTime?
-  auctions                     Auction[]
-  inventoryImportJobs          InventoryImportJob[]       @relation("ShopInventoryImportJobs")
-  inventoryIntegrations        InventoryIntegration[]     @relation("ShopInventoryIntegrations")
-  items                        Item[]
-  staffMembers                 Staff[]                    @relation("ShopStaffMembers")
-  owner                        User                       @relation(fields: [ownerId], references: [id])
-  inventorySyncJobs            InventorySyncJob[]
-  buyerItemSubmissionOffers    BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferShop")
-  itemIntakes                  ItemIntake[]               @relation("ShopItemIntakes")
-  sellerLedgerEntries          SellerBalanceLedger[]      @relation("SellerBalanceLedgerShop")
-  sellerPayouts                SellerPayout[]             @relation("SellerPayoutShop")
-=======
   id                            String                     @id @default(cuid())
   name                          String
   address                       String?
@@ -151,7 +111,6 @@ model PawnShop {
   marketplaceListings           MarketplaceListing[]       @relation("MarketplaceListingShop")
   marketplaceBuyerTransactions  MarketplaceTransaction[]   @relation("MarketplaceTransactionBuyerShop")
   marketplaceSellerTransactions MarketplaceTransaction[]   @relation("MarketplaceTransactionSellerShop")
->>>>>>> origin/main
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -755,8 +714,6 @@ enum OfferStatus {
   CANCELED
 }
 
-<<<<<<< HEAD
-=======
 model MarketplaceListing {
   id                String                   @id @default(cuid())
   itemId            String?
@@ -835,7 +792,6 @@ model MarketplaceTransaction {
   @@index([createdAt])
 }
 
->>>>>>> origin/main
 enum SellerLedgerEntryType {
   SETTLEMENT_CREDIT
   PAYOUT_DEBIT
