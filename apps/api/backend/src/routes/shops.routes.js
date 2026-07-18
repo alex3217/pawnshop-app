@@ -10,6 +10,11 @@ import {
   getShopItems,
   getShopById,
 } from "../controllers/shops.controller.js";
+import {
+  getShopFinanceBalance,
+  getShopFinanceLedger,
+  getShopFinancePayouts,
+} from "../controllers/shopFinance.controller.js";
 
 const router = Router();
 
@@ -18,6 +23,28 @@ router.get("/", listShops);
 
 // Owner/Admin read routes must be before /:id.
 router.get("/mine", authRequired, requireRole("OWNER", "ADMIN"), myShops);
+
+// Owner/Admin finance routes must be before /:id.
+router.get(
+  "/:id/finance/balance",
+  authRequired,
+  requireRole("OWNER", "ADMIN"),
+  getShopFinanceBalance,
+);
+
+router.get(
+  "/:id/finance/ledger",
+  authRequired,
+  requireRole("OWNER", "ADMIN"),
+  getShopFinanceLedger,
+);
+
+router.get(
+  "/:id/finance/payouts",
+  authRequired,
+  requireRole("OWNER", "ADMIN"),
+  getShopFinancePayouts,
+);
 
 // Public detail routes
 router.get("/:id/items", getShopItems);

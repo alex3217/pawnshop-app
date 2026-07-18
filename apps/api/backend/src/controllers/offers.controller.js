@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { calculateSettlementRevenueContext } from "../services/revenue/settlementRevenueAdapter.service.js";
 
 const SAFE_SHOP_SELECT = {
   id: true,
@@ -8,6 +9,7 @@ const SAFE_SHOP_SELECT = {
   description: true,
   hours: true,
   ownerId: true,
+  subscriptionPlan: true,
   createdAt: true,
   updatedAt: true,
   isDeleted: true,
@@ -62,6 +64,15 @@ function offerInclude() {
         chargedAt: true,
         failedAt: true,
         failureMessage: true,
+        grossAmountCents: true,
+        platformFeeCents: true,
+        sellerNetCents: true,
+        processorFeeCents: true,
+        platformNetCents: true,
+        sellerPlanCode: true,
+        transactionType: true,
+        pricingRuleSnapshot: true,
+        revenueCalculatedAt: true,
         fulfillmentStatus: true,
         fulfillmentNote: true,
         fulfilledAt: true,
@@ -102,6 +113,29 @@ async function upsertSettlementForAcceptedOffer(tx, offer, amount) {
     throw err;
   }
 
+  const sellerPlanCode = offer.item?.shop?.subscriptionPlan || "FREE";
+
+  const revenueContext = await calculateSettlementRevenueContext({
+    amount: finalPrice,
+    sellerPlanCode,
+    transactionType: "OFFER",
+    currency: "USD",
+  });
+
+  const revenue = revenueContext.revenue;
+
+  const revenueData = {
+    grossAmountCents: revenue.grossAmountCents,
+    platformFeeCents: revenue.platformFeeCents,
+    sellerNetCents: revenue.sellerNetCents,
+    processorFeeCents: revenue.processorFeeCents,
+    platformNetCents: revenue.platformNetCents,
+    sellerPlanCode: revenueContext.sellerPlanCode,
+    transactionType: revenueContext.transactionType,
+    pricingRuleSnapshot: revenue.pricingRuleSnapshot,
+    revenueCalculatedAt: new Date(revenue.pricingRuleSnapshot.calculatedAt),
+  };
+
   return tx.settlement.upsert({
     where: { offerId: offer.id },
     update: {
@@ -111,6 +145,7 @@ async function upsertSettlementForAcceptedOffer(tx, offer, amount) {
       status: "PENDING",
       failedAt: null,
       failureMessage: null,
+      ...revenueData,
     },
     create: {
       offerId: offer.id,
@@ -118,6 +153,7 @@ async function upsertSettlementForAcceptedOffer(tx, offer, amount) {
       finalPrice,
       currency: "USD",
       status: "PENDING",
+      ...revenueData,
     },
   });
 }
@@ -242,7 +278,9 @@ export async function acceptOffer(req, res) {
 
     const offerId = normalizeString(req.params?.id);
     if (!offerId) {
-      return res.status(400).json({ success: false, error: "Offer id is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Offer id is required" });
     }
 
     const offer = await getOwnerOfferOrThrow(offerId, ownerId);
@@ -283,7 +321,9 @@ export async function rejectOffer(req, res) {
 
     const offerId = normalizeString(req.params?.id);
     if (!offerId) {
-      return res.status(400).json({ success: false, error: "Offer id is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Offer id is required" });
     }
 
     const offer = await getOwnerOfferOrThrow(offerId, ownerId);
@@ -351,7 +391,6 @@ export async function counterOffer(req, res) {
   }
 }
 
-
 export async function cancelOffer(req, res) {
   try {
     const buyerId = normalizeString(
@@ -369,7 +408,11 @@ export async function cancelOffer(req, res) {
 
     const offer = await getBuyerOfferOrThrow(offerId, buyerId);
 
-    if (!["PENDING", "COUNTERED"].includes(String(offer.status || "").toUpperCase())) {
+    if (
+      !["PENDING", "COUNTERED"].includes(
+        String(offer.status || "").toUpperCase(),
+      )
+    ) {
       return res.status(400).json({
         error: "Only pending or countered offers can be canceled",
       });
@@ -396,7 +439,9 @@ export async function acceptCounterOffer(req, res) {
 
     const offerId = normalizeString(req.params?.id);
     if (!offerId) {
-      return res.status(400).json({ success: false, error: "Offer id is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Offer id is required" });
     }
 
     const offer = await getBuyerOfferOrThrow(offerId, buyerId);
@@ -444,7 +489,9 @@ export async function declineCounterOffer(req, res) {
 
     const offerId = normalizeString(req.params?.id);
     if (!offerId) {
-      return res.status(400).json({ success: false, error: "Offer id is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Offer id is required" });
     }
 
     const offer = await getBuyerOfferOrThrow(offerId, buyerId);

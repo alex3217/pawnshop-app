@@ -1,0 +1,1387 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { Link } from "react-router-dom";
+import { exportCsv } from "../admin/utils/exportCsv";
+import {
+  getOwnerFinanceBalance,
+  getOwnerFinanceLedger,
+  getOwnerFinancePayouts,
+  getOwnerFinanceShops,
+  type FinancePagination,
+  type OwnerFinanceBalance,
+  type OwnerFinanceLedgerEntry,
+  type OwnerFinancePayout,
+  type OwnerFinanceShop,
+} from "../services/ownerFinance";
+import {
+  getSettlementById,
+  type Settlement,
+} from "../services/settlements";
+import "../styles/owner-finance-readability.css";
+
+const EMPTY_PAGINATION: FinancePagination = {
+  page: 1,
+  limit: 25,
+  total: 0,
+  totalPages: 0,
+};
+
+const LEDGER_TYPES = [
+  "",
+  "SETTLEMENT_CREDIT",
+  "PAYOUT_DEBIT",
+  "REFUND_DEBIT",
+  "REVERSAL_CREDIT",
+  "ADJUSTMENT_CREDIT",
+  "ADJUSTMENT_DEBIT",
+];
+
+const LEDGER_STATUSES = [
+  "",
+  "PENDING",
+  "AVAILABLE",
+  "HELD",
+  "PAID",
+  "REVERSED",
+];
+
+const PAYOUT_STATUSES = [
+  "",
+  "PENDING",
+  "PROCESSING",
+  "PAID",
+  "FAILED",
+  "CANCELED",
+];
+
+function formatMoney(
+  cents: number | null | undefined,
+  currency = "USD",
+) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+  }).format(Number(cents || 0) / 100);
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString();
+}
+
+function formatLabel(value: string) {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map(
+      (part) =>
+        part.charAt(0).toUpperCase() + part.slice(1),
+    )
+    .join(" ");
+}
+
+function sanitizeFilename(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "shop";
+}
+
+function startOfDate(value: string) {
+  return value ? `${value}T00:00:00.000Z` : undefined;
+}
+
+function endOfDate(value: string) {
+  return value ? `${value}T23:59:59.999Z` : undefined;
+}
+
+function todayForFilename() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getErrorMessage(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "response" in error
+  ) {
+    const response = (
+      error as {
+        response?: {
+          data?: {
+            error?: string;
+            message?: string;
+          };
+        };
+      }
+    ).response;
+
+    return (
+      response?.data?.error ||
+      response?.data?.message ||
+      "Failed to load finance information."
+    );
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Failed to load finance information.";
+}
+
+export default function OwnerFinancePage() {
+  const [shops, setShops] = useState<OwnerFinanceShop[]>(
+    [],
+  );
+
+  const [selectedShopId, setSelectedShopId] =
+    useState("");
+
+  const [balance, setBalance] =
+    useState<OwnerFinanceBalance | null>(null);
+
+  const [ledgerRows, setLedgerRows] = useState<
+    OwnerFinanceLedgerEntry[]
+  >([]);
+
+  const [payoutRows, setPayoutRows] = useState<
+    OwnerFinancePayout[]
+  >([]);
+
+  const [ledgerPagination, setLedgerPagination] =
+    useState<FinancePagination>(EMPTY_PAGINATION);
+
+  const [payoutPagination, setPayoutPagination] =
+    useState<FinancePagination>(EMPTY_PAGINATION);
+
+  const [ledgerType, setLedgerType] = useState("");
+  const [ledgerStatus, setLedgerStatus] = useState("");
+  const [ledgerFrom, setLedgerFrom] = useState("");
+  const [ledgerTo, setLedgerTo] = useState("");
+
+  const [payoutStatus, setPayoutStatus] = useState("");
+  const [payoutFrom, setPayoutFrom] = useState("");
+  const [payoutTo, setPayoutTo] = useState("");
+
+  const [loadingShops, setLoadingShops] = useState(true);
+  const [loadingFinance, setLoadingFinance] =
+    useState(false);
+
+  const [error, setError] = useState("");
+  const [activeSection, setActiveSection] = useState<
+    "ledger" | "payouts"
+  >("ledger");
+
+  const [
+    selectedLedgerEntry,
+    setSelectedLedgerEntry,
+  ] = useState<OwnerFinanceLedgerEntry | null>(
+    null,
+  );
+
+  const [
+    selectedSettlement,
+    setSelectedSettlement,
+  ] = useState<Settlement | null>(null);
+
+  const [
+    loadingSettlement,
+    setLoadingSettlement,
+  ] = useState(false);
+
+  const [
+    settlementError,
+    setSettlementError,
+  ] = useState("");
+
+  const selectedShop = useMemo(
+    () =>
+      shops.find(
+        (shop) => shop.id === selectedShopId,
+      ) || null,
+    [selectedShopId, shops],
+  );
+
+  const loadShops = useCallback(async () => {
+    setLoadingShops(true);
+    setError("");
+
+    try {
+      const rows = await getOwnerFinanceShops();
+
+      setShops(rows);
+
+      if (rows.length > 0) {
+        setSelectedShopId((current) =>
+          rows.some((shop) => shop.id === current)
+            ? current
+            : rows[0].id,
+        );
+      }
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    } finally {
+      setLoadingShops(false);
+    }
+  }, []);
+
+  const loadFinance = useCallback(async () => {
+    if (!selectedShopId) {
+      return;
+    }
+
+    setLoadingFinance(true);
+    setError("");
+
+    try {
+      const [
+        balanceResponse,
+        ledgerResponse,
+        payoutResponse,
+      ] = await Promise.all([
+        getOwnerFinanceBalance(selectedShopId),
+
+        getOwnerFinanceLedger(selectedShopId, {
+          page: ledgerPagination.page,
+          limit: ledgerPagination.limit,
+          type: ledgerType || undefined,
+          status: ledgerStatus || undefined,
+          from: startOfDate(ledgerFrom),
+          to: endOfDate(ledgerTo),
+        }),
+
+        getOwnerFinancePayouts(selectedShopId, {
+          page: payoutPagination.page,
+          limit: payoutPagination.limit,
+          status: payoutStatus || undefined,
+          from: startOfDate(payoutFrom),
+          to: endOfDate(payoutTo),
+        }),
+      ]);
+
+      setBalance(balanceResponse.balance);
+      setLedgerRows(ledgerResponse.rows);
+      setLedgerPagination(ledgerResponse.pagination);
+      setPayoutRows(payoutResponse.rows);
+      setPayoutPagination(payoutResponse.pagination);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    } finally {
+      setLoadingFinance(false);
+    }
+  }, [
+    ledgerPagination.limit,
+    ledgerPagination.page,
+    ledgerFrom,
+    ledgerStatus,
+    ledgerTo,
+    ledgerType,
+    payoutFrom,
+    payoutPagination.limit,
+    payoutPagination.page,
+    payoutStatus,
+    payoutTo,
+    selectedShopId,
+  ]);
+
+  useEffect(() => {
+    void loadShops();
+  }, [loadShops]);
+
+  useEffect(() => {
+    void loadFinance();
+  }, [loadFinance]);
+
+  function resetLedgerPage() {
+    setLedgerPagination((current) => ({
+      ...current,
+      page: 1,
+    }));
+  }
+
+  function resetPayoutPage() {
+    setPayoutPagination((current) => ({
+      ...current,
+      page: 1,
+    }));
+  }
+
+  function clearLedgerFilters() {
+    setLedgerType("");
+    setLedgerStatus("");
+    setLedgerFrom("");
+    setLedgerTo("");
+    resetLedgerPage();
+  }
+
+  function clearPayoutFilters() {
+    setPayoutStatus("");
+    setPayoutFrom("");
+    setPayoutTo("");
+    resetPayoutPage();
+  }
+
+  function exportLedgerRows() {
+    if (ledgerRows.length === 0) return;
+
+    const shopName = sanitizeFilename(
+      selectedShop?.name || "shop",
+    );
+
+    exportCsv(
+      `${shopName}-finance-ledger-${todayForFilename()}.csv`,
+      ledgerRows.map((entry) => ({
+        Date: formatDate(entry.createdAt),
+        Type: formatLabel(entry.type),
+        Status: formatLabel(entry.status),
+        Description:
+          entry.description ||
+          entry.settlementId ||
+          "Ledger transaction",
+        Amount: formatMoney(
+          entry.amountCents,
+          entry.currency,
+        ),
+        Currency: entry.currency,
+        "Settlement ID": entry.settlementId || "",
+        "Payout ID": entry.payoutId || "",
+        "Ledger ID": entry.id,
+      })),
+    );
+  }
+
+  function exportPayoutRows() {
+    if (payoutRows.length === 0) return;
+
+    const shopName = sanitizeFilename(
+      selectedShop?.name || "shop",
+    );
+
+    exportCsv(
+      `${shopName}-payout-history-${todayForFilename()}.csv`,
+      payoutRows.map((payout) => ({
+        Requested: formatDate(payout.requestedAt),
+        Status: formatLabel(payout.status),
+        Amount: formatMoney(
+          payout.amountCents,
+          payout.currency,
+        ),
+        Currency: payout.currency,
+        Provider: payout.provider || "",
+        "Provider Reference":
+          payout.providerPayoutId || "",
+        "Failure Code": payout.failureCode || "",
+        "Failure Message":
+          payout.failureMessage || "",
+        "Paid At": formatDate(payout.paidAt),
+        "Payout ID": payout.id,
+      })),
+    );
+  }
+
+  const closeSettlementDetails = useCallback(() => {
+    setSelectedLedgerEntry(null);
+    setSelectedSettlement(null);
+    setSettlementError("");
+    setLoadingSettlement(false);
+  }, []);
+
+  const openSettlementDetails = useCallback(
+    async (entry: OwnerFinanceLedgerEntry) => {
+      if (!entry.settlementId) {
+        return;
+      }
+
+      setSelectedLedgerEntry(entry);
+      setSelectedSettlement(null);
+      setSettlementError("");
+      setLoadingSettlement(true);
+
+      try {
+        const settlement =
+          await getSettlementById(
+            entry.settlementId,
+          );
+
+        setSelectedSettlement(settlement);
+      } catch (error) {
+        setSettlementError(
+          getErrorMessage(error),
+        );
+      } finally {
+        setLoadingSettlement(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!selectedLedgerEntry) {
+      return;
+    }
+
+    const handleKeyDown = (
+      event: KeyboardEvent,
+    ) => {
+      if (event.key === "Escape") {
+        closeSettlementDetails();
+      }
+    };
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
+
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
+
+      document.body.style.overflow =
+        previousOverflow;
+    };
+  }, [
+    closeSettlementDetails,
+    selectedLedgerEntry,
+  ]);
+
+  return (
+    <main className="owner-finance-page">
+      <section className="owner-finance-hero">
+        <div>
+          <p className="owner-finance-eyebrow">
+            Owner workspace
+          </p>
+
+          <h1>Finance dashboard</h1>
+
+          <p>
+            Review balances, seller ledger activity, and
+            payout history for each shop.
+          </p>
+        </div>
+
+        <div className="owner-finance-hero-actions">
+          <Link
+            className="owner-finance-secondary-button"
+            to="/owner"
+          >
+            Back to owner dashboard
+          </Link>
+
+          <button
+            className="owner-finance-primary-button"
+            type="button"
+            onClick={() => void loadFinance()}
+            disabled={
+              loadingFinance || !selectedShopId
+            }
+          >
+            {loadingFinance
+              ? "Refreshing…"
+              : "Refresh finance"}
+          </button>
+        </div>
+      </section>
+
+      <section className="owner-finance-toolbar">
+        <label>
+          Shop
+          <select
+            value={selectedShopId}
+            onChange={(event) => {
+              setSelectedShopId(event.target.value);
+
+              setLedgerPagination(
+                EMPTY_PAGINATION,
+              );
+
+              setPayoutPagination(
+                EMPTY_PAGINATION,
+              );
+            }}
+            disabled={loadingShops}
+          >
+            {shops.length === 0 ? (
+              <option value="">
+                No shops available
+              </option>
+            ) : null}
+
+            {shops.map((shop) => (
+              <option
+                key={shop.id}
+                value={shop.id}
+              >
+                {shop.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="owner-finance-shop-summary">
+          <strong>
+            {selectedShop?.name || "Select a shop"}
+          </strong>
+
+          <span>
+            {selectedShop
+              ? [
+                  selectedShop.address,
+                  selectedShop.city,
+                  selectedShop.state,
+                ]
+                  .filter(Boolean)
+                  .join(", ") || "Shop finance account"
+              : "Choose a shop to load finance information."}
+          </span>
+        </div>
+      </section>
+
+      {error ? (
+        <div
+          className="owner-finance-alert"
+          role="alert"
+        >
+          <strong>Finance data could not be loaded.</strong>
+          <span>{error}</span>
+        </div>
+      ) : null}
+
+      <section
+        className="owner-finance-balance-grid"
+        aria-label="Finance balances"
+      >
+        <article>
+          <span>Available</span>
+          <strong>
+            {formatMoney(
+              balance?.availableCents,
+              balance?.currency,
+            )}
+          </strong>
+          <small>Eligible for future payout</small>
+        </article>
+
+        <article>
+          <span>Pending</span>
+          <strong>
+            {formatMoney(
+              balance?.pendingCents,
+              balance?.currency,
+            )}
+          </strong>
+          <small>Awaiting availability</small>
+        </article>
+
+        <article>
+          <span>Held</span>
+          <strong>
+            {formatMoney(
+              balance?.heldCents,
+              balance?.currency,
+            )}
+          </strong>
+          <small>Temporarily unavailable</small>
+        </article>
+
+        <article>
+          <span>Paid</span>
+          <strong>
+            {formatMoney(
+              balance?.paidCents,
+              balance?.currency,
+            )}
+          </strong>
+          <small>Recorded as paid</small>
+        </article>
+
+        <article>
+          <span>Total ledger</span>
+          <strong>
+            {formatMoney(
+              balance?.totalCents,
+              balance?.currency,
+            )}
+          </strong>
+          <small>
+            {balance?.entryCount || 0} ledger entries
+          </small>
+        </article>
+      </section>
+
+      <section className="owner-finance-panel">
+        <div className="owner-finance-tabs">
+          <button
+            type="button"
+            className={
+              activeSection === "ledger"
+                ? "is-active"
+                : ""
+            }
+            onClick={() =>
+              setActiveSection("ledger")
+            }
+          >
+            Ledger activity
+          </button>
+
+          <button
+            type="button"
+            className={
+              activeSection === "payouts"
+                ? "is-active"
+                : ""
+            }
+            onClick={() =>
+              setActiveSection("payouts")
+            }
+          >
+            Payout history
+          </button>
+        </div>
+
+        {activeSection === "ledger" ? (
+          <>
+            <div className="owner-finance-filters">
+              <label>
+                Transaction type
+                <select
+                  value={ledgerType}
+                  onChange={(event) => {
+                    setLedgerType(event.target.value);
+                    resetLedgerPage();
+                  }}
+                >
+                  {LEDGER_TYPES.map((value) => (
+                    <option
+                      key={value || "all"}
+                      value={value}
+                    >
+                      {value
+                        ? formatLabel(value)
+                        : "All types"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Status
+                <select
+                  value={ledgerStatus}
+                  onChange={(event) => {
+                    setLedgerStatus(event.target.value);
+                    resetLedgerPage();
+                  }}
+                >
+                  {LEDGER_STATUSES.map((value) => (
+                    <option
+                      key={value || "all"}
+                      value={value}
+                    >
+                      {value
+                        ? formatLabel(value)
+                        : "All statuses"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                From
+                <input
+                  type="date"
+                  value={ledgerFrom}
+                  max={ledgerTo || undefined}
+                  onChange={(event) => {
+                    setLedgerFrom(event.target.value);
+                    resetLedgerPage();
+                  }}
+                />
+              </label>
+
+              <label>
+                To
+                <input
+                  type="date"
+                  value={ledgerTo}
+                  min={ledgerFrom || undefined}
+                  onChange={(event) => {
+                    setLedgerTo(event.target.value);
+                    resetLedgerPage();
+                  }}
+                />
+              </label>
+
+              <div className="owner-finance-filter-actions">
+                <button
+                  type="button"
+                  className="owner-finance-filter-button"
+                  onClick={clearLedgerFilters}
+                  disabled={
+                    !ledgerType &&
+                    !ledgerStatus &&
+                    !ledgerFrom &&
+                    !ledgerTo
+                  }
+                >
+                  Clear filters
+                </button>
+
+                <button
+                  type="button"
+                  className="owner-finance-export-button"
+                  onClick={exportLedgerRows}
+                  disabled={
+                    loadingFinance ||
+                    ledgerRows.length === 0
+                  }
+                >
+                  Export current page
+                </button>
+              </div>
+            </div>
+
+            <div className="owner-finance-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Description</th>
+                    <th className="owner-finance-money-column">
+                      Amount
+                    </th>
+
+                    <th className="owner-finance-action-column">
+                      Details
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {ledgerRows.map((entry) => (
+                    <tr key={entry.id}>
+                      <td>
+                        {formatDate(
+                          entry.createdAt,
+                        )}
+                      </td>
+
+                      <td>
+                        {formatLabel(entry.type)}
+                      </td>
+
+                      <td>
+                        <span
+                          className={`owner-finance-status owner-finance-status-${entry.status.toLowerCase()}`}
+                        >
+                          {formatLabel(
+                            entry.status,
+                          )}
+                        </span>
+                      </td>
+
+                      <td>
+                        {entry.description ||
+                          entry.settlementId ||
+                          "Ledger transaction"}
+                      </td>
+
+                      <td className="owner-finance-money-column">
+                        {formatMoney(
+                          entry.amountCents,
+                          entry.currency,
+                        )}
+                      </td>
+
+                      <td className="owner-finance-action-column">
+                        {entry.settlementId ? (
+                          <button
+                            type="button"
+                            className="owner-finance-details-button"
+                            onClick={() =>
+                              void openSettlementDetails(
+                                entry,
+                              )
+                            }
+                          >
+                            View details
+                          </button>
+                        ) : (
+                          <span className="owner-finance-not-applicable">
+                            —
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {!loadingFinance &&
+              ledgerRows.length === 0 ? (
+                <div className="owner-finance-empty">
+                  <strong>
+                    No ledger activity yet
+                  </strong>
+                  <span>
+                    Charged settlements and future
+                    payouts will appear here.
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="owner-finance-pagination">
+              <button
+                type="button"
+                disabled={
+                  loadingFinance ||
+                  ledgerPagination.page <= 1
+                }
+                onClick={() =>
+                  setLedgerPagination(
+                    (current) => ({
+                      ...current,
+                      page: Math.max(
+                        1,
+                        current.page - 1,
+                      ),
+                    }),
+                  )
+                }
+              >
+                Previous
+              </button>
+
+              <span>
+                Page {ledgerPagination.page} of{" "}
+                {Math.max(
+                  1,
+                  ledgerPagination.totalPages,
+                )}{" "}
+                · {ledgerPagination.total} entries
+              </span>
+
+              <button
+                type="button"
+                disabled={
+                  loadingFinance ||
+                  ledgerPagination.totalPages ===
+                    0 ||
+                  ledgerPagination.page >=
+                    ledgerPagination.totalPages
+                }
+                onClick={() =>
+                  setLedgerPagination(
+                    (current) => ({
+                      ...current,
+                      page: current.page + 1,
+                    }),
+                  )
+                }
+              >
+                Next
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="owner-finance-filters">
+              <label>
+                Payout status
+                <select
+                  value={payoutStatus}
+                  onChange={(event) => {
+                    setPayoutStatus(event.target.value);
+                    resetPayoutPage();
+                  }}
+                >
+                  {PAYOUT_STATUSES.map((value) => (
+                    <option
+                      key={value || "all"}
+                      value={value}
+                    >
+                      {value
+                        ? formatLabel(value)
+                        : "All statuses"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                From
+                <input
+                  type="date"
+                  value={payoutFrom}
+                  max={payoutTo || undefined}
+                  onChange={(event) => {
+                    setPayoutFrom(event.target.value);
+                    resetPayoutPage();
+                  }}
+                />
+              </label>
+
+              <label>
+                To
+                <input
+                  type="date"
+                  value={payoutTo}
+                  min={payoutFrom || undefined}
+                  onChange={(event) => {
+                    setPayoutTo(event.target.value);
+                    resetPayoutPage();
+                  }}
+                />
+              </label>
+
+              <div className="owner-finance-filter-actions">
+                <button
+                  type="button"
+                  className="owner-finance-filter-button"
+                  onClick={clearPayoutFilters}
+                  disabled={
+                    !payoutStatus &&
+                    !payoutFrom &&
+                    !payoutTo
+                  }
+                >
+                  Clear filters
+                </button>
+
+                <button
+                  type="button"
+                  className="owner-finance-export-button"
+                  onClick={exportPayoutRows}
+                  disabled={
+                    loadingFinance ||
+                    payoutRows.length === 0
+                  }
+                >
+                  Export current page
+                </button>
+              </div>
+            </div>
+
+            <div className="owner-finance-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Requested</th>
+                    <th>Status</th>
+                    <th>Provider</th>
+                    <th>Reference</th>
+                    <th className="owner-finance-money-column">
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {payoutRows.map((payout) => (
+                    <tr key={payout.id}>
+                      <td>
+                        {formatDate(
+                          payout.requestedAt,
+                        )}
+                      </td>
+
+                      <td>
+                        <span
+                          className={`owner-finance-status owner-finance-status-${payout.status.toLowerCase()}`}
+                        >
+                          {formatLabel(
+                            payout.status,
+                          )}
+                        </span>
+                      </td>
+
+                      <td>
+                        {payout.provider || "—"}
+                      </td>
+
+                      <td>
+                        {payout.providerPayoutId ||
+                          payout.failureCode ||
+                          "—"}
+                      </td>
+
+                      <td className="owner-finance-money-column">
+                        {formatMoney(
+                          payout.amountCents,
+                          payout.currency,
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {!loadingFinance &&
+              payoutRows.length === 0 ? (
+                <div className="owner-finance-empty">
+                  <strong>
+                    No payouts yet
+                  </strong>
+                  <span>
+                    Processed seller payouts will
+                    appear here.
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="owner-finance-pagination">
+              <button
+                type="button"
+                disabled={
+                  loadingFinance ||
+                  payoutPagination.page <= 1
+                }
+                onClick={() =>
+                  setPayoutPagination(
+                    (current) => ({
+                      ...current,
+                      page: Math.max(
+                        1,
+                        current.page - 1,
+                      ),
+                    }),
+                  )
+                }
+              >
+                Previous
+              </button>
+
+              <span>
+                Page {payoutPagination.page} of{" "}
+                {Math.max(
+                  1,
+                  payoutPagination.totalPages,
+                )}{" "}
+                · {payoutPagination.total} payouts
+              </span>
+
+              <button
+                type="button"
+                disabled={
+                  loadingFinance ||
+                  payoutPagination.totalPages ===
+                    0 ||
+                  payoutPagination.page >=
+                    payoutPagination.totalPages
+                }
+                onClick={() =>
+                  setPayoutPagination(
+                    (current) => ({
+                      ...current,
+                      page: current.page + 1,
+                    }),
+                  )
+                }
+              >
+                Next
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+          {selectedLedgerEntry ? (
+        <div
+          className="owner-finance-settlement-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget
+            ) {
+              closeSettlementDetails();
+            }
+          }}
+        >
+          <section
+            className="owner-finance-settlement-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="owner-finance-settlement-title"
+          >
+            <header className="owner-finance-settlement-header">
+              <div>
+                <p className="owner-finance-eyebrow">
+                  Settlement drill-down
+                </p>
+
+                <h2 id="owner-finance-settlement-title">
+                  {selectedSettlement?.auctionTitle ||
+                    selectedLedgerEntry.description ||
+                    "Settlement details"}
+                </h2>
+
+                <p>
+                  Review payment, buyer, fulfillment,
+                  and settlement information.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="owner-finance-drawer-close"
+                aria-label="Close settlement details"
+                onClick={closeSettlementDetails}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="owner-finance-settlement-body">
+              {loadingSettlement ? (
+                <div className="owner-finance-settlement-message">
+                  Loading settlement details…
+                </div>
+              ) : null}
+
+              {settlementError ? (
+                <div
+                  className="owner-finance-settlement-error"
+                  role="alert"
+                >
+                  <strong>
+                    Settlement details could not be loaded
+                  </strong>
+
+                  <span>{settlementError}</span>
+                </div>
+              ) : null}
+
+              {!loadingSettlement &&
+              !settlementError &&
+              selectedSettlement ? (
+                <>
+                  <div className="owner-finance-settlement-summary">
+                    <article>
+                      <span>Gross sale</span>
+
+                      <strong>
+                        {formatMoney(
+                          selectedSettlement.finalAmountCents,
+                          selectedSettlement.currency ||
+                            selectedLedgerEntry.currency,
+                        )}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <span>Seller proceeds</span>
+
+                      <strong>
+                        {formatMoney(
+                          selectedLedgerEntry.amountCents,
+                          selectedSettlement.currency ||
+                            selectedLedgerEntry.currency,
+                        )}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <span>Settlement status</span>
+
+                      <strong>
+                        {formatLabel(
+                          selectedSettlement.status,
+                        )}
+                      </strong>
+                    </article>
+                  </div>
+
+                  <section className="owner-finance-settlement-section">
+                    <h3>Transaction</h3>
+
+                    <dl className="owner-finance-detail-grid">
+                      <div>
+                        <dt>Settlement ID</dt>
+                        <dd>
+                          {selectedSettlement.id}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Transaction type</dt>
+                        <dd>
+                          {selectedSettlement.offerId
+                            ? "Offer"
+                            : selectedSettlement.auctionId
+                              ? "Auction"
+                              : "Marketplace"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Source ID</dt>
+                        <dd>
+                          {selectedSettlement.offerId ||
+                            selectedSettlement.auctionId ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Shop</dt>
+                        <dd>
+                          {selectedSettlement.shopName ||
+                            selectedShop?.name ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Settlement status</dt>
+                        <dd>
+                          <span
+                            className={`owner-finance-status owner-finance-status-${selectedSettlement.status.toLowerCase()}`}
+                          >
+                            {formatLabel(
+                              selectedSettlement.status,
+                            )}
+                          </span>
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Ledger status</dt>
+                        <dd>
+                          <span
+                            className={`owner-finance-status owner-finance-status-${selectedLedgerEntry.status.toLowerCase()}`}
+                          >
+                            {formatLabel(
+                              selectedLedgerEntry.status,
+                            )}
+                          </span>
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section className="owner-finance-settlement-section">
+                    <h3>Buyer and payment</h3>
+
+                    <dl className="owner-finance-detail-grid">
+                      <div>
+                        <dt>Buyer</dt>
+                        <dd>
+                          {selectedSettlement.winnerName ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Buyer email</dt>
+                        <dd>
+                          {selectedSettlement.winnerEmail ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div className="owner-finance-detail-wide">
+                        <dt>Stripe Payment Intent</dt>
+                        <dd className="owner-finance-code-value">
+                          {selectedSettlement.stripePaymentIntent ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Transaction ended</dt>
+                        <dd>
+                          {formatDate(
+                            selectedSettlement.endedAt,
+                          )}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Settlement charged</dt>
+                        <dd>
+                          {formatDate(
+                            selectedSettlement.settledAt,
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section className="owner-finance-settlement-section">
+                    <h3>Fulfillment</h3>
+
+                    <dl className="owner-finance-detail-grid">
+                      <div>
+                        <dt>Status</dt>
+                        <dd>
+                          {selectedSettlement.fulfillmentStatus
+                            ? formatLabel(
+                                selectedSettlement.fulfillmentStatus,
+                              )
+                            : "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Fulfilled</dt>
+                        <dd>
+                          {formatDate(
+                            selectedSettlement.fulfilledAt,
+                          )}
+                        </dd>
+                      </div>
+
+                      <div className="owner-finance-detail-wide">
+                        <dt>Note</dt>
+                        <dd>
+                          {selectedSettlement.fulfillmentNote ||
+                            "No fulfillment note has been added."}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+                </>
+              ) : null}
+            </div>
+
+            <footer className="owner-finance-settlement-footer">
+              <button
+                type="button"
+                className="owner-finance-secondary-button"
+                onClick={closeSettlementDetails}
+              >
+                Close
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+</main>
+  );
+}

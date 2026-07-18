@@ -1,6 +1,7 @@
 // File: apps/api/backend/src/controllers/auctions.controller.js
 
 import { prisma } from "../lib/prisma.js";
+import { calculateSettlementRevenueContext } from "../services/revenue/settlementRevenueAdapter.service.js";
 
 const AUCTION_SAFE_FIELDS = [
   "id",
@@ -54,7 +55,8 @@ const PAWNSHOP_SAFE_FIELDS = [
   "ownerId",
   "createdAt",
   "updatedAt",
-  "isDeleted",];
+  "isDeleted",
+];
 
 const SETTLEMENT_SAFE_FIELDS = [
   "id",
@@ -69,6 +71,15 @@ const SETTLEMENT_SAFE_FIELDS = [
   "currency",
   "failedAt",
   "failureMessage",
+  "grossAmountCents",
+  "platformFeeCents",
+  "sellerNetCents",
+  "processorFeeCents",
+  "platformNetCents",
+  "sellerPlanCode",
+  "transactionType",
+  "pricingRuleSnapshot",
+  "revenueCalculatedAt",
 ];
 
 const VALID_AUCTION_STATUSES = new Set([
@@ -112,14 +123,19 @@ async function buildScalarSelect(tableName, requestedFields) {
   }
 
   if (!select.id) {
-    throw new Error(`${tableName} schema is invalid: missing required "id" column`);
+    throw new Error(
+      `${tableName} schema is invalid: missing required "id" column`,
+    );
   }
 
   return select;
 }
 
 async function buildPawnShopSelect(extraFields = []) {
-  return buildScalarSelect("PawnShop", [...PAWNSHOP_SAFE_FIELDS, ...extraFields]);
+  return buildScalarSelect("PawnShop", [
+    ...PAWNSHOP_SAFE_FIELDS,
+    ...extraFields,
+  ]);
 }
 
 async function buildSettlementSelect(extraFields = []) {
@@ -140,7 +156,10 @@ async function buildSettlementSelect(extraFields = []) {
 }
 
 async function buildItemSelect({ includeShop = false, extraFields = [] } = {}) {
-  const select = await buildScalarSelect("Item", [...ITEM_SAFE_FIELDS, ...extraFields]);
+  const select = await buildScalarSelect("Item", [
+    ...ITEM_SAFE_FIELDS,
+    ...extraFields,
+  ]);
 
   if (includeShop) {
     select.shop = { select: await buildPawnShopSelect() };
@@ -283,13 +302,20 @@ function normalizeAuctionForResponse(auction, now = new Date()) {
   };
 
   if (Object.prototype.hasOwnProperty.call(response, "settlement")) {
-    response.settlement = normalizeSettlementForAuctionResponse(response.settlement);
+    response.settlement = normalizeSettlementForAuctionResponse(
+      response.settlement,
+    );
   }
 
   return response;
 }
 
-function resolveCreateStatus({ requestedStatus, startsAt, endsAt, now = new Date() }) {
+function resolveCreateStatus({
+  requestedStatus,
+  startsAt,
+  endsAt,
+  now = new Date(),
+}) {
   if (requestedStatus) return requestedStatus;
 
   const syntheticAuction = {
@@ -341,10 +367,7 @@ function buildEffectiveStatusWhere(status, now, auctionColumns) {
       ? [
           { extendedEndsAt: { gt: now } },
           {
-            AND: [
-              { extendedEndsAt: null },
-              { endsAt: { gt: now } },
-            ],
+            AND: [{ extendedEndsAt: null }, { endsAt: { gt: now } }],
           },
         ]
       : [{ endsAt: { gt: now } }];
@@ -362,10 +385,7 @@ function buildEffectiveStatusWhere(status, now, auctionColumns) {
     ? [
         { extendedEndsAt: { lte: now } },
         {
-          AND: [
-            { extendedEndsAt: null },
-            { endsAt: { lte: now } },
-          ],
+          AND: [{ extendedEndsAt: null }, { endsAt: { lte: now } }],
         },
       ]
     : [{ endsAt: { lte: now } }];
@@ -374,10 +394,7 @@ function buildEffectiveStatusWhere(status, now, auctionColumns) {
     OR: [
       { status: "ENDED" },
       {
-        AND: [
-          { status: { not: "CANCELED" } },
-          { OR: endedClauses },
-        ],
+        AND: [{ status: { not: "CANCELED" } }, { OR: endedClauses }],
       },
     ],
   };
@@ -429,7 +446,9 @@ function getEndedAuctionIdsNeedingSettlement(rows, now = new Date()) {
 }
 
 async function ensureSettlementsForEndedAuctionIds(ids = []) {
-  const uniqueIds = [...new Set((Array.isArray(ids) ? ids : []).filter(Boolean))];
+  const uniqueIds = [
+    ...new Set((Array.isArray(ids) ? ids : []).filter(Boolean)),
+  ];
 
   for (const auctionId of uniqueIds) {
     try {
@@ -443,7 +462,11 @@ async function ensureSettlementsForEndedAuctionIds(ids = []) {
   }
 }
 
-async function reconcileExpiredAuction(auction, auctionColumns, now = new Date()) {
+async function reconcileExpiredAuction(
+  auction,
+  auctionColumns,
+  now = new Date(),
+) {
   if (!auction) return auction;
   if (!auctionColumns.has("status")) return auction;
 
@@ -530,12 +553,39 @@ async function upsertSettlementForEndedAuction(auctionId) {
     return { settlement: null, reason: "INVALID_TOP_BID" };
   }
 
+  const sellerPlanCode =
+    auction.shop?.subscriptionPlan ||
+    auction.item?.shop?.subscriptionPlan ||
+    "FREE";
+
+  const revenueContext = await calculateSettlementRevenueContext({
+    amount: finalPrice,
+    sellerPlanCode,
+    transactionType: "AUCTION",
+    currency: "USD",
+  });
+
+  const revenue = revenueContext.revenue;
+
+  const revenueData = {
+    grossAmountCents: revenue.grossAmountCents,
+    platformFeeCents: revenue.platformFeeCents,
+    sellerNetCents: revenue.sellerNetCents,
+    processorFeeCents: revenue.processorFeeCents,
+    platformNetCents: revenue.platformNetCents,
+    sellerPlanCode: revenueContext.sellerPlanCode,
+    transactionType: revenueContext.transactionType,
+    pricingRuleSnapshot: revenue.pricingRuleSnapshot,
+    revenueCalculatedAt: new Date(revenue.pricingRuleSnapshot.calculatedAt),
+  };
+
   const settlement = await prisma.settlement.upsert({
     where: { auctionId },
     update: {
       winnerUserId: topBid.userId,
       finalPrice,
       currency: "USD",
+      ...revenueData,
     },
     create: {
       auctionId,
@@ -544,6 +594,7 @@ async function upsertSettlementForEndedAuction(auctionId) {
       currency: "USD",
       status: "PENDING",
       stripePaymentIntent: null,
+      ...revenueData,
     },
     include: {
       auction: {
@@ -561,13 +612,7 @@ async function upsertSettlementForEndedAuction(auctionId) {
 
 export async function listAuctions(req, res) {
   try {
-    const {
-      page = "1",
-      limit = "20",
-      status,
-      shopId,
-      itemId,
-    } = req.query;
+    const { page = "1", limit = "20", status, shopId, itemId } = req.query;
 
     const pageNum = toPositivePage(page, 1);
     const pageSize = Math.min(100, toPositivePage(limit, 20));
@@ -583,11 +628,19 @@ export async function listAuctions(req, res) {
     }
 
     const baseWhere = {
-      ...(shopId && auctionColumns.has("shopId") ? { shopId: String(shopId) } : {}),
-      ...(itemId && auctionColumns.has("itemId") ? { itemId: String(itemId) } : {}),
+      ...(shopId && auctionColumns.has("shopId")
+        ? { shopId: String(shopId) }
+        : {}),
+      ...(itemId && auctionColumns.has("itemId")
+        ? { itemId: String(itemId) }
+        : {}),
     };
 
-    const effectiveStatusWhere = buildEffectiveStatusWhere(status, now, auctionColumns);
+    const effectiveStatusWhere = buildEffectiveStatusWhere(
+      status,
+      now,
+      auctionColumns,
+    );
     const where = mergeWhere(baseWhere, effectiveStatusWhere);
 
     const select = await buildAuctionSelect({
@@ -609,7 +662,10 @@ export async function listAuctions(req, res) {
     const staleExpiredIds = getStaleExpiredAuctionIds(rows, now);
     await reconcileExpiredAuctions(staleExpiredIds, auctionColumns);
 
-    const settlementCandidateIds = getEndedAuctionIdsNeedingSettlement(rows, now);
+    const settlementCandidateIds = getEndedAuctionIdsNeedingSettlement(
+      rows,
+      now,
+    );
     await ensureSettlementsForEndedAuctionIds(settlementCandidateIds);
 
     const shouldRefetchRows =
@@ -636,7 +692,6 @@ export async function listAuctions(req, res) {
   }
 }
 
-
 export async function listMyAuctions(req, res) {
   try {
     const userId = getRequesterId(req);
@@ -645,13 +700,7 @@ export async function listMyAuctions(req, res) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const {
-      page = "1",
-      limit = "50",
-      status,
-      shopId,
-      itemId,
-    } = req.query;
+    const { page = "1", limit = "50", status, shopId, itemId } = req.query;
 
     const pageNum = toPositivePage(page, 1);
     const pageSize = Math.min(100, toPositivePage(limit, 50));
@@ -677,8 +726,12 @@ export async function listMyAuctions(req, res) {
         };
 
     const baseWhere = {
-      ...(shopId && auctionColumns.has("shopId") ? { shopId: String(shopId) } : {}),
-      ...(itemId && auctionColumns.has("itemId") ? { itemId: String(itemId) } : {}),
+      ...(shopId && auctionColumns.has("shopId")
+        ? { shopId: String(shopId) }
+        : {}),
+      ...(itemId && auctionColumns.has("itemId")
+        ? { itemId: String(itemId) }
+        : {}),
     };
 
     const effectiveStatusWhere = buildEffectiveStatusWhere(
@@ -720,7 +773,6 @@ export async function listMyAuctions(req, res) {
   }
 }
 
-
 export async function getAuction(req, res) {
   try {
     const id = String(req.params.id || "").trim();
@@ -737,7 +789,11 @@ export async function getAuction(req, res) {
 
     if (!auction) return res.status(404).json({ error: "Auction not found" });
 
-    auction = await reconcileExpiredAuction(auction, auctionColumns, new Date());
+    auction = await reconcileExpiredAuction(
+      auction,
+      auctionColumns,
+      new Date(),
+    );
 
     return res.json(normalizeAuctionForResponse(auction, new Date()));
   } catch (err) {
@@ -757,11 +813,21 @@ export async function createAuction(req, res) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
-    const startingPrice = toDecimalNumber(rawBody.startingPrice ?? rawBody.startingPriceCents);
-    const minIncrement = toDecimalNumber(rawBody.minIncrement ?? rawBody.minIncrementCents);
-    const reservePrice = toDecimalNumber(rawBody.reservePrice ?? rawBody.reservePriceCents);
-    const buyItNowPrice = toDecimalNumber(rawBody.buyItNowPrice ?? rawBody.buyItNowPriceCents);
-    const currentPrice = toDecimalNumber(rawBody.currentPrice ?? rawBody.currentPriceCents);
+    const startingPrice = toDecimalNumber(
+      rawBody.startingPrice ?? rawBody.startingPriceCents,
+    );
+    const minIncrement = toDecimalNumber(
+      rawBody.minIncrement ?? rawBody.minIncrementCents,
+    );
+    const reservePrice = toDecimalNumber(
+      rawBody.reservePrice ?? rawBody.reservePriceCents,
+    );
+    const buyItNowPrice = toDecimalNumber(
+      rawBody.buyItNowPrice ?? rawBody.buyItNowPriceCents,
+    );
+    const currentPrice = toDecimalNumber(
+      rawBody.currentPrice ?? rawBody.currentPriceCents,
+    );
 
     const startsAt = toNullableDate(rawBody.startsAt);
     const endsAt = toNullableDate(rawBody.endsAt);
@@ -795,19 +861,31 @@ export async function createAuction(req, res) {
       return res.status(400).json({ error: "Invalid startingPrice" });
     }
 
-    if (minIncrement !== undefined && (!Number.isFinite(minIncrement) || minIncrement < 0)) {
+    if (
+      minIncrement !== undefined &&
+      (!Number.isFinite(minIncrement) || minIncrement < 0)
+    ) {
       return res.status(400).json({ error: "Invalid minIncrement" });
     }
 
-    if (reservePrice !== undefined && (!Number.isFinite(reservePrice) || reservePrice < 0)) {
+    if (
+      reservePrice !== undefined &&
+      (!Number.isFinite(reservePrice) || reservePrice < 0)
+    ) {
       return res.status(400).json({ error: "Invalid reservePrice" });
     }
 
-    if (buyItNowPrice !== undefined && (!Number.isFinite(buyItNowPrice) || buyItNowPrice < 0)) {
+    if (
+      buyItNowPrice !== undefined &&
+      (!Number.isFinite(buyItNowPrice) || buyItNowPrice < 0)
+    ) {
       return res.status(400).json({ error: "Invalid buyItNowPrice" });
     }
 
-    if (currentPrice !== undefined && (!Number.isFinite(currentPrice) || currentPrice < 0)) {
+    if (
+      currentPrice !== undefined &&
+      (!Number.isFinite(currentPrice) || currentPrice < 0)
+    ) {
       return res.status(400).json({ error: "Invalid currentPrice" });
     }
 
@@ -823,8 +901,10 @@ export async function createAuction(req, res) {
       select: await buildItemSelect({ includeShop: true }),
     });
 
-    if (!item || item.isDeleted) return res.status(404).json({ error: "Item not found" });
-    if (!item.shop || item.shop.isDeleted) return res.status(404).json({ error: "Shop not found" });
+    if (!item || item.isDeleted)
+      return res.status(404).json({ error: "Item not found" });
+    if (!item.shop || item.shop.isDeleted)
+      return res.status(404).json({ error: "Shop not found" });
 
     if (item.pawnShopId !== shopId) {
       return res.status(400).json({ error: "itemId and shopId do not match" });
@@ -864,8 +944,12 @@ export async function createAuction(req, res) {
       ...(auctionColumns.has("shopId") ? { shopId } : {}),
       ...(auctionColumns.has("status") ? { status: resolvedStatus } : {}),
       ...(auctionColumns.has("startingPrice") ? { startingPrice } : {}),
-      ...(auctionColumns.has("minIncrement") ? { minIncrement: minIncrement ?? 1 } : {}),
-      ...(auctionColumns.has("reservePrice") && reservePrice !== undefined ? { reservePrice } : {}),
+      ...(auctionColumns.has("minIncrement")
+        ? { minIncrement: minIncrement ?? 1 }
+        : {}),
+      ...(auctionColumns.has("reservePrice") && reservePrice !== undefined
+        ? { reservePrice }
+        : {}),
       ...(auctionColumns.has("buyItNowPrice") && buyItNowPrice !== undefined
         ? { buyItNowPrice }
         : {}),
@@ -887,7 +971,9 @@ export async function createAuction(req, res) {
       }),
     });
 
-    return res.status(201).json(normalizeAuctionForResponse(auction, new Date()));
+    return res
+      .status(201)
+      .json(normalizeAuctionForResponse(auction, new Date()));
   } catch (err) {
     return handleControllerError(res, err, "Failed to create auction");
   }
@@ -908,14 +994,19 @@ export async function cancelAuction(req, res) {
 
     if (!auction) return res.status(404).json({ error: "Auction not found" });
     if (!auction.item || !auction.item.shop) {
-      return res.status(404).json({ error: "Auction ownership context missing" });
+      return res
+        .status(404)
+        .json({ error: "Auction ownership context missing" });
     }
 
     if (!req.user?.sub || !req.user?.role) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    if (req.user.role !== "ADMIN" && auction.item.shop.ownerId !== req.user.sub) {
+    if (
+      req.user.role !== "ADMIN" &&
+      auction.item.shop.ownerId !== req.user.sub
+    ) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -954,14 +1045,19 @@ export async function endAuction(req, res) {
 
     if (!auction) return res.status(404).json({ error: "Auction not found" });
     if (!auction.item || !auction.item.shop) {
-      return res.status(404).json({ error: "Auction ownership context missing" });
+      return res
+        .status(404)
+        .json({ error: "Auction ownership context missing" });
     }
 
     if (!req.user?.sub || !req.user?.role) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    if (req.user.role !== "ADMIN" && auction.item.shop.ownerId !== req.user.sub) {
+    if (
+      req.user.role !== "ADMIN" &&
+      auction.item.shop.ownerId !== req.user.sub
+    ) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -983,30 +1079,30 @@ export async function endAuction(req, res) {
     return res.json({
       success: true,
       auction: normalizeAuctionForResponse(updated, new Date()),
-      settlement:
-        settlementResult.settlement
-          ? {
-              id: settlementResult.settlement.id,
-              auctionId: settlementResult.settlement.auctionId,
-              winnerUserId: settlementResult.settlement.winnerUserId,
-              winnerName: settlementResult.settlement.winner?.name || null,
-              winnerEmail: settlementResult.settlement.winner?.email || null,
-              finalAmountCents: Math.round(Number(settlementResult.settlement.finalPrice || 0) * 100),
-              currency: settlementResult.settlement.currency || "USD",
-              status: settlementResult.settlement.status || "UNKNOWN",
-              settledAt:
-                settlementResult.settlement.updatedAt ||
-                settlementResult.settlement.createdAt ||
-                null,
-            }
-          : null,
+      settlement: settlementResult.settlement
+        ? {
+            id: settlementResult.settlement.id,
+            auctionId: settlementResult.settlement.auctionId,
+            winnerUserId: settlementResult.settlement.winnerUserId,
+            winnerName: settlementResult.settlement.winner?.name || null,
+            winnerEmail: settlementResult.settlement.winner?.email || null,
+            finalAmountCents: Math.round(
+              Number(settlementResult.settlement.finalPrice || 0) * 100,
+            ),
+            currency: settlementResult.settlement.currency || "USD",
+            status: settlementResult.settlement.status || "UNKNOWN",
+            settledAt:
+              settlementResult.settlement.updatedAt ||
+              settlementResult.settlement.createdAt ||
+              null,
+          }
+        : null,
       settlementReason: settlementResult.reason,
     });
   } catch (err) {
     return handleControllerError(res, err, "Failed to end auction");
   }
 }
-
 
 async function findManageableAuctionForOwner(req, id) {
   const auction = await prisma.auction.findUnique({
@@ -1133,7 +1229,11 @@ export async function clearAuctionReviewed(req, res) {
       auction: normalizeAuctionForResponse(updated, new Date()),
     });
   } catch (err) {
-    return handleControllerError(res, err, "Failed to clear auction reviewed state");
+    return handleControllerError(
+      res,
+      err,
+      "Failed to clear auction reviewed state",
+    );
   }
 }
 
@@ -1227,7 +1327,8 @@ export async function setAutoBid(req, res) {
     const userId = getRequesterId(req);
     const role = getRequesterRole(req);
 
-    if (!auctionId) return res.status(400).json({ error: "Missing auction id" });
+    if (!auctionId)
+      return res.status(400).json({ error: "Missing auction id" });
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     if (role !== "CONSUMER" && !isAdminRequest(req)) {
@@ -1236,7 +1337,8 @@ export async function setAutoBid(req, res) {
 
     if (!prisma.autoBid) {
       return res.status(501).json({
-        error: "Auto-bidding is not enabled. Run the AutoBid Prisma migration first.",
+        error:
+          "Auto-bidding is not enabled. Run the AutoBid Prisma migration first.",
       });
     }
 
@@ -1266,7 +1368,9 @@ export async function setAutoBid(req, res) {
       });
     }
 
-    const currentPrice = Number(auction.currentPrice ?? auction.startingPrice ?? 0);
+    const currentPrice = Number(
+      auction.currentPrice ?? auction.startingPrice ?? 0,
+    );
     const minIncrement = Number(auction.minIncrement ?? 0);
     const minimumRequired =
       Number.isFinite(currentPrice) && Number.isFinite(minIncrement)

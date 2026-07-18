@@ -40,6 +40,7 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
   { to: "/owner/inventory", label: "Inventory" },
   { to: "/owner/item-intakes", label: "Intake Review" },
   { to: "/owner/integrations", label: "Integrations" },
+  { to: "/owner/finance", label: "Finance" },
   { to: "/owner/locations", label: "Locations" },
   { to: "/owner/staff", label: "Staff" },
   { to: "/owner/auctions", label: "My Auctions" },
