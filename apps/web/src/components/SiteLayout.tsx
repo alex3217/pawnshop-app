@@ -95,7 +95,7 @@ function dedupeNav(items: NavItem[]) {
 }
 
 function getRoleBadgeLabel(role: Role | null) {
-  return role || "Guest";
+  return role || "Browse as Guest";
 }
 
 function getDashboardHref(role: Role | null) {
@@ -103,7 +103,7 @@ function getDashboardHref(role: Role | null) {
   if (role === "ADMIN") return "/admin";
   if (role === "OWNER") return "/owner";
   if (role === "CONSUMER") return "/buyer/dashboard";
-  return "/login";
+  return "/marketplace";
 }
 
 export default function SiteLayout() {
@@ -210,7 +210,17 @@ export default function SiteLayout() {
             </Link>
 
             <div className="site-top-actions">
-              <span className="site-role-badge">{roleBadge}</span>
+              <Link
+                to={dashboardHref}
+                className="site-role-badge"
+                aria-label={
+                  role
+                    ? `Open ${roleBadge} dashboard`
+                    : "Browse the marketplace as a guest"
+                }
+              >
+                {roleBadge}
+              </Link>
 
               <button
                 type="button"
