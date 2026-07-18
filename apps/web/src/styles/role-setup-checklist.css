@@ -174,3 +174,13 @@
     transition: none;
   }
 }
+
+@media (max-width: 1100px) and (min-width: 641px) {
+  .role-checklist {
+    right: 16px;
+  }
+
+  .role-checklist-collapsed {
+    width: 245px;
+  }
+}
