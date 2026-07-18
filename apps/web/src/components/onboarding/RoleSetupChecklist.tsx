@@ -140,6 +140,14 @@ function readCollapsed(role: Role) {
   }
 }
 
+function hasCollapsedPreference(role: Role) {
+  try {
+    return window.localStorage.getItem(collapsedStorageKey(role)) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export default function RoleSetupChecklist({
   role,
 }: RoleSetupChecklistProps) {
@@ -158,12 +166,35 @@ export default function RoleSetupChecklist({
     supportedRole ? readCollapsed(role) : false,
   );
 
+  const [hasManualCollapsePreference, setHasManualCollapsePreference] =
+    useState(() =>
+      supportedRole ? hasCollapsedPreference(role) : false,
+    );
+
   useEffect(() => {
     if (!supportedRole) return;
 
     setCompleted(readCompleted(role));
     setCollapsed(readCollapsed(role));
+    setHasManualCollapsePreference(hasCollapsedPreference(role));
   }, [role, supportedRole]);
+
+  useEffect(() => {
+    if (!supportedRole || hasManualCollapsePreference) return;
+
+    const mediaQuery = window.matchMedia("(max-width: 1100px)");
+
+    const syncResponsiveState = (event?: MediaQueryListEvent) => {
+      setCollapsed(event ? event.matches : mediaQuery.matches);
+    };
+
+    syncResponsiveState();
+    mediaQuery.addEventListener("change", syncResponsiveState);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncResponsiveState);
+    };
+  }, [hasManualCollapsePreference, supportedRole]);
 
   if (!supportedRole) return null;
 
@@ -198,6 +229,8 @@ export default function RoleSetupChecklist({
   }
 
   function toggleCollapsed() {
+    setHasManualCollapsePreference(true);
+
     setCollapsed((current) => {
       const next = !current;
 
