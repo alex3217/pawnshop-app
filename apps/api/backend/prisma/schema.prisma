@@ -35,6 +35,9 @@ model User {
   autoBids                  AutoBid[]
   capturedItemIntakes       ItemIntake[]               @relation("ItemIntakeCapturedBy")
   customerItemIntakes       ItemIntake[]               @relation("ItemIntakeCustomer")
+  marketplaceListings       MarketplaceListing[]       @relation("MarketplaceListingSeller")
+  marketplacePurchases      MarketplaceTransaction[]   @relation("MarketplaceTransactionBuyer")
+  marketplaceSales          MarketplaceTransaction[]   @relation("MarketplaceTransactionSeller")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -67,6 +70,7 @@ model BuyerSubscription {
 }
 
 model PawnShop {
+<<<<<<< HEAD
   id                           String                     @id @default(cuid())
   name                         String
   address                      String?
@@ -105,6 +109,49 @@ model PawnShop {
   itemIntakes                  ItemIntake[]               @relation("ShopItemIntakes")
   sellerLedgerEntries          SellerBalanceLedger[]      @relation("SellerBalanceLedgerShop")
   sellerPayouts                SellerPayout[]             @relation("SellerPayoutShop")
+=======
+  id                            String                     @id @default(cuid())
+  name                          String
+  address                       String?
+  city                          String?
+  state                         String?
+  zip                           String?
+  latitude                      Float?
+  longitude                     Float?
+  phone                         String?
+  description                   String?
+  hours                         String?
+  ownerId                       String
+  isDeleted                     Boolean                    @default(false)
+  createdAt                     DateTime                   @default(now())
+  updatedAt                     DateTime                   @updatedAt
+  cancelAtPeriodEnd             Boolean                    @default(false)
+  stripeCustomerId              String?
+  stripeSubscriptionId          String?                    @unique
+  subscriptionCurrentPeriodEnd  DateTime?
+  subscriptionPlan              String                     @default("FREE")
+  subscriptionStatus            String                     @default("ACTIVE")
+  stripeCheckoutSessionId       String?
+  stripeLatestInvoiceId         String?
+  stripePriceId                 String?
+  subscriptionBillingInterval   BillingInterval?
+  subscriptionCanceledAt        DateTime?
+  subscriptionStartedAt         DateTime?
+  auctions                      Auction[]
+  inventoryImportJobs           InventoryImportJob[]       @relation("ShopInventoryImportJobs")
+  inventoryIntegrations         InventoryIntegration[]     @relation("ShopInventoryIntegrations")
+  items                         Item[]
+  staffMembers                  Staff[]                    @relation("ShopStaffMembers")
+  owner                         User                       @relation(fields: [ownerId], references: [id])
+  inventorySyncJobs             InventorySyncJob[]
+  buyerItemSubmissionOffers     BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferShop")
+  itemIntakes                   ItemIntake[]               @relation("ShopItemIntakes")
+  sellerLedgerEntries           SellerBalanceLedger[]      @relation("SellerBalanceLedgerShop")
+  sellerPayouts                 SellerPayout[]             @relation("SellerPayoutShop")
+  marketplaceListings           MarketplaceListing[]       @relation("MarketplaceListingShop")
+  marketplaceBuyerTransactions  MarketplaceTransaction[]   @relation("MarketplaceTransactionBuyerShop")
+  marketplaceSellerTransactions MarketplaceTransaction[]   @relation("MarketplaceTransactionSellerShop")
+>>>>>>> origin/main
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -138,24 +185,25 @@ model Staff {
 }
 
 model Item {
-  id               String      @id @default(cuid())
-  pawnShopId       String
-  title            String
-  description      String?
-  price            Decimal     @db.Decimal(10, 2)
-  images           String[]
-  category         String?
-  condition        String?
-  status           ItemStatus  @default(AVAILABLE)
-  isDeleted        Boolean     @default(false)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
-  currency         String      @default("USD")
-  auction          Auction?
-  inquiries        Inquiry[]
-  shop             PawnShop    @relation(fields: [pawnShopId], references: [id])
-  offers           Offer[]
-  watchlistEntries Watchlist[] @relation("ItemWatchlist")
+  id                  String               @id @default(cuid())
+  pawnShopId          String
+  title               String
+  description         String?
+  price               Decimal              @db.Decimal(10, 2)
+  images              String[]
+  category            String?
+  condition           String?
+  status              ItemStatus           @default(AVAILABLE)
+  isDeleted           Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  currency            String               @default("USD")
+  auction             Auction?
+  inquiries           Inquiry[]
+  shop                PawnShop             @relation(fields: [pawnShopId], references: [id])
+  offers              Offer[]
+  watchlistEntries    Watchlist[]          @relation("ItemWatchlist")
+  marketplaceListings MarketplaceListing[]
 
   @@index([pawnShopId, status, isDeleted])
   @@index([category, status, isDeleted])
@@ -597,6 +645,42 @@ enum ItemIntakeCheckStatus {
   FAILED
 }
 
+enum MarketplaceListingType {
+  CUSTOMER_TO_CUSTOMER
+  CUSTOMER_TO_SHOP
+  SHOP_TO_CUSTOMER
+  SHOP_TO_SHOP
+}
+
+enum MarketplaceListingStatus {
+  DRAFT
+  ACTIVE
+  RESERVED
+  SOLD
+  PAUSED
+  EXPIRED
+  CANCELED
+  REMOVED
+}
+
+enum MarketplaceTransactionType {
+  DIRECT_PURCHASE
+  ACCEPTED_OFFER
+  DEALER_TRANSFER
+  CUSTOMER_SELL_TO_SHOP
+}
+
+enum MarketplaceTransactionStatus {
+  PENDING
+  PAYMENT_PROCESSING
+  PAID
+  FULFILLING
+  COMPLETED
+  CANCELED
+  REFUNDED
+  DISPUTED
+}
+
 enum Role {
   OWNER
   CONSUMER
@@ -671,6 +755,87 @@ enum OfferStatus {
   CANCELED
 }
 
+<<<<<<< HEAD
+=======
+model MarketplaceListing {
+  id                String                   @id @default(cuid())
+  itemId            String?
+  sellerUserId      String
+  sellerShopId      String?
+  listingType       MarketplaceListingType
+  status            MarketplaceListingStatus @default(DRAFT)
+  title             String
+  description       String?
+  category          String?
+  condition         String?
+  price             Decimal?                 @db.Decimal(10, 2)
+  currency          String                   @default("USD")
+  quantity          Int                      @default(1)
+  images            String[]                 @default([])
+  allowOffers       Boolean                  @default(true)
+  pickupAvailable   Boolean                  @default(true)
+  shippingAvailable Boolean                  @default(false)
+  featuredUntil     DateTime?
+  publishedAt       DateTime?
+  expiresAt         DateTime?
+  metadata          Json?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  item         Item?                    @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  seller       User                     @relation("MarketplaceListingSeller", fields: [sellerUserId], references: [id], onDelete: Cascade)
+  sellerShop   PawnShop?                @relation("MarketplaceListingShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
+  transactions MarketplaceTransaction[]
+
+  @@index([sellerUserId, status, createdAt])
+  @@index([sellerShopId, status, createdAt])
+  @@index([listingType, status, createdAt])
+  @@index([category, status, createdAt])
+  @@index([status, publishedAt])
+  @@index([featuredUntil])
+  @@index([itemId])
+}
+
+model MarketplaceTransaction {
+  id                String                       @id @default(cuid())
+  listingId         String
+  buyerUserId       String
+  buyerShopId       String?
+  sellerUserId      String
+  sellerShopId      String?
+  type              MarketplaceTransactionType
+  status            MarketplaceTransactionStatus @default(PENDING)
+  quantity          Int                          @default(1)
+  subtotal          Decimal                      @db.Decimal(10, 2)
+  platformFee       Decimal                      @default(0) @db.Decimal(10, 2)
+  shippingFee       Decimal                      @default(0) @db.Decimal(10, 2)
+  taxAmount         Decimal                      @default(0) @db.Decimal(10, 2)
+  totalAmount       Decimal                      @db.Decimal(10, 2)
+  currency          String                       @default("USD")
+  paymentIntentId   String?                      @unique
+  fulfillmentStatus FulfillmentStatus            @default(PAYMENT_PENDING)
+  completedAt       DateTime?
+  canceledAt        DateTime?
+  metadata          Json?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+
+  listing    MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  buyer      User               @relation("MarketplaceTransactionBuyer", fields: [buyerUserId], references: [id], onDelete: Restrict)
+  buyerShop  PawnShop?          @relation("MarketplaceTransactionBuyerShop", fields: [buyerShopId], references: [id], onDelete: SetNull)
+  seller     User               @relation("MarketplaceTransactionSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  sellerShop PawnShop?          @relation("MarketplaceTransactionSellerShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, status])
+  @@index([buyerUserId, status, createdAt])
+  @@index([sellerUserId, status, createdAt])
+  @@index([buyerShopId, status, createdAt])
+  @@index([sellerShopId, status, createdAt])
+  @@index([type, status, createdAt])
+  @@index([createdAt])
+}
+
+>>>>>>> origin/main
 enum SellerLedgerEntryType {
   SETTLEMENT_CREDIT
   PAYOUT_DEBIT

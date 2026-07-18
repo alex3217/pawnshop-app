@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { persistAuth, register } from "../services/auth";
 import type { Role } from "../services/auth";
-import "../styles/register-readability.css";
+import "../styles/register-page.css";
 import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
 
 type PublicRole = Extract<Role, "CONSUMER" | "OWNER">;
@@ -86,78 +86,188 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="register-readability" style={{ maxWidth: 420 }}>
-      <h3>Register</h3>
+    <section className="register-page">
+      <div className="register-page-inner">
+        <div className="register-intro">
+          <span className="register-eyebrow">
+            Join the PawnLoop marketplace
+          </span>
 
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Name"
-          autoComplete="name"
-          required
-        />
+          <h1 className="register-title">
+            Create your PawnLoop account.
+          </h1>
 
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          type="email"
-          autoComplete="email"
-          required
-        />
+          <p className="register-description">
+            Register as a buyer or pawn shop owner and gain access
+            to listings, auctions, offers, item intake, and
+            shop-management tools.
+          </p>
 
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={6}
-        />
+          <ul className="register-benefits">
+            <li>Buy, sell, pawn, and track items securely.</li>
+            <li>Save searches, offers, bids, and watchlists.</li>
+            <li>Access dedicated buyer and shop-owner tools.</li>
+          </ul>
+        </div>
 
-        <select
-          value={role}
-          onChange={(e) => {
-            const nextRole = e.target.value;
-            if (isPublicRole(nextRole)) {
-              setRole(nextRole);
-            }
-          }}
-          required
-        >
-          <option value="CONSUMER">Buyer</option>
-          <option value="OWNER">Pawn Shop Owner</option>
-        </select>
+        <div className="register-card">
+          <h2 className="register-card-title">Create account</h2>
 
-        {role === "OWNER" && foundingProgram.enabled ? (
-          <div
-            style={{
-              border: "1px solid rgba(37, 99, 235, 0.25)",
-              background: "rgba(37, 99, 235, 0.08)",
-              borderRadius: 14,
-              padding: 14,
-              lineHeight: 1.5,
-            }}
-          >
-            <strong>{foundingProgram.headline}</strong>
-            <p style={{ margin: "6px 0 0" }}>{foundingProgram.subtitle}</p>
-            <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
-              <li>{foundingProgram.trialDays} days free for the first {foundingProgram.shopLimit} shops.</li>
-              <li>Free setup support for the first {foundingProgram.freeUploadCount} items.</li>
-              <li>Trial starts after your profile is complete and {foundingProgram.minimumLiveItems} items are live.</li>
-              <li>Plans start at ${foundingProgram.starterMonthlyPrice}/month after trial.</li>
-            </ul>
-          </div>
-        ) : null}
+          <p className="register-card-copy">
+            Enter your information and choose how you will use
+            PawnLoop.
+          </p>
 
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Creating Account..." : "Create Account"}
-        </button>
+          <form className="register-form" onSubmit={onSubmit}>
+            <div className="register-field">
+              <label
+                className="register-label"
+                htmlFor="register-name"
+              >
+                Full name
+              </label>
 
-        {error ? <div style={{ color: "crimson" }}>{error}</div> : null}
-      </form>
-    </div>
+              <input
+                id="register-name"
+                className="register-input"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Enter your full name"
+                autoComplete="name"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="register-field">
+              <label
+                className="register-label"
+                htmlFor="register-email"
+              >
+                Email address
+              </label>
+
+              <input
+                id="register-email"
+                className="register-input"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                type="email"
+                autoComplete="email"
+                required
+              />
+            </div>
+
+            <div className="register-field">
+              <label
+                className="register-label"
+                htmlFor="register-password"
+              >
+                Password
+              </label>
+
+              <input
+                id="register-password"
+                className="register-input"
+                value={password}
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
+                placeholder="At least 6 characters"
+                type="password"
+                autoComplete="new-password"
+                minLength={6}
+                required
+              />
+            </div>
+
+            <div className="register-field">
+              <label
+                className="register-label"
+                htmlFor="register-role"
+              >
+                Account type
+              </label>
+
+              <select
+                id="register-role"
+                className="register-select"
+                value={role}
+                onChange={(event) => {
+                  const nextRole = event.target.value;
+
+                  if (isPublicRole(nextRole)) {
+                    setRole(nextRole);
+                  }
+                }}
+                required
+              >
+                <option value="CONSUMER">
+                  Buyer / Customer
+                </option>
+                <option value="OWNER">
+                  Pawn Shop Owner
+                </option>
+              </select>
+            </div>
+
+            {role === "OWNER" && foundingProgram.enabled ? (
+              <div className="register-owner-program">
+                <strong>{foundingProgram.headline}</strong>
+
+                <p>{foundingProgram.subtitle}</p>
+
+                <ul>
+                  <li>
+                    {foundingProgram.trialDays} days free for the
+                    first {foundingProgram.shopLimit} shops.
+                  </li>
+                  <li>
+                    Free setup support for the first{" "}
+                    {foundingProgram.freeUploadCount} items.
+                  </li>
+                  <li>
+                    Trial starts after your profile is complete
+                    and {foundingProgram.minimumLiveItems} items
+                    are live.
+                  </li>
+                  <li>
+                    Plans start at $
+                    {foundingProgram.starterMonthlyPrice}/month
+                    after the trial.
+                  </li>
+                </ul>
+              </div>
+            ) : null}
+
+            <button
+              className="register-submit"
+              type="submit"
+              disabled={submitting}
+            >
+              {submitting
+                ? "Creating account…"
+                : "Create account"}
+            </button>
+
+            {error ? (
+              <div
+                className="register-error"
+                role="alert"
+                aria-live="polite"
+              >
+                {error}
+              </div>
+            ) : null}
+          </form>
+
+          <p className="register-login-link">
+            Already have an account?{" "}
+            <Link to="/login">Sign in</Link>
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
