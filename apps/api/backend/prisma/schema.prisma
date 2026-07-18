@@ -25,6 +25,8 @@ model User {
   shops                     PawnShop[]
   savedSearches             SavedSearch[]              @relation("UserSavedSearches")
   wonSettlements            Settlement[]               @relation("SettlementWinner")
+  sellerLedgerEntries       SellerBalanceLedger[]      @relation("SellerBalanceLedgerUser")
+  sellerPayouts             SellerPayout[]             @relation("SellerPayoutUser")
   watchlistEntries          Watchlist[]                @relation("UserWatchlist")
   buyerItemSubmissions      BuyerItemSubmission[]      @relation("BuyerItemSubmissions")
   buyerItemSubmissionOffers BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferOwner")
@@ -101,6 +103,8 @@ model PawnShop {
   inventorySyncJobs            InventorySyncJob[]
   buyerItemSubmissionOffers    BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferShop")
   itemIntakes                  ItemIntake[]               @relation("ShopItemIntakes")
+  sellerLedgerEntries          SellerBalanceLedger[]      @relation("SellerBalanceLedgerShop")
+  sellerPayouts                SellerPayout[]             @relation("SellerPayoutShop")
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -233,17 +237,17 @@ model Bid {
 }
 
 model Settlement {
-  id                  String            @id @default(cuid())
-  auctionId           String?           @unique
-  offerId             String?           @unique
+  id                  String                @id @default(cuid())
+  auctionId           String?               @unique
+  offerId             String?               @unique
   winnerUserId        String
-  finalPrice          Decimal           @db.Decimal(10, 2)
-  status              SettlementStatus  @default(PENDING)
-  stripePaymentIntent String?           @unique
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  finalPrice          Decimal               @db.Decimal(10, 2)
+  status              SettlementStatus      @default(PENDING)
+  stripePaymentIntent String?               @unique
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
   chargedAt           DateTime?
-  currency            String            @default("USD")
+  currency            String                @default("USD")
   failedAt            DateTime?
   failureMessage      String?
   grossAmountCents    Int?
@@ -255,12 +259,13 @@ model Settlement {
   transactionType     String?
   pricingRuleSnapshot Json?
   revenueCalculatedAt DateTime?
-  fulfillmentStatus   FulfillmentStatus @default(PAYMENT_PENDING)
+  fulfillmentStatus   FulfillmentStatus     @default(PAYMENT_PENDING)
   fulfillmentNote     String?
   fulfilledAt         DateTime?
-  auction             Auction?          @relation(fields: [auctionId], references: [id])
-  offer               Offer?            @relation(fields: [offerId], references: [id])
-  winner              User              @relation("SettlementWinner", fields: [winnerUserId], references: [id])
+  auction             Auction?              @relation(fields: [auctionId], references: [id])
+  offer               Offer?                @relation(fields: [offerId], references: [id])
+  winner              User                  @relation("SettlementWinner", fields: [winnerUserId], references: [id])
+  sellerLedgerEntries SellerBalanceLedger[] @relation("SettlementSellerLedgerEntries")
 
   @@index([winnerUserId, status])
   @@index([status, createdAt])
@@ -664,6 +669,90 @@ enum OfferStatus {
   REJECTED
   COUNTERED
   CANCELED
+}
+
+enum SellerLedgerEntryType {
+  SETTLEMENT_CREDIT
+  PAYOUT_DEBIT
+  REFUND_DEBIT
+  REVERSAL_CREDIT
+  ADJUSTMENT_CREDIT
+  ADJUSTMENT_DEBIT
+}
+
+enum SellerLedgerEntryStatus {
+  PENDING
+  AVAILABLE
+  HELD
+  PAID
+  REVERSED
+}
+
+enum SellerPayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  CANCELED
+}
+
+model SellerBalanceLedger {
+  id           String                  @id @default(cuid())
+  settlementId String?
+  payoutId     String?
+  sellerUserId String
+  shopId       String
+  type         SellerLedgerEntryType
+  status       SellerLedgerEntryStatus @default(PENDING)
+  amountCents  Int
+  currency     String                  @default("USD")
+  availableAt  DateTime?
+  description  String?
+  metadata     Json?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  settlement Settlement?   @relation("SettlementSellerLedgerEntries", fields: [settlementId], references: [id], onDelete: Restrict)
+  payout     SellerPayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  seller     User          @relation("SellerBalanceLedgerUser", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  shop       PawnShop      @relation("SellerBalanceLedgerShop", fields: [shopId], references: [id], onDelete: Restrict)
+
+  @@unique([settlementId, type])
+  @@index([sellerUserId, status, createdAt])
+  @@index([shopId, status, createdAt])
+  @@index([payoutId])
+  @@index([settlementId])
+  @@index([type, status])
+}
+
+model SellerPayout {
+  id               String             @id @default(cuid())
+  sellerUserId     String
+  shopId           String
+  status           SellerPayoutStatus @default(PENDING)
+  amountCents      Int
+  currency         String             @default("USD")
+  provider         String?
+  providerPayoutId String?            @unique
+  idempotencyKey   String             @unique
+  failureCode      String?
+  failureMessage   String?
+  requestedAt      DateTime           @default(now())
+  processingAt     DateTime?
+  paidAt           DateTime?
+  failedAt         DateTime?
+  canceledAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  seller        User                  @relation("SellerPayoutUser", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  shop          PawnShop              @relation("SellerPayoutShop", fields: [shopId], references: [id], onDelete: Restrict)
+  ledgerEntries SellerBalanceLedger[]
+
+  @@index([sellerUserId, status, createdAt])
+  @@index([shopId, status, createdAt])
+  @@index([status, requestedAt])
+  @@index([createdAt])
 }
 
 model PlatformSetting {
