@@ -13,6 +13,7 @@ import {
 import {
   getShopFinanceBalance,
   getShopFinanceLedger,
+  getShopFinancePayouts,
 } from "../controllers/shopFinance.controller.js";
 
 const router = Router();
@@ -36,6 +37,13 @@ router.get(
   authRequired,
   requireRole("OWNER", "ADMIN"),
   getShopFinanceLedger,
+);
+
+router.get(
+  "/:id/finance/payouts",
+  authRequired,
+  requireRole("OWNER", "ADMIN"),
+  getShopFinancePayouts,
 );
 
 // Public detail routes
