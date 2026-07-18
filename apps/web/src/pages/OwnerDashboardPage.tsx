@@ -789,6 +789,10 @@ export default function OwnerDashboardPage() {
               <Link to="/owner/integrations" style={styles.linkButton}>
                 Integrations
               </Link>
+
+              <Link to="/owner/finance" style={styles.linkButton}>
+                Finance
+              </Link>
             </div>
           </div>
 
