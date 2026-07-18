@@ -275,3 +275,13 @@ test("item-intake publish mutation requires authentication", async () => {
     error: "Unauthorized",
   });
 });
+
+test("item-intake customer search requires authentication", async () => {
+  const response = await request(app)
+    .get("/api/item-intakes/customers/search?q=test")
+    .expect(401);
+
+  assert.deepEqual(response.body, {
+    error: "Unauthorized",
+  });
+});

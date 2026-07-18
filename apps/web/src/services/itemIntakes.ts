@@ -52,10 +52,19 @@ export type ItemIntakeShop = {
   zip?: string | null;
 };
 
+export type ItemIntakeCustomer = {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  isActive?: boolean;
+};
+
 export type ItemIntake = {
   id: string;
   shopId?: string | null;
   capturedByUserId?: string | null;
+  customerId?: string | null;
 
   source: ItemIntakeSource;
   destination: ItemIntakeDestination;
@@ -101,6 +110,7 @@ export type ItemIntake = {
   updatedAt: string;
 
   shop?: ItemIntakeShop | null;
+  customer?: ItemIntakeCustomer | null;
 };
 
 export type ItemIntakeFilters = {
@@ -140,11 +150,35 @@ export type PublishedInventoryItem = {
   updatedAt?: string;
 };
 
+export type PublishedCustomerSubmission = {
+  id: string;
+  buyerId: string;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  condition?: string | null;
+  estimatedValue?: string | number | null;
+  images: string[];
+  intent: string;
+  radiusMiles: number;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ItemIntakeCustomerSearchResult = {
+  rows: ItemIntakeCustomer[];
+  total: number;
+  query: string;
+};
+
 export type PublishItemIntakeResult = {
   intake: ItemIntake;
   item: PublishedInventoryItem | null;
+  submission: PublishedCustomerSubmission | null;
   alreadyPublished: boolean;
   reusedExistingItem: boolean;
+  reusedExistingSubmission: boolean;
 };
 
 function normalizePositiveInteger(
@@ -274,6 +308,57 @@ export async function listItemIntakes(
   };
 }
 
+export async function searchItemIntakeCustomers(
+  query: string,
+  signal?: AbortSignal,
+): Promise<ItemIntakeCustomerSearchResult> {
+  const normalizedQuery = String(query || "").trim();
+
+  if (normalizedQuery.length < 2) {
+    return {
+      rows: [],
+      total: 0,
+      query: normalizedQuery,
+    };
+  }
+
+  const payload = await api.get<unknown>(
+    `/item-intakes/customers/search?q=${encodeURIComponent(
+      normalizedQuery,
+    )}`,
+    { signal },
+  );
+
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
+    return {
+      rows: [],
+      total: 0,
+      query: normalizedQuery,
+    };
+  }
+
+  const record = payload as Record<string, unknown>;
+  const rows = Array.isArray(record.rows)
+    ? (record.rows as ItemIntakeCustomer[])
+    : [];
+
+  return {
+    rows,
+    total:
+      typeof record.total === "number"
+        ? record.total
+        : rows.length,
+    query:
+      typeof record.query === "string"
+        ? record.query
+        : normalizedQuery,
+  };
+}
+
 export async function getItemIntake(
   id: string,
   signal?: AbortSignal,
@@ -386,11 +471,21 @@ export async function publishItemIntake(
       ? (record.item as PublishedInventoryItem)
       : null;
 
+  const submission =
+    record.submission &&
+    typeof record.submission === "object" &&
+    !Array.isArray(record.submission)
+      ? (record.submission as PublishedCustomerSubmission)
+      : null;
+
   return {
     intake: unwrapItemIntake(payload),
     item,
+    submission,
     alreadyPublished: record.alreadyPublished === true,
     reusedExistingItem:
       record.reusedExistingItem === true,
+    reusedExistingSubmission:
+      record.reusedExistingSubmission === true,
   };
 }

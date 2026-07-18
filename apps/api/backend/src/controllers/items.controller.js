@@ -641,6 +641,14 @@ export async function scanItem(req, res) {
     const rawBody = req.body || {};
     const shopId = resolveShopId(rawBody);
     const code = normalizeString(rawBody.code);
+    const destination = String(
+      rawBody.destination || "SHOP_INVENTORY",
+    )
+      .trim()
+      .toUpperCase();
+    const customerId = normalizeString(
+      rawBody.customerId,
+    );
 
     if (!shopId || !code) {
       return res.status(400).json({
@@ -671,6 +679,41 @@ export async function scanItem(req, res) {
       return res.status(403).json({
         error: "Forbidden",
       });
+    }
+
+    const customerRequired =
+      destination === "CUSTOMER_SELL" ||
+      destination === "CUSTOMER_PAWN";
+
+    if (customerRequired && !customerId) {
+      return res.status(400).json({
+        error:
+          "A customer must be selected for customer sell or pawn intake.",
+      });
+    }
+
+    let customer = null;
+
+    if (customerId) {
+      customer = await prisma.user.findFirst({
+        where: {
+          id: customerId,
+          role: "CONSUMER",
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
+
+      if (!customer) {
+        return res.status(404).json({
+          error:
+            "Active customer account not found.",
+        });
+      }
     }
 
     const normalizedCode = String(code)
@@ -713,7 +756,11 @@ export async function scanItem(req, res) {
       capturedByUserId:
         req?.user?.sub || null,
       code,
-      input: rawBody,
+      input: {
+        ...rawBody,
+        destination,
+        customerId: customer?.id || null,
+      },
       existingItem: existing,
     });
 
@@ -725,6 +772,7 @@ export async function scanItem(req, res) {
       screeningStatus:
         intake.screeningStatus,
       destination: intake.destination,
+      customerId: intake.customerId,
       codeType: intake.codeType,
     };
 

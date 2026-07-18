@@ -30,10 +30,22 @@ const VALID_DESTINATIONS = new Set([
   "SHOP_TRANSFER",
 ]);
 
+const PUBLISHABLE_DESTINATIONS = new Set([
+  "SHOP_INVENTORY",
+  "CUSTOMER_SELL",
+  "CUSTOMER_PAWN",
+]);
+
+const CUSTOMER_SUBMISSION_DESTINATIONS = new Set([
+  "CUSTOMER_SELL",
+  "CUSTOMER_PAWN",
+]);
+
 const intakeSelect = {
   id: true,
   shopId: true,
   capturedByUserId: true,
+  customerId: true,
   source: true,
   destination: true,
   status: true,
@@ -87,6 +99,16 @@ const intakeSelect = {
       zip: true,
     },
   },
+
+  customer: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+    },
+  },
 };
 
 function normalizeUpper(value) {
@@ -120,6 +142,26 @@ function normalizePublishPrice(value) {
   }
 
   return parsed.toFixed(2);
+}
+
+function isCustomerSubmissionDestination(
+  destination,
+) {
+  return CUSTOMER_SUBMISSION_DESTINATIONS.has(
+    destination,
+  );
+}
+
+function getCustomerSubmissionIntent(destination) {
+  if (destination === "CUSTOMER_SELL") {
+    return "SELL_OFFERS";
+  }
+
+  if (destination === "CUSTOMER_PAWN") {
+    return "PAWN_OFFERS";
+  }
+
+  return "";
 }
 
 async function runSerializableTransaction(callback) {
@@ -278,6 +320,71 @@ function sendControllerError(res, error, fallbackMessage) {
     error,
     fallbackMessage,
   );
+}
+
+
+export async function searchItemIntakeCustomers(req, res) {
+  try {
+    const query = normalizeString(req.query?.q);
+
+    if (query.length < 2) {
+      return res.json({
+        rows: [],
+        total: 0,
+        query,
+      });
+    }
+
+    const rows = await prisma.user.findMany({
+      where: {
+        role: "CONSUMER",
+        isActive: true,
+        OR: [
+          {
+            id: query,
+          },
+          {
+            name: {
+              contains: query,
+              mode: "insensitive",
+            },
+          },
+          {
+            email: {
+              contains: query,
+              mode: "insensitive",
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+      orderBy: [
+        {
+          name: "asc",
+        },
+        {
+          email: "asc",
+        },
+      ],
+      take: 20,
+    });
+
+    return res.json({
+      rows,
+      total: rows.length,
+      query,
+    });
+  } catch (error) {
+    return sendUnexpectedError(
+      res,
+      error,
+      "Failed to search customers.",
+    );
+  }
 }
 
 export async function listItemIntakes(req, res) {
@@ -631,9 +738,11 @@ export async function publishItemIntake(req, res) {
         id: true,
         shopId: true,
         capturedByUserId: true,
+        customerId: true,
         destination: true,
         status: true,
         linkedItemId: true,
+        linkedSubmissionId: true,
         title: true,
         description: true,
         category: true,
@@ -661,12 +770,20 @@ export async function publishItemIntake(req, res) {
       });
     }
 
-    if (existing.destination !== "SHOP_INVENTORY") {
+    if (
+      !PUBLISHABLE_DESTINATIONS.has(
+        existing.destination,
+      )
+    ) {
       return res.status(422).json({
         error:
           "Publishing for this intake destination is not available yet.",
         destination: existing.destination,
-        supportedDestinations: ["SHOP_INVENTORY"],
+        supportedDestinations: [
+          "SHOP_INVENTORY",
+          "CUSTOMER_SELL",
+          "CUSTOMER_PAWN",
+        ],
       });
     }
 
@@ -688,8 +805,24 @@ export async function publishItemIntake(req, res) {
       });
     }
 
+    const customerDestination =
+      isCustomerSubmissionDestination(
+        existing.destination,
+      );
+
+    if (
+      customerDestination &&
+      !existing.customerId
+    ) {
+      return res.status(400).json({
+        error:
+          "A customer must be assigned before this intake can be published.",
+      });
+    }
+
     if (
       existing.status === "PUBLISHED" &&
+      existing.destination === "SHOP_INVENTORY" &&
       !existing.linkedItemId
     ) {
       return res.status(409).json({
@@ -699,7 +832,19 @@ export async function publishItemIntake(req, res) {
     }
 
     if (
+      existing.status === "PUBLISHED" &&
+      customerDestination &&
+      !existing.linkedSubmissionId
+    ) {
+      return res.status(409).json({
+        error:
+          "This published intake does not have a linked customer submission.",
+      });
+    }
+
+    if (
       existing.status === "APPROVED" &&
+      existing.destination === "SHOP_INVENTORY" &&
       !existing.linkedItemId
     ) {
       const title = normalizeString(existing.title);
@@ -726,6 +871,38 @@ export async function publishItemIntake(req, res) {
       );
     }
 
+    if (
+      existing.status === "APPROVED" &&
+      customerDestination
+    ) {
+      const title = normalizeString(existing.title);
+
+      if (!title) {
+        return res.status(400).json({
+          error:
+            "An item title is required before publishing.",
+        });
+      }
+
+      const customer = await prisma.user.findFirst({
+        where: {
+          id: existing.customerId,
+          role: "CONSUMER",
+          isActive: true,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!customer) {
+        return res.status(409).json({
+          error:
+            "The assigned customer account is no longer active.",
+        });
+      }
+    }
+
     const result = await runSerializableTransaction(
       async (tx) => {
         const current = await tx.itemIntake.findUnique({
@@ -735,9 +912,11 @@ export async function publishItemIntake(req, res) {
           select: {
             id: true,
             shopId: true,
+            customerId: true,
             destination: true,
             status: true,
             linkedItemId: true,
+            linkedSubmissionId: true,
             title: true,
             description: true,
             category: true,
@@ -755,7 +934,11 @@ export async function publishItemIntake(req, res) {
           );
         }
 
-        if (current.destination !== "SHOP_INVENTORY") {
+        if (
+          !PUBLISHABLE_DESTINATIONS.has(
+            current.destination,
+          )
+        ) {
           throw createHttpError(
             422,
             "Publishing for this intake destination is not available yet.",
@@ -763,8 +946,14 @@ export async function publishItemIntake(req, res) {
           );
         }
 
+        const currentCustomerDestination =
+          isCustomerSubmissionDestination(
+            current.destination,
+          );
+
         if (
           current.status === "PUBLISHED" &&
+          current.destination === "SHOP_INVENTORY" &&
           current.linkedItemId
         ) {
           const [intake, item] = await Promise.all([
@@ -785,8 +974,49 @@ export async function publishItemIntake(req, res) {
           return {
             intake,
             item,
+            submission: null,
             alreadyPublished: true,
             reusedExistingItem: true,
+            reusedExistingSubmission: false,
+          };
+        }
+
+        if (
+          current.status === "PUBLISHED" &&
+          currentCustomerDestination &&
+          current.linkedSubmissionId
+        ) {
+          const [intake, submission] =
+            await Promise.all([
+              tx.itemIntake.findUnique({
+                where: {
+                  id: current.id,
+                },
+                select: intakeSelect,
+              }),
+              tx.buyerItemSubmission.findFirst({
+                where: {
+                  id: current.linkedSubmissionId,
+                  buyerId: current.customerId,
+                },
+              }),
+            ]);
+
+          if (!submission) {
+            throw createHttpError(
+              409,
+              "The linked customer submission no longer exists.",
+              "LINKED_SUBMISSION_NOT_FOUND",
+            );
+          }
+
+          return {
+            intake,
+            item: null,
+            submission,
+            alreadyPublished: true,
+            reusedExistingItem: false,
+            reusedExistingSubmission: true,
           };
         }
 
@@ -806,33 +1036,127 @@ export async function publishItemIntake(req, res) {
           );
         }
 
-        if (current.linkedItemId) {
-          const linkedItem = await tx.item.findFirst({
-            where: {
-              id: current.linkedItemId,
-              pawnShopId: current.shopId,
-              isDeleted: false,
-            },
-          });
+        if (
+          current.destination === "SHOP_INVENTORY"
+        ) {
+          if (current.linkedItemId) {
+            const linkedItem = await tx.item.findFirst({
+              where: {
+                id: current.linkedItemId,
+                pawnShopId: current.shopId,
+                isDeleted: false,
+              },
+            });
 
-          if (!linkedItem) {
+            if (!linkedItem) {
+              throw createHttpError(
+                409,
+                "The linked inventory item no longer exists.",
+                "LINKED_ITEM_NOT_FOUND",
+              );
+            }
+
+            const updated =
+              await tx.itemIntake.updateMany({
+                where: {
+                  id: current.id,
+                  status: "APPROVED",
+                  linkedItemId:
+                    current.linkedItemId,
+                },
+                data: {
+                  status: "PUBLISHED",
+                },
+              });
+
+            if (updated.count !== 1) {
+              throw createHttpError(
+                409,
+                "The intake changed while it was being published. Reload and try again.",
+                "ITEM_INTAKE_PUBLISH_CONFLICT",
+              );
+            }
+
+            const intake =
+              await tx.itemIntake.findUnique({
+                where: {
+                  id: current.id,
+                },
+                select: intakeSelect,
+              });
+
+            return {
+              intake,
+              item: linkedItem,
+              submission: null,
+              alreadyPublished: false,
+              reusedExistingItem: true,
+              reusedExistingSubmission: false,
+            };
+          }
+
+          const title = normalizeString(
+            current.title,
+          );
+          const price = normalizePublishPrice(
+            current.estimatedValue,
+          );
+
+          if (!title) {
             throw createHttpError(
-              409,
-              "The linked inventory item no longer exists.",
-              "LINKED_ITEM_NOT_FOUND",
+              400,
+              "An item title is required before publishing.",
+              "ITEM_INTAKE_TITLE_REQUIRED",
             );
           }
 
-          const updated = await tx.itemIntake.updateMany({
-            where: {
-              id: current.id,
-              status: "APPROVED",
-              linkedItemId: current.linkedItemId,
-            },
+          if (price === null) {
+            throw createHttpError(
+              400,
+              "A valid estimated value is required before publishing.",
+              "ITEM_INTAKE_VALUE_REQUIRED",
+            );
+          }
+
+          const item = await tx.item.create({
             data: {
-              status: "PUBLISHED",
+              pawnShopId: current.shopId,
+              title,
+              description:
+                normalizeString(
+                  current.description,
+                ) || null,
+              price,
+              images: Array.isArray(
+                current.images,
+              )
+                ? current.images
+                : [],
+              category:
+                normalizeString(
+                  current.category,
+                ) || null,
+              condition:
+                normalizeString(
+                  current.condition,
+                ) || null,
+              status: "AVAILABLE",
+              currency: "USD",
             },
           });
+
+          const updated =
+            await tx.itemIntake.updateMany({
+              where: {
+                id: current.id,
+                status: "APPROVED",
+                linkedItemId: null,
+              },
+              data: {
+                status: "PUBLISHED",
+                linkedItemId: item.id,
+              },
+            });
 
           if (updated.count !== 1) {
             throw createHttpError(
@@ -842,24 +1166,110 @@ export async function publishItemIntake(req, res) {
             );
           }
 
-          const intake = await tx.itemIntake.findUnique({
-            where: {
-              id: current.id,
-            },
-            select: intakeSelect,
-          });
+          const intake =
+            await tx.itemIntake.findUnique({
+              where: {
+                id: current.id,
+              },
+              select: intakeSelect,
+            });
 
           return {
             intake,
-            item: linkedItem,
+            item,
+            submission: null,
             alreadyPublished: false,
-            reusedExistingItem: true,
+            reusedExistingItem: false,
+            reusedExistingSubmission: false,
           };
         }
 
-        const title = normalizeString(current.title);
-        const price = normalizePublishPrice(
-          current.estimatedValue,
+        if (!current.customerId) {
+          throw createHttpError(
+            400,
+            "A customer must be assigned before this intake can be published.",
+            "ITEM_INTAKE_CUSTOMER_REQUIRED",
+          );
+        }
+
+        const customer = await tx.user.findFirst({
+          where: {
+            id: current.customerId,
+            role: "CONSUMER",
+            isActive: true,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (!customer) {
+          throw createHttpError(
+            409,
+            "The assigned customer account is no longer active.",
+            "ITEM_INTAKE_CUSTOMER_INACTIVE",
+          );
+        }
+
+        if (current.linkedSubmissionId) {
+          const linkedSubmission =
+            await tx.buyerItemSubmission.findFirst({
+              where: {
+                id: current.linkedSubmissionId,
+                buyerId: current.customerId,
+              },
+            });
+
+          if (!linkedSubmission) {
+            throw createHttpError(
+              409,
+              "The linked customer submission no longer exists.",
+              "LINKED_SUBMISSION_NOT_FOUND",
+            );
+          }
+
+          const updated =
+            await tx.itemIntake.updateMany({
+              where: {
+                id: current.id,
+                status: "APPROVED",
+                customerId: current.customerId,
+                linkedSubmissionId:
+                  current.linkedSubmissionId,
+              },
+              data: {
+                status: "PUBLISHED",
+              },
+            });
+
+          if (updated.count !== 1) {
+            throw createHttpError(
+              409,
+              "The intake changed while it was being published. Reload and try again.",
+              "ITEM_INTAKE_PUBLISH_CONFLICT",
+            );
+          }
+
+          const intake =
+            await tx.itemIntake.findUnique({
+              where: {
+                id: current.id,
+              },
+              select: intakeSelect,
+            });
+
+          return {
+            intake,
+            item: null,
+            submission: linkedSubmission,
+            alreadyPublished: false,
+            reusedExistingItem: false,
+            reusedExistingSubmission: true,
+          };
+        }
+
+        const title = normalizeString(
+          current.title,
         );
 
         if (!title) {
@@ -870,44 +1280,55 @@ export async function publishItemIntake(req, res) {
           );
         }
 
-        if (price === null) {
-          throw createHttpError(
-            400,
-            "A valid estimated value is required before publishing.",
-            "ITEM_INTAKE_VALUE_REQUIRED",
-          );
-        }
+        const submission =
+          await tx.buyerItemSubmission.create({
+            data: {
+              buyerId: current.customerId,
+              title,
+              description:
+                normalizeString(
+                  current.description,
+                ) || null,
+              category:
+                normalizeString(
+                  current.category,
+                ) || null,
+              condition:
+                normalizeString(
+                  current.condition,
+                ) || null,
+              estimatedValue:
+                normalizePublishPrice(
+                  current.estimatedValue,
+                ),
+              images: Array.isArray(
+                current.images,
+              )
+                ? current.images
+                : [],
+              intent:
+                getCustomerSubmissionIntent(
+                  current.destination,
+                ),
+              radiusMiles: 25,
+              status: "SUBMITTED",
+            },
+          });
 
-        const item = await tx.item.create({
-          data: {
-            pawnShopId: current.shopId,
-            title,
-            description:
-              normalizeString(current.description) || null,
-            price,
-            images: Array.isArray(current.images)
-              ? current.images
-              : [],
-            category:
-              normalizeString(current.category) || null,
-            condition:
-              normalizeString(current.condition) || null,
-            status: "AVAILABLE",
-            currency: "USD",
-          },
-        });
-
-        const updated = await tx.itemIntake.updateMany({
-          where: {
-            id: current.id,
-            status: "APPROVED",
-            linkedItemId: null,
-          },
-          data: {
-            status: "PUBLISHED",
-            linkedItemId: item.id,
-          },
-        });
+        const updated =
+          await tx.itemIntake.updateMany({
+            where: {
+              id: current.id,
+              status: "APPROVED",
+              customerId: current.customerId,
+              linkedSubmissionId: null,
+            },
+            data: {
+              status: "PUBLISHED",
+              linkedSubmissionId:
+                submission.id,
+            },
+          });
 
         if (updated.count !== 1) {
           throw createHttpError(
@@ -917,18 +1338,21 @@ export async function publishItemIntake(req, res) {
           );
         }
 
-        const intake = await tx.itemIntake.findUnique({
-          where: {
-            id: current.id,
-          },
-          select: intakeSelect,
-        });
+        const intake =
+          await tx.itemIntake.findUnique({
+            where: {
+              id: current.id,
+            },
+            select: intakeSelect,
+          });
 
         return {
           intake,
-          item,
+          item: null,
+          submission,
           alreadyPublished: false,
           reusedExistingItem: false,
+          reusedExistingSubmission: false,
         };
       },
     );
@@ -938,9 +1362,13 @@ export async function publishItemIntake(req, res) {
       .json({
         data: result.intake,
         item: result.item,
-        alreadyPublished: result.alreadyPublished,
+        submission: result.submission,
+        alreadyPublished:
+          result.alreadyPublished,
         reusedExistingItem:
           result.reusedExistingItem,
+        reusedExistingSubmission:
+          result.reusedExistingSubmission,
       });
   } catch (error) {
     return sendControllerError(

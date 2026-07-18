@@ -301,6 +301,7 @@ export type ScanItemInput = {
   code: string;
   intakeSource?: ScanIntakeSource;
   destination?: ScanIntakeDestination;
+  customerId?: string;
   codeType?: string;
   serialNumber?: string;
   title?: string;
@@ -318,6 +319,7 @@ export type ScanIntakeRecord = {
   id?: string;
   shopId?: string | null;
   capturedByUserId?: string | null;
+  customerId?: string | null;
   source?: ScanIntakeSource;
   destination?: ScanIntakeDestination;
   status?: ScanIntakeStatus;
