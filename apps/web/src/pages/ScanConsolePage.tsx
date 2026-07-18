@@ -377,13 +377,25 @@ export default function ScanConsolePage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => navigate("/owner/inventory")}
-          style={styles.secondaryButton}
-        >
-          Back to inventory
-        </button>
+        <div style={styles.actions}>
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/owner/item-intakes")
+            }
+            style={styles.secondaryButton}
+          >
+            Review intakes
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/owner/inventory")}
+            style={styles.secondaryButton}
+          >
+            Back to inventory
+          </button>
+        </div>
       </section>
 
       {err ? (

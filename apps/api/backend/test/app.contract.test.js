@@ -223,3 +223,45 @@ test("super-admin routes reject unauthenticated requests", async () => {
     error: "Unauthorized",
   });
 });
+
+
+test("item-intake review routes require authentication", async () => {
+  for (const path of [
+    "/item-intakes",
+    "/api/item-intakes",
+  ]) {
+    const response = await request(app)
+      .get(path)
+      .expect(401);
+
+    assert.deepEqual(response.body, {
+      error: "Unauthorized",
+    });
+  }
+});
+
+test("item-intake review mutation requires authentication", async () => {
+  const response = await request(app)
+    .patch("/api/item-intakes/test-intake/review")
+    .send({
+      status: "APPROVED",
+    })
+    .expect(401);
+
+  assert.deepEqual(response.body, {
+    error: "Unauthorized",
+  });
+});
+
+test("item-intake archive mutation requires authentication", async () => {
+  const response = await request(app)
+    .post("/api/item-intakes/test-intake/archive")
+    .send({
+      reviewMessage: "Test archive",
+    })
+    .expect(401);
+
+  assert.deepEqual(response.body, {
+    error: "Unauthorized",
+  });
+});
