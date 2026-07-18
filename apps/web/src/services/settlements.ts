@@ -21,6 +21,7 @@ export type Settlement = {
   id: string;
   settlementId?: string;
   auctionId?: string;
+  offerId?: string;
   auctionTitle?: string;
   itemId?: string;
   itemTitle?: string;

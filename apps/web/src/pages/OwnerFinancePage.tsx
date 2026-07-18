@@ -17,6 +17,10 @@ import {
   type OwnerFinancePayout,
   type OwnerFinanceShop,
 } from "../services/ownerFinance";
+import {
+  getSettlementById,
+  type Settlement,
+} from "../services/settlements";
 import "../styles/owner-finance-readability.css";
 
 const EMPTY_PAGINATION: FinancePagination = {
@@ -180,6 +184,28 @@ export default function OwnerFinancePage() {
   const [activeSection, setActiveSection] = useState<
     "ledger" | "payouts"
   >("ledger");
+
+  const [
+    selectedLedgerEntry,
+    setSelectedLedgerEntry,
+  ] = useState<OwnerFinanceLedgerEntry | null>(
+    null,
+  );
+
+  const [
+    selectedSettlement,
+    setSelectedSettlement,
+  ] = useState<Settlement | null>(null);
+
+  const [
+    loadingSettlement,
+    setLoadingSettlement,
+  ] = useState(false);
+
+  const [
+    settlementError,
+    setSettlementError,
+  ] = useState("");
 
   const selectedShop = useMemo(
     () =>
@@ -365,6 +391,79 @@ export default function OwnerFinancePage() {
       })),
     );
   }
+
+  const closeSettlementDetails = useCallback(() => {
+    setSelectedLedgerEntry(null);
+    setSelectedSettlement(null);
+    setSettlementError("");
+    setLoadingSettlement(false);
+  }, []);
+
+  const openSettlementDetails = useCallback(
+    async (entry: OwnerFinanceLedgerEntry) => {
+      if (!entry.settlementId) {
+        return;
+      }
+
+      setSelectedLedgerEntry(entry);
+      setSelectedSettlement(null);
+      setSettlementError("");
+      setLoadingSettlement(true);
+
+      try {
+        const settlement =
+          await getSettlementById(
+            entry.settlementId,
+          );
+
+        setSelectedSettlement(settlement);
+      } catch (error) {
+        setSettlementError(
+          getErrorMessage(error),
+        );
+      } finally {
+        setLoadingSettlement(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!selectedLedgerEntry) {
+      return;
+    }
+
+    const handleKeyDown = (
+      event: KeyboardEvent,
+    ) => {
+      if (event.key === "Escape") {
+        closeSettlementDetails();
+      }
+    };
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
+
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
+
+      document.body.style.overflow =
+        previousOverflow;
+    };
+  }, [
+    closeSettlementDetails,
+    selectedLedgerEntry,
+  ]);
 
   return (
     <main className="owner-finance-page">
@@ -675,6 +774,10 @@ export default function OwnerFinancePage() {
                     <th className="owner-finance-money-column">
                       Amount
                     </th>
+
+                    <th className="owner-finance-action-column">
+                      Details
+                    </th>
                   </tr>
                 </thead>
 
@@ -711,6 +814,26 @@ export default function OwnerFinancePage() {
                         {formatMoney(
                           entry.amountCents,
                           entry.currency,
+                        )}
+                      </td>
+
+                      <td className="owner-finance-action-column">
+                        {entry.settlementId ? (
+                          <button
+                            type="button"
+                            className="owner-finance-details-button"
+                            onClick={() =>
+                              void openSettlementDetails(
+                                entry,
+                              )
+                            }
+                          >
+                            View details
+                          </button>
+                        ) : (
+                          <span className="owner-finance-not-applicable">
+                            —
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -987,6 +1110,278 @@ export default function OwnerFinancePage() {
           </>
         )}
       </section>
-    </main>
+          {selectedLedgerEntry ? (
+        <div
+          className="owner-finance-settlement-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget
+            ) {
+              closeSettlementDetails();
+            }
+          }}
+        >
+          <section
+            className="owner-finance-settlement-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="owner-finance-settlement-title"
+          >
+            <header className="owner-finance-settlement-header">
+              <div>
+                <p className="owner-finance-eyebrow">
+                  Settlement drill-down
+                </p>
+
+                <h2 id="owner-finance-settlement-title">
+                  {selectedSettlement?.auctionTitle ||
+                    selectedLedgerEntry.description ||
+                    "Settlement details"}
+                </h2>
+
+                <p>
+                  Review payment, buyer, fulfillment,
+                  and settlement information.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="owner-finance-drawer-close"
+                aria-label="Close settlement details"
+                onClick={closeSettlementDetails}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="owner-finance-settlement-body">
+              {loadingSettlement ? (
+                <div className="owner-finance-settlement-message">
+                  Loading settlement details…
+                </div>
+              ) : null}
+
+              {settlementError ? (
+                <div
+                  className="owner-finance-settlement-error"
+                  role="alert"
+                >
+                  <strong>
+                    Settlement details could not be loaded
+                  </strong>
+
+                  <span>{settlementError}</span>
+                </div>
+              ) : null}
+
+              {!loadingSettlement &&
+              !settlementError &&
+              selectedSettlement ? (
+                <>
+                  <div className="owner-finance-settlement-summary">
+                    <article>
+                      <span>Gross sale</span>
+
+                      <strong>
+                        {formatMoney(
+                          selectedSettlement.finalAmountCents,
+                          selectedSettlement.currency ||
+                            selectedLedgerEntry.currency,
+                        )}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <span>Seller proceeds</span>
+
+                      <strong>
+                        {formatMoney(
+                          selectedLedgerEntry.amountCents,
+                          selectedSettlement.currency ||
+                            selectedLedgerEntry.currency,
+                        )}
+                      </strong>
+                    </article>
+
+                    <article>
+                      <span>Settlement status</span>
+
+                      <strong>
+                        {formatLabel(
+                          selectedSettlement.status,
+                        )}
+                      </strong>
+                    </article>
+                  </div>
+
+                  <section className="owner-finance-settlement-section">
+                    <h3>Transaction</h3>
+
+                    <dl className="owner-finance-detail-grid">
+                      <div>
+                        <dt>Settlement ID</dt>
+                        <dd>
+                          {selectedSettlement.id}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Transaction type</dt>
+                        <dd>
+                          {selectedSettlement.offerId
+                            ? "Offer"
+                            : selectedSettlement.auctionId
+                              ? "Auction"
+                              : "Marketplace"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Source ID</dt>
+                        <dd>
+                          {selectedSettlement.offerId ||
+                            selectedSettlement.auctionId ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Shop</dt>
+                        <dd>
+                          {selectedSettlement.shopName ||
+                            selectedShop?.name ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Settlement status</dt>
+                        <dd>
+                          <span
+                            className={`owner-finance-status owner-finance-status-${selectedSettlement.status.toLowerCase()}`}
+                          >
+                            {formatLabel(
+                              selectedSettlement.status,
+                            )}
+                          </span>
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Ledger status</dt>
+                        <dd>
+                          <span
+                            className={`owner-finance-status owner-finance-status-${selectedLedgerEntry.status.toLowerCase()}`}
+                          >
+                            {formatLabel(
+                              selectedLedgerEntry.status,
+                            )}
+                          </span>
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section className="owner-finance-settlement-section">
+                    <h3>Buyer and payment</h3>
+
+                    <dl className="owner-finance-detail-grid">
+                      <div>
+                        <dt>Buyer</dt>
+                        <dd>
+                          {selectedSettlement.winnerName ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Buyer email</dt>
+                        <dd>
+                          {selectedSettlement.winnerEmail ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div className="owner-finance-detail-wide">
+                        <dt>Stripe Payment Intent</dt>
+                        <dd className="owner-finance-code-value">
+                          {selectedSettlement.stripePaymentIntent ||
+                            "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Transaction ended</dt>
+                        <dd>
+                          {formatDate(
+                            selectedSettlement.endedAt,
+                          )}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Settlement charged</dt>
+                        <dd>
+                          {formatDate(
+                            selectedSettlement.settledAt,
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section className="owner-finance-settlement-section">
+                    <h3>Fulfillment</h3>
+
+                    <dl className="owner-finance-detail-grid">
+                      <div>
+                        <dt>Status</dt>
+                        <dd>
+                          {selectedSettlement.fulfillmentStatus
+                            ? formatLabel(
+                                selectedSettlement.fulfillmentStatus,
+                              )
+                            : "—"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Fulfilled</dt>
+                        <dd>
+                          {formatDate(
+                            selectedSettlement.fulfilledAt,
+                          )}
+                        </dd>
+                      </div>
+
+                      <div className="owner-finance-detail-wide">
+                        <dt>Note</dt>
+                        <dd>
+                          {selectedSettlement.fulfillmentNote ||
+                            "No fulfillment note has been added."}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+                </>
+              ) : null}
+            </div>
+
+            <footer className="owner-finance-settlement-footer">
+              <button
+                type="button"
+                className="owner-finance-secondary-button"
+                onClick={closeSettlementDetails}
+              >
+                Close
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+</main>
   );
 }
