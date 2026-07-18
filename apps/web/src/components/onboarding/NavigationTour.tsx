@@ -194,11 +194,7 @@ export default function NavigationTour({ role }: NavigationTourProps) {
       <Joyride
         onEvent={handleEvent}
         continuous
-        disableOverlayClose
         run={run}
-        scrollToFirstStep
-        showProgress
-        showSkipButton
         steps={steps}
         options={{
           zIndex: 10000,
@@ -206,6 +202,10 @@ export default function NavigationTour({ role }: NavigationTourProps) {
           textColor: "#172033",
           backgroundColor: "#ffffff",
           overlayColor: "rgba(15, 23, 42, 0.72)",
+          overlayClickAction: false,
+          dismissKeyAction: false,
+          showProgress: true,
+          buttons: ["back", "close", "primary", "skip"],
         }}
         styles={{
           tooltip: {
