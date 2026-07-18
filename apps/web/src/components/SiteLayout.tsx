@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAuthRole, logout, type Role } from "../services/auth";
 import ScrollToTopButton from "./ScrollToTopButton";
+import NavigationTour from "./onboarding/NavigationTour";
 import "../styles/site-layout.css";
 
 type NavItem = {
@@ -199,6 +200,7 @@ export default function SiteLayout() {
               to="/"
               className="site-brand"
               aria-label="PawnLoop home"
+              data-tour="brand"
             >
               <span className="site-header-logo-frame">
                 <img
@@ -213,6 +215,7 @@ export default function SiteLayout() {
               <Link
                 to={dashboardHref}
                 className="site-role-badge"
+                data-tour="role-badge"
                 aria-label={
                   role
                     ? `Open ${roleBadge} dashboard`
@@ -225,6 +228,7 @@ export default function SiteLayout() {
               <button
                 type="button"
                 className="site-theme-toggle"
+                data-tour="theme-toggle"
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               >
@@ -233,7 +237,11 @@ export default function SiteLayout() {
 
               {role ? (
                 <>
-                  <Link to={dashboardHref} className="site-primary-button">
+                  <Link
+                    to={dashboardHref}
+                    className="site-primary-button"
+                    data-tour="dashboard-button"
+                  >
                     Dashboard
                   </Link>
 
@@ -258,7 +266,11 @@ export default function SiteLayout() {
             </div>
           </div>
 
-          <nav className="site-primary-nav" aria-label="Primary navigation">
+          <nav
+            className="site-primary-nav"
+            aria-label="Primary navigation"
+            data-tour="primary-navigation"
+          >
             {primaryLinks.map((item) => (
               <NavLink
                 key={item.to}
@@ -274,7 +286,10 @@ export default function SiteLayout() {
           </nav>
 
           {workspaceLinks.length > 0 ? (
-            <details className="site-workspace-menu">
+            <details
+              className="site-workspace-menu"
+              data-tour="workspace-menu"
+            >
               <summary className="site-workspace-trigger">
                 <span>Owner Tools</span>
                 <span aria-hidden="true">⌄</span>
@@ -301,11 +316,12 @@ export default function SiteLayout() {
         </div>
       </header>
 
-      <main className="site-main">
+      <main className="site-main" data-tour="main-content">
         <Outlet />
       </main>
 
       <ScrollToTopButton />
+      <NavigationTour role={role} />
 
       <footer className="site-footer">
         <div className="site-footer-inner">
