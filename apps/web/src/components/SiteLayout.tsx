@@ -5,6 +5,7 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { getAuthRole, logout, type Role } from "../services/auth";
 import ScrollToTopButton from "./ScrollToTopButton";
 import NavigationTour from "./onboarding/NavigationTour";
+import RoleSetupChecklist from "./onboarding/RoleSetupChecklist";
 import "../styles/site-layout.css";
 
 type NavItem = {
@@ -322,6 +323,7 @@ export default function SiteLayout() {
 
       <ScrollToTopButton />
       <NavigationTour role={role} />
+      <RoleSetupChecklist role={role} />
 
       <footer className="site-footer">
         <div className="site-footer-inner">
