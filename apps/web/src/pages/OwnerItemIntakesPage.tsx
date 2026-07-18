@@ -9,6 +9,7 @@ import {
   archiveItemIntake,
   getItemIntake,
   listItemIntakes,
+  publishItemIntake,
   reviewItemIntake,
   type ItemIntake,
   type ItemIntakeDestination,
@@ -463,6 +464,71 @@ export default function OwnerItemIntakesPage() {
         actionError instanceof Error
           ? actionError.message
           : "Failed to archive item intake.",
+      );
+    } finally {
+      setActionId("");
+    }
+  }
+
+  async function handlePublish() {
+    if (
+      !selected ||
+      actionId ||
+      selected.status !== "APPROVED" ||
+      selected.destination !== "SHOP_INVENTORY"
+    ) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      selected.linkedItemId
+        ? "Publish this approved intake using its linked inventory item?"
+        : "Publish this approved intake as a new available inventory item?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionId(`${selected.id}:PUBLISH`);
+    setError("");
+    setNotice("");
+
+    try {
+      const result = await publishItemIntake(
+        selected.id,
+      );
+
+      const updated = result.intake;
+      const itemTitle =
+        result.item?.title ||
+        updated.title ||
+        "Inventory item";
+
+      setSelected(updated);
+      setRows((current) =>
+        replaceRow(current, updated),
+      );
+      setReviewMessage(updated.reviewMessage || "");
+
+      if (result.alreadyPublished) {
+        setNotice(
+          `${itemTitle} was already published.`,
+        );
+      } else if (result.reusedExistingItem) {
+        setNotice(
+          `${itemTitle} was linked and published to inventory.`,
+        );
+      } else {
+        setNotice(
+          `${itemTitle} was created in inventory.`,
+        );
+      }
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to publish item intake.",
       );
     } finally {
       setActionId("");
@@ -955,7 +1021,15 @@ export default function OwnerItemIntakesPage() {
 
                 <span>
                   Linked item:{" "}
-                  {selected.linkedItemId || "—"}
+                  {selected.linkedItemId ? (
+                    <Link
+                      to={`/owner/items/${selected.linkedItemId}/edit`}
+                    >
+                      Open inventory item
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
                 </span>
 
                 <span>
@@ -965,6 +1039,24 @@ export default function OwnerItemIntakesPage() {
               </div>
 
               <div className="item-intake-review-actions">
+                {selected.status === "APPROVED" &&
+                selected.destination ===
+                  "SHOP_INVENTORY" ? (
+                  <button
+                    type="button"
+                    className="item-intake-primary-button"
+                    disabled={Boolean(actionId)}
+                    onClick={handlePublish}
+                  >
+                    {actionId ===
+                    `${selected.id}:PUBLISH`
+                      ? "Publishing…"
+                      : selected.linkedItemId
+                        ? "Publish linked item"
+                        : "Publish to inventory"}
+                  </button>
+                ) : null}
+
                 <button
                   type="button"
                   className="item-intake-primary-button"
@@ -1032,6 +1124,16 @@ export default function OwnerItemIntakesPage() {
                     : "Archive"}
                 </button>
               </div>
+
+              {selected.status === "APPROVED" &&
+              selected.destination !==
+                "SHOP_INVENTORY" ? (
+                <div className="item-intake-lock-note">
+                  Publishing for the{" "}
+                  {humanize(selected.destination)} destination
+                  is not available yet.
+                </div>
+              ) : null}
 
               {isReviewLocked ? (
                 <div className="item-intake-lock-note">

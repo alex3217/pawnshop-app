@@ -125,6 +125,28 @@ export type ReviewItemIntakeInput = {
   reviewMessage?: string;
 };
 
+export type PublishedInventoryItem = {
+  id: string;
+  pawnShopId: string;
+  title: string;
+  description?: string | null;
+  price: string | number;
+  images: string[];
+  category?: string | null;
+  condition?: string | null;
+  status?: string;
+  currency?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PublishItemIntakeResult = {
+  intake: ItemIntake;
+  item: PublishedInventoryItem | null;
+  alreadyPublished: boolean;
+  reusedExistingItem: boolean;
+};
+
 function normalizePositiveInteger(
   value: unknown,
   fallback: number,
@@ -330,4 +352,45 @@ export async function archiveItemIntake(
   );
 
   return unwrapItemIntake(payload);
+}
+
+export async function publishItemIntake(
+  id: string,
+  signal?: AbortSignal,
+): Promise<PublishItemIntakeResult> {
+  const intakeId = String(id || "").trim();
+
+  if (!intakeId) {
+    throw new Error("Missing item intake ID.");
+  }
+
+  const payload = await api.post<unknown>(
+    `/item-intakes/${encodeURIComponent(intakeId)}/publish`,
+    {},
+    { signal },
+  );
+
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
+    throw new Error("Invalid item intake publish response.");
+  }
+
+  const record = payload as Record<string, unknown>;
+  const item =
+    record.item &&
+    typeof record.item === "object" &&
+    !Array.isArray(record.item)
+      ? (record.item as PublishedInventoryItem)
+      : null;
+
+  return {
+    intake: unwrapItemIntake(payload),
+    item,
+    alreadyPublished: record.alreadyPublished === true,
+    reusedExistingItem:
+      record.reusedExistingItem === true,
+  };
 }

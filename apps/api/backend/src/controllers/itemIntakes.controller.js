@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { assertCanCreateListingForShop } from "../services/sellerPlan.service.js";
 import {
   canAccessShopWithStaffPermission,
   getStaffAccessibleShopIds,
@@ -94,6 +95,51 @@ function normalizeUpper(value) {
 
 function normalizeString(value) {
   return String(value || "").trim();
+}
+
+function createHttpError(statusCode, message, code = "") {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+
+  if (code) {
+    error.code = code;
+  }
+
+  return error;
+}
+
+function normalizePublishPrice(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+
+  return parsed.toFixed(2);
+}
+
+async function runSerializableTransaction(callback) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await prisma.$transaction(callback, {
+        isolationLevel: "Serializable",
+      });
+    } catch (error) {
+      lastError = error;
+
+      if (error?.code !== "P2034" || attempt === 3) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 function getUserId(req) {
@@ -210,6 +256,28 @@ function sendUnexpectedError(res, error, fallbackMessage) {
   return res.status(500).json({
     error: fallbackMessage,
   });
+}
+
+function sendControllerError(res, error, fallbackMessage) {
+  const statusCode = Number(error?.statusCode);
+
+  if (
+    Number.isInteger(statusCode) &&
+    statusCode >= 400 &&
+    statusCode <= 599
+  ) {
+    return res.status(statusCode).json({
+      error: error?.message || fallbackMessage,
+      ...(error?.code ? { code: error.code } : {}),
+      ...(error?.details ? { details: error.details } : {}),
+    });
+  }
+
+  return sendUnexpectedError(
+    res,
+    error,
+    fallbackMessage,
+  );
 }
 
 export async function listItemIntakes(req, res) {
@@ -541,6 +609,344 @@ export async function archiveItemIntake(req, res) {
       res,
       error,
       "Failed to archive item intake.",
+    );
+  }
+}
+
+export async function publishItemIntake(req, res) {
+  try {
+    const intakeId = normalizeString(req.params?.id);
+
+    if (!intakeId) {
+      return res.status(400).json({
+        error: "Missing item intake ID.",
+      });
+    }
+
+    const existing = await prisma.itemIntake.findUnique({
+      where: {
+        id: intakeId,
+      },
+      select: {
+        id: true,
+        shopId: true,
+        capturedByUserId: true,
+        destination: true,
+        status: true,
+        linkedItemId: true,
+        title: true,
+        description: true,
+        category: true,
+        condition: true,
+        estimatedValue: true,
+        images: true,
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "Item intake not found.",
+      });
+    }
+
+    const allowed = await canAccessIntake(
+      req,
+      existing,
+      "inventory:write",
+    );
+
+    if (!allowed) {
+      return res.status(403).json({
+        error: "Forbidden",
+      });
+    }
+
+    if (existing.destination !== "SHOP_INVENTORY") {
+      return res.status(422).json({
+        error:
+          "Publishing for this intake destination is not available yet.",
+        destination: existing.destination,
+        supportedDestinations: ["SHOP_INVENTORY"],
+      });
+    }
+
+    if (
+      existing.status !== "APPROVED" &&
+      existing.status !== "PUBLISHED"
+    ) {
+      return res.status(409).json({
+        error:
+          "Only approved item intake records can be published.",
+        status: existing.status,
+      });
+    }
+
+    if (!existing.shopId) {
+      return res.status(400).json({
+        error:
+          "A shop must be assigned before this intake can be published.",
+      });
+    }
+
+    if (
+      existing.status === "PUBLISHED" &&
+      !existing.linkedItemId
+    ) {
+      return res.status(409).json({
+        error:
+          "This published intake does not have a linked inventory item.",
+      });
+    }
+
+    if (
+      existing.status === "APPROVED" &&
+      !existing.linkedItemId
+    ) {
+      const title = normalizeString(existing.title);
+      const price = normalizePublishPrice(
+        existing.estimatedValue,
+      );
+
+      if (!title) {
+        return res.status(400).json({
+          error:
+            "An item title is required before publishing.",
+        });
+      }
+
+      if (price === null) {
+        return res.status(400).json({
+          error:
+            "A valid estimated value is required before publishing.",
+        });
+      }
+
+      await assertCanCreateListingForShop(
+        existing.shopId,
+      );
+    }
+
+    const result = await runSerializableTransaction(
+      async (tx) => {
+        const current = await tx.itemIntake.findUnique({
+          where: {
+            id: intakeId,
+          },
+          select: {
+            id: true,
+            shopId: true,
+            destination: true,
+            status: true,
+            linkedItemId: true,
+            title: true,
+            description: true,
+            category: true,
+            condition: true,
+            estimatedValue: true,
+            images: true,
+          },
+        });
+
+        if (!current) {
+          throw createHttpError(
+            404,
+            "Item intake not found.",
+            "ITEM_INTAKE_NOT_FOUND",
+          );
+        }
+
+        if (current.destination !== "SHOP_INVENTORY") {
+          throw createHttpError(
+            422,
+            "Publishing for this intake destination is not available yet.",
+            "ITEM_INTAKE_DESTINATION_NOT_SUPPORTED",
+          );
+        }
+
+        if (
+          current.status === "PUBLISHED" &&
+          current.linkedItemId
+        ) {
+          const [intake, item] = await Promise.all([
+            tx.itemIntake.findUnique({
+              where: {
+                id: current.id,
+              },
+              select: intakeSelect,
+            }),
+            tx.item.findFirst({
+              where: {
+                id: current.linkedItemId,
+                isDeleted: false,
+              },
+            }),
+          ]);
+
+          return {
+            intake,
+            item,
+            alreadyPublished: true,
+            reusedExistingItem: true,
+          };
+        }
+
+        if (current.status !== "APPROVED") {
+          throw createHttpError(
+            409,
+            "Only approved item intake records can be published.",
+            "ITEM_INTAKE_NOT_APPROVED",
+          );
+        }
+
+        if (!current.shopId) {
+          throw createHttpError(
+            400,
+            "A shop must be assigned before this intake can be published.",
+            "ITEM_INTAKE_SHOP_REQUIRED",
+          );
+        }
+
+        if (current.linkedItemId) {
+          const linkedItem = await tx.item.findFirst({
+            where: {
+              id: current.linkedItemId,
+              pawnShopId: current.shopId,
+              isDeleted: false,
+            },
+          });
+
+          if (!linkedItem) {
+            throw createHttpError(
+              409,
+              "The linked inventory item no longer exists.",
+              "LINKED_ITEM_NOT_FOUND",
+            );
+          }
+
+          const updated = await tx.itemIntake.updateMany({
+            where: {
+              id: current.id,
+              status: "APPROVED",
+              linkedItemId: current.linkedItemId,
+            },
+            data: {
+              status: "PUBLISHED",
+            },
+          });
+
+          if (updated.count !== 1) {
+            throw createHttpError(
+              409,
+              "The intake changed while it was being published. Reload and try again.",
+              "ITEM_INTAKE_PUBLISH_CONFLICT",
+            );
+          }
+
+          const intake = await tx.itemIntake.findUnique({
+            where: {
+              id: current.id,
+            },
+            select: intakeSelect,
+          });
+
+          return {
+            intake,
+            item: linkedItem,
+            alreadyPublished: false,
+            reusedExistingItem: true,
+          };
+        }
+
+        const title = normalizeString(current.title);
+        const price = normalizePublishPrice(
+          current.estimatedValue,
+        );
+
+        if (!title) {
+          throw createHttpError(
+            400,
+            "An item title is required before publishing.",
+            "ITEM_INTAKE_TITLE_REQUIRED",
+          );
+        }
+
+        if (price === null) {
+          throw createHttpError(
+            400,
+            "A valid estimated value is required before publishing.",
+            "ITEM_INTAKE_VALUE_REQUIRED",
+          );
+        }
+
+        const item = await tx.item.create({
+          data: {
+            pawnShopId: current.shopId,
+            title,
+            description:
+              normalizeString(current.description) || null,
+            price,
+            images: Array.isArray(current.images)
+              ? current.images
+              : [],
+            category:
+              normalizeString(current.category) || null,
+            condition:
+              normalizeString(current.condition) || null,
+            status: "AVAILABLE",
+            currency: "USD",
+          },
+        });
+
+        const updated = await tx.itemIntake.updateMany({
+          where: {
+            id: current.id,
+            status: "APPROVED",
+            linkedItemId: null,
+          },
+          data: {
+            status: "PUBLISHED",
+            linkedItemId: item.id,
+          },
+        });
+
+        if (updated.count !== 1) {
+          throw createHttpError(
+            409,
+            "The intake changed while it was being published. Reload and try again.",
+            "ITEM_INTAKE_PUBLISH_CONFLICT",
+          );
+        }
+
+        const intake = await tx.itemIntake.findUnique({
+          where: {
+            id: current.id,
+          },
+          select: intakeSelect,
+        });
+
+        return {
+          intake,
+          item,
+          alreadyPublished: false,
+          reusedExistingItem: false,
+        };
+      },
+    );
+
+    return res
+      .status(result.alreadyPublished ? 200 : 201)
+      .json({
+        data: result.intake,
+        item: result.item,
+        alreadyPublished: result.alreadyPublished,
+        reusedExistingItem:
+          result.reusedExistingItem,
+      });
+  } catch (error) {
+    return sendControllerError(
+      res,
+      error,
+      "Failed to publish item intake.",
     );
   }
 }

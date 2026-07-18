@@ -5,6 +5,7 @@ import {
   archiveItemIntake,
   getItemIntake,
   listItemIntakes,
+  publishItemIntake,
   reviewItemIntake,
 } from "../controllers/itemIntakes.controller.js";
 
@@ -36,6 +37,13 @@ router.post(
   authRequired,
   requireOwnerAdminOrStaffPermission("inventory:write"),
   archiveItemIntake,
+);
+
+router.post(
+  "/:id/publish",
+  authRequired,
+  requireOwnerAdminOrStaffPermission("inventory:write"),
+  publishItemIntake,
 );
 
 export default router;

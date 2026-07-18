@@ -265,3 +265,13 @@ test("item-intake archive mutation requires authentication", async () => {
     error: "Unauthorized",
   });
 });
+
+test("item-intake publish mutation requires authentication", async () => {
+  const response = await request(app)
+    .post("/api/item-intakes/test-intake/publish")
+    .expect(401);
+
+  assert.deepEqual(response.body, {
+    error: "Unauthorized",
+  });
+});
