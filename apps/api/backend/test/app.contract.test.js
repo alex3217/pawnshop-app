@@ -285,3 +285,44 @@ test("item-intake customer search requires authentication", async () => {
     error: "Unauthorized",
   });
 });
+
+test("marketplace listing mutations require authentication", async () => {
+  const requests = [
+    request(app)
+      .post("/api/marketplace-listings")
+      .send({
+        listingType: "CUSTOMER_TO_CUSTOMER",
+        title: "Test listing",
+        price: 100,
+      }),
+    request(app)
+      .patch("/api/marketplace-listings/test-listing")
+      .send({
+        title: "Updated listing",
+      }),
+    request(app)
+      .post("/api/marketplace-listings/test-listing/publish"),
+    request(app)
+      .post("/api/marketplace-listings/test-listing/pause"),
+    request(app)
+      .post("/api/marketplace-listings/test-listing/cancel"),
+  ];
+
+  for (const pendingRequest of requests) {
+    const response = await pendingRequest.expect(401);
+
+    assert.deepEqual(response.body, {
+      error: "Unauthorized",
+    });
+  }
+});
+
+test("my marketplace listings require authentication", async () => {
+  const response = await request(app)
+    .get("/api/marketplace-listings/mine")
+    .expect(401);
+
+  assert.deepEqual(response.body, {
+    error: "Unauthorized",
+  });
+});
