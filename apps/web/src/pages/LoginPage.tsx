@@ -1,78 +1,149 @@
-// File: apps/web/src/pages/LoginPage.tsx
-
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+
 import { login, persistAuth } from "../services/auth";
+import "../styles/login-page.css";
 
 export default function LoginPage() {
   const nav = useNavigate();
-  const [email, setEmail] = useState("buyer@pawn.local");
-  const [password, setPassword] = useState("Buyer123!");
+  const showDevelopmentCredentials = import.meta.env.DEV;
+
+  const [email, setEmail] = useState(
+    showDevelopmentCredentials ? "buyer@pawn.local" : "",
+  );
+  const [password, setPassword] = useState(
+    showDevelopmentCredentials ? "Buyer123!" : "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setError(null);
     setSubmitting(true);
 
     try {
       const { token, user } = await login(email, password);
-      persistAuth(token, user.role, user);
-      
-if (user.role === "SUPER_ADMIN") {
-  nav("/super-admin");
-} else if (user.role === "ADMIN") {
-  nav("/admin");
-} else if (user.role === "OWNER") {
-  nav("/owner");
-} else {
-  nav("/auctions");
-}
 
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Login failed";
-      setError(message);
+      persistAuth(token, user.role, user);
+
+      if (user.role === "SUPER_ADMIN") {
+        nav("/super-admin");
+      } else if (user.role === "ADMIN") {
+        nav("/admin");
+      } else if (user.role === "OWNER") {
+        nav("/owner");
+      } else {
+        nav("/auctions");
+      }
+    } catch (loginError: unknown) {
+      setError(
+        loginError instanceof Error
+          ? loginError.message
+          : "Login failed.",
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div style={{ maxWidth: 420 }}>
-      <h3>Login</h3>
+    <section className="login-page">
+      <div className="login-page-inner">
+        <div className="login-intro">
+          <span className="login-eyebrow">
+            Secure account access
+          </span>
 
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          type="email"
-          autoComplete="email"
-          required
-        />
+          <h1 className="login-title">
+            Welcome back to PawnLoop.
+          </h1>
 
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
+          <p className="login-description">
+            Sign in to manage listings, offers, auctions,
+            saved items, shop operations, and account activity.
+          </p>
+        </div>
 
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Logging In..." : "Login"}
-        </button>
+        <div className="login-card">
+          <h2 className="login-card-title">Sign in</h2>
 
-        {error ? <div style={{ color: "crimson" }}>{error}</div> : null}
-      </form>
+          <p className="login-card-copy">
+            Enter the email address and password connected to
+            your PawnLoop account.
+          </p>
 
-      <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
-        Buyer test: buyer@pawn.local / Buyer123! — Owner test: owner1@pawn.local / Owner123! —
-        Admin test: admin1@example.com / Admin123 — Super Admin test: superadmin@pawn.local / SuperAdmin123!
-      </p>
-    </div>
+          <form className="login-form" onSubmit={onSubmit}>
+            <div className="login-field">
+              <label className="login-label" htmlFor="login-email">
+                Email address
+              </label>
+
+              <input
+                id="login-email"
+                className="login-input"
+                value={email}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
+                placeholder="you@example.com"
+                type="email"
+                autoComplete="email"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="login-field">
+              <label
+                className="login-label"
+                htmlFor="login-password"
+              >
+                Password
+              </label>
+
+              <input
+                id="login-password"
+                className="login-input"
+                value={password}
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
+                placeholder="Enter your password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+
+            <button
+              className="login-submit"
+              type="submit"
+              disabled={submitting}
+            >
+              {submitting ? "Signing in…" : "Sign in"}
+            </button>
+
+            {error ? (
+              <div
+                className="login-error"
+                role="alert"
+                aria-live="polite"
+              >
+                {error}
+              </div>
+            ) : null}
+          </form>
+
+          {showDevelopmentCredentials ? (
+            <p className="login-dev-credentials">
+              Development accounts: buyer@pawn.local /
+              Buyer123! — owner1@pawn.local / Owner123!
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
