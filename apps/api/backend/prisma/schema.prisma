@@ -246,6 +246,15 @@ model Settlement {
   currency            String            @default("USD")
   failedAt            DateTime?
   failureMessage      String?
+  grossAmountCents    Int?
+  platformFeeCents    Int?
+  sellerNetCents      Int?
+  processorFeeCents   Int?
+  platformNetCents    Int?
+  sellerPlanCode      String?
+  transactionType     String?
+  pricingRuleSnapshot Json?
+  revenueCalculatedAt DateTime?
   fulfillmentStatus   FulfillmentStatus @default(PAYMENT_PENDING)
   fulfillmentNote     String?
   fulfilledAt         DateTime?
