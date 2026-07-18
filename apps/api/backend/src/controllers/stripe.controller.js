@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { createSettlementCreditLedgerEntry } from "../services/payouts/settlementLedger.service.js";
 import { assertPaidSellerPlanCode } from "../config/sellerPlans.js";
 import {
   createValidatedSellerSubscriptionCheckoutSession,
@@ -536,15 +537,25 @@ export async function handleStripeWebhook(req, res) {
         const settlementId = normalizeId(pi?.metadata?.settlementId);
 
         if (settlementId) {
-          await prisma.settlement.update({
-            where: { id: settlementId },
-            data: {
-              status: "CHARGED",
-              stripePaymentIntent: String(pi.id),
-              chargedAt: new Date(),
-              failedAt: null,
-              failureMessage: null,
-            },
+          await prisma.$transaction(async (tx) => {
+            const chargedAt = new Date();
+
+            await tx.settlement.update({
+              where: { id: settlementId },
+              data: {
+                status: "CHARGED",
+                stripePaymentIntent: String(pi.id),
+                chargedAt,
+                failedAt: null,
+                failureMessage: null,
+              },
+            });
+
+            await createSettlementCreditLedgerEntry({
+              settlementId,
+              availableAt: chargedAt,
+              prismaClient: tx,
+            });
           });
         }
         break;
