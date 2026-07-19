@@ -136,6 +136,12 @@ export type MarketplaceReservationCancellation = {
   paymentIntentAlreadyCanceled?: boolean;
 };
 
+export type MarketplacePurchaseReservationInput = {
+  listingId: string;
+  quantity?: number;
+  buyerShopId?: string | null;
+};
+
 type ApiObject = Record<string, unknown>;
 
 function isObject(value: unknown): value is ApiObject {
@@ -325,6 +331,46 @@ export async function getMarketplaceTransactionById(
 
   const data = await api.get<unknown>(
     `/marketplace-transactions/${encodeURIComponent(normalizedId)}`,
+  );
+
+  return unwrapTransaction(data);
+}
+
+export async function reserveMarketplacePurchase(
+  input: MarketplacePurchaseReservationInput,
+): Promise<MarketplaceTransaction> {
+  const listingId =
+    String(input.listingId || "").trim();
+
+  const quantity =
+    input.quantity ?? 1;
+
+  const buyerShopId =
+    String(input.buyerShopId || "").trim() ||
+    null;
+
+  if (!listingId) {
+    throw new Error(
+      "Marketplace listing ID is required.",
+    );
+  }
+
+  if (
+    !Number.isInteger(quantity) ||
+    quantity < 1
+  ) {
+    throw new Error(
+      "Marketplace reservation quantity must be a positive integer.",
+    );
+  }
+
+  const data = await api.post<unknown>(
+    "/marketplace-transactions/reserve",
+    {
+      listingId,
+      quantity,
+      buyerShopId,
+    },
   );
 
   return unwrapTransaction(data);
