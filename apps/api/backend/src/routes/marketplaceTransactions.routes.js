@@ -7,6 +7,7 @@ import {
   getMarketplaceTransactionById,
   listMyMarketplacePurchases,
   listMyMarketplaceSales,
+  updateMarketplaceFulfillment,
 } from "../controllers/marketplaceTransactions.controller.js";
 
 import {
@@ -41,6 +42,12 @@ router.post(
   "/:id/cancel-reservation",
   requireRole(...TRANSACTION_ROLES),
   cancelMarketplaceReservation,
+);
+
+router.patch(
+  "/:id/fulfillment",
+  requireRole(...TRANSACTION_ROLES),
+  updateMarketplaceFulfillment,
 );
 
 router.get(

@@ -3,6 +3,7 @@ import {
   listMarketplacePurchases,
   listMarketplaceSales,
   reserveMarketplacePurchase,
+  updateMarketplaceTransactionFulfillment,
 } from "../services/marketplaceTransaction.service.js";
 
 import {
@@ -176,6 +177,61 @@ export async function cancelMarketplaceReservation(
       res,
       error,
       "Unable to cancel marketplace reservation",
+    );
+  }
+}
+
+export async function updateMarketplaceFulfillment(
+  req,
+  res,
+) {
+  try {
+    const actor =
+      getActor(
+        req,
+      );
+
+    const result =
+      await updateMarketplaceTransactionFulfillment({
+        transactionId:
+          req.params.id,
+
+        actorUserId:
+          actor.userId,
+
+        role:
+          actor.role,
+
+        fulfillmentStatus:
+          req.body
+            ?.fulfillmentStatus,
+
+        trackingNumber:
+          req.body
+            ?.trackingNumber,
+
+        carrier:
+          req.body
+            ?.carrier,
+
+        note:
+          req.body
+            ?.note,
+      });
+
+    return res
+      .status(200)
+      .json({
+        success:
+          true,
+
+        ...result,
+      });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Unable to update marketplace fulfillment",
     );
   }
 }

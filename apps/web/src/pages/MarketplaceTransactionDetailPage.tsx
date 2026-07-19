@@ -30,6 +30,9 @@ import {
   cancelMarketplaceTransactionReservation,
   createMarketplaceTransactionPaymentIntent,
   getMarketplaceTransactionById,
+  updateMarketplaceTransactionFulfillment,
+  type MarketplaceFulfillmentStatus,
+  type MarketplaceFulfillmentUpdateTarget,
   type MarketplacePaymentIntent,
   type MarketplaceTransaction,
   type MarketplaceTransactionStatus,
@@ -89,6 +92,208 @@ function dateLabel(value: string | null | undefined) {
   return Number.isNaN(date.getTime())
     ? "—"
     : date.toLocaleString();
+}
+
+function metadataRecord(
+  value: unknown,
+): Record<string, unknown> {
+  return (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  )
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function metadataText(
+  value: unknown,
+) {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function sellerNetAmount(
+  transaction: MarketplaceTransaction,
+) {
+  const metadata =
+    metadataRecord(
+      transaction.metadata,
+    );
+
+  const cents =
+    Number(
+      metadata.sellerNetCents,
+    );
+
+  if (
+    Number.isFinite(cents) &&
+    cents >= 0
+  ) {
+    return cents / 100;
+  }
+
+  return Math.max(
+    0,
+    Number(
+      transaction.subtotal ||
+      0,
+    ) -
+    Number(
+      transaction.platformFee ||
+      0,
+    ),
+  );
+}
+
+function fulfillmentMetadata(
+  transaction: MarketplaceTransaction,
+) {
+  const metadata =
+    metadataRecord(
+      transaction.metadata,
+    );
+
+  const fulfillment =
+    metadataRecord(
+      metadata.fulfillment,
+    );
+
+  return {
+    carrier:
+      metadataText(
+        fulfillment.carrier,
+      ),
+
+    trackingNumber:
+      metadataText(
+        fulfillment.trackingNumber,
+      ),
+
+    note:
+      metadataText(
+        fulfillment.note,
+      ),
+
+    updatedAt:
+      metadataText(
+        fulfillment.updatedAt,
+      ),
+  };
+}
+
+function nextFulfillmentChoices(
+  transaction: MarketplaceTransaction,
+): Array<{
+  value:
+    MarketplaceFulfillmentUpdateTarget;
+
+  label:
+    string;
+
+  description:
+    string;
+}> {
+  switch (
+    transaction.fulfillmentStatus
+  ) {
+    case "PAYMENT_PENDING":
+      return [
+        ...(transaction
+          .listing
+          ?.pickupAvailable
+          ? [
+              {
+                value:
+                  "READY_FOR_PICKUP" as const,
+
+                label:
+                  "Ready for pickup",
+
+                description:
+                  "Tell the buyer the item can be collected.",
+              },
+            ]
+          : []),
+
+        ...(transaction
+          .listing
+          ?.shippingAvailable
+          ? [
+              {
+                value:
+                  "SHIPPED" as const,
+
+                label:
+                  "Shipped",
+
+                description:
+                  "Record the carrier and tracking number.",
+              },
+            ]
+          : []),
+      ];
+
+    case "READY_FOR_PICKUP":
+      return [
+        {
+          value:
+            "PICKED_UP",
+
+          label:
+            "Picked up",
+
+          description:
+            "Confirm the buyer collected the item.",
+        },
+      ];
+
+    case "PICKED_UP":
+    case "SHIPPED":
+      return [
+        {
+          value:
+            "COMPLETED",
+
+          label:
+            "Completed",
+
+          description:
+            "Close the transaction after fulfillment.",
+        },
+      ];
+
+    default:
+      return [];
+  }
+}
+
+function fulfillmentGuidance(
+  status: MarketplaceFulfillmentStatus,
+) {
+  switch (status) {
+    case "PAYMENT_PENDING":
+      return "Payment is complete, but the seller has not started fulfillment.";
+
+    case "READY_FOR_PICKUP":
+      return "The item is ready for pickup. Coordinate collection with the seller.";
+
+    case "PICKED_UP":
+      return "The seller recorded that the buyer collected the item.";
+
+    case "SHIPPED":
+      return "The seller shipped the item. Review the carrier and tracking information below.";
+
+    case "COMPLETED":
+      return "Payment and fulfillment are complete.";
+
+    case "CANCELED":
+      return "This fulfillment was canceled.";
+
+    default:
+      return "Review the latest fulfillment information below.";
+  }
 }
 
 function statusStyle(
@@ -561,6 +766,7 @@ export default function MarketplaceTransactionDetailPage() {
     useState<
       "payment" |
       "cancellation" |
+      "fulfillment" |
       null
     >(null);
 
@@ -572,6 +778,39 @@ export default function MarketplaceTransactionDetailPage() {
   const [
     actionNotice,
     setActionNotice,
+  ] = useState("");
+
+  const [
+    fulfillmentTarget,
+    setFulfillmentTarget,
+  ] = useState<
+    MarketplaceFulfillmentUpdateTarget |
+    ""
+  >("");
+
+  const [
+    fulfillmentCarrier,
+    setFulfillmentCarrier,
+  ] = useState("");
+
+  const [
+    fulfillmentTracking,
+    setFulfillmentTracking,
+  ] = useState("");
+
+  const [
+    fulfillmentNote,
+    setFulfillmentNote,
+  ] = useState("");
+
+  const [
+    fulfillmentError,
+    setFulfillmentError,
+  ] = useState("");
+
+  const [
+    fulfillmentNotice,
+    setFulfillmentNotice,
   ] = useState("");
 
   const load = useCallback(
@@ -738,6 +977,83 @@ export default function MarketplaceTransactionDetailPage() {
     }
   }
 
+  async function submitFulfillment(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (
+      !transaction ||
+      !fulfillmentTarget
+    ) {
+      setFulfillmentError(
+        "Choose the next fulfillment status.",
+      );
+
+      return;
+    }
+
+    setActionBusy(
+      "fulfillment",
+    );
+
+    setFulfillmentError("");
+    setFulfillmentNotice("");
+
+    try {
+      const result =
+        await updateMarketplaceTransactionFulfillment(
+          transaction.id,
+          {
+            fulfillmentStatus:
+              fulfillmentTarget,
+
+            carrier:
+              fulfillmentTarget ===
+                "SHIPPED"
+                ? fulfillmentCarrier
+                : undefined,
+
+            trackingNumber:
+              fulfillmentTarget ===
+                "SHIPPED"
+                ? fulfillmentTracking
+                : undefined,
+
+            note:
+              fulfillmentNote,
+          },
+        );
+
+      setTransaction(
+        result.transaction,
+      );
+
+      setFulfillmentNotice(
+        result.idempotent
+          ? `Fulfillment was already ${readable(
+              result.transaction.fulfillmentStatus,
+            )}.`
+          : `Fulfillment updated to ${readable(
+              result.transaction.fulfillmentStatus,
+            )}.`,
+      );
+
+      setFulfillmentTarget("");
+      setFulfillmentCarrier("");
+      setFulfillmentTracking("");
+      setFulfillmentNote("");
+    } catch (caught) {
+      setFulfillmentError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to update marketplace fulfillment.",
+      );
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
   if (loading) {
     return (
       <main style={pageStyle}>
@@ -838,8 +1154,23 @@ export default function MarketplaceTransactionDetailPage() {
         transaction.buyerUserId,
     );
 
+  const isTransactionSeller =
+    Boolean(
+      authUser?.id &&
+      (
+        authUser.id ===
+          transaction.sellerUserId ||
+        authUser.id ===
+          transaction.sellerShop?.ownerId
+      ),
+    );
+
   const canManageCheckout =
     isTransactionBuyer ||
+    isAdministrator;
+
+  const canManageFulfillment =
+    isTransactionSeller ||
     isAdministrator;
 
   const transactionIsActionable =
@@ -860,6 +1191,21 @@ export default function MarketplaceTransactionDetailPage() {
     listing?.images?.find(
       (image) => typeof image === "string" && image,
     ) || "";
+
+  const fulfillmentInfo =
+    fulfillmentMetadata(
+      transaction,
+    );
+
+  const fulfillmentChoices =
+    nextFulfillmentChoices(
+      transaction,
+    );
+
+  const sellerNet =
+    sellerNetAmount(
+      transaction,
+    );
 
   return (
     <main style={pageStyle}>
@@ -1063,6 +1409,12 @@ export default function MarketplaceTransactionDetailPage() {
           />
 
           <AmountRow
+            label="Seller net proceeds"
+            value={sellerNet}
+            currency={transaction.currency}
+          />
+
+          <AmountRow
             label="Shipping"
             value={transaction.shippingFee}
             currency={transaction.currency}
@@ -1127,6 +1479,19 @@ export default function MarketplaceTransactionDetailPage() {
         >
           <h2>Fulfillment</h2>
 
+          <p
+            role="status"
+            style={{
+              color: "var(--muted)",
+              marginTop: 10,
+              marginBottom: 0,
+            }}
+          >
+            {fulfillmentGuidance(
+              transaction.fulfillmentStatus,
+            )}
+          </p>
+
           <div
             style={{
               display: "grid",
@@ -1145,6 +1510,32 @@ export default function MarketplaceTransactionDetailPage() {
             <Field label="Shipping available">
               {listing?.shippingAvailable ? "Yes" : "No"}
             </Field>
+
+            {fulfillmentInfo.carrier ? (
+              <Field label="Carrier">
+                {fulfillmentInfo.carrier}
+              </Field>
+            ) : null}
+
+            {fulfillmentInfo.trackingNumber ? (
+              <Field label="Tracking number">
+                {fulfillmentInfo.trackingNumber}
+              </Field>
+            ) : null}
+
+            {fulfillmentInfo.note ? (
+              <Field label="Fulfillment note">
+                {fulfillmentInfo.note}
+              </Field>
+            ) : null}
+
+            {fulfillmentInfo.updatedAt ? (
+              <Field label="Fulfillment updated">
+                {dateLabel(
+                  fulfillmentInfo.updatedAt,
+                )}
+              </Field>
+            ) : null}
 
             <Field label="Listing condition">
               {listing?.condition || "Not specified"}
@@ -1189,6 +1580,244 @@ export default function MarketplaceTransactionDetailPage() {
           </div>
         </section>
       </section>
+
+      {canManageFulfillment ? (
+        <section
+          style={{
+            ...panelStyle,
+            padding: 22,
+            marginTop: 20,
+          }}
+        >
+          <h2>
+            Seller fulfillment actions
+          </h2>
+
+          <p
+            style={{
+              color: "var(--muted)",
+              marginBottom: 18,
+            }}
+          >
+            Record pickup or shipping progress so the buyer can follow the transaction.
+          </p>
+
+          {fulfillmentError ? (
+            <p
+              role="alert"
+              style={{
+                padding: 14,
+                borderRadius: "var(--radius-sm)",
+                background: "rgba(255, 142, 161, 0.14)",
+                color: "var(--danger)",
+                fontWeight: 800,
+              }}
+            >
+              {fulfillmentError}
+            </p>
+          ) : null}
+
+          {fulfillmentNotice ? (
+            <p
+              role="status"
+              style={{
+                padding: 14,
+                borderRadius: "var(--radius-sm)",
+                background: "rgba(126, 242, 167, 0.14)",
+                color: "var(--text-strong)",
+                fontWeight: 800,
+              }}
+            >
+              {fulfillmentNotice}
+            </p>
+          ) : null}
+
+          {![
+            "PAID",
+            "FULFILLING",
+            "COMPLETED",
+          ].includes(
+            transaction.status,
+          ) ? (
+            <p
+              style={{
+                color: "var(--muted)",
+                fontWeight: 700,
+              }}
+            >
+              Fulfillment controls unlock after marketplace payment completes.
+            </p>
+          ) : transaction.fulfillmentStatus ===
+            "COMPLETED" ? (
+            <p
+              style={{
+                color: "var(--success)",
+                fontWeight: 800,
+              }}
+            >
+              This transaction has completed fulfillment.
+            </p>
+          ) : fulfillmentChoices.length === 0 ? (
+            <p
+              style={{
+                color: "var(--muted)",
+                fontWeight: 700,
+              }}
+            >
+              No additional fulfillment transition is currently available.
+            </p>
+          ) : (
+            <form
+              onSubmit={submitFulfillment}
+              style={{
+                display: "grid",
+                gap: 16,
+              }}
+            >
+              <label>
+                Next fulfillment status
+
+                <select
+                  aria-label="Next fulfillment status"
+                  value={fulfillmentTarget}
+                  onChange={(event) =>
+                    setFulfillmentTarget(
+                      event.target.value as
+                        MarketplaceFulfillmentUpdateTarget |
+                        "",
+                    )
+                  }
+                  required
+                  style={{
+                    marginTop: 7,
+                  }}
+                >
+                  <option value="">
+                    Choose next status
+                  </option>
+
+                  {fulfillmentChoices.map(
+                    (choice) => (
+                      <option
+                        key={choice.value}
+                        value={choice.value}
+                      >
+                        {choice.label}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+
+              {fulfillmentTarget ? (
+                <p
+                  style={{
+                    margin: 0,
+                    color: "var(--muted)",
+                  }}
+                >
+                  {
+                    fulfillmentChoices.find(
+                      (choice) =>
+                        choice.value ===
+                        fulfillmentTarget,
+                    )?.description
+                  }
+                </p>
+              ) : null}
+
+              {fulfillmentTarget ===
+              "SHIPPED" ? (
+                <>
+                  <label>
+                    Carrier
+
+                    <input
+                      aria-label="Carrier"
+                      value={fulfillmentCarrier}
+                      onChange={(event) =>
+                        setFulfillmentCarrier(
+                          event.target.value,
+                        )
+                      }
+                      maxLength={80}
+                      required
+                      style={{
+                        marginTop: 7,
+                      }}
+                    />
+                  </label>
+
+                  <label>
+                    Tracking number
+
+                    <input
+                      aria-label="Tracking number"
+                      value={fulfillmentTracking}
+                      onChange={(event) =>
+                        setFulfillmentTracking(
+                          event.target.value,
+                        )
+                      }
+                      maxLength={120}
+                      required
+                      style={{
+                        marginTop: 7,
+                      }}
+                    />
+                  </label>
+                </>
+              ) : null}
+
+              <label>
+                Fulfillment note
+
+                <textarea
+                  aria-label="Fulfillment note"
+                  value={fulfillmentNote}
+                  onChange={(event) =>
+                    setFulfillmentNote(
+                      event.target.value,
+                    )
+                  }
+                  maxLength={500}
+                  rows={3}
+                  placeholder="Optional instructions or fulfillment update"
+                  style={{
+                    marginTop: 7,
+                  }}
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={
+                  !fulfillmentTarget ||
+                  actionBusy !== null ||
+                  refreshing
+                }
+                style={{
+                  ...buttonStyle,
+                  borderColor: "var(--accent)",
+                  background: "var(--accent)",
+                  color: "white",
+                  opacity:
+                    !fulfillmentTarget ||
+                    actionBusy !== null ||
+                    refreshing
+                      ? 0.65
+                      : 1,
+                }}
+              >
+                {actionBusy ===
+                "fulfillment"
+                  ? "Updating fulfillment..."
+                  : "Update fulfillment"}
+              </button>
+            </form>
+          )}
+        </section>
+      ) : null}
 
       {canManageCheckout ? (
         <section

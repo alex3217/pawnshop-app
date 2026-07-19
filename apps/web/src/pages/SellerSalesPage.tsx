@@ -101,6 +101,53 @@ function dateLabel(value: string | null | undefined) {
     : date.toLocaleString();
 }
 
+function metadataRecord(
+  value: unknown,
+): Record<string, unknown> {
+  return (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  )
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function sellerNetAmount(
+  transaction: MarketplaceTransaction,
+) {
+  const metadata =
+    metadataRecord(
+      transaction.metadata,
+    );
+
+  const sellerNetCents =
+    Number(
+      metadata.sellerNetCents,
+    );
+
+  if (
+    Number.isFinite(
+      sellerNetCents,
+    ) &&
+    sellerNetCents >= 0
+  ) {
+    return sellerNetCents / 100;
+  }
+
+  return Math.max(
+    0,
+    Number(
+      transaction.subtotal ||
+      0,
+    ) -
+    Number(
+      transaction.platformFee ||
+      0,
+    ),
+  );
+}
+
 function statusStyle(
   status: MarketplaceTransactionStatus,
 ): CSSProperties {
@@ -156,6 +203,11 @@ function SaleCard({
     transaction.buyerShop?.name ||
     transaction.buyer?.name ||
     "Marketplace buyer";
+
+  const sellerNet =
+    sellerNetAmount(
+      transaction,
+    );
 
   return (
     <article
@@ -246,6 +298,22 @@ function SaleCard({
           >
             {money(
               transaction.platformFee,
+              transaction.currency,
+            )}
+          </strong>
+        </div>
+
+        <div>
+          <small>Net proceeds</small>
+          <strong
+            style={{
+              display: "block",
+              color: "var(--success)",
+              fontSize: 18,
+            }}
+          >
+            {money(
+              sellerNet,
               transaction.currency,
             )}
           </strong>
@@ -388,6 +456,16 @@ export default function SellerSalesPage() {
       0,
     );
 
+    const netProceeds =
+      transactions.reduce(
+        (sum, transaction) =>
+          sum +
+          sellerNetAmount(
+            transaction,
+          ),
+        0,
+      );
+
     const completed = transactions.filter(
       (transaction) =>
         transaction.status === "COMPLETED",
@@ -402,6 +480,7 @@ export default function SellerSalesPage() {
     return {
       grossValue,
       platformFees,
+      netProceeds,
       completed,
       awaitingFulfillment,
     };
@@ -505,6 +584,10 @@ export default function SellerSalesPage() {
           [
             "Platform fees on page",
             money(totals.platformFees),
+          ],
+          [
+            "Net proceeds on page",
+            money(totals.netProceeds),
           ],
           [
             "Awaiting fulfillment",

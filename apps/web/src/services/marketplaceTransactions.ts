@@ -136,6 +136,37 @@ export type MarketplaceReservationCancellation = {
   paymentIntentAlreadyCanceled?: boolean;
 };
 
+export type MarketplaceFulfillmentUpdateTarget =
+  | "READY_FOR_PICKUP"
+  | "PICKED_UP"
+  | "SHIPPED"
+  | "COMPLETED";
+
+export type MarketplaceFulfillmentUpdateInput = {
+  fulfillmentStatus:
+    MarketplaceFulfillmentUpdateTarget;
+
+  trackingNumber?:
+    string;
+
+  carrier?:
+    string;
+
+  note?:
+    string;
+};
+
+export type MarketplaceFulfillmentUpdateResult = {
+  handled:
+    boolean;
+
+  idempotent:
+    boolean;
+
+  transaction:
+    MarketplaceTransaction;
+};
+
 export type MarketplacePurchaseReservationInput = {
   listingId: string;
   quantity?: number;
@@ -423,5 +454,49 @@ export async function cancelMarketplaceTransactionReservation(
   return unwrapActionResponse<MarketplaceReservationCancellation>(
     data,
     "Marketplace cancellation response is invalid.",
+  );
+}
+
+export async function updateMarketplaceTransactionFulfillment(
+  transactionId: string,
+  input: MarketplaceFulfillmentUpdateInput,
+): Promise<MarketplaceFulfillmentUpdateResult> {
+  const normalizedId =
+    transactionId.trim();
+
+  if (!normalizedId) {
+    throw new Error(
+      "Marketplace transaction ID is required.",
+    );
+  }
+
+  const data =
+    await api.patch<unknown>(
+      `/marketplace-transactions/${encodeURIComponent(
+        normalizedId,
+      )}/fulfillment`,
+      {
+        fulfillmentStatus:
+          input.fulfillmentStatus,
+
+        trackingNumber:
+          input.trackingNumber?.trim() ||
+          undefined,
+
+        carrier:
+          input.carrier?.trim() ||
+          undefined,
+
+        note:
+          input.note?.trim() ||
+          undefined,
+      },
+    );
+
+  return unwrapActionResponse<
+    MarketplaceFulfillmentUpdateResult
+  >(
+    data,
+    "Marketplace fulfillment response is invalid.",
   );
 }
