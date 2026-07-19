@@ -1068,3 +1068,456 @@ test(
     );
   },
 );
+
+test(
+  "cancellation endpoint requires authentication",
+  async () => {
+    const response = await request(app)
+      .post(
+        "/api/marketplace-transactions/" +
+        "missing-cancellation-transaction/" +
+        "cancel-reservation",
+      )
+      .send({
+        reason: "BUYER_CANCELED",
+      });
+
+    assert.equal(response.status, 401);
+
+    assert.deepEqual(response.body, {
+      error: "Unauthorized",
+    });
+  },
+);
+
+test(
+  "cancellation endpoint restores inventory and is idempotent",
+  async () => {
+    const seller =
+      await createUser(
+        "cancel-success-seller",
+      );
+
+    const buyer =
+      await createUser(
+        "cancel-success-buyer",
+      );
+
+    const listing =
+      await createListing({
+        seller,
+        quantity: 3,
+        price: "95.00",
+      });
+
+    const transaction =
+      await reserveMarketplacePurchase({
+        listingId: listing.id,
+        buyerUserId: buyer.id,
+        quantity: 2,
+      });
+
+    let storedListing =
+      await prisma
+        .marketplaceListing
+        .findUnique({
+          where: {
+            id: listing.id,
+          },
+        });
+
+    assert.equal(
+      storedListing.quantity,
+      1,
+    );
+
+    assert.equal(
+      storedListing.status,
+      "ACTIVE",
+    );
+
+    const firstResponse =
+      await request(app)
+        .post(
+          `/api/marketplace-transactions/${transaction.id}/cancel-reservation`,
+        )
+        .set(
+          "Authorization",
+          `Bearer ${tokenFor(buyer)}`,
+        )
+        .send({
+          reason:
+            "BUYER_CHANGED_MIND",
+        });
+
+    assert.equal(
+      firstResponse.status,
+      200,
+    );
+
+    assert.equal(
+      firstResponse.body.success,
+      true,
+    );
+
+    assert.equal(
+      firstResponse.body.idempotent,
+      false,
+    );
+
+    assert.equal(
+      firstResponse.body.transactionStatus,
+      "CANCELED",
+    );
+
+    assert.equal(
+      firstResponse.body.quantityRestored,
+      2,
+    );
+
+    assert.equal(
+      firstResponse.body.listingStatus,
+      "ACTIVE",
+    );
+
+    let storedTransaction =
+      await prisma
+        .marketplaceTransaction
+        .findUnique({
+          where: {
+            id: transaction.id,
+          },
+        });
+
+    storedListing =
+      await prisma
+        .marketplaceListing
+        .findUnique({
+          where: {
+            id: listing.id,
+          },
+        });
+
+    assert.equal(
+      storedTransaction.status,
+      "CANCELED",
+    );
+
+    assert.equal(
+      storedTransaction
+        .fulfillmentStatus,
+      "CANCELED",
+    );
+
+    assert.ok(
+      storedTransaction.canceledAt,
+    );
+
+    assert.equal(
+      storedTransaction
+        .metadata
+        .reservationRelease
+        .reason,
+      "BUYER_CHANGED_MIND",
+    );
+
+    assert.equal(
+      storedTransaction
+        .metadata
+        .reservationRelease
+        .restoredQuantity,
+      2,
+    );
+
+    assert.equal(
+      storedTransaction
+        .metadata
+        .reservationRelease
+        .releasedByUserId,
+      buyer.id,
+    );
+
+    assert.equal(
+      storedListing.quantity,
+      3,
+    );
+
+    assert.equal(
+      storedListing.status,
+      "ACTIVE",
+    );
+
+    const duplicateResponse =
+      await request(app)
+        .post(
+          `/api/marketplace-transactions/${transaction.id}/cancel-reservation`,
+        )
+        .set(
+          "Authorization",
+          `Bearer ${tokenFor(buyer)}`,
+        )
+        .send({
+          reason:
+            "BUYER_CHANGED_MIND",
+        });
+
+    assert.equal(
+      duplicateResponse.status,
+      200,
+    );
+
+    assert.equal(
+      duplicateResponse.body.success,
+      true,
+    );
+
+    assert.equal(
+      duplicateResponse.body.idempotent,
+      true,
+    );
+
+    assert.equal(
+      duplicateResponse.body.quantityRestored,
+      0,
+    );
+
+    storedTransaction =
+      await prisma
+        .marketplaceTransaction
+        .findUnique({
+          where: {
+            id: transaction.id,
+          },
+        });
+
+    storedListing =
+      await prisma
+        .marketplaceListing
+        .findUnique({
+          where: {
+            id: listing.id,
+          },
+        });
+
+    assert.equal(
+      storedTransaction.status,
+      "CANCELED",
+    );
+
+    assert.equal(
+      storedListing.quantity,
+      3,
+    );
+
+    assert.equal(
+      storedListing.status,
+      "ACTIVE",
+    );
+  },
+);
+
+test(
+  "cancellation endpoint blocks users who are not the buyer",
+  async () => {
+    const seller =
+      await createUser(
+        "cancel-forbidden-seller",
+      );
+
+    const buyer =
+      await createUser(
+        "cancel-forbidden-buyer",
+      );
+
+    const outsider =
+      await createUser(
+        "cancel-forbidden-outsider",
+      );
+
+    const listing =
+      await createListing({
+        seller,
+        quantity: 1,
+        price: "140.00",
+      });
+
+    const transaction =
+      await reserveMarketplacePurchase({
+        listingId: listing.id,
+        buyerUserId: buyer.id,
+        quantity: 1,
+      });
+
+    const response =
+      await request(app)
+        .post(
+          `/api/marketplace-transactions/${transaction.id}/cancel-reservation`,
+        )
+        .set(
+          "Authorization",
+          `Bearer ${tokenFor(outsider)}`,
+        )
+        .send({
+          reason: "BUYER_CANCELED",
+        });
+
+    assert.equal(
+      response.status,
+      403,
+    );
+
+    assert.equal(
+      response.body.success,
+      false,
+    );
+
+    assert.equal(
+      response.body.code,
+      "MARKETPLACE_RESERVATION_FORBIDDEN",
+    );
+
+    const storedTransaction =
+      await prisma
+        .marketplaceTransaction
+        .findUnique({
+          where: {
+            id: transaction.id,
+          },
+        });
+
+    const storedListing =
+      await prisma
+        .marketplaceListing
+        .findUnique({
+          where: {
+            id: listing.id,
+          },
+        });
+
+    assert.equal(
+      storedTransaction.status,
+      "PENDING",
+    );
+
+    assert.equal(
+      storedTransaction.canceledAt,
+      null,
+    );
+
+    assert.equal(
+      storedListing.quantity,
+      0,
+    );
+
+    assert.equal(
+      storedListing.status,
+      "RESERVED",
+    );
+  },
+);
+
+test(
+  "cancellation endpoint blocks transactions that are already paid",
+  async () => {
+    const seller =
+      await createUser(
+        "cancel-paid-seller",
+      );
+
+    const buyer =
+      await createUser(
+        "cancel-paid-buyer",
+      );
+
+    const listing =
+      await createListing({
+        seller,
+        quantity: 1,
+        price: "225.00",
+      });
+
+    const transaction =
+      await reserveMarketplacePurchase({
+        listingId: listing.id,
+        buyerUserId: buyer.id,
+        quantity: 1,
+      });
+
+    await prisma
+      .marketplaceTransaction
+      .update({
+        where: {
+          id: transaction.id,
+        },
+        data: {
+          status: "PAID",
+        },
+      });
+
+    const response =
+      await request(app)
+        .post(
+          `/api/marketplace-transactions/${transaction.id}/cancel-reservation`,
+        )
+        .set(
+          "Authorization",
+          `Bearer ${tokenFor(buyer)}`,
+        )
+        .send({
+          reason: "BUYER_CANCELED",
+        });
+
+    assert.equal(
+      response.status,
+      409,
+    );
+
+    assert.equal(
+      response.body.success,
+      false,
+    );
+
+    assert.equal(
+      response.body.code,
+      "MARKETPLACE_TRANSACTION_ALREADY_FINALIZED",
+    );
+
+    const storedTransaction =
+      await prisma
+        .marketplaceTransaction
+        .findUnique({
+          where: {
+            id: transaction.id,
+          },
+        });
+
+    const storedListing =
+      await prisma
+        .marketplaceListing
+        .findUnique({
+          where: {
+            id: listing.id,
+          },
+        });
+
+    assert.equal(
+      storedTransaction.status,
+      "PAID",
+    );
+
+    assert.equal(
+      storedTransaction.canceledAt,
+      null,
+    );
+
+    assert.equal(
+      storedListing.quantity,
+      0,
+    );
+
+    assert.equal(
+      storedListing.status,
+      "RESERVED",
+    );
+  },
+);
