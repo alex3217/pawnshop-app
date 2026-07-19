@@ -255,6 +255,52 @@ export async function scanBuyerItemSubmission(
   );
 }
 
+export async function getCustomerItemIntakeLinkage(
+  intakeId: string,
+  signal?: AbortSignal,
+): Promise<BuyerItemScanIntake> {
+  const normalizedIntakeId =
+    String(
+      intakeId ||
+      "",
+    ).trim();
+
+  if (!normalizedIntakeId) {
+    throw new Error(
+      "Customer item intake ID is required.",
+    );
+  }
+
+  const data =
+    await api.get<{
+      success:
+        boolean;
+
+      intake:
+        BuyerItemScanIntake;
+    }>(
+      `/buyer/item-submissions/intakes/${encodeURIComponent(
+        normalizedIntakeId,
+      )}`,
+      {
+        signal,
+      },
+    );
+
+  if (
+    !data?.intake ||
+    data.intake.id !==
+      normalizedIntakeId
+  ) {
+    throw new Error(
+      "Invalid customer item intake linkage response.",
+    );
+  }
+
+  return data.intake;
+}
+
+
 export async function createBuyerItemSubmission(
   input: CreateBuyerItemSubmissionInput,
   signal?: AbortSignal,
