@@ -111,6 +111,31 @@ export type MarketplaceTransactionFilters = {
   type?: MarketplaceTransactionType;
 };
 
+export type MarketplacePaymentIntent = {
+  transactionId: string;
+  paymentIntentId: string;
+  clientSecret: string | null;
+  amount: number;
+  currency: string;
+  paymentStatus: string;
+  transactionStatus: MarketplaceTransactionStatus;
+  reused: boolean;
+  finalized: boolean;
+};
+
+export type MarketplaceReservationCancellation = {
+  handled: boolean;
+  idempotent: boolean;
+  transactionId: string;
+  transactionStatus: "CANCELED";
+  quantityRestored: number;
+  listingStatus: string | null;
+  paymentIntentId?: string | null;
+  paymentIntentStatus?: string | null;
+  paymentIntentCanceled?: boolean;
+  paymentIntentAlreadyCanceled?: boolean;
+};
+
 type ApiObject = Record<string, unknown>;
 
 function isObject(value: unknown): value is ApiObject {
@@ -246,6 +271,27 @@ function unwrapTransaction(
   return transaction as MarketplaceTransaction;
 }
 
+function unwrapActionResponse<T>(
+  data: unknown,
+  missingMessage: string,
+): T {
+  if (!isObject(data)) {
+    throw new Error(missingMessage);
+  }
+
+  const nested = isObject(data.data)
+    ? data.data
+    : null;
+
+  const result = nested ?? data;
+
+  if (!isObject(result)) {
+    throw new Error(missingMessage);
+  }
+
+  return result as T;
+}
+
 export async function getMyMarketplacePurchases(
   filters: MarketplaceTransactionFilters = {},
 ): Promise<MarketplaceTransactionList> {
@@ -282,4 +328,54 @@ export async function getMarketplaceTransactionById(
   );
 
   return unwrapTransaction(data);
+}
+
+export async function createMarketplaceTransactionPaymentIntent(
+  transactionId: string,
+): Promise<MarketplacePaymentIntent> {
+  const normalizedId = transactionId.trim();
+
+  if (!normalizedId) {
+    throw new Error(
+      "Marketplace transaction ID is required.",
+    );
+  }
+
+  const data = await api.post<unknown>(
+    `/marketplace-transactions/${encodeURIComponent(normalizedId)}/payment-intent`,
+    {},
+  );
+
+  return unwrapActionResponse<MarketplacePaymentIntent>(
+    data,
+    "Marketplace payment response is invalid.",
+  );
+}
+
+export async function cancelMarketplaceTransactionReservation(
+  transactionId: string,
+  reason = "BUYER_CANCELED",
+): Promise<MarketplaceReservationCancellation> {
+  const normalizedId = transactionId.trim();
+
+  if (!normalizedId) {
+    throw new Error(
+      "Marketplace transaction ID is required.",
+    );
+  }
+
+  const normalizedReason =
+    reason.trim() || "BUYER_CANCELED";
+
+  const data = await api.post<unknown>(
+    `/marketplace-transactions/${encodeURIComponent(normalizedId)}/cancel-reservation`,
+    {
+      reason: normalizedReason,
+    },
+  );
+
+  return unwrapActionResponse<MarketplaceReservationCancellation>(
+    data,
+    "Marketplace cancellation response is invalid.",
+  );
 }
