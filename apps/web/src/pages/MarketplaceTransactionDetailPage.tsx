@@ -3,6 +3,7 @@ import {
   useEffect,
   useState,
   type CSSProperties,
+  type FormEvent,
   type ReactNode,
 } from "react";
 import {
@@ -12,7 +13,24 @@ import {
 } from "react-router-dom";
 
 import {
+  CardElement,
+  Elements,
+  useElements,
+  useStripe,
+} from "@stripe/react-stripe-js";
+
+import { stripePromise } from "../lib/stripe";
+
+import {
+  getAuthRole,
+  getAuthUser,
+} from "../services/auth";
+
+import {
+  cancelMarketplaceTransactionReservation,
+  createMarketplaceTransactionPaymentIntent,
   getMarketplaceTransactionById,
+  type MarketplacePaymentIntent,
   type MarketplaceTransaction,
   type MarketplaceTransactionStatus,
 } from "../services/marketplaceTransactions";
@@ -275,6 +293,248 @@ function shopAddress(
     .join(", ");
 }
 
+function MarketplaceCheckoutPanel({
+  payment,
+  disabled,
+  onClose,
+  onError,
+  onSuccess,
+}: {
+  payment: MarketplacePaymentIntent;
+  disabled: boolean;
+  onClose: () => void;
+  onError: (message: string) => void;
+  onSuccess: () => Promise<void>;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+
+  const [processing, setProcessing] =
+    useState(false);
+
+  async function submitPayment(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (
+      !stripe ||
+      !elements
+    ) {
+      onError(
+        "Stripe is still loading. Please try again.",
+      );
+
+      return;
+    }
+
+    if (!payment.clientSecret) {
+      onError(
+        "The marketplace payment is missing its Stripe client secret.",
+      );
+
+      return;
+    }
+
+    const card =
+      elements.getElement(
+        CardElement,
+      );
+
+    if (!card) {
+      onError(
+        "The secure card form is not ready yet.",
+      );
+
+      return;
+    }
+
+    setProcessing(true);
+    onError("");
+
+    try {
+      const result =
+        await stripe.confirmCardPayment(
+          payment.clientSecret,
+          {
+            payment_method: {
+              card,
+            },
+          },
+        );
+
+      if (result.error) {
+        throw new Error(
+          result.error.message ||
+          "Marketplace payment failed.",
+        );
+      }
+
+      if (
+        result.paymentIntent?.status !==
+        "succeeded"
+      ) {
+        throw new Error(
+          `Payment is ${
+            result.paymentIntent?.status ||
+            "not complete"
+          } yet.`,
+        );
+      }
+
+      await onSuccess();
+    } catch (caught) {
+      onError(
+        caught instanceof Error
+          ? caught.message
+          : "Marketplace payment failed.",
+      );
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  return (
+    <section
+      style={{
+        marginTop: 20,
+        padding: 20,
+        border:
+          "1px solid var(--border)",
+        borderRadius:
+          "var(--radius-md)",
+        background:
+          "var(--bg-soft)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent:
+            "space-between",
+          gap: 16,
+          flexWrap: "wrap",
+          marginBottom: 18,
+        }}
+      >
+        <div>
+          <p
+            style={{
+              margin: "0 0 6px",
+              color: "var(--accent)",
+              fontWeight: 900,
+              textTransform:
+                "uppercase",
+              letterSpacing:
+                "0.07em",
+              fontSize: 12,
+            }}
+          >
+            Secure checkout
+          </p>
+
+          <h3
+            style={{
+              marginBottom: 6,
+            }}
+          >
+            Pay marketplace transaction
+          </h3>
+
+          <p
+            style={{
+              margin: 0,
+              color: "var(--muted)",
+            }}
+          >
+            Payment reference{" "}
+            {payment.paymentIntentId}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={
+            disabled ||
+            processing
+          }
+          style={buttonStyle}
+        >
+          Close payment
+        </button>
+      </div>
+
+      <form
+        onSubmit={submitPayment}
+        style={{
+          display: "grid",
+          gap: 16,
+        }}
+      >
+        <div
+          style={{
+            padding: 16,
+            border:
+              "1px solid var(--border-strong)",
+            borderRadius:
+              "var(--radius-sm)",
+            background:
+              "var(--surface)",
+          }}
+        >
+          <CardElement
+            options={{
+              hidePostalCode: true,
+              style: {
+                base: {
+                  color: "#0f172a",
+                  fontSize: "16px",
+                  "::placeholder": {
+                    color:
+                      "#64748b",
+                  },
+                },
+                invalid: {
+                  color:
+                    "#dc2626",
+                },
+              },
+            }}
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={
+            !stripe ||
+            disabled ||
+            processing
+          }
+          style={{
+            ...buttonStyle,
+            borderColor:
+              "var(--accent)",
+            background:
+              "var(--accent)",
+            color: "white",
+            opacity:
+              disabled ||
+              processing
+                ? 0.65
+                : 1,
+          }}
+        >
+          {processing
+            ? "Confirming payment..."
+            : "Confirm secure payment"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
 export default function MarketplaceTransactionDetailPage() {
   const navigate = useNavigate();
   const { id = "" } = useParams<{ id: string }>();
@@ -285,6 +545,34 @@ export default function MarketplaceTransactionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+
+  const [
+    activePayment,
+    setActivePayment,
+  ] =
+    useState<MarketplacePaymentIntent | null>(
+      null,
+    );
+
+  const [
+    actionBusy,
+    setActionBusy,
+  ] =
+    useState<
+      "payment" |
+      "cancellation" |
+      null
+    >(null);
+
+  const [
+    actionError,
+    setActionError,
+  ] = useState("");
+
+  const [
+    actionNotice,
+    setActionNotice,
+  ] = useState("");
 
   const load = useCallback(
     async (refresh = false) => {
@@ -333,6 +621,122 @@ export default function MarketplaceTransactionDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function preparePayment() {
+    if (!transaction) {
+      return;
+    }
+
+    setActionBusy("payment");
+    setActionError("");
+    setActionNotice("");
+    setActivePayment(null);
+
+    try {
+      const payment =
+        await createMarketplaceTransactionPaymentIntent(
+          transaction.id,
+        );
+
+      if (
+        payment.finalized ||
+        payment.paymentStatus ===
+          "succeeded"
+      ) {
+        setActionNotice(
+          "Stripe already reports this payment as successful. Refreshing the marketplace status.",
+        );
+
+        await load(true);
+        return;
+      }
+
+      if (!payment.clientSecret) {
+        throw new Error(
+          "Stripe did not return a marketplace payment client secret.",
+        );
+      }
+
+      setActivePayment(
+        payment,
+      );
+
+      setActionNotice(
+        "Payment is ready. Enter your card details below to complete checkout.",
+      );
+    } catch (caught) {
+      setActionError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to prepare marketplace payment.",
+      );
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function paymentConfirmed() {
+    setActivePayment(null);
+    setActionError("");
+
+    setActionNotice(
+      "Stripe confirmed the payment. The transaction will show Paid after webhook processing completes.",
+    );
+
+    await load(true);
+  }
+
+  async function cancelReservation() {
+    if (!transaction) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        "Cancel this marketplace reservation and return the item quantity to the listing?",
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActionBusy(
+      "cancellation",
+    );
+
+    setActionError("");
+    setActionNotice("");
+
+    try {
+      const cancellation =
+        await cancelMarketplaceTransactionReservation(
+          transaction.id,
+          "BUYER_CANCELED_FROM_TRANSACTION_DETAIL",
+        );
+
+      setActivePayment(null);
+
+      setActionNotice(
+        cancellation.idempotent
+          ? "This reservation was already canceled."
+          : `Reservation canceled. ${cancellation.quantityRestored} item${
+              cancellation.quantityRestored === 1
+                ? ""
+                : "s"
+            } returned to the listing.`,
+      );
+
+      await load(true);
+    } catch (caught) {
+      setActionError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to cancel the marketplace reservation.",
+      );
+    } finally {
+      setActionBusy(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -409,6 +813,40 @@ export default function MarketplaceTransactionDetailPage() {
   }
 
   const listing = transaction.listing;
+
+  const authUser =
+    getAuthUser();
+
+  const authRole =
+    getAuthRole();
+
+  const normalizedAuthRole =
+    String(authRole || "")
+      .trim()
+      .toUpperCase();
+
+  const isAdministrator =
+    normalizedAuthRole ===
+      "ADMIN" ||
+    normalizedAuthRole ===
+      "SUPER_ADMIN";
+
+  const isTransactionBuyer =
+    Boolean(
+      authUser?.id &&
+      authUser.id ===
+        transaction.buyerUserId,
+    );
+
+  const canManageCheckout =
+    isTransactionBuyer ||
+    isAdministrator;
+
+  const transactionIsActionable =
+    transaction.status ===
+      "PENDING" ||
+    transaction.status ===
+      "PAYMENT_PROCESSING";
 
   const buyerName =
     transaction.buyer?.name ||
@@ -751,6 +1189,182 @@ export default function MarketplaceTransactionDetailPage() {
           </div>
         </section>
       </section>
+
+      {canManageCheckout ? (
+        <section
+          style={{
+            ...panelStyle,
+            padding: 22,
+            marginTop: 20,
+          }}
+        >
+          <h2>
+            Checkout actions
+          </h2>
+
+          <p
+            style={{
+              color:
+                "var(--muted)",
+              marginBottom: 18,
+            }}
+          >
+            Pay this reservation securely or cancel it before payment completes.
+          </p>
+
+          {actionError ? (
+            <p
+              role="alert"
+              style={{
+                padding: 14,
+                borderRadius:
+                  "var(--radius-sm)",
+                background:
+                  "rgba(255, 142, 161, 0.14)",
+                color:
+                  "var(--danger)",
+                fontWeight: 800,
+              }}
+            >
+              {actionError}
+            </p>
+          ) : null}
+
+          {actionNotice ? (
+            <p
+              role="status"
+              style={{
+                padding: 14,
+                borderRadius:
+                  "var(--radius-sm)",
+                background:
+                  "rgba(126, 242, 167, 0.14)",
+                color:
+                  "var(--text-strong)",
+                fontWeight: 800,
+              }}
+            >
+              {actionNotice}
+            </p>
+          ) : null}
+
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap:
+                "wrap",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() =>
+                void preparePayment()
+              }
+              disabled={
+                !transactionIsActionable ||
+                actionBusy !== null ||
+                refreshing
+              }
+              style={{
+                ...buttonStyle,
+                borderColor:
+                  "var(--accent)",
+                background:
+                  "var(--accent)",
+                color: "white",
+                opacity:
+                  !transactionIsActionable ||
+                  actionBusy !== null ||
+                  refreshing
+                    ? 0.65
+                    : 1,
+              }}
+            >
+              {actionBusy ===
+              "payment"
+                ? "Preparing payment..."
+                : "Pay now"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                void cancelReservation()
+              }
+              disabled={
+                !transactionIsActionable ||
+                actionBusy !== null ||
+                refreshing
+              }
+              style={{
+                ...buttonStyle,
+                borderColor:
+                  "var(--danger)",
+                color:
+                  "var(--danger)",
+                opacity:
+                  !transactionIsActionable ||
+                  actionBusy !== null ||
+                  refreshing
+                    ? 0.65
+                    : 1,
+              }}
+            >
+              {actionBusy ===
+              "cancellation"
+                ? "Canceling reservation..."
+                : "Cancel reservation"}
+            </button>
+          </div>
+
+          {!transactionIsActionable ? (
+            <p
+              style={{
+                margin:
+                  "16px 0 0",
+                color:
+                  "var(--muted)",
+                fontWeight: 700,
+              }}
+            >
+              Payment and reservation cancellation are unavailable for a {readable(
+                transaction.status,
+              )} transaction.
+            </p>
+          ) : null}
+
+          {activePayment?.clientSecret ? (
+            <Elements
+              stripe={
+                stripePromise
+              }
+            >
+              <MarketplaceCheckoutPanel
+                payment={
+                  activePayment
+                }
+                disabled={
+                  actionBusy !==
+                    null ||
+                  refreshing
+                }
+                onClose={() =>
+                  setActivePayment(
+                    null,
+                  )
+                }
+                onError={
+                  setActionError
+                }
+                onSuccess={
+                  paymentConfirmed
+                }
+              />
+            </Elements>
+          ) : null}
+        </section>
+      ) : null}
 
       <div
         style={{
