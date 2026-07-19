@@ -31,6 +31,10 @@ const BUYER_PRIMARY_NAV: NavItem[] = [
     to: "/marketplace/purchases",
     label: "My Purchases",
   },
+  {
+    to: "/marketplace/listings/mine",
+    label: "My Listings",
+  },
   { to: "/offers", label: "Offers" },
 ];
 
@@ -48,6 +52,10 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
   {
     to: "/marketplace/sales",
     label: "Marketplace Sales",
+  },
+  {
+    to: "/marketplace/listings/mine",
+    label: "My Listings",
   },
   { to: "/owner/finance", label: "Finance" },
   { to: "/owner/locations", label: "Locations" },
