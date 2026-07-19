@@ -6,6 +6,7 @@ import {
   createBuyerItemSubmissionOffer,
   getMyBuyerItemSubmissionOffers,
   rejectBuyerItemSubmissionOffer,
+  scanBuyerItemSubmission,
   getMyBuyerItemSubmissions,
   getOwnerBuyerItemSubmissions,
   reviewBuyerItemSubmission,
@@ -15,6 +16,14 @@ import {
 const router = express.Router();
 
 router.post("/", authRequired, requireRole("CONSUMER", "ADMIN"), createBuyerItemSubmission);
+
+router.post(
+  "/scan",
+  authRequired,
+  requireRole("CONSUMER"),
+  scanBuyerItemSubmission,
+);
+
 router.get("/mine", authRequired, requireRole("CONSUMER", "ADMIN"), getMyBuyerItemSubmissions);
 router.patch("/:id/withdraw", authRequired, requireRole("CONSUMER", "ADMIN"), withdrawBuyerItemSubmission);
 

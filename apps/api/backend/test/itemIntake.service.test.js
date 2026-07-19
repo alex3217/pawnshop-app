@@ -97,6 +97,96 @@ test("recordItemIntakeScan creates a clear intake", async () => {
   );
 });
 
+test("recordItemIntakeScan scopes customer duplicates without a shop", async () => {
+  const fake =
+    createFakePrisma();
+
+  const result =
+    await recordItemIntakeScan({
+      prismaClient:
+        fake.client,
+
+      shopId:
+        null,
+
+      capturedByUserId:
+        "buyer-1",
+
+      code:
+        "012345678905",
+
+      input: {
+        customerId:
+          "buyer-1",
+
+        source:
+          "CAMERA",
+
+        destination:
+          "CUSTOMER_MARKETPLACE",
+      },
+    });
+
+  assert.equal(
+    fake.calls.findFirst.where.shopId,
+    null,
+  );
+
+  assert.equal(
+    fake.calls.findFirst.where.customerId,
+    "buyer-1",
+  );
+
+  assert.equal(
+    fake.calls.create.data.shopId,
+    null,
+  );
+
+  assert.equal(
+    fake.calls.create.data.customerId,
+    "buyer-1",
+  );
+
+  assert.equal(
+    fake.calls.create.data.metadata.workflow,
+    "customer-item-scan-v1",
+  );
+
+  assert.equal(
+    fake.calls.create.data.metadata.duplicateScope,
+    "CUSTOMER",
+  );
+
+  assert.equal(
+    result.intake.status,
+    "SCANNED",
+  );
+});
+
+test("recordItemIntakeScan rejects an unscoped scan", async () => {
+  const fake =
+    createFakePrisma();
+
+  await assert.rejects(
+    () =>
+      recordItemIntakeScan({
+        prismaClient:
+          fake.client,
+
+        shopId:
+          null,
+
+        capturedByUserId:
+          "unknown-user",
+
+        code:
+          "UNSCOPED-100",
+      }),
+
+    /shop or customer scan scope is required/i,
+  );
+});
+
 test("recordItemIntakeScan flags prior intake duplicates", async () => {
   const fake = createFakePrisma({
     id: "intake-existing-1",
