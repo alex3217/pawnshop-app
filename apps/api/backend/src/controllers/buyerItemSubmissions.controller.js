@@ -1,4 +1,14 @@
 import { prisma } from "../lib/prisma.js";
+import {
+  recordItemIntakeScan,
+} from "../services/itemIntake.service.js";
+
+const CUSTOMER_SCAN_DESTINATIONS =
+  new Set([
+    "CUSTOMER_MARKETPLACE",
+    "CUSTOMER_PAWN",
+    "CUSTOMER_SELL",
+  ]);
 
 function normalizeString(value) {
   const normalized = String(value ?? "").trim();
@@ -93,6 +103,183 @@ export async function createBuyerItemSubmission(req, res) {
     return res.status(500).json({
       success: false,
       error: "Failed to create buyer item submission",
+    });
+  }
+}
+
+export async function scanBuyerItemSubmission(
+  req,
+  res,
+) {
+  try {
+    const buyerId =
+      getUserId(req);
+
+    if (!buyerId) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+    }
+
+    const code =
+      normalizeString(
+        req.body?.code,
+      );
+
+    const destination =
+      (
+        normalizeString(
+          req.body?.destination,
+        ) ||
+        "CUSTOMER_MARKETPLACE"
+      ).toUpperCase();
+
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        error: "Scan code is required",
+      });
+    }
+
+    if (
+      !CUSTOMER_SCAN_DESTINATIONS.has(
+        destination,
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Invalid customer scan destination",
+      });
+    }
+
+    const {
+      intake,
+      analysis,
+    } = await recordItemIntakeScan({
+      prismaClient:
+        prisma,
+
+      shopId:
+        null,
+
+      capturedByUserId:
+        buyerId,
+
+      code,
+
+      input: {
+        ...req.body,
+
+        customerId:
+          buyerId,
+
+        destination,
+
+        intakeSource:
+          req.body?.intakeSource ||
+          req.body?.source ||
+          "MANUAL",
+      },
+    });
+
+    const title =
+      normalizeString(
+        req.body?.title,
+      ) ||
+      `Scanned ${analysis.codeType} ${analysis.normalizedCode}`;
+
+    const description =
+      normalizeString(
+        req.body?.description,
+      ) ||
+      `Created from scan code ${analysis.normalizedCode}`;
+
+    const category =
+      normalizeString(
+        req.body?.category,
+      ) ||
+      "Electronics";
+
+    const condition =
+      normalizeString(
+        req.body?.condition,
+      ) ||
+      "Good";
+
+    const estimatedValue =
+      normalizeAmount(
+        req.body?.estimatedValue ??
+        req.body?.price,
+      );
+
+    const images =
+      normalizeImages(
+        req.body?.images,
+      );
+
+    const reviewRequired =
+      intake.status ===
+        "NEEDS_REVIEW" ||
+      intake.duplicateStatus ===
+        "MATCH_FOUND" ||
+      intake.screeningStatus !==
+        "CLEAR";
+
+    return res.json({
+      success:
+        true,
+
+      data: {
+        title,
+        description,
+        category,
+        condition,
+        estimatedValue,
+        price:
+          estimatedValue,
+        images,
+
+        code:
+          analysis.normalizedCode,
+
+        codeType:
+          analysis.codeType,
+
+        source:
+          "customer-scan",
+
+        destination:
+          intake.destination,
+
+        intakeId:
+          intake.id,
+
+        intakeStatus:
+          intake.status,
+
+        duplicateStatus:
+          intake.duplicateStatus,
+
+        screeningStatus:
+          intake.screeningStatus,
+
+        reviewRequired,
+      },
+
+      intake,
+    });
+  } catch (error) {
+    console.error(
+      "[buyer-item-submissions] scan failed:",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        "Failed to resolve customer item scan",
     });
   }
 }

@@ -175,6 +175,40 @@ export async function recordItemIntakeScan({
     throw new Error("Item intake persistence is unavailable.");
   }
 
+  const normalizedShopId =
+    String(shopId || "").trim() ||
+    null;
+
+  const customerId =
+    String(input.customerId || "").trim() ||
+    null;
+
+  if (!normalizedShopId && !customerId) {
+    throw new Error(
+      "A shop or customer scan scope is required.",
+    );
+  }
+
+  const duplicateScope =
+    normalizedShopId
+      ? {
+          shopId:
+            normalizedShopId,
+        }
+      : {
+          shopId:
+            null,
+
+          customerId,
+        };
+
+  const linkedSubmissionId =
+    String(
+      input.linkedSubmissionId ||
+      "",
+    ).trim() ||
+    null;
+
   const analysis = analyzeScanCode(
     code,
     input.codeType,
@@ -215,7 +249,7 @@ export async function recordItemIntakeScan({
 
   const priorIntake = await prismaClient.itemIntake.findFirst({
     where: {
-      shopId,
+      ...duplicateScope,
       OR: duplicateFilters,
     },
     orderBy: {
@@ -226,6 +260,7 @@ export async function recordItemIntakeScan({
       status: true,
       normalizedCode: true,
       linkedItemId: true,
+      linkedSubmissionId: true,
       createdAt: true,
     },
   });
@@ -257,10 +292,14 @@ export async function recordItemIntakeScan({
   const duplicateFound = duplicateMatches.length > 0;
 
   const data = {
-    shopId,
-    capturedByUserId: capturedByUserId || null,
-    customerId:
-      String(input.customerId || "").trim() || null,
+    shopId:
+      normalizedShopId,
+
+    capturedByUserId:
+      capturedByUserId ||
+      null,
+
+    customerId,
     source: normalizeSource(
       input.intakeSource || input.source,
     ),
@@ -317,12 +356,31 @@ export async function recordItemIntakeScan({
 
     screeningStatus: "NOT_CHECKED",
 
-    linkedItemId: existingItem?.id || null,
+    linkedItemId:
+      existingItem?.id ||
+      null,
+
+    linkedSubmissionId,
 
     metadata: {
-      workflow: "items-scan-v1",
-      priorIntakeId: priorIntake?.id || null,
-      existingItemMatch: Boolean(existingItem?.id),
+      workflow:
+        normalizedShopId
+          ? "items-scan-v1"
+          : "customer-item-scan-v1",
+
+      duplicateScope:
+        normalizedShopId
+          ? "SHOP"
+          : "CUSTOMER",
+
+      priorIntakeId:
+        priorIntake?.id ||
+        null,
+
+      existingItemMatch:
+        Boolean(
+          existingItem?.id,
+        ),
     },
   };
 

@@ -65,6 +65,76 @@ export type CreateBuyerItemSubmissionInput = {
   radiusMiles: number;
 };
 
+export type BuyerItemScanDestination =
+  | "CUSTOMER_MARKETPLACE"
+  | "CUSTOMER_PAWN"
+  | "CUSTOMER_SELL";
+
+export type ScanBuyerItemSubmissionInput = {
+  code: string;
+  destination?: BuyerItemScanDestination;
+  intakeSource?:
+    | "CAMERA"
+    | "HARDWARE_SCANNER"
+    | "MANUAL"
+    | "FILE_UPLOAD";
+  codeType?: string;
+  serialNumber?: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  condition?: string;
+  estimatedValue?: string | number;
+  price?: string | number;
+  images?: string[];
+};
+
+export type BuyerItemScanIntake = {
+  id: string;
+  shopId?: string | null;
+  capturedByUserId?: string | null;
+  customerId?: string | null;
+  source?: string;
+  destination?: BuyerItemScanDestination;
+  status?: string;
+  code?: string | null;
+  normalizedCode?: string | null;
+  codeType?: string | null;
+  barcode?: string | null;
+  upc?: string | null;
+  ean?: string | null;
+  sku?: string | null;
+  serialNumber?: string | null;
+  duplicateStatus?: string;
+  duplicateMatches?: unknown;
+  screeningStatus?: string;
+  linkedSubmissionId?: string | null;
+  createdAt?: string;
+};
+
+export type BuyerItemScanResult = {
+  success: boolean;
+  data: {
+    title: string;
+    description: string;
+    category: string;
+    condition: string;
+    estimatedValue?: string | null;
+    price?: string | null;
+    images: string[];
+    code: string;
+    codeType: string;
+    source: "customer-scan";
+    destination: BuyerItemScanDestination;
+    intakeId: string;
+    intakeStatus: string;
+    duplicateStatus: string;
+    screeningStatus: string;
+    reviewRequired: boolean;
+  };
+  intake: BuyerItemScanIntake;
+};
+
 function normalizeSubmissions(data: unknown): BuyerItemSubmission[] {
   if (Array.isArray(data)) return data as BuyerItemSubmission[];
 
@@ -149,6 +219,37 @@ function unwrapSubmissionOffer(data: unknown): BuyerItemSubmissionOffer {
   }
 
   return offer as BuyerItemSubmissionOffer;
+}
+
+export async function scanBuyerItemSubmission(
+  input: ScanBuyerItemSubmissionInput,
+  signal?: AbortSignal,
+): Promise<BuyerItemScanResult> {
+  const code =
+    String(
+      input.code ||
+      "",
+    ).trim();
+
+  if (!code) {
+    throw new Error(
+      "Scan code is required.",
+    );
+  }
+
+  return api.post<BuyerItemScanResult>(
+    "/buyer/item-submissions/scan",
+    {
+      ...input,
+      code,
+      destination:
+        input.destination ||
+        "CUSTOMER_MARKETPLACE",
+    },
+    {
+      signal,
+    },
+  );
 }
 
 export async function createBuyerItemSubmission(

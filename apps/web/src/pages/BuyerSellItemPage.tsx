@@ -1,6 +1,8 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -12,9 +14,14 @@ import {
   getMyBuyerItemSubmissionOffers,
   getMyBuyerItemSubmissions,
   rejectBuyerItemSubmissionOffer,
+  scanBuyerItemSubmission,
+  type BuyerItemScanResult,
   type BuyerItemSubmission,
   type BuyerItemSubmissionOffer,
 } from "../services/buyerItemSubmissions";
+import {
+  createMarketplaceListing,
+} from "../services/marketplaceListings";
 import "../styles/buyer-sell-item.css";
 
 type BuyerItemIntent = "PAWN_OFFERS" | "MARKETPLACE_LISTING" | "BOTH";
@@ -31,9 +38,15 @@ type DraftSubmission = {
 };
 
 function intentLabel(intent: BuyerItemIntent | string) {
-  if (intent === "PAWN_OFFERS") return "Get pawnshop offers";
-  if (intent === "MARKETPLACE_LISTING") return "List to marketplace later";
-  return "Pawn offers + marketplace listing";
+  if (intent === "PAWN_OFFERS") {
+    return "Get pawnshop offers";
+  }
+
+  if (intent === "MARKETPLACE_LISTING") {
+    return "Create customer marketplace draft";
+  }
+
+  return "Pawn offers + marketplace draft";
 }
 
 function formatMoney(value: string | number | null | undefined) {
@@ -52,7 +65,78 @@ function firstImage(images?: string[]) {
   return Array.isArray(images) && images.length ? images[0] : "";
 }
 
+function parseMoney(
+  value: string | number | null | undefined,
+) {
+  const normalized = String(
+    value ?? "",
+  )
+    .replace(/[$,]/g, "")
+    .trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  const amount = Number(
+    normalized,
+  );
+
+  return Number.isFinite(amount) &&
+    amount > 0
+    ? amount
+    : null;
+}
+
+type BarcodeDetection = {
+  rawValue?: string;
+};
+
+type BarcodeDetectorInstance = {
+  detect(
+    source: HTMLVideoElement,
+  ): Promise<BarcodeDetection[]>;
+};
+
+type BarcodeDetectorConstructor =
+  new (options?: {
+    formats?: string[];
+  }) => BarcodeDetectorInstance;
+
+function getDetectorCtor():
+  BarcodeDetectorConstructor |
+  null {
+  if (
+    typeof window ===
+    "undefined"
+  ) {
+    return null;
+  }
+
+  return (
+    window as typeof window & {
+      BarcodeDetector?:
+        BarcodeDetectorConstructor;
+    }
+  ).BarcodeDetector ?? null;
+}
+
 export default function BuyerSellItemPage() {
+  const videoRef =
+    useRef<HTMLVideoElement | null>(
+      null,
+    );
+
+  const streamRef =
+    useRef<MediaStream | null>(
+      null,
+    );
+
+  const intervalRef =
+    useRef<number | null>(
+      null,
+    );
+
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Electronics");
   const [condition, setCondition] = useState("Good");
@@ -62,6 +146,23 @@ export default function BuyerSellItemPage() {
   const [radius, setRadius] = useState("25");
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
 
+  const [scanCode, setScanCode] =
+    useState("");
+
+  const [scanResult, setScanResult] =
+    useState<BuyerItemScanResult | null>(
+      null,
+    );
+
+  const [scanning, setScanning] =
+    useState(false);
+
+  const [cameraActive, setCameraActive] =
+    useState(false);
+
+  const [cameraMessage, setCameraMessage] =
+    useState("");
+
   const [mySubmissions, setMySubmissions] = useState<BuyerItemSubmission[]>([]);
   const [mySubmissionOffers, setMySubmissionOffers] = useState<BuyerItemSubmissionOffer[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(true);
@@ -70,9 +171,105 @@ export default function BuyerSellItemPage() {
   const [actioningOfferId, setActioningOfferId] = useState<string | null>(null);
   const [submittedDraft, setSubmittedDraft] = useState<DraftSubmission | null>(null);
 
-  const canSubmit = useMemo(() => {
-    return title.trim() && category.trim() && condition.trim() && photoPreviews.length > 0;
-  }, [title, category, condition, photoPreviews.length]);
+  const wantsPawnOffers =
+    intent !==
+    "MARKETPLACE_LISTING";
+
+  const wantsMarketplace =
+    intent !==
+    "PAWN_OFFERS";
+
+  const scanDestination =
+    intent ===
+    "PAWN_OFFERS"
+      ? "CUSTOMER_PAWN"
+      : "CUSTOMER_MARKETPLACE";
+
+  const marketplacePrice =
+    useMemo(
+      () =>
+        parseMoney(
+          estimatedValue,
+        ),
+      [
+        estimatedValue,
+      ],
+    );
+
+  const barcodeSupported =
+    useMemo(
+      () =>
+        Boolean(
+          getDetectorCtor(),
+        ),
+      [],
+    );
+
+  const canSubmit =
+    useMemo(
+      () =>
+        Boolean(
+          title.trim() &&
+          category.trim() &&
+          condition.trim() &&
+          photoPreviews.length > 0,
+        ) &&
+        (
+          !wantsMarketplace ||
+          marketplacePrice !==
+            null
+        ),
+      [
+        title,
+        category,
+        condition,
+        photoPreviews.length,
+        wantsMarketplace,
+        marketplacePrice,
+      ],
+    );
+
+  const stopCamera =
+    useCallback(
+      () => {
+        if (
+          intervalRef.current
+        ) {
+          window.clearInterval(
+            intervalRef.current,
+          );
+
+          intervalRef.current =
+            null;
+        }
+
+        if (
+          streamRef.current
+        ) {
+          for (
+            const track
+            of streamRef.current.getTracks()
+          ) {
+            track.stop();
+          }
+
+          streamRef.current =
+            null;
+        }
+
+        if (
+          videoRef.current
+        ) {
+          videoRef.current.srcObject =
+            null;
+        }
+
+        setCameraActive(
+          false,
+        );
+      },
+      [],
+    );
 
   async function loadActivity() {
     setLoadingActivity(true);
@@ -98,7 +295,11 @@ export default function BuyerSellItemPage() {
 
   useEffect(() => {
     void loadActivity();
-  }, []);
+
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
 
   function handlePhotos(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []);
@@ -128,11 +329,345 @@ export default function BuyerSellItemPage() {
     setPhotoPreviews((current) => current.filter((_, currentIndex) => currentIndex !== index));
   }
 
+  function applyCustomerScan(
+    result: BuyerItemScanResult,
+  ) {
+    setScanResult(
+      result,
+    );
+
+    setScanCode(
+      result.data.code,
+    );
+
+    if (
+      result.data.title
+    ) {
+      setTitle(
+        result.data.title,
+      );
+    }
+
+    if (
+      result.data.description
+    ) {
+      setDescription(
+        result.data.description,
+      );
+    }
+
+    if (
+      result.data.category
+    ) {
+      setCategory(
+        result.data.category,
+      );
+    }
+
+    if (
+      result.data.condition
+    ) {
+      setCondition(
+        result.data.condition,
+      );
+    }
+
+    const nextValue =
+      result.data.estimatedValue ??
+      result.data.price;
+
+    if (
+      nextValue !==
+        undefined &&
+      nextValue !==
+        null &&
+      String(
+        nextValue,
+      ).trim()
+    ) {
+      setEstimatedValue(
+        String(
+          nextValue,
+        ),
+      );
+    }
+
+    if (
+      result.data.images.length
+    ) {
+      setPhotoPreviews(
+        (current) =>
+          current.length
+            ? current
+            : result.data.images.slice(
+                0,
+                6,
+              ),
+      );
+    }
+
+    setNotice(
+      result.data.reviewRequired
+        ? "Scan prefill loaded. Manual intake review is required before publishing this item."
+        : "Scan prefill loaded. Review the item details and photos before continuing.",
+    );
+  }
+
+  async function resolveCustomerScan(
+    nextCode = scanCode,
+    intakeSource:
+      | "MANUAL"
+      | "CAMERA" =
+      "MANUAL",
+  ) {
+    const normalizedCode =
+      String(
+        nextCode ||
+        "",
+      ).trim();
+
+    if (
+      !normalizedCode
+    ) {
+      setNotice(
+        "Enter or scan a barcode, UPC, QR code, SKU, or serial number.",
+      );
+
+      return;
+    }
+
+    setScanning(
+      true,
+    );
+
+    setCameraMessage(
+      "",
+    );
+
+    try {
+      const result =
+        await scanBuyerItemSubmission({
+          code:
+            normalizedCode,
+
+          destination:
+            scanDestination,
+
+          intakeSource,
+
+          title:
+            title.trim() ||
+            undefined,
+
+          description:
+            description.trim() ||
+            undefined,
+
+          category,
+          condition,
+
+          estimatedValue:
+            marketplacePrice ??
+            undefined,
+
+          images:
+            photoPreviews,
+        });
+
+      applyCustomerScan(
+        result,
+      );
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Customer item scan failed.",
+      );
+    } finally {
+      setScanning(
+        false,
+      );
+    }
+  }
+
+  async function handleCustomerScanSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    await resolveCustomerScan();
+  }
+
+  async function startCameraScan() {
+    setNotice(
+      null,
+    );
+
+    setCameraMessage(
+      "",
+    );
+
+    const BarcodeDetectorCtor =
+      getDetectorCtor();
+
+    if (
+      !BarcodeDetectorCtor
+    ) {
+      setCameraMessage(
+        "Camera barcode detection is not supported in this browser. Use the manual scan field.",
+      );
+
+      return;
+    }
+
+    if (
+      !navigator.mediaDevices
+        ?.getUserMedia
+    ) {
+      setCameraMessage(
+        "Camera access is unavailable. Use the manual scan field.",
+      );
+
+      return;
+    }
+
+    try {
+      stopCamera();
+
+      const stream =
+        await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: {
+              ideal:
+                "environment",
+            },
+          },
+
+          audio:
+            false,
+        });
+
+      streamRef.current =
+        stream;
+
+      if (
+        videoRef.current
+      ) {
+        videoRef.current.srcObject =
+          stream;
+
+        await videoRef.current.play();
+      }
+
+      const detector =
+        new BarcodeDetectorCtor({
+          formats: [
+            "qr_code",
+            "ean_13",
+            "ean_8",
+            "upc_a",
+            "upc_e",
+            "code_128",
+            "code_39",
+          ],
+        });
+
+      setCameraActive(
+        true,
+      );
+
+      setCameraMessage(
+        "Camera scanner active. Point the rear camera at a barcode or QR code.",
+      );
+
+      intervalRef.current =
+        window.setInterval(
+          async () => {
+            if (
+              !videoRef.current
+            ) {
+              return;
+            }
+
+            try {
+              const detections =
+                await detector.detect(
+                  videoRef.current,
+                );
+
+              const rawValue =
+                String(
+                  detections?.[0]
+                    ?.rawValue ||
+                  "",
+                ).trim();
+
+              if (
+                rawValue
+              ) {
+                stopCamera();
+
+                setScanCode(
+                  rawValue,
+                );
+
+                await resolveCustomerScan(
+                  rawValue,
+                  "CAMERA",
+                );
+              }
+            } catch {
+              // Video frames may not be ready yet.
+            }
+          },
+          650,
+        );
+    } catch (error) {
+      stopCamera();
+
+      setCameraMessage(
+        "",
+      );
+
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Unable to start camera scanner.",
+      );
+    }
+  }
+
+  function clearCustomerScan() {
+    stopCamera();
+
+    setScanCode(
+      "",
+    );
+
+    setScanResult(
+      null,
+    );
+
+    setCameraMessage(
+      "",
+    );
+
+    setNotice(
+      null,
+    );
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!canSubmit) {
-      setNotice("Add at least one photo, a title, category, and condition before submitting.");
+      setNotice(
+        wantsMarketplace &&
+          marketplacePrice === null
+          ? "Add at least one photo and enter a valid marketplace price greater than $0."
+          : "Add at least one photo, a title, category, and condition before submitting.",
+      );
+
       return;
     }
 
@@ -151,22 +686,230 @@ export default function BuyerSellItemPage() {
       setSubmitting(true);
       setNotice(null);
 
-      await createBuyerItemSubmission({
-        title: draft.title,
-        category: draft.category,
-        condition: draft.condition,
-        estimatedValue: draft.estimatedValue,
-        description: draft.description,
-        intent: draft.intent,
-        radiusMiles: Number(draft.radius) || 25,
-        images: draft.photos,
-      });
+      let pawnRequestCreated =
+        false;
 
-      setSubmittedDraft(draft);
-      setNotice("Item request submitted. Pawnshop owners can now review and send cash offers.");
-      await loadActivity();
+      let marketplaceListingId =
+        "";
+
+      const failures:
+        string[] =
+        [];
+
+      if (
+        wantsPawnOffers
+      ) {
+        try {
+          await createBuyerItemSubmission({
+            title:
+              draft.title,
+
+            category:
+              draft.category,
+
+            condition:
+              draft.condition,
+
+            estimatedValue:
+              marketplacePrice !==
+                null
+                ? String(
+                    marketplacePrice,
+                  )
+                : undefined,
+
+            description:
+              draft.description,
+
+            intent:
+              draft.intent,
+
+            radiusMiles:
+              Number(
+                draft.radius,
+              ) ||
+              25,
+
+            images:
+              draft.photos,
+          });
+
+          pawnRequestCreated =
+            true;
+        } catch (error) {
+          failures.push(
+            error instanceof Error
+              ? `Pawn-offer request: ${error.message}`
+              : "Pawn-offer request failed.",
+          );
+        }
+      }
+
+      if (
+        wantsMarketplace &&
+        marketplacePrice !==
+          null
+      ) {
+        try {
+          const listing =
+            await createMarketplaceListing({
+              listingType:
+                "CUSTOMER_TO_CUSTOMER",
+
+              title:
+                draft.title,
+
+              description:
+                draft.description ||
+                null,
+
+              category:
+                draft.category,
+
+              condition:
+                draft.condition,
+
+              price:
+                marketplacePrice,
+
+              currency:
+                "USD",
+
+              quantity:
+                1,
+
+              images:
+                draft.photos,
+
+              allowOffers:
+                true,
+
+              pickupAvailable:
+                true,
+
+              shippingAvailable:
+                false,
+
+              metadata: {
+                workflow:
+                  "customer-scan-marketplace-listing-v1",
+
+                source:
+                  scanResult
+                    ? "buyer-sell-item-scan"
+                    : "buyer-sell-item",
+
+                scanCode:
+                  scanResult?.data.code ||
+                  null,
+
+                scanCodeType:
+                  scanResult?.data.codeType ||
+                  null,
+
+                intakeId:
+                  scanResult?.data.intakeId ||
+                  null,
+
+                intakeStatus:
+                  scanResult?.data.intakeStatus ||
+                  null,
+
+                duplicateStatus:
+                  scanResult?.data.duplicateStatus ||
+                  null,
+
+                screeningStatus:
+                  scanResult?.data.screeningStatus ||
+                  null,
+
+                reviewRequired:
+                  scanResult?.data.reviewRequired ||
+                  false,
+              },
+            });
+
+          marketplaceListingId =
+            listing.id;
+        } catch (error) {
+          failures.push(
+            error instanceof Error
+              ? `Marketplace draft: ${error.message}`
+              : "Marketplace draft creation failed.",
+          );
+        }
+      }
+
+      if (
+        !pawnRequestCreated &&
+        !marketplaceListingId
+      ) {
+        throw new Error(
+          failures.join(
+            " ",
+          ) ||
+          "No item workflow was created.",
+        );
+      }
+
+      setSubmittedDraft(
+        draft,
+      );
+
+      const messages:
+        string[] =
+        [];
+
+      if (
+        pawnRequestCreated
+      ) {
+        messages.push(
+          "Pawnshop offer request submitted.",
+        );
+      }
+
+      if (
+        marketplaceListingId
+      ) {
+        messages.push(
+          `Customer marketplace draft ${marketplaceListingId} created.`,
+        );
+      }
+
+      if (
+        scanResult?.data.reviewRequired &&
+        marketplaceListingId
+      ) {
+        messages.push(
+          "Manual intake review is required before publishing the marketplace draft.",
+        );
+      }
+
+      if (
+        failures.length
+      ) {
+        messages.push(
+          `Some actions need attention: ${failures.join(" ")}`,
+        );
+      }
+
+      setNotice(
+        messages.join(
+          " ",
+        ),
+      );
+
+      if (
+        pawnRequestCreated
+      ) {
+        await loadActivity();
+      }
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to submit item request.");
+      setNotice(
+        err instanceof Error
+          ? err.message
+          : "Failed to create the selected item workflow.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -197,6 +940,7 @@ export default function BuyerSellItemPage() {
   }
 
   function resetForm() {
+    stopCamera();
     setTitle("");
     setCategory("Electronics");
     setCondition("Good");
@@ -205,6 +949,9 @@ export default function BuyerSellItemPage() {
     setIntent("PAWN_OFFERS");
     setRadius("25");
     setPhotoPreviews([]);
+    setScanCode("");
+    setScanResult(null);
+    setCameraMessage("");
     setSubmittedDraft(null);
     setNotice(null);
   }
@@ -216,8 +963,8 @@ export default function BuyerSellItemPage() {
           <span className="sellitem-pill">Sell / Pawn Item</span>
           <h1>Scan or photograph your item and send it for offers.</h1>
           <p>
-            Take pictures, describe the item, and prepare it for pawnshop offers or a future
-            buyer-to-buyer marketplace listing.
+            Scan or photograph the item, then request pawnshop offers, create a
+            customer-to-customer marketplace draft, or do both.
           </p>
 
           <div className="sellitem-hero-actions">
@@ -269,6 +1016,124 @@ export default function BuyerSellItemPage() {
       </section>
 
       {notice ? <section className="sellitem-notice">{notice}</section> : null}
+
+      <section className="sellitem-scanner-card">
+        <div className="sellitem-section-title">
+          <span>Item scanner</span>
+          <h2>Scan a barcode, UPC, QR code, SKU, or serial number</h2>
+          <p>
+            Use your phone camera or enter the code manually. The scan creates a
+            customer-scoped intake and prefills the item details below.
+          </p>
+        </div>
+
+        <form
+          className="sellitem-scanner-form"
+          onSubmit={handleCustomerScanSubmit}
+        >
+          <div className="sellitem-scanner-grid">
+            <label>
+              <span>Manual scan value</span>
+              <input
+                value={scanCode}
+                onChange={(event) => setScanCode(event.target.value)}
+                placeholder="Example: 012345678905 or SKU: ABC-123"
+                autoComplete="off"
+              />
+            </label>
+
+            <div className="sellitem-scanner-destination">
+              <span>Current destination</span>
+              <strong>
+                {scanDestination === "CUSTOMER_PAWN"
+                  ? "Customer pawn / shop offers"
+                  : "Customer marketplace intake"}
+              </strong>
+            </div>
+          </div>
+
+          <div className="sellitem-scanner-actions">
+            <button
+              type="submit"
+              disabled={scanning || !scanCode.trim()}
+            >
+              {scanning ? "Resolving scan..." : "Resolve scan"}
+            </button>
+
+            {cameraActive ? (
+              <button
+                type="button"
+                className="secondary"
+                onClick={stopCamera}
+              >
+                Stop camera
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void startCameraScan()}
+                disabled={!barcodeSupported || scanning}
+              >
+                Start camera scanner
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="secondary"
+              onClick={clearCustomerScan}
+              disabled={!scanCode && !scanResult && !cameraActive}
+            >
+              Clear scan
+            </button>
+
+            <Link to="/marketplace/listings/mine">
+              My marketplace listings
+            </Link>
+          </div>
+
+          <video
+            ref={videoRef}
+            className={
+              cameraActive
+                ? "sellitem-scanner-video active"
+                : "sellitem-scanner-video"
+            }
+            muted
+            playsInline
+            autoPlay
+          />
+
+          <p className="sellitem-scanner-message">
+            {cameraMessage ||
+              (barcodeSupported
+                ? "Camera barcode scanning is available in this browser."
+                : "Camera barcode detection is unavailable. Manual scan entry still works.")}
+          </p>
+
+          {scanResult ? (
+            <div className="sellitem-scanner-result">
+              <strong>Scan prefill loaded</strong>
+              <span>Code: {scanResult.data.code}</span>
+              <span>Type: {scanResult.data.codeType}</span>
+              <span>Intake ID: {scanResult.data.intakeId}</span>
+              <span>Status: {scanResult.data.intakeStatus}</span>
+
+              {scanResult.data.reviewRequired ? (
+                <small className="sellitem-scanner-warning">
+                  Manual intake review is required before this item should be
+                  published.
+                </small>
+              ) : (
+                <small>
+                  Review the prefilled fields and add clear item photos.
+                </small>
+              )}
+            </div>
+          ) : null}
+        </form>
+      </section>
 
       <section className="sellitem-layout">
         <form className="sellitem-form" onSubmit={handleSubmit}>
@@ -355,11 +1220,22 @@ export default function BuyerSellItemPage() {
               <span>What do you want?</span>
               <select
                 value={intent}
-                onChange={(event) => setIntent(event.target.value as BuyerItemIntent)}
+                onChange={(event) => {
+                  setIntent(
+                    event.target.value as BuyerItemIntent,
+                  );
+
+                  setScanResult(null);
+                  setCameraMessage("");
+                }}
               >
                 <option value="PAWN_OFFERS">Get pawnshop offers</option>
-                <option value="MARKETPLACE_LISTING">List to marketplace later</option>
-                <option value="BOTH">Both</option>
+                <option value="MARKETPLACE_LISTING">
+                  Create customer marketplace draft
+                </option>
+                <option value="BOTH">
+                  Pawn offers + marketplace draft
+                </option>
               </select>
             </label>
 
@@ -385,8 +1261,14 @@ export default function BuyerSellItemPage() {
           </label>
 
           <div className="sellitem-actions">
-            <button type="submit" disabled={submitting}>
-              {submitting ? "Submitting..." : "Submit item request"}
+            <button type="submit" disabled={submitting || !canSubmit}>
+              {submitting
+                ? "Saving workflow..."
+                : intent === "PAWN_OFFERS"
+                  ? "Submit for pawnshop offers"
+                  : intent === "MARKETPLACE_LISTING"
+                    ? "Create marketplace draft"
+                    : "Submit offers request + draft"}
             </button>
             <button type="button" className="secondary" onClick={resetForm}>
               Reset

@@ -286,6 +286,30 @@ test("item-intake customer search requires authentication", async () => {
   });
 });
 
+test("customer item scan requires authentication", async () => {
+  const response =
+    await request(app)
+      .post(
+        "/api/buyer/item-submissions/scan",
+      )
+      .send({
+        code:
+          "012345678905",
+
+        destination:
+          "CUSTOMER_MARKETPLACE",
+      })
+      .expect(401);
+
+  assert.deepEqual(
+    response.body,
+    {
+      error:
+        "Unauthorized",
+    },
+  );
+});
+
 test("marketplace listing mutations require authentication", async () => {
   const requests = [
     request(app)
