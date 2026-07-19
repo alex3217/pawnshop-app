@@ -14,6 +14,7 @@ import offersRoutes from "./routes/offers.routes.js";
 import itemRoutes from "./routes/items.routes.js";
 import itemIntakeRoutes from "./routes/itemIntakes.routes.js";
 import marketplaceListingRoutes from "./routes/marketplaceListings.routes.js";
+import marketplaceTransactionRoutes from "./routes/marketplaceTransactions.routes.js";
 import inquiryRoutes from "./routes/inquiries.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import superAdminRoutes from "./routes/superAdmin.routes.js";
@@ -308,6 +309,7 @@ export function createApp() {
   mountApi(app, "/items", itemRoutes);
   mountApi(app, "/item-intakes", itemIntakeRoutes);
   mountApi(app, "/marketplace-listings", marketplaceListingRoutes);
+  mountApi(app, "/marketplace-transactions", marketplaceTransactionRoutes);
   mountApi(app, "/inventory-bulk", inventoryBulkRoutes);
   mountApi(app, "/integrations", integrationsRoutes);
   mountApi(app, "/inquiries", inquiryRoutes);
