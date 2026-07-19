@@ -677,13 +677,15 @@ test(
       .toBe(1);
 
     await expect(
-      page.getByText(
-        "Canceled",
-        {
-          exact:
-            true,
-        },
-      ),
+      page
+        .locator("main > header")
+        .getByText(
+          "Canceled",
+          {
+            exact:
+              true,
+          },
+        ),
     ).toBeVisible();
 
     await expect(
