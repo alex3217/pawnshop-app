@@ -6,15 +6,35 @@ import test, {
 } from "node:test";
 
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import request from "supertest";
+
+const TEST_JWT_SECRET =
+  "pawnloop-marketplace-reservation-tests-2026";
 
 const TEST_DOMAIN =
   "@marketplace-reserve.integration.pawnloop.test";
 
+let app;
 let prisma;
 let reserveMarketplacePurchase;
 
 function testEmail(prefix) {
   return `${prefix}${TEST_DOMAIN}`;
+}
+
+function tokenFor(user) {
+  return jwt.sign(
+    {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    },
+    TEST_JWT_SECRET,
+    {
+      expiresIn: "15m",
+    },
+  );
 }
 
 async function createUser(
@@ -172,6 +192,7 @@ before(async () => {
     APP_ENV: "test",
     APP_NAME:
       "pawnloop-marketplace-reserve-integration-test",
+    JWT_SECRET: TEST_JWT_SECRET,
     AUCTION_SCHEDULER_ENABLED: "false",
   });
 
@@ -197,6 +218,9 @@ before(async () => {
     "Integration tests may only use pawnshop_test",
   );
 
+  const appModule =
+    await import("../src/app.js");
+
   const prismaModule =
     await import("../src/lib/prisma.js");
 
@@ -205,6 +229,7 @@ before(async () => {
       "../src/services/marketplaceTransaction.service.js"
     );
 
+  app = appModule.createApp();
   prisma = prismaModule.prisma;
   reserveMarketplacePurchase =
     serviceModule.reserveMarketplacePurchase;
@@ -613,5 +638,243 @@ test(
         transactions[0].buyerUserId,
       ),
     );
+  },
+);
+
+test(
+  "reservation API requires authentication",
+  async () => {
+    const seller =
+      await createUser("api-auth-seller");
+
+    const listing = await createListing({
+      seller,
+      quantity: 1,
+      price: "49.99",
+    });
+
+    const response = await request(app)
+      .post(
+        "/api/marketplace-transactions/reserve",
+      )
+      .send({
+        listingId: listing.id,
+        quantity: 1,
+      });
+
+    assert.equal(response.status, 401);
+    assert.deepEqual(response.body, {
+      error: "Unauthorized",
+    });
+
+    const unchangedListing =
+      await prisma.marketplaceListing.findUnique({
+        where: {
+          id: listing.id,
+        },
+      });
+
+    assert.equal(unchangedListing.quantity, 1);
+    assert.equal(unchangedListing.status, "ACTIVE");
+  },
+);
+
+test(
+  "reservation API creates a pending marketplace purchase",
+  async () => {
+    const seller =
+      await createUser("api-success-seller");
+
+    const buyer =
+      await createUser("api-success-buyer");
+
+    const listing = await createListing({
+      seller,
+      quantity: 1,
+      price: "89.99",
+    });
+
+    const response = await request(app)
+      .post(
+        "/api/marketplace-transactions/reserve",
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(buyer)}`,
+      )
+      .send({
+        listingId: listing.id,
+        quantity: 1,
+      });
+
+    assert.equal(response.status, 201);
+    assert.equal(response.body.success, true);
+
+    const transaction =
+      response.body.transaction;
+
+    assert.equal(
+      transaction.listingId,
+      listing.id,
+    );
+
+    assert.equal(
+      transaction.buyerUserId,
+      buyer.id,
+    );
+
+    assert.equal(
+      transaction.sellerUserId,
+      seller.id,
+    );
+
+    assert.equal(
+      transaction.status,
+      "PENDING",
+    );
+
+    assert.equal(
+      transaction.type,
+      "DIRECT_PURCHASE",
+    );
+
+    assert.equal(
+      Number(transaction.totalAmount),
+      89.99,
+    );
+
+    const updatedListing =
+      await prisma.marketplaceListing.findUnique({
+        where: {
+          id: listing.id,
+        },
+      });
+
+    assert.equal(updatedListing.quantity, 0);
+    assert.equal(updatedListing.status, "RESERVED");
+
+    const purchases = await request(app)
+      .get(
+        "/api/marketplace-transactions/mine/purchases",
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(buyer)}`,
+      );
+
+    assert.equal(purchases.status, 200);
+
+    assert.ok(
+      purchases.body.rows.some(
+        (row) => row.id === transaction.id,
+      ),
+    );
+  },
+);
+
+test(
+  "reservation API rejects an invalid quantity without changing inventory",
+  async () => {
+    const seller =
+      await createUser("api-quantity-seller");
+
+    const buyer =
+      await createUser("api-quantity-buyer");
+
+    const listing = await createListing({
+      seller,
+      quantity: 2,
+      price: "60.00",
+    });
+
+    const response = await request(app)
+      .post(
+        "/api/marketplace-transactions/reserve",
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(buyer)}`,
+      )
+      .send({
+        listingId: listing.id,
+        quantity: 0,
+      });
+
+    assert.equal(response.status, 400);
+
+    assert.match(
+      String(response.body.error || ""),
+      /quantity/i,
+    );
+
+    const unchangedListing =
+      await prisma.marketplaceListing.findUnique({
+        where: {
+          id: listing.id,
+        },
+      });
+
+    const transactionCount =
+      await prisma.marketplaceTransaction.count({
+        where: {
+          listingId: listing.id,
+        },
+      });
+
+    assert.equal(unchangedListing.quantity, 2);
+    assert.equal(unchangedListing.status, "ACTIVE");
+    assert.equal(transactionCount, 0);
+  },
+);
+
+test(
+  "reservation API blocks self-purchases without changing inventory",
+  async () => {
+    const seller =
+      await createUser("api-self-seller");
+
+    const listing = await createListing({
+      seller,
+      quantity: 1,
+      price: "115.00",
+    });
+
+    const response = await request(app)
+      .post(
+        "/api/marketplace-transactions/reserve",
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(seller)}`,
+      )
+      .send({
+        listingId: listing.id,
+        quantity: 1,
+      });
+
+    assert.equal(response.status, 409);
+
+    assert.match(
+      String(response.body.error || ""),
+      /cannot purchase your own/i,
+    );
+
+    const unchangedListing =
+      await prisma.marketplaceListing.findUnique({
+        where: {
+          id: listing.id,
+        },
+      });
+
+    const transactionCount =
+      await prisma.marketplaceTransaction.count({
+        where: {
+          listingId: listing.id,
+        },
+      });
+
+    assert.equal(unchangedListing.quantity, 1);
+    assert.equal(unchangedListing.status, "ACTIVE");
+    assert.equal(transactionCount, 0);
   },
 );
