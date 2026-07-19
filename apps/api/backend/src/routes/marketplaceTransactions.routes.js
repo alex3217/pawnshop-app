@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  createMarketplacePurchaseReservation,
   getMarketplaceTransactionById,
   listMyMarketplacePurchases,
   listMyMarketplaceSales,
@@ -21,6 +22,12 @@ const TRANSACTION_ROLES = [
 ];
 
 router.use(authRequired);
+
+router.post(
+  "/reserve",
+  requireRole(...TRANSACTION_ROLES),
+  createMarketplacePurchaseReservation,
+);
 
 router.get(
   "/mine/purchases",

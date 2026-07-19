@@ -2,6 +2,7 @@ import {
   getMarketplaceTransaction,
   listMarketplacePurchases,
   listMarketplaceSales,
+  reserveMarketplacePurchase,
 } from "../services/marketplaceTransaction.service.js";
 
 function sendError(
@@ -74,6 +75,35 @@ export async function listMyMarketplaceSales(
       res,
       error,
       "Unable to load marketplace sales",
+    );
+  }
+}
+
+export async function createMarketplacePurchaseReservation(
+  req,
+  res,
+) {
+  try {
+    const { userId } = getActor(req);
+
+    const transaction =
+      await reserveMarketplacePurchase({
+        listingId: req.body?.listingId,
+        buyerUserId: userId,
+        buyerShopId:
+          req.body?.buyerShopId || null,
+        quantity: req.body?.quantity ?? 1,
+      });
+
+    return res.status(201).json({
+      success: true,
+      transaction,
+    });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Unable to reserve marketplace purchase",
     );
   }
 }
