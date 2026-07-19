@@ -351,6 +351,10 @@ export default function MarketplaceSellerListingsPage() {
         </div>
 
         <div className="seller-listings-hero-actions">
+          <Link to="/marketplace/listings/new">
+            Create listing
+          </Link>
+
           <button
             type="button"
             onClick={() =>

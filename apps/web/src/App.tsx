@@ -138,6 +138,9 @@ const SellerSalesPage = lazyPage(() =>
 const MarketplaceSellerListingsPage = lazyPage(() =>
   import("./pages/MarketplaceSellerListingsPage"),
 );
+const CreateMarketplaceListingPage = lazyPage(() =>
+  import("./pages/CreateMarketplaceListingPage"),
+);
 const MyBidsPage = lazyPage(() => import("./pages/MyBidsPage"));
 const MyWinsPage = lazyPage(() => import("./pages/MyWinsPage"));
 const OffersPage = lazyPage(() => import("./pages/OffersPage"));
@@ -251,6 +254,10 @@ const marketplaceTransactionRoutes: RouteConfig[] = [
   {
     path: "/marketplace/listings/mine",
     element: <MarketplaceSellerListingsPage />,
+  },
+  {
+    path: "/marketplace/listings/new",
+    element: <CreateMarketplaceListingPage />,
   },
   {
     path: "/marketplace/purchases",
