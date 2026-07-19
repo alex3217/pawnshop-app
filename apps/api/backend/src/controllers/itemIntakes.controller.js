@@ -84,6 +84,8 @@ const intakeSelect = {
 
   linkedItemId: true,
   linkedSubmissionId: true,
+  linkedMarketplaceListingId:
+    true,
   metadata: true,
 
   createdAt: true,

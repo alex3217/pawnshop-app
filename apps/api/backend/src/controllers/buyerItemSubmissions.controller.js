@@ -1,5 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import {
+  claimCustomerItemIntakeLink,
+  loadCustomerItemIntakeForLinkage,
   recordItemIntakeScan,
 } from "../services/itemIntake.service.js";
 
@@ -34,6 +36,60 @@ function getUserId(req) {
   return normalizeString(req.user?.id || req.user?.userId || req.auth?.userId);
 }
 
+
+function sendBuyerSubmissionCreateError(
+  res,
+  error,
+) {
+  const prismaConflict =
+    error?.code === "P2002" ||
+    error?.code === "P2034";
+
+  const status =
+    Number.isInteger(
+      error?.statusCode,
+    ) &&
+    error.statusCode >= 400
+      ? error.statusCode
+      : prismaConflict
+        ? 409
+        : 500;
+
+  if (status >= 500) {
+    console.error(
+      "[buyer-item-submissions] create failed:",
+      error,
+    );
+  }
+
+  return res.status(
+    status,
+  ).json({
+    success:
+      false,
+
+    error:
+      status >= 500
+        ? "Failed to create buyer item submission"
+        : error?.message ||
+          "Failed to create buyer item submission",
+
+    ...(
+      error?.linkageCode
+        ? {
+            code:
+              error.linkageCode,
+          }
+        : prismaConflict
+          ? {
+              code:
+                "CUSTOMER_INTAKE_LINK_CONFLICT",
+            }
+          : {}
+    ),
+  });
+}
+
 function normalizeSubmission(row) {
   if (!row) return row;
 
@@ -46,64 +102,198 @@ function normalizeSubmission(row) {
   };
 }
 
+
 export async function createBuyerItemSubmission(req, res) {
   try {
-    const buyerId = getUserId(req);
+    const buyerId =
+      getUserId(
+        req,
+      );
 
     if (!buyerId) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
     }
 
-    const title = normalizeString(req.body?.title);
-    const category = normalizeString(req.body?.category);
-    const condition = normalizeString(req.body?.condition);
-    const description = normalizeString(req.body?.description);
-    const intent = normalizeString(req.body?.intent) || "PAWN_OFFERS";
-    const radiusMiles = Number.parseInt(String(req.body?.radiusMiles || req.body?.radius || 25), 10);
-    const estimatedValue = normalizeAmount(req.body?.estimatedValue);
-    const images = normalizeImages(req.body?.images);
+    const intakeId =
+      normalizeString(
+        req.body?.intakeId,
+      );
+
+    const title =
+      normalizeString(
+        req.body?.title,
+      );
+
+    const category =
+      normalizeString(
+        req.body?.category,
+      );
+
+    const condition =
+      normalizeString(
+        req.body?.condition,
+      );
+
+    const description =
+      normalizeString(
+        req.body?.description,
+      );
+
+    const intent =
+      normalizeString(
+        req.body?.intent,
+      ) ||
+      "PAWN_OFFERS";
+
+    const radiusMiles =
+      Number.parseInt(
+        String(
+          req.body?.radiusMiles ||
+          req.body?.radius ||
+          25,
+        ),
+        10,
+      );
+
+    const estimatedValue =
+      normalizeAmount(
+        req.body?.estimatedValue,
+      );
+
+    const images =
+      normalizeImages(
+        req.body?.images,
+      );
 
     if (!title) {
-      return res.status(400).json({ success: false, error: "Title is required" });
+      return res.status(400).json({
+        success: false,
+        error: "Title is required",
+      });
     }
 
     if (!category) {
-      return res.status(400).json({ success: false, error: "Category is required" });
+      return res.status(400).json({
+        success: false,
+        error: "Category is required",
+      });
     }
 
     if (!condition) {
-      return res.status(400).json({ success: false, error: "Condition is required" });
+      return res.status(400).json({
+        success: false,
+        error: "Condition is required",
+      });
     }
 
     if (!images.length) {
-      return res.status(400).json({ success: false, error: "At least one photo is required" });
+      return res.status(400).json({
+        success: false,
+        error: "At least one photo is required",
+      });
     }
 
-    const submission = await prisma.buyerItemSubmission.create({
-      data: {
-        buyerId,
-        title,
-        category,
-        condition,
-        description,
-        intent,
-        radiusMiles: Number.isFinite(radiusMiles) ? radiusMiles : 25,
-        estimatedValue,
-        images,
-        status: "SUBMITTED",
-      },
-    });
+    const submissionData = {
+      buyerId,
+      title,
+      category,
+      condition,
+      description,
+      intent,
+
+      radiusMiles:
+        Number.isFinite(
+          radiusMiles,
+        )
+          ? radiusMiles
+          : 25,
+
+      estimatedValue,
+      images,
+      status:
+        "SUBMITTED",
+    };
+
+    let submission;
+
+    if (intakeId) {
+      submission =
+        await prisma.$transaction(
+          async (tx) => {
+            const intake =
+              await loadCustomerItemIntakeForLinkage({
+                prismaClient:
+                  tx,
+
+                intakeId,
+                customerId:
+                  buyerId,
+
+                resourceType:
+                  "SUBMISSION",
+              });
+
+            const created =
+              await tx
+                .buyerItemSubmission
+                .create({
+                  data:
+                    submissionData,
+                });
+
+            await claimCustomerItemIntakeLink({
+              prismaClient:
+                tx,
+
+              intake,
+              customerId:
+                buyerId,
+
+              resourceType:
+                "SUBMISSION",
+
+              resourceId:
+                created.id,
+            });
+
+            return created;
+          },
+          {
+            isolationLevel:
+              "Serializable",
+          },
+        );
+    } else {
+      submission =
+        await prisma
+          .buyerItemSubmission
+          .create({
+            data:
+              submissionData,
+          });
+    }
 
     return res.status(201).json({
-      success: true,
-      submission: normalizeSubmission(submission),
+      success:
+        true,
+
+      submission:
+        normalizeSubmission(
+          submission,
+        ),
+
+      intakeId:
+        intakeId ||
+        null,
     });
   } catch (error) {
-    console.error("[buyer-item-submissions] create failed:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to create buyer item submission",
-    });
+    return sendBuyerSubmissionCreateError(
+      res,
+      error,
+    );
   }
 }
 

@@ -344,8 +344,9 @@ model BuyerItemSubmission {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  buyer  User                       @relation("BuyerItemSubmissions", fields: [buyerId], references: [id], onDelete: Cascade)
-  offers BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOffers")
+  buyer      User                       @relation("BuyerItemSubmissions", fields: [buyerId], references: [id], onDelete: Cascade)
+  offers     BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOffers")
+  itemIntake ItemIntake?                @relation("ItemIntakeLinkedSubmission")
 
   @@index([buyerId, createdAt])
   @@index([status, createdAt])
@@ -532,9 +533,10 @@ model ItemIntake {
   reviewedAt    DateTime?
   reviewedById  String?
 
-  linkedItemId       String?
-  linkedSubmissionId String?
-  metadata           Json?
+  linkedItemId               String?
+  linkedSubmissionId         String? @unique
+  linkedMarketplaceListingId String? @unique
+  metadata                   Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -544,6 +546,10 @@ model ItemIntake {
   capturedBy User? @relation("ItemIntakeCapturedBy", fields: [capturedByUserId], references: [id], onDelete: SetNull)
 
   customer User? @relation("ItemIntakeCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+
+  linkedSubmission BuyerItemSubmission? @relation("ItemIntakeLinkedSubmission", fields: [linkedSubmissionId], references: [id], onDelete: SetNull)
+
+  linkedMarketplaceListing MarketplaceListing? @relation("ItemIntakeLinkedMarketplaceListing", fields: [linkedMarketplaceListingId], references: [id], onDelete: SetNull)
 
   @@index([shopId, status, createdAt])
   @@index([capturedByUserId, createdAt])
@@ -558,7 +564,6 @@ model ItemIntake {
   @@index([duplicateStatus, createdAt])
   @@index([screeningStatus, createdAt])
   @@index([linkedItemId])
-  @@index([linkedSubmissionId])
 }
 
 enum ItemIntakeSource {
@@ -743,6 +748,7 @@ model MarketplaceListing {
   seller       User                     @relation("MarketplaceListingSeller", fields: [sellerUserId], references: [id], onDelete: Cascade)
   sellerShop   PawnShop?                @relation("MarketplaceListingShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
   transactions MarketplaceTransaction[]
+  itemIntake   ItemIntake?              @relation("ItemIntakeLinkedMarketplaceListing")
 
   @@index([sellerUserId, status, createdAt])
   @@index([sellerShopId, status, createdAt])

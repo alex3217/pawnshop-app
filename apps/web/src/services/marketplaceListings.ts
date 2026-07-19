@@ -298,6 +298,7 @@ export type MarketplaceSellerListingFilters = {
 };
 
 export type CreateMarketplaceListingInput = {
+  intakeId?: string | null;
   listingType: MarketplaceListingType;
   sellerShopId?: string | null;
   itemId?: string | null;
