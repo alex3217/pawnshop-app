@@ -1,0 +1,187 @@
+.create-marketplace-listing-page {
+  width: min(1060px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 32px 0 72px;
+}
+
+.create-listing-hero,
+.create-listing-panel,
+.create-listing-message {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.create-listing-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: clamp(24px, 4vw, 42px);
+  margin-bottom: 20px;
+}
+
+.create-listing-hero > div:first-child > span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.create-listing-hero h1 {
+  margin: 0 0 10px;
+  font-size: clamp(34px, 5vw, 52px);
+}
+
+.create-listing-hero p,
+.create-listing-panel > p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.create-listing-hero-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.create-listing-hero-actions a,
+.create-listing-submit-row a,
+.create-listing-submit-row button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  color: var(--text-strong);
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.create-listing-message {
+  padding: 18px;
+  margin-bottom: 20px;
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.create-listing-form {
+  display: grid;
+  gap: 18px;
+}
+
+.create-listing-panel {
+  padding: clamp(20px, 3vw, 30px);
+}
+
+.create-listing-panel h2 {
+  margin-top: 0;
+}
+
+.create-listing-field-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.create-listing-field-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.create-listing-panel label {
+  display: grid;
+  gap: 7px;
+}
+
+.create-listing-panel label > span {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.create-listing-panel input,
+.create-listing-panel select,
+.create-listing-panel textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  color: var(--text-strong);
+  font: inherit;
+}
+
+.create-listing-panel textarea {
+  resize: vertical;
+}
+
+.create-listing-checkbox-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.create-listing-checkbox-grid label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+
+.create-listing-checkbox-grid input {
+  width: 20px;
+  min-height: 20px;
+}
+
+.create-listing-help {
+  padding: 14px;
+  margin-top: 18px;
+  border-radius: 10px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.create-listing-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.create-listing-submit-row button {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+
+.create-listing-submit-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 700px) {
+  .create-listing-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .create-listing-field-grid .wide {
+    grid-column: auto;
+  }
+
+  .create-listing-submit-row {
+    flex-direction: column-reverse;
+  }
+}

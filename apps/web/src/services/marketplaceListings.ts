@@ -291,3 +291,329 @@ export async function getMarketplaceListingById(
 
   return unwrapListing(data);
 }
+
+export type MarketplaceSellerListingFilters = {
+  status?: MarketplaceListingStatus;
+  listingType?: MarketplaceListingType;
+};
+
+export type CreateMarketplaceListingInput = {
+  listingType: MarketplaceListingType;
+  sellerShopId?: string | null;
+  itemId?: string | null;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  condition?: string | null;
+  price: number;
+  currency?: string;
+  quantity?: number;
+  images?: string[];
+  allowOffers?: boolean;
+  pickupAvailable?: boolean;
+  shippingAvailable?: boolean;
+  expiresAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type UpdateMarketplaceListingInput = {
+  title?: string;
+  description?: string | null;
+  category?: string | null;
+  condition?: string | null;
+  price?: number;
+  currency?: string;
+  quantity?: number;
+  images?: string[];
+  allowOffers?: boolean;
+  pickupAvailable?: boolean;
+  shippingAvailable?: boolean;
+  expiresAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+function normalizeListingId(
+  listingId: string,
+): string {
+  const normalizedId =
+    String(listingId || "").trim();
+
+  if (!normalizedId) {
+    throw new Error(
+      "Marketplace listing ID is required.",
+    );
+  }
+
+  return normalizedId;
+}
+
+function buildSellerListingQuery(
+  filters: MarketplaceSellerListingFilters = {},
+): string {
+  const params =
+    new URLSearchParams();
+
+  if (filters.status) {
+    params.set(
+      "status",
+      filters.status,
+    );
+  }
+
+  if (filters.listingType) {
+    params.set(
+      "listingType",
+      filters.listingType,
+    );
+  }
+
+  const query =
+    params.toString();
+
+  return query
+    ? `?${query}`
+    : "";
+}
+
+function normalizeCreateListingInput(
+  input: CreateMarketplaceListingInput,
+): CreateMarketplaceListingInput {
+  const title =
+    String(input.title || "").trim();
+
+  const price =
+    Number(input.price);
+
+  const quantity =
+    input.quantity ?? 1;
+
+  if (!title) {
+    throw new Error(
+      "Marketplace listing title is required.",
+    );
+  }
+
+  if (
+    !Number.isFinite(price) ||
+    price <= 0
+  ) {
+    throw new Error(
+      "Marketplace listing price must be greater than 0.",
+    );
+  }
+
+  if (
+    !Number.isInteger(quantity) ||
+    quantity < 1
+  ) {
+    throw new Error(
+      "Marketplace listing quantity must be a positive integer.",
+    );
+  }
+
+  return {
+    ...input,
+
+    title,
+    price,
+    quantity,
+
+    sellerShopId:
+      String(
+        input.sellerShopId || "",
+      ).trim() || null,
+
+    itemId:
+      String(
+        input.itemId || "",
+      ).trim() || null,
+
+    currency:
+      input.currency
+        ? input.currency
+            .trim()
+            .toUpperCase()
+        : undefined,
+  };
+}
+
+function normalizeUpdateListingInput(
+  input: UpdateMarketplaceListingInput,
+): UpdateMarketplaceListingInput {
+  const payload: UpdateMarketplaceListingInput = {
+    ...input,
+  };
+
+  if (input.title !== undefined) {
+    const title =
+      input.title.trim();
+
+    if (!title) {
+      throw new Error(
+        "Marketplace listing title cannot be empty.",
+      );
+    }
+
+    payload.title =
+      title;
+  }
+
+  if (input.price !== undefined) {
+    const price =
+      Number(input.price);
+
+    if (
+      !Number.isFinite(price) ||
+      price <= 0
+    ) {
+      throw new Error(
+        "Marketplace listing price must be greater than 0.",
+      );
+    }
+
+    payload.price =
+      price;
+  }
+
+  if (input.quantity !== undefined) {
+    const quantity =
+      Number(input.quantity);
+
+    if (
+      !Number.isInteger(quantity) ||
+      quantity < 1
+    ) {
+      throw new Error(
+        "Marketplace listing quantity must be a positive integer.",
+      );
+    }
+
+    payload.quantity =
+      quantity;
+  }
+
+  if (input.currency !== undefined) {
+    const currency =
+      input.currency
+        .trim()
+        .toUpperCase();
+
+    if (!currency) {
+      throw new Error(
+        "Marketplace listing currency cannot be empty.",
+      );
+    }
+
+    payload.currency =
+      currency;
+  }
+
+  return payload;
+}
+
+async function runMarketplaceListingAction(
+  listingId: string,
+  action:
+    | "publish"
+    | "pause"
+    | "cancel",
+): Promise<MarketplaceListing> {
+  const normalizedId =
+    normalizeListingId(
+      listingId,
+    );
+
+  const data =
+    await api.post<unknown>(
+      `/marketplace-listings/${encodeURIComponent(normalizedId)}/${action}`,
+      {},
+    );
+
+  return unwrapListing(
+    data,
+  );
+}
+
+export async function getMyMarketplaceListings(
+  filters: MarketplaceSellerListingFilters = {},
+): Promise<MarketplaceListing[]> {
+  const data =
+    await api.get<unknown>(
+      `/marketplace-listings/mine${buildSellerListingQuery(filters)}`,
+    );
+
+  return unwrapListingList(
+    data,
+  ).rows;
+}
+
+export async function createMarketplaceListing(
+  input: CreateMarketplaceListingInput,
+): Promise<MarketplaceListing> {
+  const payload =
+    normalizeCreateListingInput(
+      input,
+    );
+
+  const data =
+    await api.post<unknown>(
+      "/marketplace-listings",
+      payload,
+    );
+
+  return unwrapListing(
+    data,
+  );
+}
+
+export async function updateMarketplaceListing(
+  listingId: string,
+  input: UpdateMarketplaceListingInput,
+): Promise<MarketplaceListing> {
+  const normalizedId =
+    normalizeListingId(
+      listingId,
+    );
+
+  const payload =
+    normalizeUpdateListingInput(
+      input,
+    );
+
+  const data =
+    await api.patch<unknown>(
+      `/marketplace-listings/${encodeURIComponent(normalizedId)}`,
+      payload,
+    );
+
+  return unwrapListing(
+    data,
+  );
+}
+
+export async function publishMarketplaceListing(
+  listingId: string,
+): Promise<MarketplaceListing> {
+  return runMarketplaceListingAction(
+    listingId,
+    "publish",
+  );
+}
+
+export async function pauseMarketplaceListing(
+  listingId: string,
+): Promise<MarketplaceListing> {
+  return runMarketplaceListingAction(
+    listingId,
+    "pause",
+  );
+}
+
+export async function cancelMarketplaceListing(
+  listingId: string,
+): Promise<MarketplaceListing> {
+  return runMarketplaceListingAction(
+    listingId,
+    "cancel",
+  );
+}

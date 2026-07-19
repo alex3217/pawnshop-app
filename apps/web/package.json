@@ -13,7 +13,8 @@
     "check:dev-safe": "npm run check:dev-wiring && npm run check:auth-files",
     "start": "serve -s dist -l tcp://0.0.0.0:${PORT:-10000}",
     "test:marketplace-checkout": "playwright test --config playwright.marketplace.config.ts",
-    "test:marketplace-buy-now": "playwright test marketplace-buy-now.spec.ts --config playwright.marketplace.config.ts"
+    "test:marketplace-buy-now": "playwright test marketplace-buy-now.spec.ts --config playwright.marketplace.config.ts",
+    "test:marketplace-seller-listings": "playwright test marketplace-seller-listings.spec.ts --config playwright.marketplace.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

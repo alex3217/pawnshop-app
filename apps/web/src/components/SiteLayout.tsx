@@ -31,6 +31,14 @@ const BUYER_PRIMARY_NAV: NavItem[] = [
     to: "/marketplace/purchases",
     label: "My Purchases",
   },
+  {
+    to: "/marketplace/listings/mine",
+    label: "My Listings",
+  },
+  {
+    to: "/marketplace/listings/new",
+    label: "Create Listing",
+  },
   { to: "/offers", label: "Offers" },
 ];
 
@@ -49,6 +57,10 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
     to: "/marketplace/sales",
     label: "Marketplace Sales",
   },
+  {
+    to: "/marketplace/listings/mine",
+    label: "My Listings",
+  },
   { to: "/owner/finance", label: "Finance" },
   { to: "/owner/locations", label: "Locations" },
   { to: "/owner/staff", label: "Staff" },
@@ -59,6 +71,10 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
 const OWNER_ACTION_NAV: NavItem[] = [
   { to: "/owner/auctions/new", label: "Create Auction" },
   { to: "/owner/items/new", label: "Create Item" },
+  {
+    to: "/marketplace/listings/new",
+    label: "Create Listing",
+  },
   { to: "/owner/shops/new", label: "Create Shop" },
   { to: "/owner/scan-console", label: "Scan Console" },
   { to: "/owner/bulk-upload", label: "Bulk Upload" },
