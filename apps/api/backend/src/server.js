@@ -13,6 +13,11 @@ import {
   stopAuctionScheduler,
 } from "./services/auctionScheduler.service.js";
 
+import {
+  startMarketplaceReservationScheduler,
+  stopMarketplaceReservationScheduler,
+} from "./services/marketplaceTransactionReservationScheduler.service.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const backendRoot = path.resolve(__dirname, "..");
@@ -56,25 +61,73 @@ function resolvePort(...candidates) {
   return 6001;
 }
 
-function shouldStartSchedulers() {
-  if (process.env.AUCTION_SCHEDULER_ENABLED === "false") {
-    console.log("[scheduler] Auction scheduler disabled by env.");
-    return false;
-  }
-
+function isProductionRuntime() {
   return process.env.NODE_ENV === "production";
 }
 
-function startSchedulersOnce() {
-  if (schedulerStarted) return;
+function shouldStartAuctionScheduler() {
+  if (!isProductionRuntime()) {
+    console.log(
+      "[scheduler] Auction scheduler skipped outside production.",
+    );
 
-  if (!shouldStartSchedulers()) {
-    console.log("[scheduler] Auction scheduler skipped outside production.");
+    return false;
+  }
+
+  if (
+    process.env.AUCTION_SCHEDULER_ENABLED ===
+    "false"
+  ) {
+    console.log(
+      "[scheduler] Auction scheduler disabled by env.",
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+function shouldStartMarketplaceReservationScheduler() {
+  if (!isProductionRuntime()) {
+    console.log(
+      "[scheduler] Marketplace reservation scheduler skipped outside production.",
+    );
+
+    return false;
+  }
+
+  if (
+    process.env
+      .MARKETPLACE_RESERVATION_SCHEDULER_ENABLED ===
+    "false"
+  ) {
+    console.log(
+      "[scheduler] Marketplace reservation scheduler disabled by env.",
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+function startSchedulersOnce() {
+  if (schedulerStarted) {
     return;
   }
 
   schedulerStarted = true;
-  startAuctionScheduler();
+
+  if (shouldStartAuctionScheduler()) {
+    startAuctionScheduler();
+  }
+
+  if (
+    shouldStartMarketplaceReservationScheduler()
+  ) {
+    startMarketplaceReservationScheduler();
+  }
 }
 
 loadEnvFiles();
@@ -108,7 +161,19 @@ function shutdown(signal) {
   try {
     stopAuctionScheduler();
   } catch (err) {
-    console.error("[scheduler] Failed to stop auction scheduler:", err);
+    console.error(
+      "[scheduler] Failed to stop auction scheduler:",
+      err,
+    );
+  }
+
+  try {
+    stopMarketplaceReservationScheduler();
+  } catch (err) {
+    console.error(
+      "[scheduler] Failed to stop marketplace reservation scheduler:",
+      err,
+    );
   }
 
   server.close((err) => {

@@ -35,6 +35,7 @@ const SUPER_ADMIN_ROLES: Role[] = ["SUPER_ADMIN"];
 const OWNER_ROLES: Role[] = ["OWNER", "ADMIN"];
 const CONSUMER_ROLES: Role[] = ["CONSUMER", "ADMIN"];
 const OFFER_ROLES: Role[] = ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"];
+const MARKETPLACE_TRANSACTION_ROLES: Role[] = ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"];
 
 function isComponentExport(value: unknown): value is ComponentType<unknown> {
   return typeof value === "function";
@@ -122,6 +123,15 @@ const HomePage = lazyPage(() => import("./pages/HomePage"));
 const ItemDetailPage = lazyPage(() => import("./pages/ItemDetailPage"));
 const LoginPage = lazyPage(() => import("./pages/LoginPage"));
 const MarketplacePage = lazyPage(() => import("./pages/MarketplacePage"));
+const BuyerPurchasesPage = lazyPage(() =>
+  import("./pages/BuyerPurchasesPage"),
+);
+const MarketplaceTransactionDetailPage = lazyPage(() =>
+  import("./pages/MarketplaceTransactionDetailPage"),
+);
+const SellerSalesPage = lazyPage(() =>
+  import("./pages/SellerSalesPage"),
+);
 const MyBidsPage = lazyPage(() => import("./pages/MyBidsPage"));
 const MyWinsPage = lazyPage(() => import("./pages/MyWinsPage"));
 const OffersPage = lazyPage(() => import("./pages/OffersPage"));
@@ -227,6 +237,21 @@ const consumerRoutes: RouteConfig[] = [
   { path: "/saved-searches", element: <SavedSearchesPage /> },
 ];
 
+const marketplaceTransactionRoutes: RouteConfig[] = [
+  {
+    path: "/marketplace/purchases",
+    element: <BuyerPurchasesPage />,
+  },
+  {
+    path: "/marketplace/sales",
+    element: <SellerSalesPage />,
+  },
+  {
+    path: "/marketplace/transactions/:id",
+    element: <MarketplaceTransactionDetailPage />,
+  },
+];
+
 const offerRoutes: RouteConfig[] = [
   { path: "/offers", element: <OffersPage /> },
 ];
@@ -323,6 +348,11 @@ export default function App() {
           {renderRouteGroup(publicRoutes, "public")}
           {renderRouteGroup(consumerRoutes, "consumer", CONSUMER_ROLES)}
           {renderRouteGroup(ownerRoutes, "owner", OWNER_ROLES)}
+          {renderRouteGroup(
+            marketplaceTransactionRoutes,
+            "marketplace-transactions",
+            MARKETPLACE_TRANSACTION_ROLES,
+          )}
           {renderRouteGroup(offerRoutes, "offers", OFFER_ROLES)}
         </Route>
 

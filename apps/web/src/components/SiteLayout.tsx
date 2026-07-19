@@ -26,6 +26,10 @@ const PUBLIC_NAV: NavItem[] = [
 const BUYER_PRIMARY_NAV: NavItem[] = [
   { to: "/my-bids", label: "My Bids" },
   { to: "/my-wins", label: "My Wins" },
+  {
+    to: "/marketplace/purchases",
+    label: "My Purchases",
+  },
   { to: "/offers", label: "Offers" },
 ];
 
@@ -40,6 +44,10 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
   { to: "/owner/inventory", label: "Inventory" },
   { to: "/owner/item-intakes", label: "Intake Review" },
   { to: "/owner/integrations", label: "Integrations" },
+  {
+    to: "/marketplace/sales",
+    label: "Marketplace Sales",
+  },
   { to: "/owner/finance", label: "Finance" },
   { to: "/owner/locations", label: "Locations" },
   { to: "/owner/staff", label: "Staff" },

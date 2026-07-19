@@ -326,3 +326,19 @@ test("my marketplace listings require authentication", async () => {
     error: "Unauthorized",
   });
 });
+
+test("marketplace transaction read routes require authentication", async () => {
+  for (const path of [
+    "/api/marketplace-transactions/mine/purchases",
+    "/api/marketplace-transactions/mine/sales",
+    "/api/marketplace-transactions/test-transaction",
+  ]) {
+    const response = await request(app)
+      .get(path)
+      .expect(401);
+
+    assert.deepEqual(response.body, {
+      error: "Unauthorized",
+    });
+  }
+});
