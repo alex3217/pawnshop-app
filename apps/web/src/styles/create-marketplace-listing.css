@@ -73,6 +73,18 @@
   font-weight: 800;
 }
 
+.create-listing-message-info {
+  display: grid;
+  gap: 6px;
+  border-color: var(--accent);
+  background: var(--bg-soft);
+  color: var(--text-strong);
+}
+
+.create-listing-message-info span {
+  color: var(--muted);
+}
+
 .create-listing-form {
   display: grid;
   gap: 18px;
