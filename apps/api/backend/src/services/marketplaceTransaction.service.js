@@ -21,6 +21,43 @@ const TRANSACTION_STATUSES = new Set([
   "DISPUTED",
 ]);
 
+const SELLER_FULFILLMENT_TARGETS =
+  new Set([
+    "READY_FOR_PICKUP",
+    "PICKED_UP",
+    "SHIPPED",
+    "COMPLETED",
+  ]);
+
+const FULFILLMENT_TRANSITIONS =
+  Object.freeze({
+    PAYMENT_PENDING:
+      new Set([
+        "READY_FOR_PICKUP",
+        "SHIPPED",
+      ]),
+
+    READY_FOR_PICKUP:
+      new Set([
+        "PICKED_UP",
+      ]),
+
+    PICKED_UP:
+      new Set([
+        "COMPLETED",
+      ]),
+
+    SHIPPED:
+      new Set([
+        "COMPLETED",
+      ]),
+
+    COMPLETED:
+      new Set([
+        "COMPLETED",
+      ]),
+  });
+
 const USER_SUMMARY_SELECT = {
   id: true,
   name: true,
@@ -77,9 +114,24 @@ const TRANSACTION_INCLUDE = {
   },
 };
 
-function httpError(message, statusCode) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
+function httpError(
+  message,
+  statusCode,
+  code = undefined,
+) {
+  const error =
+    new Error(
+      message,
+    );
+
+  error.statusCode =
+    statusCode;
+
+  if (code) {
+    error.code =
+      code;
+  }
+
   return error;
 }
 
@@ -118,6 +170,69 @@ function isAdminRole(role) {
   return (
     normalizedRole === "ADMIN" ||
     normalizedRole === "SUPER_ADMIN"
+  );
+}
+
+function metadataObject(
+  value,
+) {
+  if (
+    value &&
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value,
+    )
+  ) {
+    return value;
+  }
+
+  return {};
+}
+
+function normalizeFulfillmentText(
+  value,
+  {
+    field,
+    maxLength,
+  },
+) {
+  const normalized =
+    String(
+      value ??
+      "",
+    ).trim();
+
+  if (
+    normalized.length >
+    maxLength
+  ) {
+    throw httpError(
+      `${field} cannot exceed ${maxLength} characters`,
+      400,
+      "MARKETPLACE_FULFILLMENT_FIELD_TOO_LONG",
+    );
+  }
+
+  return normalized;
+}
+
+function mayManageMarketplaceFulfillment({
+  transaction,
+  actorUserId,
+  role,
+}) {
+  return (
+    isAdminRole(
+      role,
+    ) ||
+    transaction
+      .sellerUserId ===
+      actorUserId ||
+    transaction
+      .sellerShop
+      ?.ownerId ===
+      actorUserId
   );
 }
 
@@ -728,4 +843,431 @@ export async function reserveMarketplacePurchase({
 
     throw error;
   }
+}
+
+export async function updateMarketplaceTransactionFulfillment({
+  transactionId,
+  actorUserId,
+  role,
+  fulfillmentStatus,
+  trackingNumber,
+  carrier,
+  note,
+}) {
+  const id =
+    String(
+      transactionId ||
+      "",
+    ).trim();
+
+  const userId =
+    String(
+      actorUserId ||
+      "",
+    ).trim();
+
+  const targetStatus =
+    normalizeEnum(
+      fulfillmentStatus,
+    );
+
+  if (!userId) {
+    throw httpError(
+      "Unauthorized",
+      401,
+      "MARKETPLACE_FULFILLMENT_AUTH_REQUIRED",
+    );
+  }
+
+  if (!id) {
+    throw httpError(
+      "Marketplace transaction ID is required",
+      400,
+      "MARKETPLACE_TRANSACTION_ID_REQUIRED",
+    );
+  }
+
+  if (
+    !targetStatus ||
+    !SELLER_FULFILLMENT_TARGETS
+      .has(
+        targetStatus,
+      )
+  ) {
+    throw httpError(
+      "Invalid marketplace fulfillment status",
+      400,
+      "MARKETPLACE_FULFILLMENT_STATUS_INVALID",
+    );
+  }
+
+  const normalizedTrackingNumber =
+    normalizeFulfillmentText(
+      trackingNumber,
+      {
+        field:
+          "Tracking number",
+
+        maxLength:
+          120,
+      },
+    );
+
+  const normalizedCarrier =
+    normalizeFulfillmentText(
+      carrier,
+      {
+        field:
+          "Carrier",
+
+        maxLength:
+          80,
+      },
+    );
+
+  const normalizedNote =
+    normalizeFulfillmentText(
+      note,
+      {
+        field:
+          "Fulfillment note",
+
+        maxLength:
+          500,
+      },
+    );
+
+  const transaction =
+    await prisma
+      .marketplaceTransaction
+      .findUnique({
+        where: {
+          id,
+        },
+
+        include:
+          TRANSACTION_INCLUDE,
+      });
+
+  if (!transaction) {
+    throw httpError(
+      "Marketplace transaction not found",
+      404,
+      "MARKETPLACE_TRANSACTION_NOT_FOUND",
+    );
+  }
+
+  if (
+    !mayManageMarketplaceFulfillment({
+      transaction,
+      actorUserId:
+        userId,
+      role,
+    })
+  ) {
+    throw httpError(
+      "Forbidden",
+      403,
+      "MARKETPLACE_FULFILLMENT_FORBIDDEN",
+    );
+  }
+
+  if (
+    transaction
+      .fulfillmentStatus ===
+    targetStatus
+  ) {
+    return {
+      handled:
+        true,
+
+      idempotent:
+        true,
+
+      transaction,
+    };
+  }
+
+  if (
+    ![
+      "PAID",
+      "FULFILLING",
+    ].includes(
+      transaction.status,
+    )
+  ) {
+    throw httpError(
+      "Marketplace fulfillment can only be updated after payment",
+      409,
+      "MARKETPLACE_FULFILLMENT_PAYMENT_REQUIRED",
+    );
+  }
+
+  const transitions =
+    FULFILLMENT_TRANSITIONS[
+      transaction
+        .fulfillmentStatus
+    ];
+
+  if (
+    !transitions ||
+    !transitions.has(
+      targetStatus,
+    )
+  ) {
+    throw httpError(
+      `Marketplace fulfillment cannot move from ${transaction.fulfillmentStatus} to ${targetStatus}`,
+      409,
+      "MARKETPLACE_FULFILLMENT_TRANSITION_INVALID",
+    );
+  }
+
+  if (
+    targetStatus ===
+      "READY_FOR_PICKUP" &&
+    !transaction
+      .listing
+      ?.pickupAvailable
+  ) {
+    throw httpError(
+      "Pickup is not available for this marketplace listing",
+      409,
+      "MARKETPLACE_FULFILLMENT_METHOD_UNAVAILABLE",
+    );
+  }
+
+  if (
+    targetStatus ===
+    "SHIPPED"
+  ) {
+    if (
+      !transaction
+        .listing
+        ?.shippingAvailable
+    ) {
+      throw httpError(
+        "Shipping is not available for this marketplace listing",
+        409,
+        "MARKETPLACE_FULFILLMENT_METHOD_UNAVAILABLE",
+      );
+    }
+
+    if (
+      !normalizedTrackingNumber
+    ) {
+      throw httpError(
+        "A tracking number is required before marking the transaction shipped",
+        400,
+        "MARKETPLACE_FULFILLMENT_TRACKING_REQUIRED",
+      );
+    }
+
+    if (
+      !normalizedCarrier
+    ) {
+      throw httpError(
+        "A carrier is required before marking the transaction shipped",
+        400,
+        "MARKETPLACE_FULFILLMENT_CARRIER_REQUIRED",
+      );
+    }
+  }
+
+  const updatedAt =
+    new Date();
+
+  const metadata =
+    metadataObject(
+      transaction.metadata,
+    );
+
+  const previousFulfillment =
+    metadataObject(
+      metadata.fulfillment,
+    );
+
+  const previousHistory =
+    Array.isArray(
+      previousFulfillment
+        .history,
+    )
+      ? previousFulfillment
+          .history
+          .filter(
+            (entry) =>
+              entry &&
+              typeof entry ===
+                "object" &&
+              !Array.isArray(
+                entry,
+              ),
+          )
+          .slice(
+            -19,
+          )
+      : [];
+
+  const fulfillmentEvent = {
+    status:
+      targetStatus,
+
+    at:
+      updatedAt
+        .toISOString(),
+
+    actorUserId:
+      userId,
+
+    trackingNumber:
+      normalizedTrackingNumber ||
+      null,
+
+    carrier:
+      normalizedCarrier ||
+      null,
+
+    note:
+      normalizedNote ||
+      null,
+  };
+
+  const nextMetadata = {
+    ...metadata,
+
+    fulfillment: {
+      ...previousFulfillment,
+
+      status:
+        targetStatus,
+
+      trackingNumber:
+        normalizedTrackingNumber ||
+        previousFulfillment
+          .trackingNumber ||
+        null,
+
+      carrier:
+        normalizedCarrier ||
+        previousFulfillment
+          .carrier ||
+        null,
+
+      note:
+        normalizedNote ||
+        previousFulfillment
+          .note ||
+        null,
+
+      updatedAt:
+        updatedAt
+          .toISOString(),
+
+      updatedByUserId:
+        userId,
+
+      history: [
+        ...previousHistory,
+        fulfillmentEvent,
+      ],
+    },
+  };
+
+  const updateData = {
+    status:
+      targetStatus ===
+        "COMPLETED"
+        ? "COMPLETED"
+        : "FULFILLING",
+
+    fulfillmentStatus:
+      targetStatus,
+
+    metadata:
+      nextMetadata,
+  };
+
+  if (
+    targetStatus ===
+    "COMPLETED"
+  ) {
+    updateData.completedAt =
+      updatedAt;
+  }
+
+  return prisma.$transaction(
+    async (tx) => {
+      const updateResult =
+        await tx
+          .marketplaceTransaction
+          .updateMany({
+            where: {
+              id:
+                transaction.id,
+
+              status:
+                transaction.status,
+
+              fulfillmentStatus:
+                transaction
+                  .fulfillmentStatus,
+            },
+
+            data:
+              updateData,
+          });
+
+      if (
+        updateResult.count !==
+        1
+      ) {
+        throw httpError(
+          "Marketplace fulfillment changed while it was being updated",
+          409,
+          "MARKETPLACE_FULFILLMENT_STATE_CONFLICT",
+        );
+      }
+
+      const updatedTransaction =
+        await tx
+          .marketplaceTransaction
+          .findUnique({
+            where: {
+              id:
+                transaction.id,
+            },
+
+            include:
+              TRANSACTION_INCLUDE,
+          });
+
+      if (!updatedTransaction) {
+        throw httpError(
+          "Marketplace transaction became unavailable",
+          409,
+          "MARKETPLACE_TRANSACTION_UNAVAILABLE",
+        );
+      }
+
+      return {
+        handled:
+          true,
+
+        idempotent:
+          false,
+
+        transaction:
+          updatedTransaction,
+      };
+    },
+    {
+      isolationLevel:
+        "Serializable",
+
+      maxWait:
+        5000,
+
+      timeout:
+        10000,
+    },
+  );
 }
