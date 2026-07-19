@@ -4,6 +4,7 @@ import {
   acceptBuyerItemSubmissionOffer,
   createBuyerItemSubmission,
   createBuyerItemSubmissionOffer,
+  getMyCustomerItemIntakeLinkage,
   getMyBuyerItemSubmissionOffers,
   rejectBuyerItemSubmissionOffer,
   scanBuyerItemSubmission,
@@ -22,6 +23,13 @@ router.post(
   authRequired,
   requireRole("CONSUMER"),
   scanBuyerItemSubmission,
+);
+
+router.get(
+  "/intakes/:intakeId",
+  authRequired,
+  requireRole("CONSUMER"),
+  getMyCustomerItemIntakeLinkage,
 );
 
 router.get("/mine", authRequired, requireRole("CONSUMER", "ADMIN"), getMyBuyerItemSubmissions);

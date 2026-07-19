@@ -474,6 +474,131 @@ export async function scanBuyerItemSubmission(
   }
 }
 
+export async function getMyCustomerItemIntakeLinkage(
+  req,
+  res,
+) {
+  try {
+    const buyerId =
+      getUserId(
+        req,
+      );
+
+    const intakeId =
+      normalizeString(
+        req.params?.intakeId,
+      );
+
+    if (!buyerId) {
+      return res.status(401).json({
+        success:
+          false,
+
+        error:
+          "Authentication required",
+      });
+    }
+
+    if (!intakeId) {
+      return res.status(400).json({
+        success:
+          false,
+
+        error:
+          "Customer item intake ID is required",
+
+        code:
+          "CUSTOMER_INTAKE_ID_REQUIRED",
+      });
+    }
+
+    const intake =
+      await prisma
+        .itemIntake
+        .findFirst({
+          where: {
+            id:
+              intakeId,
+
+            shopId:
+              null,
+
+            customerId:
+              buyerId,
+          },
+
+          select: {
+            id:
+              true,
+
+            shopId:
+              true,
+
+            customerId:
+              true,
+
+            destination:
+              true,
+
+            status:
+              true,
+
+            duplicateStatus:
+              true,
+
+            screeningStatus:
+              true,
+
+            linkedSubmissionId:
+              true,
+
+            linkedMarketplaceListingId:
+              true,
+
+            createdAt:
+              true,
+
+            updatedAt:
+              true,
+          },
+        });
+
+    if (!intake) {
+      return res.status(404).json({
+        success:
+          false,
+
+        error:
+          "Customer item intake not found",
+
+        code:
+          "CUSTOMER_INTAKE_NOT_FOUND",
+      });
+    }
+
+    return res.json({
+      success:
+        true,
+
+      intake,
+    });
+  } catch (error) {
+    console.error(
+      "[buyer-item-submissions] intake linkage read failed:",
+      error,
+    );
+
+    return res.status(500).json({
+      success:
+        false,
+
+      error:
+        "Failed to load customer item intake linkage",
+    });
+  }
+}
+
+
 export async function getMyBuyerItemSubmissions(req, res) {
   try {
     const buyerId = getUserId(req);

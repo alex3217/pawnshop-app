@@ -13,12 +13,23 @@ type TestScenario = {
   estimatedValue: string;
   intakeId: string;
   reviewRequired: boolean;
+  submissionFailures?: number;
+  listingFailures?: number;
 };
 
 type MockState = {
   scanRequests: number;
   submissionRequests: number;
   listingRequests: number;
+  linkageRequests: number;
+
+  linkedSubmissionId:
+    string |
+    null;
+
+  linkedMarketplaceListingId:
+    string |
+    null;
 
   lastScan:
     | Record<string, unknown>
@@ -52,6 +63,15 @@ function createState():
 
     listingRequests:
       0,
+
+    linkageRequests:
+      0,
+
+    linkedSubmissionId:
+      null,
+
+    linkedMarketplaceListingId:
+      null,
 
     lastScan:
       null,
@@ -223,6 +243,9 @@ function scanResponse(
         "CLEAR",
 
       linkedSubmissionId:
+        null,
+
+      linkedMarketplaceListingId:
         null,
     },
   };
@@ -418,6 +441,64 @@ async function installMocks(
       }
 
       if (
+        method === "GET" &&
+        pathname ===
+          `/api/buyer/item-submissions/intakes/${scenario.intakeId}`
+      ) {
+        state.linkageRequests +=
+          1;
+
+        await route.fulfill({
+          status:
+            200,
+
+          contentType:
+            "application/json",
+
+          body:
+            jsonBody({
+              success:
+                true,
+
+              intake: {
+                id:
+                  scenario.intakeId,
+
+                shopId:
+                  null,
+
+                customerId:
+                  BUYER_ID,
+
+                destination:
+                  "CUSTOMER_MARKETPLACE",
+
+                status:
+                  scenario.reviewRequired
+                    ? "NEEDS_REVIEW"
+                    : "SCANNED",
+
+                duplicateStatus:
+                  scenario.reviewRequired
+                    ? "MATCH_FOUND"
+                    : "CLEAR",
+
+                screeningStatus:
+                  "CLEAR",
+
+                linkedSubmissionId:
+                  state.linkedSubmissionId,
+
+                linkedMarketplaceListingId:
+                  state.linkedMarketplaceListingId,
+              },
+            }),
+        });
+
+        return;
+      }
+
+      if (
         method === "POST" &&
         pathname ===
           "/api/buyer/item-submissions/scan"
@@ -468,6 +549,36 @@ async function installMocks(
 
         state.lastSubmission =
           payload;
+
+        if (
+          state.submissionRequests <=
+          (
+            scenario.submissionFailures ||
+            0
+          )
+        ) {
+          await route.fulfill({
+            status:
+              503,
+
+            contentType:
+              "application/json",
+
+            body:
+              jsonBody({
+                success:
+                  false,
+
+                error:
+                  "Temporary pawn request failure.",
+              }),
+          });
+
+          return;
+        }
+
+        state.linkedSubmissionId =
+          "customer-browser-submission";
 
         await route.fulfill({
           status:
@@ -541,6 +652,36 @@ async function installMocks(
 
         state.lastListing =
           payload;
+
+        if (
+          state.listingRequests <=
+          (
+            scenario.listingFailures ||
+            0
+          )
+        ) {
+          await route.fulfill({
+            status:
+              503,
+
+            contentType:
+              "application/json",
+
+            body:
+              jsonBody({
+                success:
+                  false,
+
+                error:
+                  "Temporary marketplace failure.",
+              }),
+          });
+
+          return;
+        }
+
+        state.linkedMarketplaceListingId =
+          "customer-marketplace-browser-listing";
 
         await route.fulfill({
           status:
@@ -994,6 +1135,278 @@ test(
       metadata.reviewRequired,
     ).toBe(
       false,
+    );
+  },
+);
+
+test(
+  "combined scan retries only the listing after pawn success",
+  async ({
+    page,
+  }) => {
+    const scenario: TestScenario = {
+      code:
+        "071234567890",
+
+      title:
+        "Recover Missing Marketplace Draft",
+
+      estimatedValue:
+        "315.00",
+
+      intakeId:
+        "customer-retry-listing-intake",
+
+      reviewRequired:
+        false,
+
+      listingFailures:
+        1,
+    };
+
+    const state =
+      createState();
+
+    await installAuth(
+      page,
+    );
+
+    await installMocks(
+      page,
+      state,
+      scenario,
+    );
+
+    await page.goto(
+      "/buyer/sell-item",
+    );
+
+    await page
+      .getByLabel(
+        "What do you want?",
+      )
+      .selectOption(
+        "BOTH",
+      );
+
+    await page
+      .getByLabel(
+        "Manual scan value",
+      )
+      .fill(
+        scenario.code,
+      );
+
+    await page
+      .getByRole(
+        "button",
+        {
+          name:
+            "Resolve scan",
+        },
+      )
+      .click();
+
+    await uploadPhoto(
+      page,
+    );
+
+    await page
+      .getByRole(
+        "button",
+        {
+          name:
+            "Submit offers request + draft",
+        },
+      )
+      .click();
+
+    await expect(
+      page.getByText(
+        /Pawnshop offer request submitted/,
+      ),
+    ).toBeVisible();
+
+    await expect(
+      page.getByText(
+        /Still needed: marketplace draft/,
+      ),
+    ).toBeVisible();
+
+    await page
+      .getByRole(
+        "button",
+        {
+          name:
+            "Complete remaining action",
+        },
+      )
+      .click();
+
+    await expect(
+      page.getByText(
+        /Pawnshop offer request was already completed for this scan/,
+      ),
+    ).toBeVisible();
+
+    await expect(
+      page.getByText(
+        /Customer marketplace draft customer-marketplace-browser-listing created/,
+      ),
+    ).toBeVisible();
+
+    expect(
+      state.submissionRequests,
+    ).toBe(
+      1,
+    );
+
+    expect(
+      state.listingRequests,
+    ).toBe(
+      2,
+    );
+
+    expect(
+      state.linkageRequests,
+    ).toBe(
+      3,
+    );
+  },
+);
+
+test(
+  "combined scan retries only the pawn request after listing success",
+  async ({
+    page,
+  }) => {
+    const scenario: TestScenario = {
+      code:
+        "081234567890",
+
+      title:
+        "Recover Missing Pawn Request",
+
+      estimatedValue:
+        "365.00",
+
+      intakeId:
+        "customer-retry-submission-intake",
+
+      reviewRequired:
+        false,
+
+      submissionFailures:
+        1,
+    };
+
+    const state =
+      createState();
+
+    await installAuth(
+      page,
+    );
+
+    await installMocks(
+      page,
+      state,
+      scenario,
+    );
+
+    await page.goto(
+      "/buyer/sell-item",
+    );
+
+    await page
+      .getByLabel(
+        "What do you want?",
+      )
+      .selectOption(
+        "BOTH",
+      );
+
+    await page
+      .getByLabel(
+        "Manual scan value",
+      )
+      .fill(
+        scenario.code,
+      );
+
+    await page
+      .getByRole(
+        "button",
+        {
+          name:
+            "Resolve scan",
+        },
+      )
+      .click();
+
+    await uploadPhoto(
+      page,
+    );
+
+    await page
+      .getByRole(
+        "button",
+        {
+          name:
+            "Submit offers request + draft",
+        },
+      )
+      .click();
+
+    await expect(
+      page.getByText(
+        /Customer marketplace draft customer-marketplace-browser-listing created/,
+      ),
+    ).toBeVisible();
+
+    await expect(
+      page.getByText(
+        /Still needed: pawnshop offer request/,
+      ),
+    ).toBeVisible();
+
+    await page
+      .getByRole(
+        "button",
+        {
+          name:
+            "Complete remaining action",
+        },
+      )
+      .click();
+
+    await expect(
+      page.getByText(
+        /Pawnshop offer request submitted/,
+      ),
+    ).toBeVisible();
+
+    await expect(
+      page.getByText(
+        /Customer marketplace draft customer-marketplace-browser-listing was already completed for this scan/,
+      ),
+    ).toBeVisible();
+
+    expect(
+      state.submissionRequests,
+    ).toBe(
+      2,
+    );
+
+    expect(
+      state.listingRequests,
+    ).toBe(
+      1,
+    );
+
+    expect(
+      state.linkageRequests,
+    ).toBe(
+      3,
     );
   },
 );

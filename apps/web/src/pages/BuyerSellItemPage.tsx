@@ -11,10 +11,12 @@ import { Link } from "react-router-dom";
 import {
   acceptBuyerItemSubmissionOffer,
   createBuyerItemSubmission,
+  getCustomerItemIntakeLinkage,
   getMyBuyerItemSubmissionOffers,
   getMyBuyerItemSubmissions,
   rejectBuyerItemSubmissionOffer,
   scanBuyerItemSubmission,
+  type BuyerItemScanIntake,
   type BuyerItemScanResult,
   type BuyerItemSubmission,
   type BuyerItemSubmissionOffer,
@@ -184,6 +186,24 @@ export default function BuyerSellItemPage() {
     "PAWN_OFFERS"
       ? "CUSTOMER_PAWN"
       : "CUSTOMER_MARKETPLACE";
+
+  const scanHasSubmission =
+    Boolean(
+      scanResult?.intake
+        .linkedSubmissionId,
+    );
+
+  const scanHasMarketplaceListing =
+    Boolean(
+      scanResult?.intake
+        .linkedMarketplaceListingId,
+    );
+
+  const hasPartialCombinedRecovery =
+    intent ===
+      "BOTH" &&
+    scanHasSubmission !==
+      scanHasMarketplaceListing;
 
   const marketplacePrice =
     useMemo(
@@ -657,6 +677,42 @@ export default function BuyerSellItemPage() {
     );
   }
 
+  function mergeCustomerIntakeLinkage(
+    intake:
+      BuyerItemScanIntake,
+  ) {
+    setScanResult(
+      (current) => {
+        if (
+          !current ||
+          current.data
+            .intakeId !==
+            intake.id
+        ) {
+          return current;
+        }
+
+        return {
+          ...current,
+
+          data: {
+            ...current.data,
+
+            intakeStatus:
+              intake.status ||
+              current.data
+                .intakeStatus,
+          },
+
+          intake: {
+            ...current.intake,
+            ...intake,
+          },
+        };
+      },
+    );
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -683,82 +739,205 @@ export default function BuyerSellItemPage() {
     };
 
     try {
-      setSubmitting(true);
-      setNotice(null);
+      setSubmitting(
+        true,
+      );
 
-      let pawnRequestCreated =
+      setNotice(
+        null,
+      );
+
+      const intakeId =
+        scanResult?.data
+          .intakeId ||
+        "";
+
+      let intakeState:
+        BuyerItemScanIntake |
+        null =
+        scanResult?.intake ||
+        null;
+
+      const refreshIntakeState =
+        async () => {
+          if (!intakeId) {
+            return null;
+          }
+
+          const nextIntake =
+            await getCustomerItemIntakeLinkage(
+              intakeId,
+            );
+
+          intakeState =
+            nextIntake;
+
+          mergeCustomerIntakeLinkage(
+            nextIntake,
+          );
+
+          return nextIntake;
+        };
+
+      if (intakeId) {
+        try {
+          await refreshIntakeState();
+        } catch (error) {
+          throw new Error(
+            error instanceof Error
+              ? `Unable to verify scan recovery state: ${error.message}`
+              : "Unable to verify scan recovery state.",
+          );
+        }
+      }
+
+      let linkedSubmissionId =
+        String(
+          intakeState
+            ?.linkedSubmissionId ||
+          "",
+        ).trim();
+
+      let linkedMarketplaceListingId =
+        String(
+          intakeState
+            ?.linkedMarketplaceListingId ||
+          "",
+        ).trim();
+
+      let pawnCreatedNow =
         false;
 
-      let marketplaceListingId =
-        "";
+      let marketplaceCreatedNow =
+        false;
 
       const failures:
         string[] =
         [];
 
-      if (
-        wantsPawnOffers
-      ) {
-        try {
-          await createBuyerItemSubmission({
-            intakeId:
-              scanResult?.data.intakeId ||
+      const mergeCurrentLinks =
+        () => {
+          if (!intakeState) {
+            return;
+          }
+
+          intakeState = {
+            ...intakeState,
+
+            linkedSubmissionId:
+              linkedSubmissionId ||
               null,
 
-            title:
-              draft.title,
+            linkedMarketplaceListingId:
+              linkedMarketplaceListingId ||
+              null,
+          };
 
-            category:
-              draft.category,
-
-            condition:
-              draft.condition,
-
-            estimatedValue:
-              marketplacePrice !==
-                null
-                ? String(
-                    marketplacePrice,
-                  )
-                : undefined,
-
-            description:
-              draft.description,
-
-            intent:
-              draft.intent,
-
-            radiusMiles:
-              Number(
-                draft.radius,
-              ) ||
-              25,
-
-            images:
-              draft.photos,
-          });
-
-          pawnRequestCreated =
-            true;
-        } catch (error) {
-          failures.push(
-            error instanceof Error
-              ? `Pawn-offer request: ${error.message}`
-              : "Pawn-offer request failed.",
+          mergeCustomerIntakeLinkage(
+            intakeState,
           );
+        };
+
+      if (
+        wantsPawnOffers &&
+        !linkedSubmissionId
+      ) {
+        try {
+          const submission =
+            await createBuyerItemSubmission({
+              intakeId:
+                intakeId ||
+                null,
+
+              title:
+                draft.title,
+
+              category:
+                draft.category,
+
+              condition:
+                draft.condition,
+
+              estimatedValue:
+                marketplacePrice !==
+                  null
+                  ? String(
+                      marketplacePrice,
+                    )
+                  : undefined,
+
+              description:
+                draft.description,
+
+              intent:
+                draft.intent,
+
+              radiusMiles:
+                Number(
+                  draft.radius,
+                ) ||
+                25,
+
+              images:
+                draft.photos,
+            });
+
+          linkedSubmissionId =
+            submission.id;
+
+          pawnCreatedNow =
+            true;
+
+          mergeCurrentLinks();
+        } catch (error) {
+          let recovered =
+            false;
+
+          if (intakeId) {
+            try {
+              const refreshed =
+                await refreshIntakeState();
+
+              const recoveredId =
+                String(
+                  refreshed
+                    ?.linkedSubmissionId ||
+                  "",
+                ).trim();
+
+              if (recoveredId) {
+                linkedSubmissionId =
+                  recoveredId;
+
+                recovered =
+                  true;
+              }
+            } catch {
+              // Preserve the original creation failure.
+            }
+          }
+
+          if (!recovered) {
+            failures.push(
+              error instanceof Error
+                ? `Pawn-offer request: ${error.message}`
+                : "Pawn-offer request failed.",
+            );
+          }
         }
       }
 
       if (
         wantsMarketplace &&
         marketplacePrice !==
-          null
+          null &&
+        !linkedMarketplaceListingId
       ) {
         try {
           const listing =
             await createMarketplaceListing({
               intakeId:
-                scanResult?.data.intakeId ||
+                intakeId ||
                 null,
 
               listingType:
@@ -808,49 +987,104 @@ export default function BuyerSellItemPage() {
                     : "buyer-sell-item",
 
                 scanCode:
-                  scanResult?.data.code ||
+                  scanResult?.data
+                    .code ||
                   null,
 
                 scanCodeType:
-                  scanResult?.data.codeType ||
+                  scanResult?.data
+                    .codeType ||
                   null,
 
                 intakeId:
-                  scanResult?.data.intakeId ||
+                  intakeId ||
                   null,
 
                 intakeStatus:
-                  scanResult?.data.intakeStatus ||
+                  scanResult?.data
+                    .intakeStatus ||
                   null,
 
                 duplicateStatus:
-                  scanResult?.data.duplicateStatus ||
+                  scanResult?.data
+                    .duplicateStatus ||
                   null,
 
                 screeningStatus:
-                  scanResult?.data.screeningStatus ||
+                  scanResult?.data
+                    .screeningStatus ||
                   null,
 
                 reviewRequired:
-                  scanResult?.data.reviewRequired ||
+                  scanResult?.data
+                    .reviewRequired ||
                   false,
               },
             });
 
-          marketplaceListingId =
+          linkedMarketplaceListingId =
             listing.id;
+
+          marketplaceCreatedNow =
+            true;
+
+          mergeCurrentLinks();
         } catch (error) {
-          failures.push(
-            error instanceof Error
-              ? `Marketplace draft: ${error.message}`
-              : "Marketplace draft creation failed.",
-          );
+          let recovered =
+            false;
+
+          if (intakeId) {
+            try {
+              const refreshed =
+                await refreshIntakeState();
+
+              const recoveredId =
+                String(
+                  refreshed
+                    ?.linkedMarketplaceListingId ||
+                  "",
+                ).trim();
+
+              if (recoveredId) {
+                linkedMarketplaceListingId =
+                  recoveredId;
+
+                recovered =
+                  true;
+              }
+            } catch {
+              // Preserve the original creation failure.
+            }
+          }
+
+          if (!recovered) {
+            failures.push(
+              error instanceof Error
+                ? `Marketplace draft: ${error.message}`
+                : "Marketplace draft creation failed.",
+            );
+          }
         }
       }
 
+      mergeCurrentLinks();
+
+      const selectedWorkflowCompleted =
+        (
+          wantsPawnOffers &&
+          Boolean(
+            linkedSubmissionId,
+          )
+        ) ||
+        (
+          wantsMarketplace &&
+          Boolean(
+            linkedMarketplaceListingId,
+          )
+        );
+
       if (
-        !pawnRequestCreated &&
-        !marketplaceListingId
+        !selectedWorkflowCompleted
       ) {
         throw new Error(
           failures.join(
@@ -869,24 +1103,31 @@ export default function BuyerSellItemPage() {
         [];
 
       if (
-        pawnRequestCreated
+        wantsPawnOffers &&
+        linkedSubmissionId
       ) {
         messages.push(
-          "Pawnshop offer request submitted.",
+          pawnCreatedNow
+            ? "Pawnshop offer request submitted."
+            : "Pawnshop offer request was already completed for this scan.",
         );
       }
 
       if (
-        marketplaceListingId
+        wantsMarketplace &&
+        linkedMarketplaceListingId
       ) {
         messages.push(
-          `Customer marketplace draft ${marketplaceListingId} created.`,
+          marketplaceCreatedNow
+            ? `Customer marketplace draft ${linkedMarketplaceListingId} created.`
+            : `Customer marketplace draft ${linkedMarketplaceListingId} was already completed for this scan.`,
         );
       }
 
       if (
-        scanResult?.data.reviewRequired &&
-        marketplaceListingId
+        scanResult?.data
+          .reviewRequired &&
+        linkedMarketplaceListingId
       ) {
         messages.push(
           "Manual intake review is required before publishing the marketplace draft.",
@@ -897,7 +1138,37 @@ export default function BuyerSellItemPage() {
         failures.length
       ) {
         messages.push(
-          `Some actions need attention: ${failures.join(" ")}`,
+          `Could not complete: ${failures.join(" ")}`,
+        );
+      }
+
+      const remainingActions:
+        string[] =
+        [];
+
+      if (
+        wantsPawnOffers &&
+        !linkedSubmissionId
+      ) {
+        remainingActions.push(
+          "pawnshop offer request",
+        );
+      }
+
+      if (
+        wantsMarketplace &&
+        !linkedMarketplaceListingId
+      ) {
+        remainingActions.push(
+          "marketplace draft",
+        );
+      }
+
+      if (
+        remainingActions.length
+      ) {
+        messages.push(
+          `Still needed: ${remainingActions.join(" and ")}. Retry to complete only the missing action.`,
         );
       }
 
@@ -908,7 +1179,8 @@ export default function BuyerSellItemPage() {
       );
 
       if (
-        pawnRequestCreated
+        wantsPawnOffers &&
+        linkedSubmissionId
       ) {
         await loadActivity();
       }
@@ -919,7 +1191,9 @@ export default function BuyerSellItemPage() {
           : "Failed to create the selected item workflow.",
       );
     } finally {
-      setSubmitting(false);
+      setSubmitting(
+        false,
+      );
     }
   }
 
@@ -1128,6 +1402,18 @@ export default function BuyerSellItemPage() {
               <span>Intake ID: {scanResult.data.intakeId}</span>
               <span>Status: {scanResult.data.intakeStatus}</span>
 
+              {scanResult.intake.linkedSubmissionId ? (
+                <span>
+                  Pawn request linked: {scanResult.intake.linkedSubmissionId}
+                </span>
+              ) : null}
+
+              {scanResult.intake.linkedMarketplaceListingId ? (
+                <span>
+                  Marketplace draft linked: {scanResult.intake.linkedMarketplaceListingId}
+                </span>
+              ) : null}
+
               {scanResult.data.reviewRequired ? (
                 <small className="sellitem-scanner-warning">
                   Manual intake review is required before this item should be
@@ -1276,7 +1562,9 @@ export default function BuyerSellItemPage() {
                   ? "Submit for pawnshop offers"
                   : intent === "MARKETPLACE_LISTING"
                     ? "Create marketplace draft"
-                    : "Submit offers request + draft"}
+                    : hasPartialCombinedRecovery
+                      ? "Complete remaining action"
+                      : "Submit offers request + draft"}
             </button>
             <button type="button" className="secondary" onClick={resetForm}>
               Reset

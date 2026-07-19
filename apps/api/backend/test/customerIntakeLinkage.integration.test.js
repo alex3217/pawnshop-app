@@ -205,6 +205,24 @@ async function createListingRequest(
     );
 }
 
+async function getIntakeLinkageRequest(
+  buyer,
+  intakeId,
+) {
+  const operation =
+    request(app)
+      .get(
+        `/api/buyer/item-submissions/intakes/${intakeId}`,
+      );
+
+  return buyer
+    ? operation.set(
+        "Authorization",
+        `Bearer ${tokenFor(buyer)}`,
+      )
+    : operation;
+}
+
 async function cleanupTestRecords() {
   const users =
     await prisma.user.findMany({
@@ -1197,6 +1215,344 @@ test(
       storedIntake
         ?.linkedMarketplaceListingId,
       null,
+    );
+  },
+);
+
+test(
+  "customer intake linkage state requires authenticated ownership",
+  async () => {
+    const owner =
+      await createUser(
+        "linkage-state-owner",
+      );
+
+    const outsider =
+      await createUser(
+        "linkage-state-outsider",
+      );
+
+    const intake =
+      await createCustomerIntake({
+        buyer:
+          owner,
+
+        prefix:
+          "linkage-state",
+
+        destination:
+          "CUSTOMER_MARKETPLACE",
+      });
+
+    const unauthenticated =
+      await getIntakeLinkageRequest(
+        null,
+        intake.id,
+      );
+
+    assert.equal(
+      unauthenticated.status,
+      401,
+    );
+
+    const hidden =
+      await getIntakeLinkageRequest(
+        outsider,
+        intake.id,
+      );
+
+    assert.equal(
+      hidden.status,
+      404,
+    );
+
+    assert.equal(
+      hidden.body.code,
+      "CUSTOMER_INTAKE_NOT_FOUND",
+    );
+
+    const owned =
+      await getIntakeLinkageRequest(
+        owner,
+        intake.id,
+      );
+
+    assert.equal(
+      owned.status,
+      200,
+    );
+
+    assert.equal(
+      owned.body.success,
+      true,
+    );
+
+    assert.equal(
+      owned.body.intake.id,
+      intake.id,
+    );
+
+    assert.equal(
+      owned.body.intake.customerId,
+      owner.id,
+    );
+
+    assert.equal(
+      owned.body.intake.linkedSubmissionId,
+      null,
+    );
+
+    assert.equal(
+      owned.body.intake.linkedMarketplaceListingId,
+      null,
+    );
+  },
+);
+
+test(
+  "retry after submission success creates only the missing listing",
+  async () => {
+    const buyer =
+      await createUser(
+        "retry-listing-buyer",
+      );
+
+    const intake =
+      await createCustomerIntake({
+        buyer,
+
+        prefix:
+          "retry-listing",
+
+        destination:
+          "CUSTOMER_MARKETPLACE",
+      });
+
+    const submissionResponse =
+      await createSubmissionRequest(
+        buyer,
+        submissionPayload({
+          intakeId:
+            intake.id,
+
+          prefix:
+            "retry-listing",
+
+          intent:
+            "BOTH",
+        }),
+      );
+
+    assert.equal(
+      submissionResponse.status,
+      201,
+    );
+
+    const partialState =
+      await getIntakeLinkageRequest(
+        buyer,
+        intake.id,
+      );
+
+    assert.equal(
+      partialState.status,
+      200,
+    );
+
+    assert.equal(
+      partialState.body.intake.linkedSubmissionId,
+      submissionResponse.body.submission.id,
+    );
+
+    assert.equal(
+      partialState.body.intake.linkedMarketplaceListingId,
+      null,
+    );
+
+    const listingResponse =
+      await createListingRequest(
+        buyer,
+        listingPayload({
+          intakeId:
+            intake.id,
+
+          prefix:
+            "retry-listing",
+        }),
+      );
+
+    assert.equal(
+      listingResponse.status,
+      201,
+    );
+
+    const counts =
+      await Promise.all([
+        prisma
+          .buyerItemSubmission
+          .count({
+            where: {
+              buyerId:
+                buyer.id,
+            },
+          }),
+
+        prisma
+          .marketplaceListing
+          .count({
+            where: {
+              sellerUserId:
+                buyer.id,
+            },
+          }),
+      ]);
+
+    assert.deepEqual(
+      counts,
+      [
+        1,
+        1,
+      ],
+    );
+
+    const completedState =
+      await getIntakeLinkageRequest(
+        buyer,
+        intake.id,
+      );
+
+    assert.equal(
+      completedState.body.intake.linkedSubmissionId,
+      submissionResponse.body.submission.id,
+    );
+
+    assert.equal(
+      completedState.body.intake.linkedMarketplaceListingId,
+      listingResponse.body.listing.id,
+    );
+  },
+);
+
+test(
+  "retry after listing success creates only the missing submission",
+  async () => {
+    const buyer =
+      await createUser(
+        "retry-submission-buyer",
+      );
+
+    const intake =
+      await createCustomerIntake({
+        buyer,
+
+        prefix:
+          "retry-submission",
+
+        destination:
+          "CUSTOMER_MARKETPLACE",
+      });
+
+    const listingResponse =
+      await createListingRequest(
+        buyer,
+        listingPayload({
+          intakeId:
+            intake.id,
+
+          prefix:
+            "retry-submission",
+        }),
+      );
+
+    assert.equal(
+      listingResponse.status,
+      201,
+    );
+
+    const partialState =
+      await getIntakeLinkageRequest(
+        buyer,
+        intake.id,
+      );
+
+    assert.equal(
+      partialState.status,
+      200,
+    );
+
+    assert.equal(
+      partialState.body.intake.linkedSubmissionId,
+      null,
+    );
+
+    assert.equal(
+      partialState.body.intake.linkedMarketplaceListingId,
+      listingResponse.body.listing.id,
+    );
+
+    const submissionResponse =
+      await createSubmissionRequest(
+        buyer,
+        submissionPayload({
+          intakeId:
+            intake.id,
+
+          prefix:
+            "retry-submission",
+
+          intent:
+            "BOTH",
+        }),
+      );
+
+    assert.equal(
+      submissionResponse.status,
+      201,
+    );
+
+    const counts =
+      await Promise.all([
+        prisma
+          .buyerItemSubmission
+          .count({
+            where: {
+              buyerId:
+                buyer.id,
+            },
+          }),
+
+        prisma
+          .marketplaceListing
+          .count({
+            where: {
+              sellerUserId:
+                buyer.id,
+            },
+          }),
+      ]);
+
+    assert.deepEqual(
+      counts,
+      [
+        1,
+        1,
+      ],
+    );
+
+    const completedState =
+      await getIntakeLinkageRequest(
+        buyer,
+        intake.id,
+      );
+
+    assert.equal(
+      completedState.body.intake.linkedSubmissionId,
+      submissionResponse.body.submission.id,
+    );
+
+    assert.equal(
+      completedState.body.intake.linkedMarketplaceListingId,
+      listingResponse.body.listing.id,
     );
   },
 );
