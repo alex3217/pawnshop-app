@@ -1,12 +1,38 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 
 import { login, persistAuth } from "../services/auth";
 import "../styles/login-page.css";
 
+function safeNextPath(
+  value: string | null,
+) {
+  const normalized =
+    String(value || "").trim();
+
+  if (
+    !normalized.startsWith("/") ||
+    normalized.startsWith("//") ||
+    normalized.includes("\\")
+  ) {
+    return "";
+  }
+
+  return normalized;
+}
+
 export default function LoginPage() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const nextPath =
+    safeNextPath(
+      searchParams.get("next"),
+    );
   const showDevelopmentCredentials = import.meta.env.DEV;
 
   const [email, setEmail] = useState(
@@ -27,6 +53,17 @@ export default function LoginPage() {
       const { token, user } = await login(email, password);
 
       persistAuth(token, user.role, user);
+
+      if (nextPath) {
+        nav(
+          nextPath,
+          {
+            replace: true,
+          },
+        );
+
+        return;
+      }
 
       if (user.role === "SUPER_ADMIN") {
         nav("/super-admin");

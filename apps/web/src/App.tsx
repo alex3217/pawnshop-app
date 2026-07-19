@@ -123,6 +123,9 @@ const HomePage = lazyPage(() => import("./pages/HomePage"));
 const ItemDetailPage = lazyPage(() => import("./pages/ItemDetailPage"));
 const LoginPage = lazyPage(() => import("./pages/LoginPage"));
 const MarketplacePage = lazyPage(() => import("./pages/MarketplacePage"));
+const MarketplaceBuyNowPage = lazyPage(() =>
+  import("./pages/MarketplaceBuyNowPage"),
+);
 const BuyerPurchasesPage = lazyPage(() =>
   import("./pages/BuyerPurchasesPage"),
 );
@@ -220,6 +223,10 @@ const publicRoutes: RouteConfig[] = [
   { path: "/buyer/sell-item", element: <BuyerSellItemPage /> },
 
   { path: "/marketplace", element: <MarketplacePage /> },
+  {
+    path: "/marketplace/buy-now",
+    element: <MarketplaceBuyNowPage />,
+  },
   { path: "/shops", element: <ShopsPage /> },
   { path: "/shops/:id", element: <ShopDetailPage /> },
   { path: "/items/:id", element: <ItemDetailPage /> },
