@@ -5,6 +5,11 @@ import {
   createValidatedSellerSubscriptionCheckoutSession,
   normalizeSellerBillingInterval,
 } from "../services/stripeSubscriptionPrice.service.js";
+
+import {
+  finalizeMarketplacePaymentSucceeded,
+  recordMarketplacePaymentFailed,
+} from "../services/marketplaceTransactionPaymentWebhook.service.js";
 import {
   getStripe,
   getStripeCurrency,
@@ -534,7 +539,26 @@ export async function handleStripeWebhook(req, res) {
 
       case "payment_intent.succeeded": {
         const pi = event.data.object;
-        const settlementId = normalizeId(pi?.metadata?.settlementId);
+
+        const marketplaceTransactionId =
+          normalizeId(
+            pi?.metadata
+              ?.marketplaceTransactionId
+          );
+
+        if (marketplaceTransactionId) {
+          await finalizeMarketplacePaymentSucceeded({
+            paymentIntent: pi,
+            prismaClient: prisma,
+          });
+
+          break;
+        }
+
+        const settlementId =
+          normalizeId(
+            pi?.metadata?.settlementId
+          );
 
         if (settlementId) {
           await prisma.$transaction(async (tx) => {
@@ -558,12 +582,32 @@ export async function handleStripeWebhook(req, res) {
             });
           });
         }
+
         break;
       }
 
       case "payment_intent.payment_failed": {
         const pi = event.data.object;
-        const settlementId = normalizeId(pi?.metadata?.settlementId);
+
+        const marketplaceTransactionId =
+          normalizeId(
+            pi?.metadata
+              ?.marketplaceTransactionId
+          );
+
+        if (marketplaceTransactionId) {
+          await recordMarketplacePaymentFailed({
+            paymentIntent: pi,
+            prismaClient: prisma,
+          });
+
+          break;
+        }
+
+        const settlementId =
+          normalizeId(
+            pi?.metadata?.settlementId
+          );
 
         if (settlementId) {
           await prisma.settlement.update({
@@ -579,6 +623,7 @@ export async function handleStripeWebhook(req, res) {
             },
           });
         }
+
         break;
       }
 
