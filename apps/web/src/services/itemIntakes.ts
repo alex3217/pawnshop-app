@@ -104,6 +104,8 @@ export type ItemIntake = {
 
   linkedItemId?: string | null;
   linkedSubmissionId?: string | null;
+  linkedMarketplaceListingId?:
+    string | null;
   metadata?: unknown;
 
   createdAt: string;

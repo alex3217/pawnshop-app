@@ -55,6 +55,7 @@ export type BuyerItemSubmissionOffer = {
 };
 
 export type CreateBuyerItemSubmissionInput = {
+  intakeId?: string | null;
   title: string;
   description?: string;
   category: string;
@@ -109,6 +110,8 @@ export type BuyerItemScanIntake = {
   duplicateMatches?: unknown;
   screeningStatus?: string;
   linkedSubmissionId?: string | null;
+  linkedMarketplaceListingId?:
+    string | null;
   createdAt?: string;
 };
 

@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   analyzeScanCode,
+  claimCustomerItemIntakeLink,
+  loadCustomerItemIntakeForLinkage,
   recordItemIntakeScan,
 } from "../src/services/itemIntake.service.js";
 
@@ -29,6 +31,45 @@ function createFakePrisma(priorIntake = null) {
             createdAt:
               new Date("2026-07-17T20:00:00Z"),
             ...args.data,
+          };
+        },
+      },
+    },
+  };
+}
+
+
+function createFakeLinkagePrisma({
+  intake,
+  updateCount = 1,
+}) {
+  const calls = {
+    findUnique:
+      null,
+
+    updateMany:
+      null,
+  };
+
+  return {
+    calls,
+
+    client: {
+      itemIntake: {
+        async findUnique(args) {
+          calls.findUnique =
+            args;
+
+          return intake;
+        },
+
+        async updateMany(args) {
+          calls.updateMany =
+            args;
+
+          return {
+            count:
+              updateCount,
           };
         },
       },
@@ -252,5 +293,292 @@ test("recordItemIntakeScan links existing inventory", async () => {
   assert.equal(
     result.intake.status,
     "NEEDS_REVIEW",
+  );
+});
+
+test("loadCustomerItemIntakeForLinkage accepts an owned marketplace intake", async () => {
+  const fake =
+    createFakeLinkagePrisma({
+      intake: {
+        id:
+          "intake-marketplace-1",
+
+        shopId:
+          null,
+
+        customerId:
+          "buyer-1",
+
+        destination:
+          "CUSTOMER_MARKETPLACE",
+
+        status:
+          "SCANNED",
+
+        linkedSubmissionId:
+          null,
+
+        linkedMarketplaceListingId:
+          null,
+      },
+    });
+
+  const intake =
+    await loadCustomerItemIntakeForLinkage({
+      prismaClient:
+        fake.client,
+
+      intakeId:
+        "intake-marketplace-1",
+
+      customerId:
+        "buyer-1",
+
+      resourceType:
+        "MARKETPLACE_LISTING",
+    });
+
+  assert.equal(
+    intake.id,
+    "intake-marketplace-1",
+  );
+
+  assert.equal(
+    fake.calls.findUnique.where.id,
+    "intake-marketplace-1",
+  );
+});
+
+test("loadCustomerItemIntakeForLinkage hides another customer intake", async () => {
+  const fake =
+    createFakeLinkagePrisma({
+      intake: {
+        id:
+          "intake-private-1",
+
+        shopId:
+          null,
+
+        customerId:
+          "buyer-other",
+
+        destination:
+          "CUSTOMER_MARKETPLACE",
+
+        status:
+          "SCANNED",
+
+        linkedSubmissionId:
+          null,
+
+        linkedMarketplaceListingId:
+          null,
+      },
+    });
+
+  await assert.rejects(
+    () =>
+      loadCustomerItemIntakeForLinkage({
+        prismaClient:
+          fake.client,
+
+        intakeId:
+          "intake-private-1",
+
+        customerId:
+          "buyer-1",
+
+        resourceType:
+          "MARKETPLACE_LISTING",
+      }),
+
+    (error) => {
+      assert.equal(
+        error.statusCode,
+        404,
+      );
+
+      assert.equal(
+        error.linkageCode,
+        "CUSTOMER_INTAKE_NOT_FOUND",
+      );
+
+      return true;
+    },
+  );
+});
+
+test("loadCustomerItemIntakeForLinkage rejects an existing submission link", async () => {
+  const fake =
+    createFakeLinkagePrisma({
+      intake: {
+        id:
+          "intake-linked-1",
+
+        shopId:
+          null,
+
+        customerId:
+          "buyer-1",
+
+        destination:
+          "CUSTOMER_PAWN",
+
+        status:
+          "SCANNED",
+
+        linkedSubmissionId:
+          "submission-existing-1",
+
+        linkedMarketplaceListingId:
+          null,
+      },
+    });
+
+  await assert.rejects(
+    () =>
+      loadCustomerItemIntakeForLinkage({
+        prismaClient:
+          fake.client,
+
+        intakeId:
+          "intake-linked-1",
+
+        customerId:
+          "buyer-1",
+
+        resourceType:
+          "SUBMISSION",
+      }),
+
+    (error) => {
+      assert.equal(
+        error.statusCode,
+        409,
+      );
+
+      assert.equal(
+        error.linkageCode,
+        "CUSTOMER_INTAKE_ALREADY_LINKED",
+      );
+
+      return true;
+    },
+  );
+});
+
+test("claimCustomerItemIntakeLink claims only the requested listing field", async () => {
+  const intake = {
+    id:
+      "intake-both-1",
+
+    shopId:
+      null,
+
+    customerId:
+      "buyer-1",
+
+    destination:
+      "CUSTOMER_MARKETPLACE",
+
+    status:
+      "SCANNED",
+
+    linkedSubmissionId:
+      "submission-1",
+
+    linkedMarketplaceListingId:
+      null,
+  };
+
+  const fake =
+    createFakeLinkagePrisma({
+      intake,
+    });
+
+  const result =
+    await claimCustomerItemIntakeLink({
+      prismaClient:
+        fake.client,
+
+      intake,
+      customerId:
+        "buyer-1",
+
+      resourceType:
+        "MARKETPLACE_LISTING",
+
+      resourceId:
+        "listing-1",
+    });
+
+  assert.equal(
+    fake.calls.updateMany.where
+      .linkedMarketplaceListingId,
+    null,
+  );
+
+  assert.equal(
+    fake.calls.updateMany.data
+      .linkedMarketplaceListingId,
+    "listing-1",
+  );
+
+  assert.equal(
+    Object.hasOwn(
+      fake.calls.updateMany.data,
+      "linkedSubmissionId",
+    ),
+    false,
+  );
+
+  assert.equal(
+    result.resourceId,
+    "listing-1",
+  );
+});
+
+test("recordItemIntakeScan ignores requested prelinked resource IDs", async () => {
+  const fake =
+    createFakePrisma();
+
+  await recordItemIntakeScan({
+    prismaClient:
+      fake.client,
+
+    shopId:
+      null,
+
+    capturedByUserId:
+      "buyer-1",
+
+    code:
+      "012345678905",
+
+    input: {
+      customerId:
+        "buyer-1",
+
+      destination:
+        "CUSTOMER_MARKETPLACE",
+
+      linkedSubmissionId:
+        "submission-not-owned",
+
+      linkedMarketplaceListingId:
+        "listing-not-owned",
+    },
+  });
+
+  assert.equal(
+    fake.calls.create.data
+      .linkedSubmissionId,
+    null,
+  );
+
+  assert.equal(
+    fake.calls.create.data
+      .linkedMarketplaceListingId,
+    null,
   );
 });

@@ -791,6 +791,12 @@ test(
       425.5,
     );
 
+    expect(
+      state.lastListing?.intakeId,
+    ).toBe(
+      scenario.intakeId,
+    );
+
     const metadata =
       state.lastListing?.metadata as Record<
         string,
@@ -955,9 +961,21 @@ test(
     );
 
     expect(
+      state.lastSubmission?.intakeId,
+    ).toBe(
+      scenario.intakeId,
+    );
+
+    expect(
       state.lastListing?.listingType,
     ).toBe(
       "CUSTOMER_TO_CUSTOMER",
+    );
+
+    expect(
+      state.lastListing?.intakeId,
+    ).toBe(
+      scenario.intakeId,
     );
 
     const metadata =

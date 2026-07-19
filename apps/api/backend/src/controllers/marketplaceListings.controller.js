@@ -1,4 +1,8 @@
 import { prisma } from "../lib/prisma.js";
+import {
+  claimCustomerItemIntakeLink,
+  loadCustomerItemIntakeForLinkage,
+} from "../services/itemIntake.service.js";
 
 const LISTING_TYPES = new Set([
   "CUSTOMER_TO_CUSTOMER",
@@ -59,14 +63,40 @@ const LISTING_INCLUDE = {
 };
 
 function sendError(res, error, fallback = "Internal server error") {
+  const prismaConflict =
+    error?.code === "P2002" ||
+    error?.code === "P2034";
+
   const status =
-    Number.isInteger(error?.statusCode) && error.statusCode >= 400
+    Number.isInteger(error?.statusCode) &&
+    error.statusCode >= 400
       ? error.statusCode
-      : 500;
+      : prismaConflict
+        ? 409
+        : 500;
 
   return res.status(status).json({
     success: false,
-    error: error?.message || fallback,
+
+    error:
+      status >= 500
+        ? fallback
+        : error?.message ||
+          fallback,
+
+    ...(
+      error?.linkageCode
+        ? {
+            code:
+              error.linkageCode,
+          }
+        : prismaConflict
+          ? {
+              code:
+                "CUSTOMER_INTAKE_LINK_CONFLICT",
+            }
+          : {}
+    ),
   });
 }
 
@@ -423,21 +453,44 @@ function assertRequiredListingData(data, existing = null) {
   }
 }
 
+
 export async function createMarketplaceListing(req, res) {
   try {
-    const sellerUserId = req?.user?.sub;
-    const role = req?.user?.role;
+    const sellerUserId =
+      req?.user?.sub;
 
-    if (!sellerUserId || !role) {
+    const role =
+      req?.user?.role;
+
+    if (
+      !sellerUserId ||
+      !role
+    ) {
       return res.status(401).json({
         success: false,
         error: "Unauthorized",
       });
     }
 
-    const listingType = normalizeEnum(req.body?.listingType);
-    const sellerShopId = normalizeString(req.body?.sellerShopId);
-    const itemId = normalizeString(req.body?.itemId);
+    const listingType =
+      normalizeEnum(
+        req.body?.listingType,
+      );
+
+    const sellerShopId =
+      normalizeString(
+        req.body?.sellerShopId,
+      );
+
+    const itemId =
+      normalizeString(
+        req.body?.itemId,
+      );
+
+    const intakeId =
+      normalizeString(
+        req.body?.intakeId,
+      );
 
     validateListingActor({
       listingType,
@@ -445,51 +498,170 @@ export async function createMarketplaceListing(req, res) {
       sellerShopId,
     });
 
-    if (SHOP_LISTING_TYPES.has(listingType)) {
+    if (
+      intakeId &&
+      !CUSTOMER_LISTING_TYPES.has(
+        listingType,
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Only customer marketplace listings may link a customer item intake.",
+      });
+    }
+
+    if (
+      SHOP_LISTING_TYPES.has(
+        listingType,
+      )
+    ) {
       await assertSellerShopAccess({
         sellerShopId,
-        userId: sellerUserId,
+        userId:
+          sellerUserId,
         role,
       });
     }
 
     if (itemId) {
-      if (!SHOP_LISTING_TYPES.has(listingType)) {
+      if (
+        !SHOP_LISTING_TYPES.has(
+          listingType,
+        )
+      ) {
         return res.status(400).json({
           success: false,
-          error: "Only shop listings may link existing inventory items",
+          error:
+            "Only shop listings may link existing inventory items",
         });
       }
 
       await assertLinkedItemAccess({
         itemId,
-        userId: sellerUserId,
+        userId:
+          sellerUserId,
         role,
         sellerShopId,
       });
     }
 
-    const data = buildListingWriteData(req.body);
-    assertRequiredListingData(data);
+    const data =
+      buildListingWriteData(
+        req.body,
+      );
 
-    const listing = await prisma.marketplaceListing.create({
-      data: {
-        ...data,
-        itemId,
-        sellerUserId,
-        sellerShopId:
-          SHOP_LISTING_TYPES.has(listingType)
-            ? sellerShopId
-            : null,
-        listingType,
-        status: "DRAFT",
-      },
-      include: LISTING_INCLUDE,
-    });
+    assertRequiredListingData(
+      data,
+    );
+
+    if (intakeId) {
+      data.metadata = {
+        ...(
+          data.metadata ||
+          {}
+        ),
+
+        intakeId,
+
+        linkageWorkflow:
+          "customer-scan-intake-linkage-v1",
+      };
+    }
+
+    const listingData = {
+      ...data,
+      itemId,
+      sellerUserId,
+
+      sellerShopId:
+        SHOP_LISTING_TYPES.has(
+          listingType,
+        )
+          ? sellerShopId
+          : null,
+
+      listingType,
+      status:
+        "DRAFT",
+    };
+
+    let listing;
+
+    if (intakeId) {
+      listing =
+        await prisma.$transaction(
+          async (tx) => {
+            const intake =
+              await loadCustomerItemIntakeForLinkage({
+                prismaClient:
+                  tx,
+
+                intakeId,
+
+                customerId:
+                  sellerUserId,
+
+                resourceType:
+                  "MARKETPLACE_LISTING",
+              });
+
+            const created =
+              await tx
+                .marketplaceListing
+                .create({
+                  data:
+                    listingData,
+
+                  include:
+                    LISTING_INCLUDE,
+                });
+
+            await claimCustomerItemIntakeLink({
+              prismaClient:
+                tx,
+
+              intake,
+
+              customerId:
+                sellerUserId,
+
+              resourceType:
+                "MARKETPLACE_LISTING",
+
+              resourceId:
+                created.id,
+            });
+
+            return created;
+          },
+          {
+            isolationLevel:
+              "Serializable",
+          },
+        );
+    } else {
+      listing =
+        await prisma
+          .marketplaceListing
+          .create({
+            data:
+              listingData,
+
+            include:
+              LISTING_INCLUDE,
+          });
+    }
 
     return res.status(201).json({
-      success: true,
+      success:
+        true,
+
       listing,
+
+      intakeId:
+        intakeId ||
+        null,
     });
   } catch (error) {
     return sendError(

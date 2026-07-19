@@ -701,6 +701,10 @@ export default function BuyerSellItemPage() {
       ) {
         try {
           await createBuyerItemSubmission({
+            intakeId:
+              scanResult?.data.intakeId ||
+              null,
+
             title:
               draft.title,
 
@@ -753,6 +757,10 @@ export default function BuyerSellItemPage() {
         try {
           const listing =
             await createMarketplaceListing({
+              intakeId:
+                scanResult?.data.intakeId ||
+                null,
+
               listingType:
                 "CUSTOMER_TO_CUSTOMER",
 
