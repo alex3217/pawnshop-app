@@ -878,3 +878,193 @@ test(
     assert.equal(transactionCount, 0);
   },
 );
+
+test(
+  "payment endpoint requires authentication",
+  async () => {
+    const response = await request(app)
+      .post(
+        "/api/marketplace-transactions/" +
+        "missing-payment-transaction/payment-intent",
+      )
+      .send({});
+
+    assert.equal(response.status, 401);
+
+    assert.deepEqual(response.body, {
+      error: "Unauthorized",
+    });
+  },
+);
+
+test(
+  "payment endpoint returns a structured error for a missing transaction",
+  async () => {
+    const buyer =
+      await createUser("payment-missing-buyer");
+
+    const response = await request(app)
+      .post(
+        "/api/marketplace-transactions/" +
+        "missing-payment-transaction/payment-intent",
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(buyer)}`,
+      )
+      .send({});
+
+    assert.equal(response.status, 404);
+    assert.equal(response.body.success, false);
+
+    assert.equal(
+      response.body.code,
+      "MARKETPLACE_TRANSACTION_NOT_FOUND",
+    );
+
+    assert.match(
+      String(response.body.error || ""),
+      /not found/i,
+    );
+  },
+);
+
+test(
+  "payment endpoint blocks users who are not the transaction buyer",
+  async () => {
+    const seller =
+      await createUser("payment-forbidden-seller");
+
+    const buyer =
+      await createUser("payment-forbidden-buyer");
+
+    const outsider =
+      await createUser("payment-forbidden-outsider");
+
+    const listing = await createListing({
+      seller,
+      quantity: 1,
+      price: "135.00",
+    });
+
+    const transaction =
+      await reserveMarketplacePurchase({
+        listingId: listing.id,
+        buyerUserId: buyer.id,
+        quantity: 1,
+      });
+
+    const response = await request(app)
+      .post(
+        `/api/marketplace-transactions/${transaction.id}/payment-intent`,
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(outsider)}`,
+      )
+      .send({});
+
+    assert.equal(response.status, 403);
+    assert.equal(response.body.success, false);
+
+    assert.equal(
+      response.body.code,
+      "MARKETPLACE_PAYMENT_FORBIDDEN",
+    );
+
+    const unchangedTransaction =
+      await prisma.marketplaceTransaction.findUnique({
+        where: {
+          id: transaction.id,
+        },
+      });
+
+    assert.equal(
+      unchangedTransaction.status,
+      "PENDING",
+    );
+
+    assert.equal(
+      unchangedTransaction.paymentIntentId,
+      null,
+    );
+
+    const unchangedListing =
+      await prisma.marketplaceListing.findUnique({
+        where: {
+          id: listing.id,
+        },
+      });
+
+    assert.equal(unchangedListing.quantity, 0);
+    assert.equal(unchangedListing.status, "RESERVED");
+  },
+);
+
+test(
+  "payment endpoint blocks transactions that are already paid",
+  async () => {
+    const seller =
+      await createUser("payment-paid-seller");
+
+    const buyer =
+      await createUser("payment-paid-buyer");
+
+    const listing = await createListing({
+      seller,
+      quantity: 1,
+      price: "210.00",
+    });
+
+    const transaction =
+      await reserveMarketplacePurchase({
+        listingId: listing.id,
+        buyerUserId: buyer.id,
+        quantity: 1,
+      });
+
+    await prisma.marketplaceTransaction.update({
+      where: {
+        id: transaction.id,
+      },
+      data: {
+        status: "PAID",
+      },
+    });
+
+    const response = await request(app)
+      .post(
+        `/api/marketplace-transactions/${transaction.id}/payment-intent`,
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(buyer)}`,
+      )
+      .send({});
+
+    assert.equal(response.status, 409);
+    assert.equal(response.body.success, false);
+
+    assert.equal(
+      response.body.code,
+      "MARKETPLACE_TRANSACTION_ALREADY_PAID",
+    );
+
+    const unchangedTransaction =
+      await prisma.marketplaceTransaction.findUnique({
+        where: {
+          id: transaction.id,
+        },
+      });
+
+    assert.equal(
+      unchangedTransaction.status,
+      "PAID",
+    );
+
+    assert.equal(
+      unchangedTransaction.paymentIntentId,
+      null,
+    );
+  },
+);
