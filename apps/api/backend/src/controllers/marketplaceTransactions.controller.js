@@ -5,6 +5,10 @@ import {
   reserveMarketplacePurchase,
 } from "../services/marketplaceTransaction.service.js";
 
+import {
+  createMarketplaceTransactionPaymentIntent,
+} from "../services/marketplaceTransactionPayment.service.js";
+
 function sendError(
   res,
   error,
@@ -19,6 +23,11 @@ function sendError(
   return res.status(statusCode).json({
     success: false,
     error: error?.message || fallbackMessage,
+    ...(error?.code
+      ? {
+          code: error.code,
+        }
+      : {}),
   });
 }
 
@@ -104,6 +113,35 @@ export async function createMarketplacePurchaseReservation(
       res,
       error,
       "Unable to reserve marketplace purchase",
+    );
+  }
+}
+
+export async function createMarketplacePaymentIntent(
+  req,
+  res,
+) {
+  try {
+    const actor = getActor(req);
+
+    const payment =
+      await createMarketplaceTransactionPaymentIntent({
+        transactionId: req.params.id,
+        buyerUserId: actor.userId,
+        role: actor.role,
+      });
+
+    return res
+      .status(payment.reused ? 200 : 201)
+      .json({
+        success: true,
+        ...payment,
+      });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Unable to begin marketplace payment",
     );
   }
 }

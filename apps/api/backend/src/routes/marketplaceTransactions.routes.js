@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  createMarketplacePaymentIntent,
   createMarketplacePurchaseReservation,
   getMarketplaceTransactionById,
   listMyMarketplacePurchases,
@@ -27,6 +28,12 @@ router.post(
   "/reserve",
   requireRole(...TRANSACTION_ROLES),
   createMarketplacePurchaseReservation,
+);
+
+router.post(
+  "/:id/payment-intent",
+  requireRole(...TRANSACTION_ROLES),
+  createMarketplacePaymentIntent,
 );
 
 router.get(
