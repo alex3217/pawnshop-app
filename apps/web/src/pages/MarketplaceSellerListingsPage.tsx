@@ -106,6 +106,15 @@ function canPublish(
   );
 }
 
+function canEdit(
+  status: MarketplaceListingStatus,
+) {
+  return (
+    status === "DRAFT" ||
+    status === "PAUSED"
+  );
+}
+
 function canPause(
   status: MarketplaceListingStatus,
 ) {
@@ -597,6 +606,14 @@ export default function MarketplaceSellerListingsPage() {
                     </dl>
 
                     <div className="seller-listing-actions">
+                      {canEdit(listing.status) ? (
+                        <Link
+                          to={`/marketplace/listings/${encodeURIComponent(listing.id)}/edit`}
+                        >
+                          Edit
+                        </Link>
+                      ) : null}
+
                       {canPublish(listing.status) ? (
                         <button
                           type="button"
