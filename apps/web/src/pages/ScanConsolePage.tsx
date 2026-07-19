@@ -147,13 +147,13 @@ function getDestinationGuidance(
       return {
         title: "Customer marketplace workflow",
         description:
-          "Capture the item for review before customer marketplace publishing is enabled.",
+          "Capture the item, complete review, and prepare a prefilled shop-managed marketplace draft.",
         steps: [
           "Choose the shop/location handling the intake.",
           "Scan with the camera or enter the item code manually.",
           "Review duplicate and screening results.",
-          "Open the intake in the review queue.",
-          "Keep it in review until marketplace publishing is available.",
+          "Open the intake in the review queue when manual review is required.",
+          "Open the prefilled marketplace form and save the listing as a draft.",
         ],
       };
 
@@ -161,13 +161,13 @@ function getDestinationGuidance(
       return {
         title: "Dealer listing workflow",
         description:
-          "Capture dealer inventory information and route it through review.",
+          "Capture dealer inventory information and prepare a shop-to-shop listing draft.",
         steps: [
           "Choose the shop/location handling the dealer item.",
           "Scan with the camera or enter the item code manually.",
           "Review duplicate and screening results.",
-          "Open and review the intake record.",
-          "Keep it in review until dealer publishing is available.",
+          "Open and review the intake record when required.",
+          "Open the prefilled dealer listing form and save the listing as a draft.",
         ],
       };
 
@@ -245,6 +245,11 @@ export default function ScanConsolePage() {
   const customerRequired =
     destination === "CUSTOMER_SELL" ||
     destination === "CUSTOMER_PAWN";
+
+  const marketplaceDraftAvailable =
+    destination === "SHOP_INVENTORY" ||
+    destination === "CUSTOMER_MARKETPLACE" ||
+    destination === "DEALER_LISTING";
 
   const destinationGuidance = useMemo(
     () => getDestinationGuidance(destination),
@@ -443,6 +448,74 @@ export default function ScanConsolePage() {
     });
 
     navigate(`/owner/items/new?${params.toString()}`);
+  }
+
+  function openCreateMarketplaceListingWithPrefill() {
+    const payload = getPayload(result);
+    if (!payload) return;
+
+    const sourceItem = payload.item ?? payload;
+
+    const listingType =
+      destination === "DEALER_LISTING"
+        ? "SHOP_TO_SHOP"
+        : "SHOP_TO_CUSTOMER";
+
+    const params = new URLSearchParams({
+      listingType,
+      sellerShopId: toQueryValue(
+        sourceItem.pawnShopId ||
+        shopId,
+      ),
+      itemId: toQueryValue(
+        payload.item?.id,
+      ),
+      title: toQueryValue(
+        sourceItem.title,
+      ),
+      description: toQueryValue(
+        sourceItem.description,
+      ),
+      price: toQueryValue(
+        sourceItem.price,
+      ),
+      category: toQueryValue(
+        sourceItem.category,
+      ),
+      condition: toQueryValue(
+        sourceItem.condition,
+      ),
+      scanCode: toQueryValue(
+        payload.code ||
+        code,
+      ),
+      intakeId: toQueryValue(
+        result?.intake?.id ||
+        payload.intakeId,
+      ),
+      reviewRequired:
+        intakeMeta.needsReview
+          ? "true"
+          : "false",
+      source: "scan-console",
+    });
+
+    for (
+      const [
+        key,
+        value,
+      ] of Array.from(
+        params.entries(),
+      )
+    ) {
+      if (!value) {
+        params.delete(key);
+      }
+    }
+
+    navigate(
+      `/marketplace/listings/new?${params.toString()}`,
+    );
   }
 
   async function startCameraScan() {
@@ -1010,6 +1083,20 @@ export default function ScanConsolePage() {
             >
               {item?.id ? "Create similar item" : "Create item from scan"}
             </button>
+
+            {marketplaceDraftAvailable ? (
+              <button
+                type="button"
+                onClick={
+                  openCreateMarketplaceListingWithPrefill
+                }
+                style={styles.secondaryButton}
+              >
+                {destination === "DEALER_LISTING"
+                  ? "Create dealer listing draft"
+                  : "Create marketplace listing draft"}
+              </button>
+            ) : null}
 
             {item?.id ? (
               <>

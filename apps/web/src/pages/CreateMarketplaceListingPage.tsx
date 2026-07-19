@@ -8,6 +8,7 @@ import {
 import {
   Link,
   useNavigate,
+  useSearchParams,
 } from "react-router-dom";
 
 import {
@@ -105,9 +106,47 @@ function parseImages(value: string) {
   ).slice(0, 20);
 }
 
+function queryValue(
+  params: URLSearchParams,
+  key: string,
+) {
+  return String(
+    params.get(key) ||
+    "",
+  ).trim();
+}
+
 export default function CreateMarketplaceListingPage() {
   const navigate =
     useNavigate();
+
+  const [
+    searchParams,
+  ] = useSearchParams();
+
+  const scannerPrefill =
+    queryValue(
+      searchParams,
+      "source",
+    ) === "scan-console";
+
+  const scannerCode =
+    queryValue(
+      searchParams,
+      "scanCode",
+    );
+
+  const scannerIntakeId =
+    queryValue(
+      searchParams,
+      "intakeId",
+    );
+
+  const scannerReviewRequired =
+    queryValue(
+      searchParams,
+      "reviewRequired",
+    ) === "true";
 
   const role =
     getAuthRole();
@@ -125,10 +164,21 @@ export default function CreateMarketplaceListingPage() {
     listingType,
     setListingType,
   ] = useState<MarketplaceListingType>(
-    () =>
-      defaultListingType(
-        role,
-      ),
+    () => {
+      const requestedType =
+        queryValue(
+          searchParams,
+          "listingType",
+        ) as MarketplaceListingType;
+
+      return availableTypes.includes(
+        requestedType,
+      )
+        ? requestedType
+        : defaultListingType(
+            role,
+          );
+    },
   );
 
   const [
@@ -144,47 +194,102 @@ export default function CreateMarketplaceListingPage() {
   const [
     sellerShopId,
     setSellerShopId,
-  ] = useState("");
+  ] = useState(
+    () =>
+      queryValue(
+        searchParams,
+        "sellerShopId",
+      ),
+  );
 
   const [
     itemId,
     setItemId,
-  ] = useState("");
+  ] = useState(
+    () =>
+      queryValue(
+        searchParams,
+        "itemId",
+      ),
+  );
 
   const [
     title,
     setTitle,
-  ] = useState("");
+  ] = useState(
+    () =>
+      queryValue(
+        searchParams,
+        "title",
+      ),
+  );
 
   const [
     description,
     setDescription,
-  ] = useState("");
+  ] = useState(
+    () =>
+      queryValue(
+        searchParams,
+        "description",
+      ),
+  );
 
   const [
     category,
     setCategory,
-  ] = useState("");
+  ] = useState(
+    () =>
+      queryValue(
+        searchParams,
+        "category",
+      ),
+  );
 
   const [
     condition,
     setCondition,
-  ] = useState("");
+  ] = useState(
+    () =>
+      queryValue(
+        searchParams,
+        "condition",
+      ),
+  );
 
   const [
     price,
     setPrice,
-  ] = useState("");
+  ] = useState(
+    () =>
+      queryValue(
+        searchParams,
+        "price",
+      ),
+  );
 
   const [
     quantity,
     setQuantity,
-  ] = useState("1");
+  ] = useState(
+    () =>
+      queryValue(
+        searchParams,
+        "quantity",
+      ) ||
+      "1",
+  );
 
   const [
     imageUrls,
     setImageUrls,
-  ] = useState("");
+  ] = useState(
+    () =>
+      queryValue(
+        searchParams,
+        "imageUrls",
+      ),
+  );
 
   const [
     allowOffers,
@@ -279,15 +384,27 @@ export default function CreateMarketplaceListingPage() {
 
   useEffect(() => {
     if (
-      isShopListing(
+      !isShopListing(
         listingType,
-      ) &&
-      !sellerShopId &&
-      shops[0]
+      ) ||
+      !shops[0]
     ) {
+      return;
+    }
+
+    const selectedShopExists =
+      shops.some(
+        (shop) =>
+          shop.id ===
+          sellerShopId,
+      );
+
+    if (!selectedShopExists) {
       setSellerShopId(
         shops[0].id,
       );
+
+      setItemId("");
     }
   }, [
     listingType,
@@ -568,6 +685,41 @@ export default function CreateMarketplaceListingPage() {
           </Link>
         </div>
       </header>
+
+      {scannerPrefill ? (
+        <section
+          className="create-listing-message create-listing-message-info"
+          role="status"
+        >
+          <strong>
+            Scanner prefill loaded
+          </strong>
+
+          <span>
+            Review these scanned details before saving the
+            marketplace listing as a draft.
+          </span>
+
+          {scannerCode ? (
+            <span>
+              Scanned code: {scannerCode}
+            </span>
+          ) : null}
+
+          {scannerIntakeId ? (
+            <span>
+              Intake ID: {scannerIntakeId}
+            </span>
+          ) : null}
+
+          {scannerReviewRequired ? (
+            <span>
+              Manual intake review is required before this
+              listing should be published.
+            </span>
+          ) : null}
+        </section>
+      ) : null}
 
       {error ? (
         <section
