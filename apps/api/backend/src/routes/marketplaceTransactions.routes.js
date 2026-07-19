@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  cancelMarketplaceReservation,
   createMarketplacePaymentIntent,
   createMarketplacePurchaseReservation,
   getMarketplaceTransactionById,
@@ -34,6 +35,12 @@ router.post(
   "/:id/payment-intent",
   requireRole(...TRANSACTION_ROLES),
   createMarketplacePaymentIntent,
+);
+
+router.post(
+  "/:id/cancel-reservation",
+  requireRole(...TRANSACTION_ROLES),
+  cancelMarketplaceReservation,
 );
 
 router.get(

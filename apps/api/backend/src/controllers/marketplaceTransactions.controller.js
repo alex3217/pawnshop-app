@@ -9,6 +9,10 @@ import {
   createMarketplaceTransactionPaymentIntent,
 } from "../services/marketplaceTransactionPayment.service.js";
 
+import {
+  cancelMarketplaceTransactionReservation,
+} from "../services/marketplaceTransactionReservationRelease.service.js";
+
 function sendError(
   res,
   error,
@@ -142,6 +146,36 @@ export async function createMarketplacePaymentIntent(
       res,
       error,
       "Unable to begin marketplace payment",
+    );
+  }
+}
+
+export async function cancelMarketplaceReservation(
+  req,
+  res,
+) {
+  try {
+    const actor = getActor(req);
+
+    const cancellation =
+      await cancelMarketplaceTransactionReservation({
+        transactionId: req.params.id,
+        actorUserId: actor.userId,
+        role: actor.role,
+        reason:
+          req.body?.reason ||
+          "BUYER_CANCELED",
+      });
+
+    return res.status(200).json({
+      success: true,
+      ...cancellation,
+    });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Unable to cancel marketplace reservation",
     );
   }
 }
