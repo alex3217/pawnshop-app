@@ -1,3 +1,4 @@
+import { useLayoutEffect } from "react";
 import { Outlet } from "react-router-dom";
 import Breadcrumbs from "../../components/Breadcrumbs";
 import PageBackButton from "../../components/PageBackButton";
@@ -6,6 +7,25 @@ import { logout } from "../../services/auth";
 import AdminSidebar from "./AdminSidebar";
 
 export default function AdminLayout() {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const previousTheme = root.getAttribute("data-theme");
+
+    /*
+     * Admin and Super Admin are dedicated operational workspaces.
+     * Keep them consistently dark regardless of the public-site theme.
+     */
+    root.setAttribute("data-theme", "dark");
+
+    return () => {
+      if (previousTheme) {
+        root.setAttribute("data-theme", previousTheme);
+      } else {
+        root.removeAttribute("data-theme");
+      }
+    };
+  }, []);
+
   return (
     <div className="admin-layout" style={{ minHeight: "100vh", background: "#0b1020", color: "#eef2ff" }}>
       <div
