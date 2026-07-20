@@ -2,6 +2,10 @@
 
 import { prisma } from "../lib/prisma.js";
 import { calculateSettlementRevenueContext } from "../services/revenue/settlementRevenueAdapter.service.js";
+import {
+  assertShopPermission,
+  getAccessibleShopScope,
+} from "../services/shopAccess.service.js";
 
 const AUCTION_SAFE_FIELDS = [
   "id",
@@ -538,6 +542,60 @@ export function buildOwnerAuctionScopeWhere(
   };
 }
 
+export function buildAccessibleAuctionScopeWhere(
+  accessScope,
+) {
+  if (accessScope?.unrestricted) {
+    return {};
+  }
+
+  const shopIds = Array.from(
+    new Set(
+      (
+        Array.isArray(accessScope?.shopIds)
+          ? accessScope.shopIds
+          : []
+      )
+        .map((value) =>
+          String(value || "").trim(),
+        )
+        .filter(Boolean),
+    ),
+  );
+
+  return {
+    shopId: {
+      in: shopIds,
+    },
+  };
+}
+
+async function assertAuctionWriteAccess(
+  req,
+  shopId,
+) {
+  const normalizedShopId =
+    String(shopId || "").trim();
+
+  const existingAccess = req.shopAccess;
+
+  if (
+    existingAccess?.requiredPermission ===
+      "auctions:write" &&
+    String(
+      existingAccess?.shop?.id || "",
+    ).trim() === normalizedShopId
+  ) {
+    return existingAccess;
+  }
+
+  return assertShopPermission({
+    user: req.user,
+    shopId: normalizedShopId,
+    permission: "auctions:write",
+  });
+}
+
 function handleControllerError(res, err, fallback = "Internal Server Error") {
   const statusCode =
     Number.isInteger(err?.statusCode) && err.statusCode >= 400
@@ -748,10 +806,27 @@ export async function listMyAuctions(req, res) {
       }
     }
 
+    const accessScope =
+      await getAccessibleShopScope({
+        user: req.user,
+        permission: "auctions:read",
+      });
+
+    if (
+      !accessScope.unrestricted &&
+      accessScope.shopIds.length === 0 &&
+      getRequesterRole(req) === "CONSUMER"
+    ) {
+      const accessError = new Error(
+        "You do not have auction access for any shop.",
+      );
+      accessError.statusCode = 403;
+      throw accessError;
+    }
+
     const ownerScope =
-      buildOwnerAuctionScopeWhere(
-        userId,
-        isAdminRequest(req),
+      buildAccessibleAuctionScopeWhere(
+        accessScope,
       );
 
     const baseWhere = {
@@ -946,9 +1021,10 @@ export async function createAuction(req, res) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    if (req.user.role !== "ADMIN" && item.shop.ownerId !== req.user.sub) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    await assertAuctionWriteAccess(
+      req,
+      shopId,
+    );
 
     const existing = await prisma.auction.findFirst({
       where: { itemId },
@@ -1035,12 +1111,12 @@ export async function cancelAuction(req, res) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    if (
-      req.user.role !== "ADMIN" &&
-      auction.item.shop.ownerId !== req.user.sub
-    ) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    await assertAuctionWriteAccess(
+      req,
+      auction.shopId ||
+        auction.item.pawnShopId ||
+        auction.item.shop.id,
+    );
 
     const updated = await prisma.auction.update({
       where: { id },
@@ -1086,12 +1162,12 @@ export async function endAuction(req, res) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    if (
-      req.user.role !== "ADMIN" &&
-      auction.item.shop.ownerId !== req.user.sub
-    ) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    await assertAuctionWriteAccess(
+      req,
+      auction.shopId ||
+        auction.item.pawnShopId ||
+        auction.item.shop.id,
+    );
 
     const auctionColumns = await getTableColumns("Auction");
     const updated = await prisma.auction.update({
@@ -1161,8 +1237,24 @@ async function findManageableAuctionForOwner(req, id) {
     return { status: 401, error: "Unauthorized", auction: null };
   }
 
-  if (req.user.role !== "ADMIN" && auction.item.shop.ownerId !== req.user.sub) {
-    return { status: 403, error: "Forbidden", auction: null };
+  try {
+    await assertAuctionWriteAccess(
+      req,
+      auction.shopId ||
+        auction.item.pawnShopId ||
+        auction.item.shop.id,
+    );
+  } catch (error) {
+    return {
+      status:
+        Number.isInteger(error?.statusCode)
+          ? error.statusCode
+          : 500,
+      error:
+        error?.message ||
+        "Auction permission check failed.",
+      auction: null,
+    };
   }
 
   return { status: 200, error: null, auction };

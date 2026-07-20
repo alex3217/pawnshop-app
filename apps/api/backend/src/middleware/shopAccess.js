@@ -20,7 +20,9 @@ function sendError(res, error) {
       error?.message ||
       "Shop authorization failed.",
     ...(error?.details
-      ? { details: error.details }
+      ? {
+          details: error.details,
+        }
       : {}),
   });
 }
@@ -57,6 +59,7 @@ export function shopIdFromStaffParam(
       const error = new Error(
         "Staff id is required.",
       );
+
       error.statusCode = 400;
       throw error;
     }
@@ -75,11 +78,52 @@ export function shopIdFromStaffParam(
       const error = new Error(
         "Staff member not found.",
       );
+
       error.statusCode = 404;
       throw error;
     }
 
     return staff.shopId;
+  };
+}
+
+export function shopIdFromAuctionParam(
+  paramName = "id",
+) {
+  return async function resolveFromAuction(req) {
+    const auctionId = normalizeString(
+      req.params?.[paramName],
+    );
+
+    if (!auctionId) {
+      const error = new Error(
+        "Auction id is required.",
+      );
+
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const auction =
+      await prisma.auction.findUnique({
+        where: {
+          id: auctionId,
+        },
+        select: {
+          shopId: true,
+        },
+      });
+
+    if (!auction) {
+      const error = new Error(
+        "Auction not found.",
+      );
+
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return auction.shopId;
   };
 }
 
