@@ -440,3 +440,76 @@
     align-items: flex-start;
   }
 }
+
+/* Auction action contrast v2 */
+
+.auctions-header .btn,
+.auctions-role-actions .btn,
+.auctions-empty-actions .btn,
+.auction-result-actions .btn {
+  opacity: 1 !important;
+  text-decoration: none !important;
+  font-weight: 850 !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+.auctions-header .btn-primary,
+.auctions-role-actions .btn-primary,
+.auctions-empty-actions .btn-primary,
+.auction-result-actions .btn-primary {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: #2563eb !important;
+  border: 1px solid #1d4ed8 !important;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
+}
+
+.auctions-header .btn-secondary,
+.auctions-role-actions .btn-secondary,
+.auctions-empty-actions .btn-secondary,
+.auction-result-actions .btn-secondary {
+  color: #1e3a8a !important;
+  -webkit-text-fill-color: #1e3a8a !important;
+  background: #eff6ff !important;
+  border: 1px solid #93c5fd !important;
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.10);
+}
+
+.auctions-header .btn-secondary:hover,
+.auctions-role-actions .btn-secondary:hover,
+.auctions-empty-actions .btn-secondary:hover,
+.auction-result-actions .btn-secondary:hover {
+  color: #172554 !important;
+  -webkit-text-fill-color: #172554 !important;
+  background: #dbeafe !important;
+  border-color: #60a5fa !important;
+}
+
+.auctions-header .btn:focus-visible,
+.auctions-role-actions .btn:focus-visible,
+.auctions-empty-actions .btn:focus-visible,
+.auction-result-actions .btn:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.42);
+  outline-offset: 3px;
+}
+
+:root[data-theme="dark"] .auctions-header .btn-secondary,
+:root[data-theme="dark"] .auctions-role-actions .btn-secondary,
+:root[data-theme="dark"] .auctions-empty-actions .btn-secondary,
+:root[data-theme="dark"] .auction-result-actions .btn-secondary {
+  color: #dbeafe !important;
+  -webkit-text-fill-color: #dbeafe !important;
+  background: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+:root[data-theme="dark"] .auctions-header .btn-secondary:hover,
+:root[data-theme="dark"] .auctions-role-actions .btn-secondary:hover,
+:root[data-theme="dark"] .auctions-empty-actions .btn-secondary:hover,
+:root[data-theme="dark"] .auction-result-actions .btn-secondary:hover {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: #334155 !important;
+  border-color: #64748b !important;
+}
+
