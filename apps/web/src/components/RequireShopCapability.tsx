@@ -13,10 +13,15 @@ import { getAuthToken } from "../services/auth";
 import {
   getMyShopAccess,
   type ShopAccessCapabilities,
+  type ShopAccessSnapshot,
 } from "../services/shopAccess";
 
-type ShopCapability =
+export type ShopCapability =
   keyof ShopAccessCapabilities;
+
+export type ShopCapabilityOutletContext = {
+  shopAccess: ShopAccessSnapshot;
+};
 
 type RequireShopCapabilityProps = {
   capability: ShopCapability;
@@ -25,17 +30,16 @@ type RequireShopCapabilityProps = {
 type AccessState =
   | {
       status: "loading";
-      allowed: false;
       error: null;
     }
   | {
       status: "ready";
       allowed: boolean;
+      access: ShopAccessSnapshot;
       error: null;
     }
   | {
       status: "error";
-      allowed: false;
       error: string;
     };
 
@@ -48,17 +52,11 @@ export default function RequireShopCapability({
   const [state, setState] =
     useState<AccessState>({
       status: "loading",
-      allowed: false,
       error: null,
     });
 
   useEffect(() => {
     if (!token) {
-      setState({
-        status: "ready",
-        allowed: false,
-        error: null,
-      });
       return;
     }
 
@@ -67,7 +65,6 @@ export default function RequireShopCapability({
 
     setState({
       status: "loading",
-      allowed: false,
       error: null,
     });
 
@@ -81,6 +78,7 @@ export default function RequireShopCapability({
             access.capabilities[
               capability
             ] === true,
+          access,
           error: null,
         });
       })
@@ -94,7 +92,6 @@ export default function RequireShopCapability({
 
         setState({
           status: "error",
-          allowed: false,
           error:
             error instanceof Error
               ? error.message
@@ -180,5 +177,11 @@ export default function RequireShopCapability({
     );
   }
 
-  return <Outlet />;
+  return (
+    <Outlet
+      context={{
+        shopAccess: state.access,
+      }}
+    />
+  );
 }

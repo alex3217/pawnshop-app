@@ -73,9 +73,10 @@ export type AuctionsResponse = {
 
 export type CreateAuctionInput = {
   itemId: string;
-  startPrice: number;
+  shopId: string;
+  startingPrice: number;
   minIncrement: number;
-  startsAt?: string | null;
+  startsAt: string;
   endsAt: string;
 };
 
@@ -226,9 +227,10 @@ export async function createAuction(
 ): Promise<Auction> {
   const data = await api.post<unknown>("/auctions", {
     itemId: input.itemId,
-    startPrice: input.startPrice,
+    shopId: input.shopId,
+    startingPrice: input.startingPrice,
     minIncrement: input.minIncrement,
-    startsAt: input.startsAt || undefined,
+    startsAt: input.startsAt,
     endsAt: input.endsAt,
   });
 

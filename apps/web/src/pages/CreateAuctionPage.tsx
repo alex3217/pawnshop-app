@@ -2,10 +2,21 @@
 
 import { useMemo, useState, useEffect } from "react";
 import type { FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useOutletContext,
+  useSearchParams,
+} from "react-router-dom";
 import { createAuction, getAuctions } from "../services/auctions";
 import { getMyItems, type Item } from "../services/items";
-import { getAuthRole, getAuthToken } from "../services/auth";
+import { getAuthToken } from "../services/auth";
+import type {
+  ShopCapabilityOutletContext,
+} from "../components/RequireShopCapability";
+import {
+  shopHasPermission,
+} from "../services/shopAccess";
 
 type FormState = {
   itemId: string;
@@ -50,6 +61,9 @@ export default function CreateAuctionPage() {
   const [searchParams] = useSearchParams();
   const requestedItemId = searchParams.get("itemId")?.trim() || "";
 
+  const { shopAccess } =
+    useOutletContext<ShopCapabilityOutletContext>();
+
   const nowPlusOneHour = useMemo(() => {
     const date = new Date();
     date.setHours(date.getHours() + 1);
@@ -66,7 +80,7 @@ export default function CreateAuctionPage() {
     itemId: requestedItemId,
     startPrice: "10.00",
     minIncrement: "1.00",
-    startsAt: "",
+    startsAt: nowPlusOneHour,
     endsAt: tomorrow,
   });
 
@@ -77,9 +91,20 @@ export default function CreateAuctionPage() {
 
 
   const token = getAuthToken();
-  const role = String(getAuthRole() || "").toUpperCase();
   const canCreateAuction =
-    role === "OWNER" || role === "ADMIN" || role === "SUPER_ADMIN";
+    shopAccess.capabilities.auctionsWrite;
+
+  const writableItems = useMemo(
+    () =>
+      items.filter((item) =>
+        shopHasPermission(
+          shopAccess,
+          item.pawnShopId || item.shop?.id,
+          "auctions:write",
+        ),
+      ),
+    [items, shopAccess],
+  );
 
   const startsAtIso = toIsoOrNull(form.startsAt);
   const endsAtIso = toIsoOrNull(form.endsAt);
@@ -124,13 +149,31 @@ export default function CreateAuctionPage() {
     }
 
     if (!canCreateAuction) {
-      setMsg("Only owner or admin accounts can create auctions.");
+      setMsg("Your account does not have auctions:write permission.");
       return;
     }
 
     const itemId = form.itemId.trim();
     if (!itemId) {
-      setMsg("Enter an item ID.");
+      setMsg("Select an inventory item.");
+      return;
+    }
+
+    const selectedItem = writableItems.find(
+      (item) => String(item.id) === itemId,
+    );
+
+    const shopId = String(
+      selectedItem?.pawnShopId ||
+        selectedItem?.shop?.id ||
+        "",
+    ).trim();
+
+    if (!selectedItem || !shopId) {
+      setMsg(
+        "The selected item is not available in a shop "
+          + "where you have auction write permission.",
+      );
       return;
     }
 
@@ -164,7 +207,8 @@ export default function CreateAuctionPage() {
     try {
       const auction = await createAuction({
         itemId,
-        startPrice,
+        shopId,
+        startingPrice: startPrice,
         minIncrement,
         startsAt: startsAtIso,
         endsAt: endsAtIso,
@@ -203,7 +247,7 @@ export default function CreateAuctionPage() {
 
         {token && !canCreateAuction ? (
           <div className="alert alert-warning">
-            Your current role cannot create auctions.
+            Your shop assignment does not include auction write permission.
           </div>
         ) : null}
 
@@ -224,7 +268,7 @@ export default function CreateAuctionPage() {
                 disabled={submitting}
               >
                 <option value="">Select item</option>
-                {items
+                {writableItems
                   .filter((item) => !existingAuctionItemIds.includes(String(item.id)))
                   .map((item) => (
                     <option key={item.id} value={item.id}>
@@ -286,8 +330,11 @@ export default function CreateAuctionPage() {
                 min={nowPlusOneHour}
                 onChange={(event) => updateForm("startsAt", event.target.value)}
                 disabled={submitting}
+                required
               />
-              <small className="muted">Leave blank to start as soon as backend allows.</small>
+              <small className="muted">
+                A start time is required for production auctions.
+              </small>
             </label>
 
             <label style={{ display: "grid", gap: 6 }}>

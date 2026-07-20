@@ -7,7 +7,10 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { Link } from "react-router-dom";
+import {
+  Link,
+  useOutletContext,
+} from "react-router-dom";
 import {
   cancelAuction,
   endAuctionWithSettlement,
@@ -16,6 +19,12 @@ import {
   type AuctionStatus,
 } from "../services/auctions";
 import { getAuthRole, getAuthToken } from "../services/auth";
+import type {
+  ShopCapabilityOutletContext,
+} from "../components/RequireShopCapability";
+import {
+  shopHasPermission,
+} from "../services/shopAccess";
 import {
   updateSettlementFulfillment,
   type FulfillmentStatus,
@@ -634,8 +643,33 @@ export default function OwnerAuctionsPage() {
   const token = getAuthToken();
   const role = String(getAuthRole() || "").toUpperCase();
 
+  const { shopAccess } =
+    useOutletContext<ShopCapabilityOutletContext>();
+
   const canViewOwnerAuctions =
-    role === "OWNER" || role === "ADMIN" || role === "SUPER_ADMIN";
+    Boolean(token) &&
+    shopAccess.capabilities.auctionsRead;
+
+  const canWriteAnyAuction =
+    shopAccess.capabilities.auctionsWrite;
+
+  const canViewInventory =
+    shopAccess.capabilities.inventoryRead;
+
+  const canManageFulfillment =
+    role === "OWNER" ||
+    role === "ADMIN" ||
+    role === "SUPER_ADMIN";
+
+  function canWriteAuction(
+    auction: Auction,
+  ) {
+    return shopHasPermission(
+      shopAccess,
+      getShopId(auction),
+      "auctions:write",
+    );
+  }
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [query, setQuery] = useState("");
@@ -693,7 +727,7 @@ export default function OwnerAuctionsPage() {
         setAuctions([]);
         setMessage({
           type: "warning",
-          text: "Login as an owner to view your auctions.",
+          text: "Login to view the shop auction workspace.",
         });
         setLoading(false);
         setRefreshing(false);
@@ -704,7 +738,7 @@ export default function OwnerAuctionsPage() {
         setAuctions([]);
         setMessage({
           type: "warning",
-          text: "Only owner or admin accounts can view owner auctions.",
+          text: "Your account does not have auctions:read permission.",
         });
         setLoading(false);
         setRefreshing(false);
@@ -755,6 +789,16 @@ export default function OwnerAuctionsPage() {
   }
 
   async function onEndAuction(auction: Auction) {
+    if (!canWriteAuction(auction)) {
+      setMessage({
+        type: "warning",
+        text:
+          "You do not have auction write permission "
+          + "for this shop.",
+      });
+      return;
+    }
+
     const status = statusLabel(auction.status);
 
     if (!canEndAuction(status)) {
@@ -796,6 +840,16 @@ export default function OwnerAuctionsPage() {
     fulfillmentStatus: FulfillmentStatus,
     fulfillmentNote: string,
   ) {
+    if (!canManageFulfillment) {
+      setMessage({
+        type: "warning",
+        text:
+          "Settlement fulfillment changes remain "
+          + "restricted to owners and administrators.",
+      });
+      return;
+    }
+
     const settlement = auction.settlement as
       | {
           id?: string | null;
@@ -850,6 +904,16 @@ export default function OwnerAuctionsPage() {
   }
 
   async function onCancelAuction(auction: Auction) {
+    if (!canWriteAuction(auction)) {
+      setMessage({
+        type: "warning",
+        text:
+          "You do not have auction write permission "
+          + "for this shop.",
+      });
+      return;
+    }
+
     const status = statusLabel(auction.status);
 
     if (!canCancelAuction(status)) {
@@ -1078,7 +1142,7 @@ export default function OwnerAuctionsPage() {
           }}
         >
           <div>
-            <h1 style={{ margin: 0 }}>Owner Auctions</h1>
+            <h1 style={{ margin: 0 }}>Shop Auctions</h1>
             <p className="muted" style={{ margin: "6px 0 0" }}>
               Manage scheduled, live, ended, and canceled auctions from your
               pawnshop inventory.
@@ -1086,9 +1150,14 @@ export default function OwnerAuctionsPage() {
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Link className="btn" to="/owner/inventory">
-              Inventory
-            </Link>
+            {canViewInventory ? (
+              <Link
+                className="btn"
+                to="/owner/inventory"
+              >
+                Inventory
+              </Link>
+            ) : null}
 
             <select
               aria-label="Sort auctions"
@@ -1110,11 +1179,27 @@ export default function OwnerAuctionsPage() {
               <option value="status">Status</option>
             </select>
 
-            <Link className="btn btn-primary" to="/owner/auctions/new">
-              Create Auction
-            </Link>
+            {canWriteAnyAuction ? (
+              <Link
+                className="btn btn-primary"
+                to="/owner/auctions/new"
+              >
+                Create Auction
+              </Link>
+            ) : null}
           </div>
         </div>
+
+        {!canWriteAnyAuction ? (
+          <div
+            className="alert alert-warning"
+            role="status"
+          >
+            You have read-only auction access. You may
+            search, filter, refresh, view, and export
+            auctions, but mutation controls are hidden.
+          </div>
+        ) : null}
 
         <section
           style={{
@@ -1161,13 +1246,23 @@ export default function OwnerAuctionsPage() {
               }}
             />
 
-            <Link className="btn btn-primary" to="/owner/auctions/new">
-              Create Auction
-            </Link>
+            {canWriteAnyAuction ? (
+              <Link
+                className="btn btn-primary"
+                to="/owner/auctions/new"
+              >
+                Create Auction
+              </Link>
+            ) : null}
 
-            <Link className="btn" to="/owner/inventory">
-              Inventory
-            </Link>
+            {canViewInventory ? (
+              <Link
+                className="btn"
+                to="/owner/inventory"
+              >
+                Inventory
+              </Link>
+            ) : null}
 
             <button type="button" className="btn" onClick={exportAuctionsCsv}>
               Export CSV
@@ -1248,9 +1343,14 @@ export default function OwnerAuctionsPage() {
               Clear reviewed marks
             </button>
 
-            <Link className="btn" to="/owner/auctions/new">
-              Create fresh auction
-            </Link>
+            {canWriteAnyAuction ? (
+              <Link
+                className="btn"
+                to="/owner/auctions/new"
+              >
+                Create fresh auction
+              </Link>
+            ) : null}
           </div>
         </section>
 
@@ -1454,9 +1554,14 @@ export default function OwnerAuctionsPage() {
               <Link className="btn btn-primary" to="/owner/auctions/new">
                 Create Auction
               </Link>
-              <Link className="btn" to="/owner/inventory">
-                Go to Inventory
-              </Link>
+              {canViewInventory ? (
+                <Link
+                  className="btn"
+                  to="/owner/inventory"
+                >
+                  Go to Inventory
+                </Link>
+              ) : null}
             </div>
           </div>
         ) : (
@@ -1472,6 +1577,8 @@ export default function OwnerAuctionsPage() {
               const rowBusy = Boolean(rowAction);
               const itemId = getItemId(auction);
               const shopId = getShopId(auction);
+              const canWriteThisAuction =
+                canWriteAuction(auction);
 
               return (
                 <article
@@ -1719,7 +1826,7 @@ export default function OwnerAuctionsPage() {
                             </span>
                           ) : null}
                           <span>Settlement ID: {auction.settlement.id}</span>
-                          {String(auction.settlement.status || "").toUpperCase() === "CHARGED" ? (
+                          {canManageFulfillment && String(auction.settlement.status || "").toUpperCase() === "CHARGED" ? (
                             <div
                               data-owner-auction-fulfillment-controls="true"
                               style={{
@@ -1779,7 +1886,7 @@ export default function OwnerAuctionsPage() {
                       paddingTop: 12,
                     }}
                   >
-                    {closedAuction ? (
+                    {closedAuction && canWriteThisAuction ? (
                       <Link
                         data-owner-auction-relist="true"
                         className="btn btn-sm"
@@ -1789,7 +1896,7 @@ export default function OwnerAuctionsPage() {
                       </Link>
                     ) : null}
 
-                    {cancelable ? (
+                    {cancelable && canWriteThisAuction ? (
                       <button
                         className="btn btn-sm"
                         type="button"
@@ -1801,7 +1908,7 @@ export default function OwnerAuctionsPage() {
                       </button>
                     ) : null}
 
-                    {endable ? (
+                    {endable && canWriteThisAuction ? (
                       <button
                         className="btn btn-sm btn-primary"
                         type="button"
