@@ -7,7 +7,7 @@ import AdminSidebar from "./AdminSidebar";
 
 export default function AdminLayout() {
   return (
-    <div style={{ minHeight: "100vh", background: "#0b1020", color: "#eef2ff" }}>
+    <div className="admin-layout" style={{ minHeight: "100vh", background: "#0b1020", color: "#eef2ff" }}>
       <div
         style={{
           maxWidth: 1440,
@@ -18,7 +18,7 @@ export default function AdminLayout() {
         }}
       >
         <div
-          className="page-card"
+          className="page-card admin-layout__header"
           style={{
             display: "flex",
             justifyContent: "space-between",
