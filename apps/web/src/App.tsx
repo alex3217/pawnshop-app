@@ -9,6 +9,7 @@ import {
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import RequireRole from "./components/RequireRole";
+import RequireShopCapability from "./components/RequireShopCapability";
 import SiteLayout from "./components/SiteLayout";
 import type { Role } from "./services/auth";
 
@@ -300,11 +301,23 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner/integrations", element: <OwnerIntegrationsPage /> },
   { path: "/owner/locations", element: <OwnerLocationsPage /> },
   { path: "/owner/staff", element: <OwnerStaffPage /> },
-  { path: "/owner/auctions", element: <OwnerAuctionsPage /> },
-  { path: "/owner/auctions/new", element: <CreateAuctionPage /> },
   { path: "/owner/scan-console", element: <ScanConsolePage /> },
   { path: "/owner/bulk-upload", element: <BulkUploadPage /> },
   { path: "/owner/subscription", element: <OwnerSubscriptionPage /> },
+];
+
+const shopAuctionReadRoutes: RouteConfig[] = [
+  {
+    path: "/owner/auctions",
+    element: <OwnerAuctionsPage />,
+  },
+];
+
+const shopAuctionWriteRoutes: RouteConfig[] = [
+  {
+    path: "/owner/auctions/new",
+    element: <CreateAuctionPage />,
+  },
 ];
 
 const adminCoreRoutes: RouteConfig[] = [
@@ -380,6 +393,37 @@ export default function App() {
           {renderRouteGroup(publicRoutes, "public")}
           {renderRouteGroup(consumerRoutes, "consumer", CONSUMER_ROLES)}
           {renderRouteGroup(ownerRoutes, "owner", OWNER_ROLES)}
+
+          <Route
+            element={
+              <RequireShopCapability capability="auctionsRead" />
+            }
+          >
+            {shopAuctionReadRoutes.map((route, index) =>
+              renderRoute(
+                route,
+                `shop-auction-read-${
+                  "path" in route ? route.path : index
+                }`,
+              ),
+            )}
+          </Route>
+
+          <Route
+            element={
+              <RequireShopCapability capability="auctionsWrite" />
+            }
+          >
+            {shopAuctionWriteRoutes.map((route, index) =>
+              renderRoute(
+                route,
+                `shop-auction-write-${
+                  "path" in route ? route.path : index
+                }`,
+              ),
+            )}
+          </Route>
+
           {renderRouteGroup(
             marketplaceTransactionRoutes,
             "marketplace-transactions",

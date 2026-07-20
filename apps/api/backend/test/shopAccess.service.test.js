@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   assertShopPermission,
   getAccessibleShopScope,
+  getMyShopAccess,
   resolveShopAccess,
 } from "../src/services/shopAccess.service.js";
 
@@ -404,6 +405,251 @@ test(
     assert.deepEqual(
       scope.shopIds,
       [],
+    );
+  },
+);
+
+function makeCapabilityPrisma({
+  ownedShops = [],
+  memberships = [],
+} = {}) {
+  return {
+    pawnShop: {
+      async findMany({ where }) {
+        return ownedShops
+          .filter(
+            (shop) =>
+              shop.ownerId === where.ownerId &&
+              shop.isDeleted === false,
+          )
+          .map((shop) => ({
+            id: shop.id,
+            name: shop.name,
+          }));
+      },
+    },
+
+    staff: {
+      async findMany({ where }) {
+        return memberships.filter(
+          (member) =>
+            member.status === where.status &&
+            matchesIdentity(
+              member,
+              where.OR,
+            ),
+        );
+      },
+    },
+  };
+}
+
+test(
+  "current auction staff access exposes assigned permissions",
+  async () => {
+    const access =
+      await getMyShopAccess({
+        user: {
+          sub: "staff-user-1",
+          role: "CONSUMER",
+          email:
+            "auction-manager@example.com",
+        },
+        prismaClient:
+          makeCapabilityPrisma({
+            memberships: [
+              {
+                id: "staff-auction-1",
+                shopId: "shop-a",
+                userId: "staff-user-1",
+                email:
+                  "auction-manager@example.com",
+                role:
+                  "AUCTION_MANAGER",
+                status: "ACTIVE",
+                permissions: [
+                  "auctions:read",
+                  "auctions:write",
+                ],
+                shop: {
+                  id: "shop-a",
+                  name: "Shop A",
+                  isDeleted: false,
+                },
+              },
+            ],
+          }),
+      });
+
+    assert.equal(
+      access.capabilities.auctionsRead,
+      true,
+    );
+
+    assert.equal(
+      access.capabilities.auctionsWrite,
+      true,
+    );
+
+    assert.deepEqual(
+      access.shopIds,
+      ["shop-a"],
+    );
+
+    assert.equal(
+      access.shops[0].source,
+      "STAFF",
+    );
+  },
+);
+
+test(
+  "current read-only auction staff cannot mutate auctions",
+  async () => {
+    const access =
+      await getMyShopAccess({
+        user: {
+          sub: "staff-viewer-1",
+          role: "CONSUMER",
+          email:
+            "auction-viewer@example.com",
+        },
+        prismaClient:
+          makeCapabilityPrisma({
+            memberships: [
+              {
+                id: "staff-viewer-1",
+                shopId: "shop-a",
+                userId: "staff-viewer-1",
+                email:
+                  "auction-viewer@example.com",
+                role: "SHOP_VIEWER",
+                status: "ACTIVE",
+                permissions: [
+                  "auctions:read",
+                ],
+                shop: {
+                  id: "shop-a",
+                  name: "Shop A",
+                  isDeleted: false,
+                },
+              },
+            ],
+          }),
+      });
+
+    assert.equal(
+      access.capabilities.auctionsRead,
+      true,
+    );
+
+    assert.equal(
+      access.capabilities.auctionsWrite,
+      false,
+    );
+  },
+);
+
+test(
+  "current shop owner receives full shop capabilities",
+  async () => {
+    const access =
+      await getMyShopAccess({
+        user: {
+          sub: "owner-a",
+          role: "OWNER",
+          email:
+            "owner-a@example.com",
+        },
+        prismaClient:
+          makeCapabilityPrisma({
+            ownedShops: [
+              {
+                id: "shop-a",
+                ownerId: "owner-a",
+                name: "Shop A",
+                isDeleted: false,
+              },
+            ],
+          }),
+      });
+
+    assert.deepEqual(
+      access.permissions,
+      ["*"],
+    );
+
+    assert.equal(
+      access.capabilities.auctionsWrite,
+      true,
+    );
+
+    assert.equal(
+      access.shops[0].source,
+      "SHOP_OWNER",
+    );
+  },
+);
+
+test(
+  "ordinary buyer has no shop capabilities",
+  async () => {
+    const access =
+      await getMyShopAccess({
+        user: {
+          sub: "buyer-1",
+          role: "CONSUMER",
+          email:
+            "buyer@example.com",
+        },
+        prismaClient:
+          makeCapabilityPrisma(),
+      });
+
+    assert.deepEqual(
+      access.shopIds,
+      [],
+    );
+
+    assert.equal(
+      access.capabilities.auctionsRead,
+      false,
+    );
+
+    assert.equal(
+      access.capabilities.auctionsWrite,
+      false,
+    );
+  },
+);
+
+test(
+  "platform administrator has unrestricted capabilities",
+  async () => {
+    const access =
+      await getMyShopAccess({
+        user: {
+          sub: "admin-1",
+          role: "ADMIN",
+          email:
+            "admin@example.com",
+        },
+        prismaClient: {},
+      });
+
+    assert.equal(
+      access.unrestricted,
+      true,
+    );
+
+    assert.equal(
+      access.capabilities.auctionsRead,
+      true,
+    );
+
+    assert.equal(
+      access.capabilities.auctionsWrite,
+      true,
     );
   },
 );

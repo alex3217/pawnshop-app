@@ -314,6 +314,53 @@ function normalizeAuctionForResponse(auction, now = new Date()) {
   return response;
 }
 
+export function applySettlementScopeToAuctionResponse(
+  auction,
+  settlementScope,
+) {
+  if (
+    !auction ||
+    !Object.prototype.hasOwnProperty.call(
+      auction,
+      "settlement",
+    )
+  ) {
+    return auction;
+  }
+
+  if (settlementScope?.unrestricted) {
+    return auction;
+  }
+
+  const permittedShopIds = new Set(
+    Array.isArray(settlementScope?.shopIds)
+      ? settlementScope.shopIds
+          .map((value) =>
+            String(value || "").trim(),
+          )
+          .filter(Boolean)
+      : [],
+  );
+
+  const auctionShopId = String(
+    auction.shopId ||
+      auction.shop?.id ||
+      "",
+  ).trim();
+
+  if (
+    auctionShopId &&
+    permittedShopIds.has(auctionShopId)
+  ) {
+    return auction;
+  }
+
+  return {
+    ...auction,
+    settlement: null,
+  };
+}
+
 function resolveCreateStatus({
   requestedStatus,
   startsAt,
@@ -806,11 +853,19 @@ export async function listMyAuctions(req, res) {
       }
     }
 
-    const accessScope =
-      await getAccessibleShopScope({
+    const [
+      accessScope,
+      settlementScope,
+    ] = await Promise.all([
+      getAccessibleShopScope({
         user: req.user,
         permission: "auctions:read",
-      });
+      }),
+      getAccessibleShopScope({
+        user: req.user,
+        permission: "settlements:read",
+      }),
+    ]);
 
     if (
       !accessScope.unrestricted &&
@@ -870,7 +925,15 @@ export async function listMyAuctions(req, res) {
       page: pageNum,
       limit: pageSize,
       total,
-      rows: rows.map((row) => normalizeAuctionForResponse(row, now)),
+      rows: rows.map((row) =>
+        applySettlementScopeToAuctionResponse(
+          normalizeAuctionForResponse(
+            row,
+            now,
+          ),
+          settlementScope,
+        ),
+      ),
     });
   } catch (err) {
     return handleControllerError(res, err, "Failed to list owner auctions");

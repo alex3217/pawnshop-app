@@ -399,3 +399,224 @@ export async function getAccessibleShopScope({
       normalizedPermission,
   };
 }
+
+function normalizePermissionList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((permission) =>
+          normalizeString(permission).toLowerCase(),
+        )
+        .filter((permission) =>
+          SHOP_PERMISSION_CODES.includes(permission),
+        ),
+    ),
+  );
+}
+
+function buildShopCapabilities(
+  permissions,
+  fullAccess = false,
+) {
+  const permissionSet = new Set(permissions);
+
+  const has = (permission) =>
+    fullAccess ||
+    permissionSet.has("*") ||
+    permissionSet.has(permission);
+
+  return {
+    inventoryRead: has("inventory:read"),
+    inventoryWrite: has("inventory:write"),
+    auctionsRead: has("auctions:read"),
+    auctionsWrite: has("auctions:write"),
+    offersRead: has("offers:read"),
+    offersWrite: has("offers:write"),
+    locationsRead: has("locations:read"),
+    locationsWrite: has("locations:write"),
+    staffRead: has("staff:read"),
+    staffWrite: has("staff:write"),
+    settlementsRead: has("settlements:read"),
+  };
+}
+
+export async function getMyShopAccess({
+  user,
+  prismaClient = prisma,
+}) {
+  if (!user) {
+    throw createHttpError(
+      401,
+      "Unauthorized",
+    );
+  }
+
+  const role = normalizeRole(user.role);
+
+  if (isPlatformAdministrator(role)) {
+    return {
+      role,
+      unrestricted: true,
+      shopIds: [],
+      permissions: ["*"],
+      capabilities:
+        buildShopCapabilities([], true),
+      shops: [],
+    };
+  }
+
+  const userId = getUserId(user);
+  const identityConditions =
+    buildIdentityConditions(user);
+
+  const [ownedShops, memberships] =
+    await Promise.all([
+      userId
+        ? prismaClient.pawnShop.findMany({
+            where: {
+              ownerId: userId,
+              isDeleted: false,
+            },
+            select: {
+              id: true,
+              name: true,
+            },
+          })
+        : [],
+      identityConditions.length > 0
+        ? prismaClient.staff.findMany({
+            where: {
+              status: "ACTIVE",
+              OR: identityConditions,
+            },
+            select: {
+              id: true,
+              shopId: true,
+              userId: true,
+              email: true,
+              role: true,
+              status: true,
+              permissions: true,
+              shop: {
+                select: {
+                  id: true,
+                  name: true,
+                  isDeleted: true,
+                },
+              },
+            },
+          })
+        : [],
+    ]);
+
+  const shopAccessById = new Map();
+
+  for (const shop of ownedShops) {
+    const shopId = normalizeString(shop?.id);
+
+    if (!shopId) {
+      continue;
+    }
+
+    shopAccessById.set(shopId, {
+      shopId,
+      shopName:
+        normalizeString(
+          shop?.name,
+          "Shop",
+        ),
+      source: "SHOP_OWNER",
+      staffId: null,
+      staffRole: null,
+      permissions: ["*"],
+    });
+  }
+
+  for (const membership of memberships) {
+    const shop = membership?.shop;
+    const shopId = normalizeString(
+      shop?.id || membership?.shopId,
+    );
+
+    if (
+      !shopId ||
+      !shop ||
+      shop.isDeleted === true
+    ) {
+      continue;
+    }
+
+    const existing =
+      shopAccessById.get(shopId);
+
+    if (existing?.source === "SHOP_OWNER") {
+      continue;
+    }
+
+    shopAccessById.set(shopId, {
+      shopId,
+      shopName:
+        normalizeString(
+          shop.name,
+          "Shop",
+        ),
+      source: "STAFF",
+      staffId:
+        normalizeString(
+          membership.id,
+        ) || null,
+      staffRole:
+        normalizeString(
+          membership.role,
+        ).toUpperCase() || null,
+      permissions:
+        normalizePermissionList(
+          membership.permissions,
+        ),
+    });
+  }
+
+  const shops = Array.from(
+    shopAccessById.values(),
+  ).sort((left, right) =>
+    left.shopName.localeCompare(
+      right.shopName,
+    ),
+  );
+
+  const hasFullShopAccess = shops.some(
+    (shop) =>
+      shop.permissions.includes("*"),
+  );
+
+  const permissionSet = new Set();
+
+  for (const shop of shops) {
+    for (const permission of shop.permissions) {
+      permissionSet.add(permission);
+    }
+  }
+
+  const permissions = hasFullShopAccess
+    ? ["*"]
+    : Array.from(permissionSet).sort();
+
+  return {
+    role,
+    unrestricted: false,
+    shopIds: shops.map(
+      (shop) => shop.shopId,
+    ),
+    permissions,
+    capabilities:
+      buildShopCapabilities(
+        permissions,
+        hasFullShopAccess,
+      ),
+    shops,
+  };
+}

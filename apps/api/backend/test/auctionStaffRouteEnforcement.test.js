@@ -15,6 +15,7 @@ import {
   DEFAULT_SHOP_PERMISSIONS_BY_ROLE,
 } from "../src/config/shopPermissions.js";
 import {
+  applySettlementScopeToAuctionResponse,
   buildAccessibleAuctionScopeWhere,
 } from "../src/controllers/auctions.controller.js";
 
@@ -26,6 +27,56 @@ const auctionRoutesSource = readFileSync(
   resolve(
     currentDir,
     "../src/routes/auctions.routes.js",
+  ),
+  "utf8",
+);
+
+const auctionControllerSource = readFileSync(
+  resolve(
+    currentDir,
+    "../src/controllers/auctions.controller.js",
+  ),
+  "utf8",
+);
+
+const webSourceRoot = resolve(
+  currentDir,
+  "../../../web/src",
+);
+
+const appSource = readFileSync(
+  resolve(webSourceRoot, "App.tsx"),
+  "utf8",
+);
+
+const siteLayoutSource = readFileSync(
+  resolve(
+    webSourceRoot,
+    "components/SiteLayout.tsx",
+  ),
+  "utf8",
+);
+
+const ownerAuctionsSource = readFileSync(
+  resolve(
+    webSourceRoot,
+    "pages/OwnerAuctionsPage.tsx",
+  ),
+  "utf8",
+);
+
+const createAuctionSource = readFileSync(
+  resolve(
+    webSourceRoot,
+    "pages/CreateAuctionPage.tsx",
+  ),
+  "utf8",
+);
+
+const auctionServiceSource = readFileSync(
+  resolve(
+    webSourceRoot,
+    "services/auctions.ts",
   ),
   "utf8",
 );
@@ -136,6 +187,130 @@ test(
       writeChecks.length,
       5,
       "Expected review, clear-review, create, cancel, and end write checks.",
+    );
+  },
+);
+
+test(
+  "settlement details are redacted outside the permitted shop scope",
+  () => {
+    const auction = {
+      id: "auction-a",
+      shopId: "shop-a",
+      settlement: {
+        id: "settlement-a",
+      },
+    };
+
+    const redacted =
+      applySettlementScopeToAuctionResponse(
+        auction,
+        {
+          unrestricted: false,
+          shopIds: ["shop-b"],
+        },
+      );
+
+    assert.equal(
+      redacted.settlement,
+      null,
+    );
+
+    const permitted =
+      applySettlementScopeToAuctionResponse(
+        auction,
+        {
+          unrestricted: false,
+          shopIds: ["shop-a"],
+        },
+      );
+
+    assert.deepEqual(
+      permitted.settlement,
+      {
+        id: "settlement-a",
+      },
+    );
+
+    const unrestricted =
+      applySettlementScopeToAuctionResponse(
+        auction,
+        {
+          unrestricted: true,
+          shopIds: [],
+        },
+      );
+
+    assert.deepEqual(
+      unrestricted.settlement,
+      {
+        id: "settlement-a",
+      },
+    );
+  },
+);
+
+test(
+  "frontend auction routes use read and write capability guards",
+  () => {
+    assert.match(
+      appSource,
+      /RequireShopCapability capability="auctionsRead"/,
+    );
+
+    assert.match(
+      appSource,
+      /RequireShopCapability capability="auctionsWrite"/,
+    );
+
+    assert.match(
+      createAuctionSource,
+      /valid auction start time/,
+    );
+
+    assert.match(
+      auctionServiceSource,
+      /shopId: input\.shopId/,
+    );
+
+    assert.match(
+      auctionServiceSource,
+      /startingPrice: input\.startingPrice/,
+    );
+  },
+);
+
+test(
+  "staff navigation and settlement visibility are permission aware",
+  () => {
+    assert.match(
+      siteLayoutSource,
+      /getMyShopAccess/,
+    );
+
+    assert.match(
+      siteLayoutSource,
+      /showStaffAuctionLinks/,
+    );
+
+    assert.match(
+      siteLayoutSource,
+      /Shop Tools/,
+    );
+
+    assert.match(
+      ownerAuctionsSource,
+      /settlements:read/,
+    );
+
+    assert.match(
+      ownerAuctionsSource,
+      /data-owner-auction-settlement-restricted/,
+    );
+
+    assert.match(
+      auctionControllerSource,
+      /applySettlementScopeToAuctionResponse/,
     );
   },
 );
