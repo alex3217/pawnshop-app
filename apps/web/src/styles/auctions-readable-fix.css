@@ -513,3 +513,129 @@
   border-color: #64748b !important;
 }
 
+/* Auction discovery controls v2 */
+
+.auctions-inline-toggle {
+  min-height: 44px;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 9px !important;
+  padding: 10px 12px;
+  border: 1px solid rgba(100, 116, 139, 0.34);
+  border-radius: 10px;
+  color: #1e293b !important;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.auctions-inline-toggle input {
+  width: 18px !important;
+  height: 18px !important;
+  min-height: 0 !important;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.auctions-inline-toggle span {
+  color: #1e293b !important;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.auctions-control-error {
+  padding: 11px 13px;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  color: #991b1b;
+  background: #fef2f2;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.auctions-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.auctions-pagination span {
+  min-width: 120px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 850;
+  text-align: center;
+}
+
+.auctions-pagination .btn {
+  opacity: 1 !important;
+  color: #1e3a8a !important;
+  -webkit-text-fill-color: #1e3a8a !important;
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+}
+
+.auctions-pagination .btn:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed;
+}
+
+:root[data-theme="dark"]
+  .auctions-inline-toggle {
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0 !important;
+  background: #1e293b;
+}
+
+:root[data-theme="dark"]
+  .auctions-inline-toggle span {
+  color: #e2e8f0 !important;
+}
+
+:root[data-theme="dark"]
+  .auctions-control-error {
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.38);
+}
+
+:root[data-theme="dark"]
+  .auctions-pagination {
+  border-color: rgba(148, 163, 184, 0.26);
+  background: #111827;
+}
+
+:root[data-theme="dark"]
+  .auctions-pagination span {
+  color: #e2e8f0;
+}
+
+:root[data-theme="dark"]
+  .auctions-pagination .btn {
+  color: #dbeafe !important;
+  -webkit-text-fill-color: #dbeafe !important;
+  background: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+@media (max-width: 720px) {
+  .auctions-pagination {
+    align-items: stretch;
+  }
+
+  .auctions-pagination .btn {
+    flex: 1 1 120px;
+  }
+
+  .auctions-pagination span {
+    flex: 1 1 100%;
+    order: -1;
+  }
+}
+

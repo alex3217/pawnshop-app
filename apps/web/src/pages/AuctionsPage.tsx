@@ -13,6 +13,14 @@ import {
   type Auction,
 } from "../services/auctions";
 import { getAuthRole } from "../services/auth";
+import {
+  addSavedSearch,
+} from "../services/savedSearches";
+import {
+  addToWatchlist,
+  getMyWatchlist,
+  removeFromWatchlist,
+} from "../services/watchlist";
 import "../styles/auctions-readable-fix.css";
 
 type AuctionStatusFilter =
@@ -45,6 +53,11 @@ const FILTERS: AuctionStatusFilter[] = [
 
 const POLL_MS = 30_000;
 const ENDING_SOON_MS = 24 * 60 * 60 * 1000;
+const RESULTS_PER_PAGE_OPTIONS = [
+  12,
+  24,
+  48,
+] as const;
 
 function normalize(value: unknown, fallback = "") {
   return String(value ?? fallback).trim();
@@ -99,6 +112,13 @@ function auctionShopKey(auction: Auction) {
 
 function auctionCategory(auction: Auction) {
   return normalize(auction.item?.category, "Uncategorized");
+}
+
+function auctionCondition(auction: Auction) {
+  return normalize(
+    auction.item?.condition,
+    "Unspecified",
+  );
 }
 
 function auctionSearchText(auction: Auction) {
@@ -322,6 +342,14 @@ export default function AuctionsPage() {
     useState("ALL");
   const [minimumPrice, setMinimumPrice] = useState("");
   const [maximumPrice, setMaximumPrice] = useState("");
+  const [conditionFilter, setConditionFilter] =
+    useState("ALL");
+  const [endingSoonOnly, setEndingSoonOnly] =
+    useState(false);
+  const [resultsPerPage, setResultsPerPage] =
+    useState<number>(12);
+  const [currentPage, setCurrentPage] =
+    useState(1);
 
   const [sortKey, setSortKey] =
     useState<AuctionSortKey>("ENDING_SOON");
@@ -329,6 +357,17 @@ export default function AuctionsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+
+  const [watchedItemIds, setWatchedItemIds] =
+    useState<Set<string>>(() => new Set());
+  const [watchBusyItemId, setWatchBusyItemId] =
+    useState("");
+  const [savingSearch, setSavingSearch] =
+    useState(false);
+  const [actionNotice, setActionNotice] =
+    useState("");
+  const [actionError, setActionError] =
+    useState("");
 
   const inFlightRef = useRef(false);
 
@@ -408,6 +447,39 @@ export default function AuctionsPage() {
     return () => window.clearInterval(timer);
   }, [load, statusFilter]);
 
+  useEffect(() => {
+    if (role !== "CONSUMER") {
+      setWatchedItemIds(new Set());
+      return;
+    }
+
+    let active = true;
+
+    getMyWatchlist()
+      .then((entries) => {
+        if (!active) return;
+
+        setWatchedItemIds(
+          new Set(
+            entries
+              .map((entry) =>
+                String(entry.itemId || "").trim(),
+              )
+              .filter(Boolean),
+          ),
+        );
+      })
+      .catch(() => {
+        if (active) {
+          setWatchedItemIds(new Set());
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [role]);
+
   const shopOptions = useMemo(() => {
     const shops = new Map<string, string>();
 
@@ -444,20 +516,43 @@ export default function AuctionsPage() {
     ].sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
+  const conditionOptions = useMemo(() => {
+    return [
+      ...new Set(
+        rows.map((auction) =>
+          auctionCondition(auction),
+        ),
+      ),
+    ].sort((left, right) =>
+      left.localeCompare(right),
+    );
+  }, [rows]);
+
+  const minimumPriceNumber =
+    minimumPrice === ""
+      ? null
+      : Number(minimumPrice);
+
+  const maximumPriceNumber =
+    maximumPrice === ""
+      ? null
+      : Number(maximumPrice);
+
+  const priceRangeInvalid =
+    minimumPriceNumber !== null &&
+    maximumPriceNumber !== null &&
+    Number.isFinite(minimumPriceNumber) &&
+    Number.isFinite(maximumPriceNumber) &&
+    minimumPriceNumber > maximumPriceNumber;
+
   const filteredRows = useMemo(() => {
+    if (priceRangeInvalid) return [];
+
     const searchNeedle = query
       .trim()
       .toLowerCase();
 
-    const min =
-      minimumPrice === ""
-        ? null
-        : Number(minimumPrice);
-
-    const max =
-      maximumPrice === ""
-        ? null
-        : Number(maximumPrice);
+    const now = Date.now();
 
     const filtered = rows.filter((auction) => {
       const searchMatches =
@@ -475,32 +570,53 @@ export default function AuctionsPage() {
         auctionCategory(auction) ===
           categoryFilter;
 
+      const conditionMatches =
+        conditionFilter === "ALL" ||
+        auctionCondition(auction) ===
+          conditionFilter;
+
       const price = auctionCurrentPrice(auction);
 
       const minimumMatches =
-        min === null ||
-        !Number.isFinite(min) ||
-        price >= min;
+        minimumPriceNumber === null ||
+        !Number.isFinite(minimumPriceNumber) ||
+        price >= minimumPriceNumber;
 
       const maximumMatches =
-        max === null ||
-        !Number.isFinite(max) ||
-        price <= max;
+        maximumPriceNumber === null ||
+        !Number.isFinite(maximumPriceNumber) ||
+        price <= maximumPriceNumber;
+
+      const endTime = auctionEndTime(auction);
+
+      const endingSoonMatches =
+        !endingSoonOnly ||
+        (
+          normalizeUpper(auction.status) ===
+            "LIVE" &&
+          endTime > now &&
+          endTime - now <= ENDING_SOON_MS
+        );
 
       return (
         searchMatches &&
         shopMatches &&
         categoryMatches &&
+        conditionMatches &&
         minimumMatches &&
-        maximumMatches
+        maximumMatches &&
+        endingSoonMatches
       );
     });
 
     return sortAuctionRows(filtered, sortKey);
   }, [
     categoryFilter,
-    maximumPrice,
-    minimumPrice,
+    conditionFilter,
+    endingSoonOnly,
+    maximumPriceNumber,
+    minimumPriceNumber,
+    priceRangeInvalid,
     query,
     rows,
     shopFilter,
@@ -540,14 +656,58 @@ export default function AuctionsPage() {
     total,
   ]);
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      filteredRows.length / resultsPerPage,
+    ),
+  );
+
+  const safeCurrentPage = Math.min(
+    currentPage,
+    totalPages,
+  );
+
+  const pageStart =
+    (safeCurrentPage - 1) * resultsPerPage;
+
+  const pagedRows = filteredRows.slice(
+    pageStart,
+    pageStart + resultsPerPage,
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    categoryFilter,
+    conditionFilter,
+    endingSoonOnly,
+    maximumPrice,
+    minimumPrice,
+    query,
+    resultsPerPage,
+    shopFilter,
+    sortKey,
+    statusFilter,
+  ]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const hasActiveControls =
     statusFilter !== "LIVE" ||
     query.trim().length > 0 ||
     shopFilter !== "ALL" ||
     categoryFilter !== "ALL" ||
+    conditionFilter !== "ALL" ||
     minimumPrice !== "" ||
     maximumPrice !== "" ||
-    sortKey !== "ENDING_SOON";
+    endingSoonOnly ||
+    sortKey !== "ENDING_SOON" ||
+    resultsPerPage !== 12;
 
   function changeStatus(
     nextStatus: AuctionStatusFilter,
@@ -560,10 +720,127 @@ export default function AuctionsPage() {
     setQuery("");
     setShopFilter("ALL");
     setCategoryFilter("ALL");
+    setConditionFilter("ALL");
     setMinimumPrice("");
     setMaximumPrice("");
+    setEndingSoonOnly(false);
+    setResultsPerPage(12);
     setSortKey("ENDING_SOON");
+    setCurrentPage(1);
+    setActionError("");
     changeStatus("LIVE");
+  }
+
+  async function saveCurrentAuctionSearch() {
+    if (role !== "CONSUMER") return;
+
+    if (priceRangeInvalid) {
+      setActionError(
+        "Minimum price cannot exceed maximum price.",
+      );
+      return;
+    }
+
+    setSavingSearch(true);
+    setActionError("");
+    setActionNotice("");
+
+    const parts = [
+      "Auctions",
+      `status=${statusFilter}`,
+      query.trim()
+        ? `keywords=${query.trim()}`
+        : null,
+      shopFilter !== "ALL"
+        ? `shop=${shopFilter}`
+        : null,
+      categoryFilter !== "ALL"
+        ? `category=${categoryFilter}`
+        : null,
+      conditionFilter !== "ALL"
+        ? `condition=${conditionFilter}`
+        : null,
+      minimumPrice
+        ? `minPrice=${minimumPrice}`
+        : null,
+      maximumPrice
+        ? `maxPrice=${maximumPrice}`
+        : null,
+      endingSoonOnly
+        ? "endingWithin24Hours=true"
+        : null,
+      `sort=${sortKey}`,
+    ].filter(Boolean);
+
+    try {
+      await addSavedSearch(parts.join(" | "));
+      setActionNotice(
+        "Auction search saved successfully.",
+      );
+    } catch (err) {
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : "Failed to save auction search.",
+      );
+    } finally {
+      setSavingSearch(false);
+    }
+  }
+
+  async function toggleAuctionWatch(
+    auction: Auction,
+  ) {
+    if (role !== "CONSUMER") return;
+
+    const itemId = String(
+      auction.item?.id ||
+      auction.itemId ||
+      "",
+    ).trim();
+
+    if (!itemId || watchBusyItemId) return;
+
+    const currentlyWatched =
+      watchedItemIds.has(itemId);
+
+    setWatchBusyItemId(itemId);
+    setActionError("");
+    setActionNotice("");
+
+    try {
+      if (currentlyWatched) {
+        await removeFromWatchlist(itemId);
+      } else {
+        await addToWatchlist(itemId);
+      }
+
+      setWatchedItemIds((current) => {
+        const next = new Set(current);
+
+        if (currentlyWatched) {
+          next.delete(itemId);
+        } else {
+          next.add(itemId);
+        }
+
+        return next;
+      });
+
+      setActionNotice(
+        currentlyWatched
+          ? "Item removed from your watchlist."
+          : "Item added to your watchlist.",
+      );
+    } catch (err) {
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : "Failed to update watchlist.",
+      );
+    } finally {
+      setWatchBusyItemId("");
+    }
   }
 
   return (
@@ -738,6 +1015,34 @@ export default function AuctionsPage() {
             </label>
 
             <label>
+              <span>Condition</span>
+
+              <select
+                value={conditionFilter}
+                onChange={(event) =>
+                  setConditionFilter(
+                    event.target.value,
+                  )
+                }
+              >
+                <option value="ALL">
+                  All conditions
+                </option>
+
+                {conditionOptions.map(
+                  (condition) => (
+                    <option
+                      key={condition}
+                      value={condition}
+                    >
+                      {condition}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+
+            <label>
               <span>Minimum price</span>
 
               <input
@@ -801,6 +1106,62 @@ export default function AuctionsPage() {
               </select>
             </label>
 
+            <label className="auctions-inline-toggle">
+              <input
+                type="checkbox"
+                checked={endingSoonOnly}
+                onChange={(event) =>
+                  setEndingSoonOnly(
+                    event.target.checked,
+                  )
+                }
+              />
+
+              <span>Ending within 24 hours</span>
+            </label>
+
+            <label>
+              <span>Results per page</span>
+
+              <select
+                value={resultsPerPage}
+                onChange={(event) =>
+                  setResultsPerPage(
+                    Number(event.target.value),
+                  )
+                }
+              >
+                {RESULTS_PER_PAGE_OPTIONS.map(
+                  (option) => (
+                    <option
+                      key={option}
+                      value={option}
+                    >
+                      {option} results
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+
+            {role === "CONSUMER" ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() =>
+                  void saveCurrentAuctionSearch()
+                }
+                disabled={
+                  savingSearch ||
+                  priceRangeInvalid
+                }
+              >
+                {savingSearch
+                  ? "Saving..."
+                  : "Save Search"}
+              </button>
+            ) : null}
+
             <button
               type="button"
               className="btn btn-secondary"
@@ -815,8 +1176,21 @@ export default function AuctionsPage() {
             </button>
           </div>
 
+          {priceRangeInvalid ? (
+            <div
+              className="auctions-control-error"
+              role="alert"
+            >
+              Minimum price cannot exceed maximum
+              price.
+            </div>
+          ) : null}
+
           <div className="auctions-results-meta">
-            Showing {filteredRows.length} of{" "}
+            Showing {pagedRows.length} results on
+            page {safeCurrentPage} of {totalPages}
+            {" · "}
+            {filteredRows.length} filtered from{" "}
             {rows.length} loaded auctions
             {total !== rows.length
               ? ` · ${total} total server matches`
@@ -824,6 +1198,24 @@ export default function AuctionsPage() {
             .
           </div>
         </section>
+
+        {actionNotice ? (
+          <div
+            className="admin-notice success"
+            role="status"
+          >
+            {actionNotice}
+          </div>
+        ) : null}
+
+        {actionError ? (
+          <div
+            className="admin-notice danger"
+            role="alert"
+          >
+            {actionError}
+          </div>
+        ) : null}
 
         {error ? (
           <div
@@ -891,7 +1283,7 @@ export default function AuctionsPage() {
 
         {!loading && filteredRows.length > 0 ? (
           <section className="auctions-card-grid">
-            {filteredRows.map((auction) => {
+            {pagedRows.map((auction) => {
               const image =
                 auction.item?.images?.[0] || "";
 
@@ -1042,6 +1434,38 @@ export default function AuctionsPage() {
                         </Link>
                       ) : null}
 
+                      {role === "CONSUMER" ? (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() =>
+                            void toggleAuctionWatch(
+                              auction,
+                            )
+                          }
+                          disabled={
+                            Boolean(
+                              watchBusyItemId,
+                            )
+                          }
+                        >
+                          {watchBusyItemId ===
+                          String(
+                            auction.item?.id ||
+                            auction.itemId,
+                          )
+                            ? "Updating..."
+                            : watchedItemIds.has(
+                                  String(
+                                    auction.item?.id ||
+                                    auction.itemId,
+                                  ),
+                                )
+                              ? "Unwatch Item"
+                              : "Watch Item"}
+                        </button>
+                      ) : null}
+
                       {role === "OWNER" ? (
                         <Link
                           to="/owner/auctions"
@@ -1056,6 +1480,50 @@ export default function AuctionsPage() {
               );
             })}
           </section>
+        ) : null}
+
+        {!loading &&
+        filteredRows.length > 0 &&
+        totalPages > 1 ? (
+          <nav
+            className="auctions-pagination"
+            aria-label="Auction result pages"
+          >
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() =>
+                setCurrentPage((current) =>
+                  Math.max(1, current - 1),
+                )
+              }
+              disabled={safeCurrentPage <= 1}
+            >
+              Previous
+            </button>
+
+            <span>
+              Page {safeCurrentPage} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() =>
+                setCurrentPage((current) =>
+                  Math.min(
+                    totalPages,
+                    current + 1,
+                  ),
+                )
+              }
+              disabled={
+                safeCurrentPage >= totalPages
+              }
+            >
+              Next
+            </button>
+          </nav>
         ) : null}
       </section>
     </div>
