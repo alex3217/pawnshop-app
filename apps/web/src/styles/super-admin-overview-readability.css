@@ -11,3 +11,92 @@ body:has(.super-admin-overview-readability) a[href="/"] {
   line-height: 1.15 !important;
 }
 /* END Super Admin Overview shell tap-target polish. */
+
+/* Super Admin Overview light-mode contrast repair v1 */
+
+/* White overview sections need dark headings and readable muted copy. */
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  section.page-card {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+}
+
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  section.page-card
+  > .toolbar
+  .section-title {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  section.page-card
+  > .toolbar
+  .section-subtitle {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  opacity: 1 !important;
+}
+
+/* Command cards intentionally remain dark. */
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  .super-admin-command-card {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+/* Override the global [class*="description"] light-mode rule. */
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  .super-admin-command-card
+  .super-admin-command-title {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  .super-admin-command-card
+  .super-admin-command-description {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  .super-admin-command-card
+  .super-admin-command-list,
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  .super-admin-command-card
+  .super-admin-command-list li {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  .super-admin-command-card
+  .super-admin-control-kicker {
+  color: #a5b4fc !important;
+  -webkit-text-fill-color: #a5b4fc !important;
+}
+
+:root:not([data-theme="dark"])
+  .super-admin-overview-readability
+  .super-admin-command-card
+  .btn.btn-secondary {
+  background: #475569 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #64748b !important;
+}
