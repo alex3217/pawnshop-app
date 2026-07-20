@@ -523,6 +523,21 @@ function isAdminRequest(req) {
   return role === "ADMIN" || role === "SUPER_ADMIN";
 }
 
+export function buildOwnerAuctionScopeWhere(
+  userId,
+  hasPlatformAccess = false,
+) {
+  if (hasPlatformAccess) return {};
+
+  return {
+    item: {
+      shop: {
+        ownerId: userId,
+      },
+    },
+  };
+}
+
 function handleControllerError(res, err, fallback = "Internal Server Error") {
   const statusCode =
     Number.isInteger(err?.statusCode) && err.statusCode >= 400
@@ -733,15 +748,11 @@ export async function listMyAuctions(req, res) {
       }
     }
 
-    const ownerScope = isAdminRequest(req)
-      ? {}
-      : {
-          item: {
-            shop: {
-              ownerId: userId,
-            },
-          },
-        };
+    const ownerScope =
+      buildOwnerAuctionScopeWhere(
+        userId,
+        isAdminRequest(req),
+      );
 
     const baseWhere = {
       ...(shopId && auctionColumns.has("shopId")
