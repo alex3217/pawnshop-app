@@ -348,6 +348,7 @@ const superAdminRoutes: RouteConfig[] = [
   { path: "auctions", element: <AdminAuctionsPage /> },
   { path: "offers", element: <AdminOffersPage /> },
   { path: "inventory", element: <AdminItemsPage /> },
+  { path: "integrations", element: <SuperAdminIntegrationsPage /> },
   { path: "items", element: <Navigate to="/super-admin/inventory" replace /> },
   { path: "plans/seller", element: <AdminSubscriptionsPage /> },
   { path: "plans/buyer", element: <AdminSubscriptionsPage /> },
