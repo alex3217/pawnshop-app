@@ -229,23 +229,158 @@ button:not(:disabled) {
   -webkit-text-fill-color: #ffffff !important;
 }
 
-/* AdminPageShell header cards that repeat across admin pages. */
-:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card .section-title,
-:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card h1,
-:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card h2,
-:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card h3,
-:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card .section-title,
-:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card h1,
-:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card h2,
-:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card h3 {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+/* Admin light-mode shell and page-card readability.
+   Admin cards are white in light mode, so their shell copy must use dark text. */
+
+:root:not([data-theme="dark"]) .admin-layout {
+  background: #f8fafc !important;
+  color: #0f172a !important;
 }
 
-:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card .section-subtitle,
-:root:not([data-theme="dark"]) aside.admin-sidebar ~ main .page-card p,
-:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card .section-subtitle,
-:root:not([data-theme="dark"]) aside.admin-sidebar + main .page-card p {
-  color: #e2e8f0 !important;
-  -webkit-text-fill-color: #e2e8f0 !important;
+:root:not([data-theme="dark"]) .admin-layout__header {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.12) !important;
+}
+
+:root:not([data-theme="dark"]) .admin-layout__header .section-title {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .admin-layout__header .section-subtitle {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}
+
+:root:not([data-theme="dark"]) .admin-layout main .page-stack > .page-card {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.12) !important;
+}
+
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .page-stack
+  > .page-card
+  > .toolbar
+  .section-title {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 900 !important;
+}
+
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .page-stack
+  > .page-card
+  > .toolbar
+  .section-subtitle {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}
+
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .page-stack
+  > .page-card
+  > .toolbar
+  .btn.btn-secondary,
+:root:not([data-theme="dark"])
+  .admin-layout__header
+  .btn.btn-secondary {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border: 1px solid #64748b !important;
+}
+
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .admin-control-bar
+  input,
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .admin-control-bar
+  select,
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .admin-control-bar
+  textarea {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  border-color: #64748b !important;
+}
+
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .admin-control-bar
+  input::placeholder,
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .admin-control-bar
+  textarea::placeholder {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  opacity: 1 !important;
+}
+
+/* Preserve intentional dark Super Admin command panels. */
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .super-admin-control-panel {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.42) !important;
+}
+
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .super-admin-control-panel
+  .super-admin-control-title,
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .super-admin-control-panel
+  .super-admin-control-kicker {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .super-admin-control-panel
+  .super-admin-control-subtitle,
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .super-admin-control-panel
+  li {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+:root:not([data-theme="dark"])
+  .admin-layout
+  main
+  .super-admin-control-panel
+  .btn.btn-secondary {
+  background: #334155 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: rgba(203, 213, 225, 0.48) !important;
 }
