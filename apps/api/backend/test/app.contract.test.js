@@ -436,3 +436,112 @@ test("marketplace transaction read routes require authentication", async () => {
     });
   }
 });
+
+
+test("owner auction scope is limited to owned shops", async () => {
+  const {
+    buildOwnerAuctionScopeWhere,
+  } = await import(
+    "../src/controllers/auctions.controller.js"
+  );
+
+  assert.deepEqual(
+    buildOwnerAuctionScopeWhere(
+      "owner-permission-test",
+      false,
+    ),
+    {
+      item: {
+        shop: {
+          ownerId: "owner-permission-test",
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(
+    buildOwnerAuctionScopeWhere(
+      "admin-permission-test",
+      true,
+    ),
+    {},
+  );
+});
+
+test("auction role boundaries protect owner and buyer actions", async () => {
+  const consumerToken = jwt.sign(
+    {
+      sub: "consumer-auction-permission-test",
+      email: "consumer-auction@test.pawnloop.local",
+      role: "CONSUMER",
+    },
+    TEST_JWT_SECRET,
+    { expiresIn: "5m" },
+  );
+
+  const ownerToken = jwt.sign(
+    {
+      sub: "owner-auction-permission-test",
+      email: "owner-auction@test.pawnloop.local",
+      role: "OWNER",
+    },
+    TEST_JWT_SECRET,
+    { expiresIn: "5m" },
+  );
+
+  for (const target of [
+    {
+      method: "get",
+      path: "/api/auctions/mine",
+    },
+    {
+      method: "post",
+      path: "/api/auctions",
+    },
+    {
+      method: "post",
+      path: "/api/auctions/test-auction/cancel",
+    },
+    {
+      method: "post",
+      path: "/api/auctions/test-auction/end",
+    },
+  ]) {
+    let pending = request(app)
+      [target.method](target.path)
+      .set(
+        "Authorization",
+        `Bearer ${consumerToken}`,
+      );
+
+    if (target.method === "post") {
+      pending = pending.send({});
+    }
+
+    const response = await pending.expect(403);
+
+    assert.deepEqual(response.body, {
+      error: "Forbidden",
+    });
+  }
+
+  for (const path of [
+    "/api/auctions/test-auction/bids",
+    "/api/auctions/test-auction/auto-bid",
+  ]) {
+    const response = await request(app)
+      .post(path)
+      .set(
+        "Authorization",
+        `Bearer ${ownerToken}`,
+      )
+      .send({
+        amount: 100,
+      })
+      .expect(403);
+
+    assert.deepEqual(response.body, {
+      error: "Forbidden",
+    });
+  }
+});

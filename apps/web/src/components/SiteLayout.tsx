@@ -134,6 +134,14 @@ function getDashboardHref(role: Role | null) {
   return "/marketplace";
 }
 
+function getWorkspaceLabel(role: Role | null) {
+  if (role === "SUPER_ADMIN") return "Platform Tools";
+  if (role === "ADMIN") return "Admin Tools";
+  if (role === "OWNER") return "Owner Tools";
+  if (role === "CONSUMER") return "Buyer Tools";
+  return "Account Tools";
+}
+
 export default function SiteLayout() {
   const navigate = useNavigate();
 
@@ -318,7 +326,7 @@ export default function SiteLayout() {
               data-tour="workspace-menu"
             >
               <summary className="site-workspace-trigger">
-                <span>Owner Tools</span>
+                <span>{getWorkspaceLabel(role)}</span>
                 <span aria-hidden="true">⌄</span>
               </summary>
 

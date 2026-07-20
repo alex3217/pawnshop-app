@@ -199,28 +199,11 @@ export async function getOwnerAuctions(
   status?: string,
 ): Promise<AuctionsResponse> {
   const query = buildStatusQuery(status);
-
-  const candidatePaths = [
-    `/owner/auctions${query}`,
-    `/auctions/owner${query}`,
+  const data = await api.get<unknown>(
     `/auctions/mine${query}`,
-    `/auctions/my${query}`,
-  ];
+  );
 
-  let lastError: unknown = null;
-
-  for (const path of candidatePaths) {
-    try {
-      const data = await api.get<unknown>(path);
-      return normalizeAuctions(data);
-    } catch (err) {
-      lastError = err;
-    }
-  }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("Failed to load owner auctions.");
+  return normalizeAuctions(data);
 }
 
 export async function getAuction(id: string): Promise<Auction> {
