@@ -653,8 +653,10 @@ export default function OwnerAuctionsPage() {
   const canWriteAnyAuction =
     shopAccess.capabilities.auctionsWrite;
 
-  const canViewInventory =
-    shopAccess.capabilities.inventoryRead;
+  const canOpenOwnerInventory =
+    role === "OWNER" ||
+    role === "ADMIN" ||
+    role === "SUPER_ADMIN";
 
   const canManageFulfillment =
     role === "OWNER" ||
@@ -1150,7 +1152,7 @@ export default function OwnerAuctionsPage() {
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {canViewInventory ? (
+            {canOpenOwnerInventory ? (
               <Link
                 className="btn"
                 to="/owner/inventory"
@@ -1255,7 +1257,7 @@ export default function OwnerAuctionsPage() {
               </Link>
             ) : null}
 
-            {canViewInventory ? (
+            {canOpenOwnerInventory ? (
               <Link
                 className="btn"
                 to="/owner/inventory"
@@ -1554,7 +1556,7 @@ export default function OwnerAuctionsPage() {
               <Link className="btn btn-primary" to="/owner/auctions/new">
                 Create Auction
               </Link>
-              {canViewInventory ? (
+              {canOpenOwnerInventory ? (
                 <Link
                   className="btn"
                   to="/owner/inventory"

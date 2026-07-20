@@ -94,6 +94,16 @@ export default function CreateAuctionPage() {
   const canCreateAuction =
     shopAccess.capabilities.auctionsWrite;
 
+  const canOpenOwnerInventory = [
+    "OWNER",
+    "ADMIN",
+    "SUPER_ADMIN",
+  ].includes(
+    String(shopAccess.role || "")
+      .trim()
+      .toUpperCase(),
+  );
+
   const writableItems = useMemo(
     () =>
       items.filter((item) =>
@@ -189,13 +199,18 @@ export default function CreateAuctionPage() {
       return;
     }
 
+    if (!startsAtIso) {
+      setMsg("Enter a valid auction start time.");
+      return;
+    }
+
     if (!endsAtIso) {
       setMsg("Enter a valid auction end time.");
       return;
     }
 
+    const startDate = new Date(startsAtIso);
     const endDate = new Date(endsAtIso);
-    const startDate = startsAtIso ? new Date(startsAtIso) : new Date();
 
     if (endDate.getTime() <= startDate.getTime()) {
       setMsg("Auction end time must be after the start time.");
@@ -235,13 +250,13 @@ export default function CreateAuctionPage() {
           </div>
 
           <Link className="btn" to="/owner/auctions">
-            Owner Auctions
+            Shop Auctions
           </Link>
         </div>
 
         {!token ? (
           <div className="alert alert-warning">
-            Login as an owner before creating an auction.
+            Login before creating an auction.
           </div>
         ) : null}
 
@@ -359,9 +374,21 @@ export default function CreateAuctionPage() {
               {submitting ? "Creating…" : "Create Auction"}
             </button>
 
-            <Link className="btn" to="/owner/inventory">
-              Go to Inventory
-            </Link>
+            {canOpenOwnerInventory ? (
+              <Link
+                className="btn"
+                to="/owner/inventory"
+              >
+                Go to Inventory
+              </Link>
+            ) : (
+              <Link
+                className="btn"
+                to="/owner/auctions"
+              >
+                Back to Shop Auctions
+              </Link>
+            )}
 
             <Link className="btn" to="/auctions">
               View Auctions
