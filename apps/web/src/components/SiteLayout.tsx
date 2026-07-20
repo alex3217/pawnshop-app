@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { getAuthRole, logout, type Role } from "../services/auth";
+import {
+  getAuthRole,
+  getAuthToken,
+  logout,
+  type Role,
+} from "../services/auth";
+import {
+  getMyShopAccess,
+  type ShopAccessSnapshot,
+} from "../services/shopAccess";
 import ScrollToTopButton from "./ScrollToTopButton";
 import NavigationTour from "./onboarding/NavigationTour";
 import RoleSetupChecklist from "./onboarding/RoleSetupChecklist";
@@ -45,6 +54,20 @@ const BUYER_PRIMARY_NAV: NavItem[] = [
 const BUYER_SECONDARY_NAV: NavItem[] = [
   { to: "/watchlist", label: "Watchlist" },
   { to: "/saved-searches", label: "Saved Searches" },
+];
+
+const STAFF_AUCTION_NAV: NavItem[] = [
+  {
+    to: "/owner/auctions",
+    label: "Shop Auctions",
+  },
+];
+
+const STAFF_AUCTION_ACTION_NAV: NavItem[] = [
+  {
+    to: "/owner/auctions/new",
+    label: "Create Auction",
+  },
 ];
 
 const OWNER_PRIMARY_NAV: NavItem[] = [
@@ -134,11 +157,33 @@ function getDashboardHref(role: Role | null) {
   return "/marketplace";
 }
 
-function getWorkspaceLabel(role: Role | null) {
-  if (role === "SUPER_ADMIN") return "Platform Tools";
-  if (role === "ADMIN") return "Admin Tools";
-  if (role === "OWNER") return "Owner Tools";
-  if (role === "CONSUMER") return "Buyer Tools";
+function getWorkspaceLabel(
+  role: Role | null,
+  isShopStaff = false,
+) {
+  if (role === "SUPER_ADMIN") {
+    return "Platform Tools";
+  }
+
+  if (role === "ADMIN") {
+    return "Admin Tools";
+  }
+
+  if (role === "OWNER") {
+    return "Owner Tools";
+  }
+
+  if (
+    role === "CONSUMER" &&
+    isShopStaff
+  ) {
+    return "Shop Tools";
+  }
+
+  if (role === "CONSUMER") {
+    return "Buyer Tools";
+  }
+
   return "Account Tools";
 }
 
@@ -160,6 +205,77 @@ export default function SiteLayout() {
   }, [theme]);
 
   const role = getAuthRole();
+
+  const [
+    shopAccess,
+    setShopAccess,
+  ] = useState<ShopAccessSnapshot | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const token = getAuthToken();
+
+    if (!role || !token) {
+      setShopAccess(null);
+      return;
+    }
+
+    const controller =
+      new AbortController();
+
+    void getMyShopAccess(
+      controller.signal,
+    )
+      .then((access) => {
+        setShopAccess(access);
+      })
+      .catch((error: unknown) => {
+        if (
+          error instanceof DOMException &&
+          error.name === "AbortError"
+        ) {
+          return;
+        }
+
+        console.warn(
+          "[SiteLayout] Failed to load "
+            + "shop capabilities",
+          error,
+        );
+
+        setShopAccess(null);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [role]);
+
+  const activeStaffMembership =
+    shopAccess?.shops.find(
+      (shop) =>
+        shop.source === "STAFF",
+    ) || null;
+
+  const isShopStaff =
+    role === "CONSUMER" &&
+    Boolean(activeStaffMembership);
+
+  const showStaffAuctionLinks =
+    isShopStaff &&
+    shopAccess?.capabilities
+      .auctionsRead === true;
+
+  const showStaffAuctionWriteLinks =
+    showStaffAuctionLinks &&
+    shopAccess?.capabilities
+      .auctionsWrite === true;
+
+  const staffRoleLabel =
+    activeStaffMembership?.staffRole
+      ?.replaceAll("_", " ") ||
+    "SHOP STAFF";
 
   const isSuperAdmin = role === "SUPER_ADMIN";
   const isAdmin = role === "ADMIN";
@@ -187,6 +303,12 @@ export default function SiteLayout() {
 
     const workspace = dedupeNav([
       ...(showBuyerLinks ? BUYER_SECONDARY_NAV : []),
+      ...(showStaffAuctionLinks
+        ? STAFF_AUCTION_NAV
+        : []),
+      ...(showStaffAuctionWriteLinks
+        ? STAFF_AUCTION_ACTION_NAV
+        : []),
       ...(showOwnerLinks ? OWNER_PRIMARY_NAV.slice(2) : []),
       ...(showOwnerLinks ? OWNER_ACTION_NAV : []),
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV : []),
@@ -199,6 +321,12 @@ export default function SiteLayout() {
       ...PUBLIC_NAV,
       ...(showBuyerLinks ? BUYER_PRIMARY_NAV : []),
       ...(showBuyerLinks ? BUYER_SECONDARY_NAV : []),
+      ...(showStaffAuctionLinks
+        ? STAFF_AUCTION_NAV
+        : []),
+      ...(showStaffAuctionWriteLinks
+        ? STAFF_AUCTION_ACTION_NAV
+        : []),
       ...(showOwnerLinks ? OWNER_PRIMARY_NAV : []),
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
@@ -209,19 +337,31 @@ export default function SiteLayout() {
       primaryLinks: primary,
       workspaceLinks: workspace,
       footerLinks: footer,
-      dashboardHref: getDashboardHref(role),
-      roleBadge: getRoleBadgeLabel(role),
+      dashboardHref:
+        isShopStaff &&
+        showStaffAuctionLinks
+          ? "/owner/auctions"
+          : getDashboardHref(role),
+      roleBadge:
+        isShopStaff
+          ? staffRoleLabel
+          : getRoleBadgeLabel(role),
     };
   }, [
+    isShopStaff,
     role,
     showAdminLinks,
     showBuyerLinks,
     showGuestLinks,
     showOwnerLinks,
+    showStaffAuctionLinks,
+    showStaffAuctionWriteLinks,
     showSuperAdminLinks,
+    staffRoleLabel,
   ]);
 
   function handleLogout() {
+    setShopAccess(null);
     logout();
     navigate("/login", { replace: true });
   }
@@ -326,7 +466,12 @@ export default function SiteLayout() {
               data-tour="workspace-menu"
             >
               <summary className="site-workspace-trigger">
-                <span>{getWorkspaceLabel(role)}</span>
+                <span>
+                  {getWorkspaceLabel(
+                    role,
+                    isShopStaff,
+                  )}
+                </span>
                 <span aria-hidden="true">⌄</span>
               </summary>
 

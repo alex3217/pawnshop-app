@@ -663,6 +663,24 @@ export default function OwnerAuctionsPage() {
     role === "ADMIN" ||
     role === "SUPER_ADMIN";
 
+  const canViewAnySettlement =
+    canManageFulfillment ||
+    shopAccess.capabilities
+      .settlementsRead;
+
+  function canViewAuctionSettlement(
+    auction: Auction,
+  ) {
+    return (
+      canManageFulfillment ||
+      shopHasPermission(
+        shopAccess,
+        getShopId(auction),
+        "settlements:read",
+      )
+    );
+  }
+
   function canWriteAuction(
     auction: Auction,
   ) {
@@ -1460,6 +1478,8 @@ export default function OwnerAuctionsPage() {
         <section
           className="page-card"
           data-owner-auction-fulfillment-queue="true"
+          hidden={!canViewAnySettlement}
+          aria-hidden={!canViewAnySettlement}
           style={{
             display: "grid",
             gap: 12,
@@ -1553,9 +1573,15 @@ export default function OwnerAuctionsPage() {
               Create an auction from one of your inventory items. Try clearing your search or switching filters before creating a new auction.
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Link className="btn btn-primary" to="/owner/auctions/new">
-                Create Auction
-              </Link>
+              {canWriteAnyAuction ? (
+                <Link
+                  className="btn btn-primary"
+                  to="/owner/auctions/new"
+                >
+                  Create Auction
+                </Link>
+              ) : null}
+
               {canOpenOwnerInventory ? (
                 <Link
                   className="btn"
@@ -1581,6 +1607,11 @@ export default function OwnerAuctionsPage() {
               const shopId = getShopId(auction);
               const canWriteThisAuction =
                 canWriteAuction(auction);
+
+              const canViewThisSettlement =
+                canViewAuctionSettlement(
+                  auction,
+                );
 
               return (
                 <article
@@ -1776,7 +1807,8 @@ export default function OwnerAuctionsPage() {
                     {getOwnerAuctionTimeState(auction)}
                   </div>
 
-                  {closedAuction ? (
+                  {closedAuction &&
+                  canViewThisSettlement ? (
                     <div
                       data-owner-auction-settlement-summary="true"
                       style={{
@@ -1875,6 +1907,20 @@ export default function OwnerAuctionsPage() {
                           creating a settlement.
                         </span>
                       )}
+                    </div>
+                  ) : null}
+
+                  {closedAuction &&
+                  !canViewThisSettlement ? (
+                    <div
+                      data-owner-auction-settlement-restricted="true"
+                      className="alert alert-warning"
+                      role="status"
+                      style={{ margin: 0 }}
+                    >
+                      Settlement details require
+                      settlements:read permission
+                      for this shop.
                     </div>
                   ) : null}
 
