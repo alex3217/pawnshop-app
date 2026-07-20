@@ -335,6 +335,20 @@ function mergeWhere(...parts) {
   return { AND: filtered };
 }
 
+export function buildPublicAuctionVisibilityWhere() {
+  return {
+    item: {
+      isDeleted: false,
+      shop: {
+        isDeleted: false,
+      },
+    },
+    shop: {
+      isDeleted: false,
+    },
+  };
+}
+
 function buildEffectiveStatusWhere(status, now, auctionColumns) {
   if (!status || !auctionColumns.has("status")) return null;
 
@@ -641,7 +655,11 @@ export async function listAuctions(req, res) {
       now,
       auctionColumns,
     );
-    const where = mergeWhere(baseWhere, effectiveStatusWhere);
+    const where = mergeWhere(
+      buildPublicAuctionVisibilityWhere(),
+      baseWhere,
+      effectiveStatusWhere,
+    );
 
     const select = await buildAuctionSelect({
       includeItem: true,
@@ -779,8 +797,11 @@ export async function getAuction(req, res) {
     if (!id) return res.status(400).json({ error: "Missing auction id" });
 
     const auctionColumns = await getTableColumns("Auction");
-    let auction = await prisma.auction.findUnique({
-      where: { id },
+    let auction = await prisma.auction.findFirst({
+      where: mergeWhere(
+        { id },
+        buildPublicAuctionVisibilityWhere(),
+      ),
       select: await buildAuctionSelect({
         includeItem: true,
         includeShop: true,
