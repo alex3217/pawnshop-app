@@ -1,0 +1,235 @@
+.buyer-subscription-command-panel {
+  margin-bottom: 20px;
+}
+
+.buyer-subscription-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.buyer-subscription-summary-card {
+  display: grid;
+  gap: 7px;
+  padding: 17px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 17px;
+  background: rgba(15, 23, 42, 0.78);
+}
+
+.buyer-subscription-summary-card span {
+  color: #aab6d3;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.buyer-subscription-summary-card strong {
+  color: #f8fafc;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.buyer-subscription-filter-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 17px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.78);
+}
+
+.buyer-subscription-search-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.buyer-subscription-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 12px;
+}
+
+.buyer-subscription-filter-card label {
+  display: grid;
+  gap: 7px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.buyer-subscription-table {
+  min-width: 1260px;
+}
+
+.buyer-subscription-status {
+  display: inline-flex;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.24);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.buyer-subscription-status.active {
+  background: rgba(6, 78, 59, 0.34);
+  color: #86efac;
+}
+
+.buyer-subscription-status.trialing {
+  background: rgba(30, 64, 175, 0.34);
+  color: #bfdbfe;
+}
+
+.buyer-subscription-status.past-due,
+.buyer-subscription-status.incomplete,
+.buyer-subscription-status.incomplete-expired {
+  background: rgba(113, 63, 18, 0.38);
+  color: #fde68a;
+}
+
+.buyer-subscription-status.canceled {
+  background: rgba(127, 29, 29, 0.34);
+  color: #fecaca;
+}
+
+.buyer-subscription-status.paused {
+  background: rgba(88, 28, 135, 0.34);
+  color: #e9d5ff;
+}
+
+.buyer-subscription-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.buyer-subscription-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.buyer-subscription-modal {
+  width: min(980px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 22px;
+  background: #0f172a;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
+}
+
+.buyer-subscription-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.buyer-subscription-modal__header h2 {
+  margin: 5px 0 0;
+  color: #f8fafc;
+}
+
+.buyer-subscription-modal__header p {
+  margin: 6px 0 0;
+  color: #aab6d3;
+}
+
+.buyer-subscription-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.buyer-subscription-detail-grid > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  background: rgba(30, 41, 59, 0.68);
+}
+
+.buyer-subscription-detail-grid span {
+  color: #aab6d3;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.buyer-subscription-detail-grid strong {
+  overflow-wrap: anywhere;
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.buyer-subscription-action-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.buyer-subscription-action-card h3,
+.buyer-subscription-action-card p {
+  margin: 0;
+}
+
+.buyer-subscription-action-card h3 {
+  color: #f8fafc;
+}
+
+.buyer-subscription-action-card p {
+  color: #aab6d3;
+  font-size: 13px;
+}
+
+.buyer-subscription-action-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .buyer-subscription-search-row,
+  .buyer-subscription-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .buyer-subscription-modal__header {
+    flex-direction: column;
+  }
+
+  .buyer-subscription-pagination {
+    flex-wrap: wrap;
+  }
+
+  .buyer-subscription-search-row .btn,
+  .buyer-subscription-action-row .btn {
+    width: 100%;
+  }
+}
