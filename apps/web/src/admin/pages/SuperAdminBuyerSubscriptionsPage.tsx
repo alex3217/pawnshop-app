@@ -4,6 +4,7 @@ import AdminPageShell from "../components/AdminPageShell";
 import {
   adminApi,
   type BuyerPlanSummary,
+  type BuyerSubscriptionLifecycleInput,
   type BuyerSubscriptionRow,
 } from "../services/adminApi";
 import "../../styles/super-admin-buyer-subscriptions.css";
@@ -171,6 +172,7 @@ export default function SuperAdminBuyerSubscriptionsPage() {
 
   const [draftPlan, setDraftPlan] = useState("FREE");
   const [draftStatus, setDraftStatus] = useState("ACTIVE");
+  const [adminReason, setAdminReason] = useState("");
 
   async function load() {
     setLoading(true);
@@ -448,16 +450,29 @@ export default function SuperAdminBuyerSubscriptionsPage() {
     setDraftStatus(
       normalize(subscription.status, "ACTIVE"),
     );
+    setAdminReason("");
     setError("");
     setNotice("");
   }
 
-  async function updateSelectedSubscription(
-    input: Partial<BuyerSubscriptionRow>,
+  async function applyLifecycleAction(
+    input: Omit<
+      BuyerSubscriptionLifecycleInput,
+      "reason"
+    >,
     actionLabel: string,
   ) {
     const subscription = selectedSubscription;
     if (!subscription) return;
+
+    const reason = adminReason.trim();
+
+    if (reason.length < 10) {
+      setError(
+        "Enter an administrator reason containing at least 10 characters.",
+      );
+      return;
+    }
 
     const buyerLabel =
       subscription.userEmail ||
@@ -466,7 +481,7 @@ export default function SuperAdminBuyerSubscriptionsPage() {
       subscription.id;
 
     const confirmed = window.confirm(
-      `${actionLabel} for ${buyerLabel}?`,
+      `${actionLabel} for ${buyerLabel}?\n\nReason: ${reason}`,
     );
 
     if (!confirmed) return;
@@ -476,10 +491,14 @@ export default function SuperAdminBuyerSubscriptionsPage() {
     setNotice("");
 
     try {
-      const response = await adminApi.updateBuyerSubscription(
-        subscription.id,
-        input,
-      );
+      const response =
+        await adminApi.applyBuyerSubscriptionLifecycle(
+          subscription.id,
+          {
+            ...input,
+            reason,
+          },
+        );
 
       setSubscriptions((current) =>
         current.map((item) =>
@@ -503,7 +522,15 @@ export default function SuperAdminBuyerSubscriptionsPage() {
         ),
       );
 
-      setNotice(`${actionLabel} completed successfully.`);
+      setAdminReason("");
+
+      setNotice(
+        `${actionLabel} completed successfully${
+          response.stripeApplied
+            ? " and synchronized with Stripe"
+            : ""
+        }.`,
+      );
     } catch (err) {
       setError(
         err instanceof Error
@@ -1150,6 +1177,54 @@ export default function SuperAdminBuyerSubscriptionsPage() {
               </div>
             </div>
 
+            <section className="buyer-subscription-action-card buyer-subscription-reason-card">
+              <h3>Required administrator reason</h3>
+              <p>
+                Explain why this subscription action is
+                necessary. The reason is written to the Super
+                Admin audit trail.
+              </p>
+
+              <textarea
+                className="admin-control-input buyer-subscription-reason-input"
+                value={adminReason}
+                disabled={isSaving}
+                maxLength={500}
+                rows={4}
+                onChange={(event) =>
+                  setAdminReason(event.target.value)
+                }
+                placeholder="Example: Customer requested cancellation after support case review."
+              />
+
+              <div className="buyer-subscription-reason-meta">
+                <span>
+                  {adminReason.trim().length}/500 characters
+                </span>
+                <span>Minimum 10 characters</span>
+              </div>
+
+              {selectedSubscription.stripeSubscriptionId ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={isSaving}
+                  onClick={() =>
+                    void applyLifecycleAction(
+                      {
+                        action: "SYNC_FROM_STRIPE",
+                      },
+                      "Synchronize subscription from Stripe",
+                    )
+                  }
+                >
+                  {isSaving
+                    ? "Synchronizing..."
+                    : "Sync from Stripe"}
+                </button>
+              ) : null}
+            </section>
+
             <section className="buyer-subscription-action-card">
               <h3>Change buyer plan</h3>
               <p>
@@ -1180,8 +1255,11 @@ export default function SuperAdminBuyerSubscriptionsPage() {
                   className="btn btn-primary"
                   disabled={isSaving}
                   onClick={() =>
-                    void updateSelectedSubscription(
-                      { planCode: draftPlan },
+                    void applyLifecycleAction(
+                      {
+                        action: "ADMIN_CORRECTION",
+                        planCode: draftPlan,
+                      },
                       `Change plan to ${draftPlan}`,
                     )
                   }
@@ -1221,8 +1299,11 @@ export default function SuperAdminBuyerSubscriptionsPage() {
                   className="btn btn-primary"
                   disabled={isSaving}
                   onClick={() =>
-                    void updateSelectedSubscription(
-                      { status: draftStatus },
+                    void applyLifecycleAction(
+                      {
+                        action: "ADMIN_CORRECTION",
+                        status: draftStatus,
+                      },
                       `Change status to ${draftStatus}`,
                     )
                   }
@@ -1244,10 +1325,12 @@ export default function SuperAdminBuyerSubscriptionsPage() {
                 className="btn btn-secondary"
                 disabled={isSaving}
                 onClick={() =>
-                  void updateSelectedSubscription(
+                  void applyLifecycleAction(
                     {
-                      cancelAtPeriodEnd:
-                        !selectedSubscription.cancelAtPeriodEnd,
+                      action:
+                        selectedSubscription.cancelAtPeriodEnd
+                          ? "KEEP_ACTIVE"
+                          : "CANCEL_AT_PERIOD_END",
                     },
                     selectedSubscription.cancelAtPeriodEnd
                       ? "Keep subscription active"

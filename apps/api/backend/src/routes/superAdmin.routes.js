@@ -23,6 +23,7 @@ import {
   getSuperAdminBuyerPlans,
   listSuperAdminBuyerSubscriptions,
   updateSuperAdminBuyerSubscription,
+  applySuperAdminBuyerSubscriptionLifecycle,
   listSuperAdminSettlements,
   updateSuperAdminSettlement,
   getSuperAdminRevenueSummary,
@@ -168,6 +169,7 @@ export const SUPER_ADMIN_ROUTE_MAP = Object.freeze({
   buyerPlans: "GET /api/super-admin/plans/buyer",
   buyerSubscriptions: "GET /api/super-admin/buyer-subscriptions",
   updateBuyerSubscription: "PATCH /api/super-admin/buyer-subscriptions/:id",
+  buyerSubscriptionLifecycle: "POST /api/super-admin/buyer-subscriptions/:id/lifecycle",
   settlements: "GET /api/super-admin/settlements",
   updateSettlement: "PATCH /api/super-admin/settlements/:id",
   revenue: "GET /api/super-admin/revenue",
@@ -360,6 +362,15 @@ router.patch(
   validateIdParam("id", "Buyer subscription id"),
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminBuyerSubscription)
+);
+
+router.post(
+  "/buyer-subscriptions/:id/lifecycle",
+  validateIdParam("id", "Buyer subscription id"),
+  validateJsonObjectBody,
+  asyncRoute(
+    applySuperAdminBuyerSubscriptionLifecycle,
+  ),
 );
 
 router.get("/settlements", asyncRoute(listSuperAdminSettlements));
