@@ -3,6 +3,12 @@
 import { Router } from "express";
 import { authRequired, requireRole } from "../middleware/auth.js";
 import {
+  requireShopPermission,
+  shopIdFromBody,
+  shopIdFromParam,
+  shopIdFromStaffParam,
+} from "../middleware/shopAccess.js";
+import {
   listMyStaff,
   listStaffByShop,
   createStaffMember,
@@ -12,7 +18,12 @@ import {
 
 const router = Router();
 
-const STAFF_ROLES = ["OWNER", "ADMIN"];
+const STAFF_ROLES = [
+  "CONSUMER",
+  "OWNER",
+  "ADMIN",
+  "SUPER_ADMIN",
+];
 const STAFF_ID_MAX_LENGTH = 128;
 const SHOP_ID_MAX_LENGTH = 128;
 
@@ -125,6 +136,9 @@ router.get(
   authRequired,
   requireRole(...STAFF_ROLES),
   validateShopIdParam,
+  requireShopPermission("staff:read", {
+    resolveShopId: shopIdFromParam("shopId"),
+  }),
   asyncRoute(listStaffByShop),
 );
 
@@ -139,6 +153,9 @@ router.post(
   authRequired,
   requireRole(...STAFF_ROLES),
   normalizeStaffBody,
+  requireShopPermission("staff:write", {
+    resolveShopId: shopIdFromBody("shopId"),
+  }),
   asyncRoute(createStaffMember),
 );
 
@@ -153,6 +170,9 @@ router.post(
   authRequired,
   requireRole(...STAFF_ROLES),
   normalizeStaffBody,
+  requireShopPermission("staff:write", {
+    resolveShopId: shopIdFromBody("shopId"),
+  }),
   asyncRoute(createStaffMember),
 );
 
@@ -168,6 +188,9 @@ router.put(
   requireRole(...STAFF_ROLES),
   validateStaffIdParam,
   normalizeStaffBody,
+  requireShopPermission("staff:write", {
+    resolveShopId: shopIdFromStaffParam("id"),
+  }),
   asyncRoute(updateStaffMember),
 );
 
@@ -183,6 +206,9 @@ router.patch(
   requireRole(...STAFF_ROLES),
   validateStaffIdParam,
   normalizeStaffBody,
+  requireShopPermission("staff:write", {
+    resolveShopId: shopIdFromStaffParam("id"),
+  }),
   asyncRoute(updateStaffMember),
 );
 
@@ -197,6 +223,9 @@ router.delete(
   authRequired,
   requireRole(...STAFF_ROLES),
   validateStaffIdParam,
+  requireShopPermission("staff:write", {
+    resolveShopId: shopIdFromStaffParam("id"),
+  }),
   asyncRoute(removeStaffMember),
 );
 
