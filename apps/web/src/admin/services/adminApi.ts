@@ -285,6 +285,28 @@ export type BuyerSubscriptionRow = {
   updatedAt?: string | null;
 };
 
+export type BuyerSubscriptionLifecycleAction =
+  | "ADMIN_CORRECTION"
+  | "CANCEL_AT_PERIOD_END"
+  | "KEEP_ACTIVE"
+  | "SYNC_FROM_STRIPE";
+
+export type BuyerSubscriptionLifecycleInput = {
+  action: BuyerSubscriptionLifecycleAction;
+  reason: string;
+  planCode?: string;
+  status?: string;
+  cancelAtPeriodEnd?: boolean;
+};
+
+export type BuyerSubscriptionLifecycleResponse = {
+  success: boolean;
+  action: BuyerSubscriptionLifecycleAction;
+  stripeApplied: boolean;
+  subscription: BuyerSubscriptionRow;
+};
+
+
 export type ShopEntitlements = {
   shopId?: string;
   shopName?: string;
@@ -1111,6 +1133,17 @@ export const adminApi = {
       `/super-admin/buyer-subscriptions/${encodeURIComponent(id)}`,
       input,
       signal
+    ),
+
+  applyBuyerSubscriptionLifecycle: (
+    id: string,
+    input: BuyerSubscriptionLifecycleInput,
+    signal?: AbortSignal,
+  ) =>
+    postJson<BuyerSubscriptionLifecycleResponse>(
+      `/super-admin/buyer-subscriptions/${encodeURIComponent(id)}/lifecycle`,
+      input,
+      signal,
     ),
 
   getSuperAdminOverview: async (

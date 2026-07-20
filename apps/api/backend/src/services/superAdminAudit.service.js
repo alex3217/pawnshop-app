@@ -92,6 +92,20 @@ function inferAction(req) {
 
   const targetType = inferTargetType(path);
 
+  if (
+    targetType === "BUYER_SUBSCRIPTION" &&
+    String(path).toLowerCase().includes("/lifecycle")
+  ) {
+    const lifecycleAction = String(
+      req.body?.action || "LIFECYCLE",
+    )
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]+/g, "_");
+
+    return `BUYER_SUBSCRIPTION_${lifecycleAction}`;
+  }
+
   if (method === "POST") return `CREATE_${targetType}`;
   if (method === "PUT") return `UPDATE_${targetType}`;
   if (method === "PATCH") return `UPDATE_${targetType}`;

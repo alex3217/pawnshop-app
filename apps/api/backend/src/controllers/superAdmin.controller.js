@@ -7,6 +7,9 @@ import {
   getSellerPlanCatalog,
 } from "../services/platformPricingCatalog.service.js";
 import { getSellerPlanCodes } from "../config/sellerPlans.js";
+import {
+  executeBuyerSubscriptionLifecycle,
+} from "../services/buyerSubscriptionLifecycle.service.js";
 
 
 const USER_ROLE_CODES = new Set(["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
@@ -1639,6 +1642,33 @@ export async function updateSuperAdminBuyerSubscription(req, res) {
     return sendError(res, error);
   }
 }
+
+export async function applySuperAdminBuyerSubscriptionLifecycle(
+  req,
+  res,
+) {
+  try {
+    assertSuperAdmin(req);
+
+    const result =
+      await executeBuyerSubscriptionLifecycle({
+        subscriptionId: req.params?.id,
+        input: req.body,
+      });
+
+    return res.json({
+      success: true,
+      action: result.action,
+      stripeApplied: result.stripeApplied,
+      subscription: mapBuyerSubscriptionRow(
+        result.subscription,
+      ),
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
 
 export async function listSuperAdminSettlements(req, res) {
   try {
