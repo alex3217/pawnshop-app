@@ -1,67 +1,28 @@
 // File: apps/api/backend/src/controllers/staff.controller.js
 
 import { prisma } from "../lib/prisma.js";
+import {
+  DEFAULT_SHOP_PERMISSIONS_BY_ROLE,
+  SHOP_PERMISSION_CODES,
+  SHOP_STAFF_ROLES,
+  SHOP_STAFF_STATUSES,
+} from "../config/shopPermissions.js";
+import {
+  assertShopPermission,
+  getAccessibleShopScope,
+} from "../services/shopAccess.service.js";
 
-const STAFF_ROLES = new Set([
-  "SHOP_ADMIN",
-  "SHOP_MANAGER",
-  "SHOP_STAFF",
-  "SHOP_VIEWER",
-  "INVENTORY_MANAGER",
-  "AUCTION_MANAGER",
-  "SALES_ASSOCIATE",
-  "FINANCE_VIEWER",
-]);
+const STAFF_ROLES =
+  new Set(SHOP_STAFF_ROLES);
 
-const STAFF_STATUSES = new Set(["INVITED", "ACTIVE", "INACTIVE", "ARCHIVED"]);
+const STAFF_STATUSES =
+  new Set(SHOP_STAFF_STATUSES);
 
-const STAFF_PERMISSIONS = new Set([
-  "inventory:read",
-  "inventory:write",
-  "auctions:read",
-  "auctions:write",
-  "offers:read",
-  "offers:write",
-  "locations:read",
-  "locations:write",
-  "staff:read",
-  "staff:write",
-  "settlements:read",
-]);
+const STAFF_PERMISSIONS =
+  new Set(SHOP_PERMISSION_CODES);
 
-const DEFAULT_ROLE_PERMISSIONS = {
-  SHOP_ADMIN: [
-    "inventory:read",
-    "inventory:write",
-    "auctions:read",
-    "auctions:write",
-    "offers:read",
-    "offers:write",
-    "locations:read",
-    "locations:write",
-    "staff:read",
-    "staff:write",
-    "settlements:read",
-  ],
-  SHOP_MANAGER: [
-    "inventory:read",
-    "inventory:write",
-    "auctions:read",
-    "auctions:write",
-    "offers:read",
-    "offers:write",
-    "locations:read",
-    "locations:write",
-    "staff:read",
-    "settlements:read",
-  ],
-  SHOP_STAFF: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
-  SHOP_VIEWER: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
-  INVENTORY_MANAGER: ["inventory:read", "inventory:write", "locations:read"],
-  AUCTION_MANAGER: ["inventory:read", "auctions:read", "auctions:write"],
-  SALES_ASSOCIATE: ["inventory:read", "offers:read", "offers:write"],
-  FINANCE_VIEWER: ["settlements:read", "offers:read"],
-};
+const DEFAULT_ROLE_PERMISSIONS =
+  DEFAULT_SHOP_PERMISSIONS_BY_ROLE;
 
 function sendError(res, error, fallbackMessage = "Internal server error") {
   const status =
@@ -149,42 +110,23 @@ function normalizeStaffRow(row) {
   };
 }
 
-async function getOwnedShopIds(userId) {
-  if (!userId) return [];
-
-  const rows = await prisma.pawnShop.findMany({
-    where: {
-      ownerId: userId,
-      isDeleted: false,
-    },
-    select: {
-      id: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
+async function assertOwnerOrAdminAccessToShop(
+  req,
+  shopId,
+  permission = "staff:read",
+) {
+  return assertShopPermission({
+    user: req?.user,
+    shopId,
+    permission,
   });
-
-  return rows.map((row) => row.id);
 }
 
-async function assertOwnerOrAdminAccessToShop(req, shopId) {
-  const role = req?.user?.role;
-  const userId = req?.user?.sub;
-
-  if (role === "ADMIN" || role === "SUPER_ADMIN") return;
-
-  if (role !== "OWNER") {
-    throw forbidden();
-  }
-
-  const ownedShopIds = await getOwnedShopIds(userId);
-  if (!ownedShopIds.includes(shopId)) {
-    throw forbidden("You do not have access to this shop.");
-  }
-}
-
-async function assertAccessToStaffRecord(req, staffId) {
+async function assertAccessToStaffRecord(
+  req,
+  staffId,
+  permission = "staff:read",
+) {
   const staff = await prisma.staff.findUnique({
     where: { id: staffId },
     include: {
@@ -203,7 +145,7 @@ async function assertAccessToStaffRecord(req, staffId) {
     throw notFound("Staff member not found.");
   }
 
-  await assertOwnerOrAdminAccessToShop(req, staff.shopId);
+  await assertOwnerOrAdminAccessToShop(req, staff.shopId, permission);
   return staff;
 }
 
@@ -257,21 +199,31 @@ async function findUserByEmail(email) {
 
 export async function listMyStaff(req, res) {
   try {
-    const role = req?.user?.role;
-    const userId = req?.user?.sub;
+    const userId =
+      req?.user?.sub ||
+      req?.user?.id ||
+      req?.user?.userId;
 
     if (!userId) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+      });
     }
 
-    const where = {};
+    const scope =
+      await getAccessibleShopScope({
+        user: req.user,
+        permission: "staff:read",
+      });
 
-    if (role === "OWNER") {
-      const shopIds = await getOwnedShopIds(userId);
-      where.shopId = { in: shopIds };
-    } else if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
-      throw forbidden();
-    }
+    const where = scope.unrestricted
+      ? {}
+      : {
+          shopId: {
+            in: scope.shopIds,
+          },
+        };
 
     const rows = await prisma.staff.findMany({
       where,
@@ -285,14 +237,20 @@ export async function listMyStaff(req, res) {
           },
         },
       },
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      orderBy: [
+        { status: "asc" },
+        { createdAt: "desc" },
+      ],
     });
 
-    return res.json(rows.map(normalizeStaffRow));
+    return res.json(
+      rows.map(normalizeStaffRow),
+    );
   } catch (error) {
     return sendError(res, error);
   }
 }
+
 
 export async function listStaffByShop(req, res) {
   try {
@@ -302,7 +260,11 @@ export async function listStaffByShop(req, res) {
       throw badRequest("Shop id is required.");
     }
 
-    await assertOwnerOrAdminAccessToShop(req, shopId);
+    await assertOwnerOrAdminAccessToShop(
+      req,
+      shopId,
+      "staff:read",
+    );
 
     const rows = await prisma.staff.findMany({
       where: { shopId },
@@ -337,7 +299,11 @@ export async function createStaffMember(req, res) {
     if (!shopId) throw badRequest("shopId is required.");
     if (!email) throw badRequest("email is required.");
 
-    await assertOwnerOrAdminAccessToShop(req, shopId);
+    await assertOwnerOrAdminAccessToShop(
+      req,
+      shopId,
+      "staff:write",
+    );
 
     const linkedUser = await findUserByEmail(email);
 
@@ -398,7 +364,11 @@ export async function updateStaffMember(req, res) {
 
     validateStaffWriteBody(req.body);
 
-    const current = await assertAccessToStaffRecord(req, staffId);
+    const current = await assertAccessToStaffRecord(
+      req,
+      staffId,
+      "staff:write",
+    );
 
     const nextRole =
       req.body?.role !== undefined ? normalizeRole(req.body.role, current.role) : current.role;
@@ -464,7 +434,11 @@ export async function removeStaffMember(req, res) {
       throw badRequest("Staff id is required.");
     }
 
-    await assertAccessToStaffRecord(req, staffId);
+    await assertAccessToStaffRecord(
+      req,
+      staffId,
+      "staff:write",
+    );
 
     const staff = await prisma.staff.update({
       where: { id: staffId },

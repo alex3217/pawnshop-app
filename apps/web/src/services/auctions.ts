@@ -190,8 +190,16 @@ function buildStatusQuery(status?: string) {
   return `?${params.toString()}`;
 }
 
-export async function getAuctions(status?: string): Promise<AuctionsResponse> {
-  const data = await api.get<unknown>(`/auctions${buildStatusQuery(status)}`);
+export async function getAuctions(
+  status?: string,
+): Promise<AuctionsResponse> {
+  const statusQuery = buildStatusQuery(status);
+  const separator = statusQuery ? "&" : "?";
+
+  const data = await api.get<unknown>(
+    `/auctions${statusQuery}${separator}limit=100`,
+  );
+
   return normalizeAuctions(data);
 }
 
