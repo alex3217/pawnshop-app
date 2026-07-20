@@ -249,6 +249,16 @@ export type BuyerPlanSummary = {
   label: string;
   monthlyPriceCents: number;
   yearlyPriceCents: number;
+  maxSavedSearches?: number | null;
+  maxWatchlistItems?: number | null;
+  instantAlerts?: boolean;
+  advancedAutoBid?: boolean;
+  premiumDealAccess?: boolean;
+  buyerFeeBps?: number;
+  supportLevel?: string;
+  stripeMonthlyPriceId?: string | null;
+  stripeYearlyPriceId?: string | null;
+  currency?: string | null;
   features: string[];
 };
 
