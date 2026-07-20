@@ -34,6 +34,7 @@ import stripeRoutes from "./routes/stripe.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes.js";
+import { prisma } from "./lib/prisma.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -145,6 +146,23 @@ function noStore(_req, res, next) {
   next();
 }
 
+async function runWithTimeout(task, timeoutMs) {
+  let timeout;
+
+  try {
+    return await Promise.race([
+      Promise.resolve().then(task),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error("Readiness check timed out"));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function createHealthPayload(serviceName, env) {
   return {
     ok: true,
@@ -179,11 +197,26 @@ function createErrorResponse(err, req) {
   return { statusCode, body, message };
 }
 
-export function createApp() {
+export function createApp(options = {}) {
   const app = express();
 
   const serviceName = process.env.APP_NAME || "pawnloop-api";
   const env = process.env.APP_ENV || process.env.NODE_ENV || "development";
+  const readinessCheck =
+    typeof options.readinessCheck === "function"
+      ? options.readinessCheck
+      : () => prisma.$queryRaw`SELECT 1`;
+
+  const configuredReadinessTimeoutMs = Number.parseInt(
+    process.env.READINESS_TIMEOUT_MS || "",
+    10
+  );
+
+  const readinessTimeoutMs =
+    Number.isInteger(configuredReadinessTimeoutMs) &&
+    configuredReadinessTimeoutMs > 0
+      ? configuredReadinessTimeoutMs
+      : 5000;
   const allowedOrigins = parseAllowedOrigins(
     process.env.CORS_ORIGINS,
     process.env.CORS_ORIGIN,
@@ -265,6 +298,42 @@ export function createApp() {
     return res.status(200).json(createHealthPayload(serviceName, env));
   };
 
+  const readinessHandler = async (req, res) => {
+    try {
+      await runWithTimeout(readinessCheck, readinessTimeoutMs);
+
+      return res.status(200).json({
+        ...createHealthPayload(serviceName, env),
+        ready: true,
+        dependencies: {
+          database: "ok",
+        },
+      });
+    } catch (error) {
+      if (process.env.NODE_ENV !== "test") {
+        console.error(
+          "[readiness] Database connectivity check failed.",
+          {
+            requestId: req.requestId,
+            message: error?.message || String(error),
+          }
+        );
+      }
+
+      return res.status(503).json({
+        ...createHealthPayload(serviceName, env),
+        ok: false,
+        success: false,
+        ready: false,
+        error: "Service unavailable",
+        dependencies: {
+          database: "unavailable",
+        },
+        requestId: req.requestId,
+      });
+    }
+  };
+
   const rootHandler = (_req, res) => {
     return res.status(200).json({
       ok: true,
@@ -279,8 +348,8 @@ export function createApp() {
   app.get("/api", noStore, rootHandler);
   app.get("/health", noStore, healthHandler);
   app.get("/api/health", noStore, healthHandler);
-  app.get("/ready", noStore, healthHandler);
-  app.get("/api/ready", noStore, healthHandler);
+  app.get("/ready", noStore, readinessHandler);
+  app.get("/api/ready", noStore, readinessHandler);
 
   /**
    * Stripe webhook must stay before express.json().

@@ -8,6 +8,7 @@ const TEST_JWT_SECRET =
   "pawnloop-core-tests-only-secret-2026-not-for-production";
 
 let app;
+let createApp;
 
 before(async () => {
   Object.assign(process.env, {
@@ -21,7 +22,11 @@ before(async () => {
   });
 
   const appModule = await import("../src/app.js");
-  app = appModule.createApp();
+
+  createApp = appModule.createApp;
+  app = createApp({
+    readinessCheck: async () => true,
+  });
 });
 
 function assertRequestId(value) {
@@ -78,8 +83,47 @@ for (const path of [
       response.headers["x-powered-by"],
       undefined,
     );
+
+    if (path.endsWith("/ready")) {
+      assert.equal(response.body.ready, true);
+      assert.deepEqual(response.body.dependencies, {
+        database: "ok",
+      });
+    }
   });
 }
+
+test(
+  "readiness endpoints return 503 when the database is unavailable",
+  async () => {
+    const unavailableApp = createApp({
+      readinessCheck: async () => {
+        throw new Error("Database unavailable");
+      },
+    });
+
+    for (const path of ["/ready", "/api/ready"]) {
+      const response = await request(unavailableApp)
+        .get(path)
+        .expect(503);
+
+      assert.equal(response.body.ok, false);
+      assert.equal(response.body.success, false);
+      assert.equal(response.body.ready, false);
+      assert.equal(response.body.error, "Service unavailable");
+      assert.deepEqual(response.body.dependencies, {
+        database: "unavailable",
+      });
+
+      assertRequestId(response.body.requestId);
+
+      assert.equal(
+        response.headers["cache-control"],
+        "no-store",
+      );
+    }
+  },
+);
 
 test("GET /api returns the API root contract", async () => {
   const response = await request(app)

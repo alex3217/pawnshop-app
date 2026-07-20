@@ -50,6 +50,7 @@ request_json() {
 }
 
 request_json "production health" "$API_URL/health"
+request_json "production readiness" "$API_URL/ready"
 request_json "public items" "$API_URL/items?limit=5"
 request_json "public auctions" "$API_URL/auctions?limit=5"
 
