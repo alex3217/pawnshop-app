@@ -3,6 +3,9 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
+import {
+  getMyShopAccess,
+} from "../services/shopAccess.service.js";
 
 const PUBLIC_ALLOWED_ROLES = new Set(["CONSUMER", "OWNER"]);
 const PRIVILEGED_ALLOWED_ROLES = new Set([
@@ -228,6 +231,37 @@ export async function login(req, res) {
   } catch (error) {
     console.error("[auth.login] error", error);
     return sendError(res, error, "Login failed");
+  }
+}
+
+
+export async function myShopAccess(
+  req,
+  res,
+) {
+  try {
+    requireAuthenticatedUser(req);
+
+    const access =
+      await getMyShopAccess({
+        user: req.user,
+      });
+
+    return res.json({
+      success: true,
+      access,
+    });
+  } catch (error) {
+    console.error(
+      "[auth.myShopAccess] error",
+      error,
+    );
+
+    return sendError(
+      res,
+      error,
+      "Failed to load shop access",
+    );
   }
 }
 

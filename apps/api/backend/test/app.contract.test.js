@@ -541,3 +541,20 @@ test(
     }
   },
 );
+
+test(
+  "shop access capability route requires authentication",
+  async () => {
+    const response = await request(app)
+      .get("/api/auth/shop-access")
+      .expect(401);
+
+    assert.deepEqual(
+      response.body,
+      {
+        error: "Unauthorized",
+      },
+    );
+  },
+);
+

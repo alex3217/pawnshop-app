@@ -5,6 +5,7 @@ import { authRequired, requireRole } from "../middleware/auth.js";
 import {
   register,
   login,
+  myShopAccess,
   me,
   refresh,
   createSuperAdminUser,
@@ -34,6 +35,12 @@ router.post("/login", asyncRoute(login));
  * Authenticated
  * GET /api/auth/me
  */
+router.get(
+  "/shop-access",
+  authRequired,
+  asyncRoute(myShopAccess),
+);
+
 router.get("/me", authRequired, asyncRoute(me));
 
 /**
@@ -56,6 +63,7 @@ router.post(
 export const AUTH_ROUTE_MAP = Object.freeze({
   register: "POST /api/auth/register",
   login: "POST /api/auth/login",
+  shopAccess: "GET /api/auth/shop-access",
   me: "GET /api/auth/me",
   refresh: "POST /api/auth/refresh",
   createSuperAdminUser: "POST /api/auth/super-admin/users",
