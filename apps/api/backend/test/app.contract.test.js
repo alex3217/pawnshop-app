@@ -34,6 +34,32 @@ function assertRequestId(value) {
   assert.ok(value.length > 0, "Expected a non-empty request ID");
 }
 
+test(
+  "public auction visibility excludes soft-deleted item and shop records",
+  async () => {
+    const {
+      buildPublicAuctionVisibilityWhere,
+    } = await import(
+      "../src/controllers/auctions.controller.js"
+    );
+
+    assert.deepEqual(
+      buildPublicAuctionVisibilityWhere(),
+      {
+        item: {
+          isDeleted: false,
+          shop: {
+            isDeleted: false,
+          },
+        },
+        shop: {
+          isDeleted: false,
+        },
+      },
+    );
+  },
+);
+
 for (const path of [
   "/health",
   "/api/health",
