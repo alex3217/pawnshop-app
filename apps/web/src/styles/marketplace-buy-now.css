@@ -1,0 +1,156 @@
+/* Marketplace Buy Now theme-safe contrast */
+
+.marketplace-buy-now-page {
+  --surface: #ffffff;
+  --surface-strong: #e0e7ff;
+  --text: #0f172a;
+  --text-strong: #0f172a;
+  --muted: #475569;
+  --border: rgba(100, 116, 139, 0.30);
+  --border-strong: #818cf8;
+  --accent: #4338ca;
+  --danger: #b91c1c;
+  --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.12);
+
+  color: var(--text);
+}
+
+.marketplace-buy-now-page h1,
+.marketplace-buy-now-page h2,
+.marketplace-buy-now-page h3 {
+  color: var(--text-strong) !important;
+  -webkit-text-fill-color: var(--text-strong) !important;
+}
+
+.marketplace-buy-now-page button,
+.marketplace-buy-now-page a {
+  opacity: 1 !important;
+}
+
+.marketplace-buy-now-page button:focus-visible,
+.marketplace-buy-now-page a:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 3px;
+}
+
+:root[data-theme="dark"] .marketplace-buy-now-page,
+.dark .marketplace-buy-now-page {
+  --surface: #111827;
+  --surface-strong: #1e293b;
+  --text: #e5e7eb;
+  --text-strong: #f8fafc;
+  --muted: #cbd5e1;
+  --border: rgba(148, 163, 184, 0.30);
+  --border-strong: #94a3b8;
+  --accent: #a5b4fc;
+  --danger: #fda4af;
+  --shadow-soft: 0 14px 34px rgba(0, 0, 0, 0.30);
+}
+
+/* Buy Now discovery controls v1 */
+
+.marketplace-buy-now-filter-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.marketplace-buy-now-filter-heading h2 {
+  margin-bottom: 6px;
+}
+
+.marketplace-buy-now-filter-heading p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.marketplace-buy-now-filter-heading button:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed;
+}
+
+.marketplace-buy-now-filter-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(190px, 1fr)
+    );
+  gap: 14px;
+}
+
+.marketplace-buy-now-filter-grid label {
+  display: grid;
+  gap: 7px;
+}
+
+.marketplace-buy-now-filter-grid label span {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.marketplace-buy-now-filter-grid input,
+.marketplace-buy-now-filter-grid select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--text-strong);
+  -webkit-text-fill-color: var(--text-strong);
+  font: inherit;
+  font-weight: 750;
+}
+
+.marketplace-buy-now-filter-grid input::placeholder {
+  color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
+  opacity: 1;
+}
+
+.marketplace-buy-now-filter-grid input:focus,
+.marketplace-buy-now-filter-grid select:focus {
+  outline: 3px solid rgba(99, 102, 241, 0.25);
+  outline-offset: 2px;
+}
+
+.marketplace-buy-now-result-count {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.marketplace-buy-now-empty-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+@media (max-width: 680px) {
+  .marketplace-buy-now-filter-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .marketplace-buy-now-filter-heading button {
+    width: 100%;
+  }
+
+  .marketplace-buy-now-empty-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .marketplace-buy-now-empty-actions a,
+  .marketplace-buy-now-empty-actions button {
+    width: 100%;
+  }
+}
