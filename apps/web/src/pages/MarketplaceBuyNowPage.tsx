@@ -25,6 +25,8 @@ import {
   reserveMarketplacePurchase,
 } from "../services/marketplaceTransactions";
 
+import "../styles/marketplace-buy-now.css";
+
 const pageStyle: CSSProperties = {
   width:
     "min(1220px, calc(100% - 2rem))",
@@ -201,6 +203,45 @@ export default function MarketplaceBuyNowPage() {
   ] =
     useState("");
 
+  const [
+    searchQuery,
+    setSearchQuery,
+  ] = useState("");
+
+  const [
+    categoryFilter,
+    setCategoryFilter,
+  ] = useState("all");
+
+  const [
+    conditionFilter,
+    setConditionFilter,
+  ] = useState("all");
+
+  const [
+    fulfillmentFilter,
+    setFulfillmentFilter,
+  ] = useState<
+    "all" | "pickup" | "shipping"
+  >("all");
+
+  const [
+    minimumPrice,
+    setMinimumPrice,
+  ] = useState("");
+
+  const [
+    maximumPrice,
+    setMaximumPrice,
+  ] = useState("");
+
+  const [
+    sortOption,
+    setSortOption,
+  ] = useState<
+    "newest" | "price-low" | "price-high"
+  >("newest");
+
   const load = useCallback(
     async (
       refresh = false,
@@ -265,6 +306,242 @@ export default function MarketplaceBuyNowPage() {
 
       [listings],
     );
+
+  const categories =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            eligibleListings
+              .map(
+                (listing) =>
+                  String(
+                    listing.category ||
+                    "",
+                  ).trim(),
+              )
+              .filter(Boolean),
+          ),
+        ).sort(
+          (a, b) =>
+            a.localeCompare(b),
+        ),
+
+      [eligibleListings],
+    );
+
+  const conditions =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            eligibleListings
+              .map(
+                (listing) =>
+                  String(
+                    listing.condition ||
+                    "",
+                  ).trim(),
+              )
+              .filter(Boolean),
+          ),
+        ).sort(
+          (a, b) =>
+            a.localeCompare(b),
+        ),
+
+      [eligibleListings],
+    );
+
+  const filteredListings =
+    useMemo(
+      () => {
+        const normalizedSearch =
+          searchQuery
+            .trim()
+            .toLowerCase();
+
+        const parsedMinimum =
+          Number(minimumPrice);
+
+        const parsedMaximum =
+          Number(maximumPrice);
+
+        const hasMinimum =
+          minimumPrice.trim() !==
+            "" &&
+          Number.isFinite(
+            parsedMinimum,
+          );
+
+        const hasMaximum =
+          maximumPrice.trim() !==
+            "" &&
+          Number.isFinite(
+            parsedMaximum,
+          );
+
+        const next =
+          eligibleListings.filter(
+            (listing) => {
+              const price =
+                Number(
+                  listing.price,
+                );
+
+              const searchable =
+                [
+                  listing.title,
+                  listing.description,
+                  listing.category,
+                  listing.condition,
+                  listing.seller?.name,
+                  listing.sellerShop?.name,
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+                  .toLowerCase();
+
+              if (
+                normalizedSearch &&
+                !searchable.includes(
+                  normalizedSearch,
+                )
+              ) {
+                return false;
+              }
+
+              if (
+                categoryFilter !==
+                  "all" &&
+                listing.category !==
+                  categoryFilter
+              ) {
+                return false;
+              }
+
+              if (
+                conditionFilter !==
+                  "all" &&
+                listing.condition !==
+                  conditionFilter
+              ) {
+                return false;
+              }
+
+              if (
+                fulfillmentFilter ===
+                  "pickup" &&
+                !listing.pickupAvailable
+              ) {
+                return false;
+              }
+
+              if (
+                fulfillmentFilter ===
+                  "shipping" &&
+                !listing.shippingAvailable
+              ) {
+                return false;
+              }
+
+              if (
+                hasMinimum &&
+                price <
+                  parsedMinimum
+              ) {
+                return false;
+              }
+
+              if (
+                hasMaximum &&
+                price >
+                  parsedMaximum
+              ) {
+                return false;
+              }
+
+              return true;
+            },
+          );
+
+        next.sort(
+          (a, b) => {
+            if (
+              sortOption ===
+              "price-low"
+            ) {
+              return (
+                Number(a.price) -
+                Number(b.price)
+              );
+            }
+
+            if (
+              sortOption ===
+              "price-high"
+            ) {
+              return (
+                Number(b.price) -
+                Number(a.price)
+              );
+            }
+
+            const aDate =
+              new Date(
+                a.publishedAt ||
+                a.createdAt,
+              ).getTime();
+
+            const bDate =
+              new Date(
+                b.publishedAt ||
+                b.createdAt,
+              ).getTime();
+
+            return bDate - aDate;
+          },
+        );
+
+        return next;
+      },
+
+      [
+        eligibleListings,
+        searchQuery,
+        categoryFilter,
+        conditionFilter,
+        fulfillmentFilter,
+        minimumPrice,
+        maximumPrice,
+        sortOption,
+      ],
+    );
+
+  const hasActiveFilters =
+    Boolean(
+      searchQuery.trim() ||
+      categoryFilter !==
+        "all" ||
+      conditionFilter !==
+        "all" ||
+      fulfillmentFilter !==
+        "all" ||
+      minimumPrice.trim() ||
+      maximumPrice.trim() ||
+      sortOption !==
+        "newest",
+    );
+
+  function clearFilters() {
+    setSearchQuery("");
+    setCategoryFilter("all");
+    setConditionFilter("all");
+    setFulfillmentFilter("all");
+    setMinimumPrice("");
+    setMaximumPrice("");
+    setSortOption("newest");
+  }
 
   const currentUser =
     getAuthUser();
@@ -338,7 +615,7 @@ export default function MarketplaceBuyNowPage() {
 
   if (loading) {
     return (
-      <main style={pageStyle}>
+      <main className="marketplace-buy-now-page" style={pageStyle}>
         <section
           aria-live="polite"
           style={{
@@ -361,7 +638,7 @@ export default function MarketplaceBuyNowPage() {
   }
 
   return (
-    <main style={pageStyle}>
+    <main className="marketplace-buy-now-page" style={pageStyle}>
       <header
         style={{
           ...panelStyle,
@@ -532,21 +809,207 @@ export default function MarketplaceBuyNowPage() {
         </section>
       ) : null}
 
-      {eligibleListings.length ===
+      <section
+        className="marketplace-buy-now-filters"
+        style={{
+          ...panelStyle,
+          padding: 22,
+          marginBottom: 20,
+        }}
+      >
+        <div className="marketplace-buy-now-filter-heading">
+          <div>
+            <h2>Find the right listing</h2>
+            <p>
+              Search and narrow direct-purchase inventory before checkout.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            style={buttonStyle}
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+          >
+            Clear filters
+          </button>
+        </div>
+
+        <div className="marketplace-buy-now-filter-grid">
+          <label>
+            <span>Search</span>
+            <input
+              value={searchQuery}
+              onChange={(event) =>
+                setSearchQuery(
+                  event.target.value,
+                )
+              }
+              placeholder="Item, category, shop, or seller"
+              type="search"
+            />
+          </label>
+
+          <label>
+            <span>Category</span>
+            <select
+              value={categoryFilter}
+              onChange={(event) =>
+                setCategoryFilter(
+                  event.target.value,
+                )
+              }
+            >
+              <option value="all">
+                All categories
+              </option>
+
+              {categories.map(
+                (category) => (
+                  <option
+                    key={category}
+                    value={category}
+                  >
+                    {category}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+
+          <label>
+            <span>Condition</span>
+            <select
+              value={conditionFilter}
+              onChange={(event) =>
+                setConditionFilter(
+                  event.target.value,
+                )
+              }
+            >
+              <option value="all">
+                All conditions
+              </option>
+
+              {conditions.map(
+                (condition) => (
+                  <option
+                    key={condition}
+                    value={condition}
+                  >
+                    {condition}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+
+          <label>
+            <span>Fulfillment</span>
+            <select
+              value={fulfillmentFilter}
+              onChange={(event) =>
+                setFulfillmentFilter(
+                  event.target.value as
+                    | "all"
+                    | "pickup"
+                    | "shipping",
+                )
+              }
+            >
+              <option value="all">
+                Pickup or shipping
+              </option>
+              <option value="pickup">
+                Pickup available
+              </option>
+              <option value="shipping">
+                Shipping available
+              </option>
+            </select>
+          </label>
+
+          <label>
+            <span>Minimum price</span>
+            <input
+              value={minimumPrice}
+              onChange={(event) =>
+                setMinimumPrice(
+                  event.target.value,
+                )
+              }
+              placeholder="$0"
+              type="number"
+              min="0"
+              inputMode="decimal"
+            />
+          </label>
+
+          <label>
+            <span>Maximum price</span>
+            <input
+              value={maximumPrice}
+              onChange={(event) =>
+                setMaximumPrice(
+                  event.target.value,
+                )
+              }
+              placeholder="No maximum"
+              type="number"
+              min="0"
+              inputMode="decimal"
+            />
+          </label>
+
+          <label>
+            <span>Sort results</span>
+            <select
+              value={sortOption}
+              onChange={(event) =>
+                setSortOption(
+                  event.target.value as
+                    | "newest"
+                    | "price-low"
+                    | "price-high",
+                )
+              }
+            >
+              <option value="newest">
+                Newest first
+              </option>
+              <option value="price-low">
+                Price: low to high
+              </option>
+              <option value="price-high">
+                Price: high to low
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <p className="marketplace-buy-now-result-count">
+          Showing {filteredListings.length} of{" "}
+          {eligibleListings.length} Buy Now listings
+        </p>
+      </section>
+
+      {filteredListings.length ===
       0 ? (
         <section
+          className="marketplace-buy-now-empty"
           style={{
             ...panelStyle,
-
             padding:
               38,
-
             textAlign:
               "center",
           }}
         >
           <h2>
-            No Buy Now listings are available
+            {eligibleListings.length ===
+            0
+              ? "No Buy Now listings are available"
+              : "No listings match your filters"}
           </h2>
 
           <p
@@ -555,15 +1018,44 @@ export default function MarketplaceBuyNowPage() {
                 "var(--muted)",
             }}
           >
-            New direct-purchase listings will appear here after sellers publish them.
+            {eligibleListings.length ===
+            0
+              ? "New direct-purchase listings will appear here after sellers publish them."
+              : "Change or clear your filters to see more marketplace inventory."}
           </p>
 
-          <Link
-            to="/marketplace"
-            style={buttonStyle}
-          >
-            Browse marketplace items
-          </Link>
+          <div className="marketplace-buy-now-empty-actions">
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                style={buttonStyle}
+                onClick={clearFilters}
+              >
+                Clear filters
+              </button>
+            ) : null}
+
+            <Link
+              to="/marketplace"
+              style={buttonStyle}
+            >
+              Browse marketplace items
+            </Link>
+
+            <Link
+              to="/auctions"
+              style={buttonStyle}
+            >
+              View auctions
+            </Link>
+
+            <Link
+              to="/buyer/sell-item"
+              style={buttonStyle}
+            >
+              Sell or list an item
+            </Link>
+          </div>
         </section>
       ) : (
         <section
@@ -578,7 +1070,7 @@ export default function MarketplaceBuyNowPage() {
               18,
           }}
         >
-          {eligibleListings.map(
+          {filteredListings.map(
             (listing) => {
               const image =
                 listingImage(
@@ -853,7 +1345,7 @@ export default function MarketplaceBuyNowPage() {
                             "100%",
                         }}
                       >
-                        View linked item
+                        View item details
                       </Link>
                     ) : null}
                   </div>
