@@ -894,3 +894,83 @@
 :root[data-theme="dark"] .sellitem-scanner-warning {
   color: #fed7aa;
 }
+
+/* Buyer Sell Item scanner action contrast fix v1 */
+
+.sellitem-page .sellitem-scanner-actions button,
+.sellitem-page .sellitem-scanner-actions a {
+  min-height: 48px;
+  border: 1px solid transparent !important;
+  text-decoration: none !important;
+  opacity: 1 !important;
+}
+
+:root:not([data-theme="dark"]) .sellitem-page
+  .sellitem-scanner-actions button:not(:disabled) {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #1d4ed8 !important;
+}
+
+:root:not([data-theme="dark"]) .sellitem-page
+  .sellitem-scanner-actions button.secondary:not(:disabled),
+:root:not([data-theme="dark"]) .sellitem-page
+  .sellitem-scanner-actions a {
+  background: #e0e7ff !important;
+  color: #312e81 !important;
+  -webkit-text-fill-color: #312e81 !important;
+  border-color: #a5b4fc !important;
+}
+
+:root:not([data-theme="dark"]) .sellitem-page
+  .sellitem-scanner-actions button:disabled {
+  background: #475569 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #64748b !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+}
+
+:root[data-theme="dark"] .sellitem-page
+  .sellitem-scanner-actions button:not(:disabled),
+.dark .sellitem-page
+  .sellitem-scanner-actions button:not(:disabled) {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #818cf8 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page
+  .sellitem-scanner-actions button.secondary:not(:disabled),
+:root[data-theme="dark"] .sellitem-page
+  .sellitem-scanner-actions a,
+.dark .sellitem-page
+  .sellitem-scanner-actions button.secondary:not(:disabled),
+.dark .sellitem-page
+  .sellitem-scanner-actions a {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+:root[data-theme="dark"] .sellitem-page
+  .sellitem-scanner-actions button:disabled,
+.dark .sellitem-page
+  .sellitem-scanner-actions button:disabled {
+  background: #334155 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #64748b !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+}
+
+.sellitem-page .sellitem-scanner-actions button:focus-visible,
+.sellitem-page .sellitem-scanner-actions a:focus-visible {
+  outline: 3px solid #f59e0b !important;
+  outline-offset: 3px;
+}
