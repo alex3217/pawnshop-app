@@ -894,3 +894,264 @@
     width: 100%;
   }
 }
+
+/* PawnLoop shop action controls v1 */
+
+.shops2-filter-grid {
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+}
+
+.shops2-sort-field {
+  display: grid;
+  gap: 6px;
+  min-height: 52px;
+  border-radius: 16px;
+  padding: 7px 10px;
+  background: #f8fafc;
+}
+
+.shops2-sort-field span {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.shops2-sort-field select {
+  width: 100%;
+  min-height: 32px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #0f172a;
+  -webkit-text-fill-color: #0f172a;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.shops2-sort-field select:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.3);
+  outline-offset: 3px;
+}
+
+.shops2-actions {
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+}
+
+.shops2-actions .shops2-primary-small {
+  grid-column: 1 / -1;
+}
+
+.shops2-actions a,
+.shops2-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shops2-follow-button.active {
+  background: #3730a3;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+}
+
+.shops2-error button {
+  margin-top: 14px;
+  min-height: 44px;
+  border: 1px solid #0f172a;
+  border-radius: 14px;
+  padding: 10px 15px;
+  background: #0f172a;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.shops2-error button:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.35);
+  outline-offset: 3px;
+}
+
+:root[data-theme="dark"] .shops2-sort-field {
+  background: #1e293b;
+}
+
+:root[data-theme="dark"] .shops2-sort-field span {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .shops2-sort-field select {
+  color: #f8fafc;
+  -webkit-text-fill-color: #f8fafc;
+}
+
+:root[data-theme="dark"] .shops2-follow-button.active,
+:root[data-theme="dark"] .shops2-error button {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+}
+
+@media (max-width: 1050px) {
+  .shops2-filter-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .shops2-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shops2-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .shops2-actions .shops2-primary-small {
+    grid-column: auto;
+  }
+}
+
+/* PawnLoop shops followed-filter polish v1 */
+
+.shops2-filter-grid {
+  grid-template-columns:
+    repeat(
+      auto-fit,
+      minmax(210px, 1fr)
+    );
+}
+
+.shops2-follow-summary {
+  margin: 14px 0 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.shops2-primary-small {
+  border: 1px solid #0f172a;
+  box-shadow:
+    0 7px 18px
+    rgba(15, 23, 42, 0.16);
+}
+
+.shops2-primary-small:hover {
+  background: #312e81;
+  border-color: #312e81;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+}
+
+.shops2-actions a:focus-visible,
+.shops2-actions button:focus-visible,
+.shops2-search-row input:focus-visible,
+.shops2-search-row button:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 3px;
+}
+
+:root[data-theme="dark"]
+  .shops2-page
+  .shops2-primary-small,
+.dark
+  .shops2-page
+  .shops2-primary-small {
+  background: #4f46e5 !important;
+  border-color: #818cf8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color:
+    #ffffff !important;
+  box-shadow:
+    0 9px 24px
+    rgba(79, 70, 229, 0.35);
+}
+
+:root[data-theme="dark"]
+  .shops2-page
+  .shops2-primary-small:hover,
+.dark
+  .shops2-page
+  .shops2-primary-small:hover {
+  background: #6366f1 !important;
+  border-color: #a5b4fc !important;
+}
+
+:root[data-theme="dark"]
+  .shops2-follow-summary,
+.dark
+  .shops2-follow-summary {
+  color: #cbd5e1;
+}
+
+/* PawnLoop complete shop filters v1 */
+
+.shops2-sort-field select:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.shops2-filter-grid {
+  align-items: stretch;
+}
+
+.shops2-filter-grid
+  .shops2-checkbox,
+.shops2-filter-grid
+  .shops2-sort-field {
+  min-width: 0;
+}
+
+:root[data-theme="dark"]
+  .shops2-sort-field
+  select:disabled,
+.dark
+  .shops2-sort-field
+  select:disabled {
+  color: #94a3b8;
+  -webkit-text-fill-color: #94a3b8;
+  opacity: 1;
+}
+
+/* PawnLoop map location accuracy v1 */
+
+.shops2-map-location-hint {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 4;
+  max-width: 230px;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+  border-radius: 999px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+:root[data-theme="dark"]
+  .shops2-map-location-hint,
+.dark
+  .shops2-map-location-hint {
+  border-color: rgba(148, 163, 184, 0.32);
+  background: rgba(30, 41, 59, 0.96);
+  color: #e2e8f0;
+}
+
+@media (max-width: 640px) {
+  .shops2-map-location-hint {
+    left: 14px;
+    right: 14px;
+    max-width: none;
+  }
+}
