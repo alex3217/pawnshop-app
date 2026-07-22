@@ -1,0 +1,41 @@
+.buyer-purchases-page input,
+.buyer-purchases-page select {
+  width: 100%;
+  min-height: 44px;
+}
+
+.buyer-purchases-filter-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+
+:root:not([data-theme="dark"]) .buyer-purchases-page {
+  color: #0f172a;
+}
+
+:root:not([data-theme="dark"]) .buyer-purchases-page h1,
+:root:not([data-theme="dark"]) .buyer-purchases-page h2,
+:root:not([data-theme="dark"]) .buyer-purchases-page label,
+:root:not([data-theme="dark"]) .buyer-purchases-page strong {
+  color: #0f172a !important;
+}
+
+:root:not([data-theme="dark"]) .buyer-purchases-page small,
+:root:not([data-theme="dark"]) .buyer-purchases-filter-actions {
+  color: #475569 !important;
+}
+
+@media (max-width: 640px) {
+  .buyer-purchases-filter-actions {
+    align-items: stretch;
+  }
+
+  .buyer-purchases-filter-actions button {
+    width: 100%;
+  }
+}
