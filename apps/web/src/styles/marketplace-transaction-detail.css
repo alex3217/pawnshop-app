@@ -1,0 +1,107 @@
+.marketplace-transaction__confirmation {
+  margin-bottom: 20px;
+}
+
+.marketplace-transaction__confirmation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.marketplace-transaction__timeline {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0 0 0 18px;
+  border-left: 2px solid var(--border-strong);
+}
+
+.marketplace-transaction__timeline-item {
+  position: relative;
+  padding: 0 0 22px 18px;
+}
+
+.marketplace-transaction__timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+.marketplace-transaction__timeline-item::before {
+  position: absolute;
+  top: 5px;
+  left: -25px;
+  width: 12px;
+  height: 12px;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  content: "";
+}
+
+.marketplace-transaction__timeline-item p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.marketplace-transaction__tracking-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media print {
+  :root {
+    color-scheme: light;
+    --bg: #fff;
+    --bg-soft: #fff;
+    --surface: #fff;
+    --surface-strong: #fff;
+    --text: #111;
+    --text-strong: #000;
+    --muted: #333;
+    --border: #aaa;
+    --border-strong: #777;
+    --primary: #000;
+    --accent: #000;
+    --success: #000;
+    --warning: #000;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .topbar,
+  .marketplace-transaction__screen-actions,
+  .marketplace-transaction__alerts,
+  .marketplace-transaction__payment-controls,
+  .marketplace-transaction__fulfillment-controls,
+  .marketplace-transaction__screen-navigation,
+  button {
+    display: none !important;
+  }
+
+  .marketplace-transaction__page {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .marketplace-transaction__page > :not(.marketplace-transaction__confirmation) {
+    display: none !important;
+  }
+
+  .marketplace-transaction__confirmation {
+    display: block !important;
+    border: 1px solid #777 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    color: #000 !important;
+    break-inside: avoid;
+  }
+
+  .marketplace-transaction__confirmation *,
+  .marketplace-transaction__confirmation small {
+    color: #000 !important;
+  }
+}
