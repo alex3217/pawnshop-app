@@ -6,14 +6,22 @@ import {
   type CSSProperties,
 } from "react";
 import { Link } from "react-router-dom";
+import "../styles/buyer-purchases-readability.css";
 
 import {
   getMyMarketplacePurchases,
+  type MarketplaceFulfillmentStatus,
   type MarketplaceTransaction,
   type MarketplaceTransactionFilters,
   type MarketplaceTransactionStatus,
   type MarketplaceTransactionType,
 } from "../services/marketplaceTransactions";
+
+type PurchaseSortOrder =
+  | "newest"
+  | "oldest"
+  | "price-high"
+  | "price-low";
 
 const STATUS_OPTIONS: Array<{
   value: MarketplaceTransactionStatus;
@@ -43,6 +51,18 @@ const TYPE_OPTIONS: Array<{
     value: "CUSTOMER_SELL_TO_SHOP",
     label: "Sold to pawn shop",
   },
+];
+
+const FULFILLMENT_OPTIONS: Array<{
+  value: MarketplaceFulfillmentStatus;
+  label: string;
+}> = [
+  { value: "PAYMENT_PENDING", label: "Payment pending" },
+  { value: "READY_FOR_PICKUP", label: "Ready for pickup" },
+  { value: "PICKED_UP", label: "Picked up" },
+  { value: "SHIPPED", label: "Shipped" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELED", label: "Canceled" },
 ];
 
 const pageStyle: CSSProperties = {
@@ -319,6 +339,14 @@ export default function BuyerPurchasesPage() {
     pages: 0,
   });
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [fulfillmentFilter, setFulfillmentFilter] =
+    useState<MarketplaceFulfillmentStatus | "">("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [sortOrder, setSortOrder] =
+    useState<PurchaseSortOrder>("newest");
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -354,6 +382,101 @@ export default function BuyerPurchasesPage() {
     void load();
   }, [load]);
 
+  const displayedTransactions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const fromTime = fromDate
+      ? new Date(`${fromDate}T00:00:00`).getTime()
+      : null;
+    const toTime = toDate
+      ? new Date(`${toDate}T23:59:59.999`).getTime()
+      : null;
+
+    return transactions
+      .filter((transaction) => {
+        const createdTime = new Date(
+          transaction.createdAt,
+        ).getTime();
+        const sellerName =
+          transaction.sellerShop?.name ||
+          transaction.seller?.name ||
+          "";
+        const haystack = [
+          transaction.id,
+          transaction.listing?.title,
+          sellerName,
+          transaction.status,
+          transaction.type,
+          transaction.fulfillmentStatus,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        if (query && !haystack.includes(query)) return false;
+        if (
+          fulfillmentFilter &&
+          transaction.fulfillmentStatus !==
+            fulfillmentFilter
+        ) {
+          return false;
+        }
+        if (
+          fromTime !== null &&
+          Number.isFinite(createdTime) &&
+          createdTime < fromTime
+        ) {
+          return false;
+        }
+        if (
+          toTime !== null &&
+          Number.isFinite(createdTime) &&
+          createdTime > toTime
+        ) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((left, right) => {
+        if (sortOrder === "price-high") {
+          return (
+            Number(right.totalAmount || 0) -
+            Number(left.totalAmount || 0)
+          );
+        }
+        if (sortOrder === "price-low") {
+          return (
+            Number(left.totalAmount || 0) -
+            Number(right.totalAmount || 0)
+          );
+        }
+
+        const leftTime = new Date(left.createdAt).getTime();
+        const rightTime = new Date(right.createdAt).getTime();
+
+        return sortOrder === "oldest"
+          ? leftTime - rightTime
+          : rightTime - leftTime;
+      });
+  }, [
+    transactions,
+    searchQuery,
+    fulfillmentFilter,
+    fromDate,
+    toDate,
+    sortOrder,
+  ]);
+
+  const activeFilterCount = [
+    filters.status,
+    filters.type,
+    searchQuery.trim(),
+    fulfillmentFilter,
+    fromDate,
+    toDate,
+    sortOrder !== "newest" ? sortOrder : "",
+  ].filter(Boolean).length;
+
   const totals = useMemo(() => {
     const completed = transactions.filter(
       (transaction) =>
@@ -382,6 +505,18 @@ export default function BuyerPurchasesPage() {
     };
   }, [transactions]);
 
+  function clearFilters() {
+    setFilters((current) => ({
+      page: 1,
+      limit: current.limit ?? 12,
+    }));
+    setSearchQuery("");
+    setFulfillmentFilter("");
+    setFromDate("");
+    setToDate("");
+    setSortOrder("newest");
+  }
+
   function updateStatus(value: string) {
     setFilters((current) => ({
       ...current,
@@ -405,7 +540,7 @@ export default function BuyerPurchasesPage() {
   }
 
   return (
-    <main style={pageStyle}>
+    <main className="buyer-purchases-page" style={pageStyle}>
       <header
         style={{
           display: "flex",
@@ -511,6 +646,19 @@ export default function BuyerPurchasesPage() {
         }}
       >
         <label>
+          Search this page
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) =>
+              setSearchQuery(event.target.value)
+            }
+            placeholder="Item, seller, or transaction ID"
+            style={{ marginTop: 7 }}
+          />
+        </label>
+
+        <label>
           Transaction status
           <select
             value={filters.status ?? ""}
@@ -551,6 +699,102 @@ export default function BuyerPurchasesPage() {
             ))}
           </select>
         </label>
+
+        <label>
+          Fulfillment
+          <select
+            value={fulfillmentFilter}
+            onChange={(event) =>
+              setFulfillmentFilter(
+                event.target
+                  .value as MarketplaceFulfillmentStatus | "",
+              )
+            }
+            style={{ marginTop: 7 }}
+          >
+            <option value="">All fulfillment statuses</option>
+            {FULFILLMENT_OPTIONS.map((option) => (
+              <option
+                key={option.value}
+                value={option.value}
+              >
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Purchased from
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(event) =>
+              setFromDate(event.target.value)
+            }
+            style={{ marginTop: 7 }}
+          />
+        </label>
+
+        <label>
+          Purchased through
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(event) =>
+              setToDate(event.target.value)
+            }
+            style={{ marginTop: 7 }}
+          />
+        </label>
+
+        <label>
+          Sort
+          <select
+            value={sortOrder}
+            onChange={(event) =>
+              setSortOrder(
+                event.target.value as PurchaseSortOrder,
+              )
+            }
+            style={{ marginTop: 7 }}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="price-high">
+              Price: high to low
+            </option>
+            <option value="price-low">
+              Price: low to high
+            </option>
+          </select>
+        </label>
+
+        <div
+          className="buyer-purchases-filter-actions"
+          aria-live="polite"
+        >
+          <span>
+            Showing {displayedTransactions.length} of{" "}
+            {transactions.length} purchases on this page
+            {activeFilterCount > 0
+              ? ` · ${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"}`
+              : ""}
+          </span>
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={activeFilterCount === 0}
+            style={{
+              ...buttonStyle,
+              opacity: activeFilterCount === 0 ? 0.5 : 1,
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
       </section>
 
       {error ? (
@@ -597,6 +841,27 @@ export default function BuyerPurchasesPage() {
             Browse marketplace
           </Link>
         </section>
+      ) : displayedTransactions.length === 0 ? (
+        <section
+          style={{
+            ...panelStyle,
+            padding: 32,
+            textAlign: "center",
+          }}
+        >
+          <h2>No purchases match these filters</h2>
+          <p style={{ color: "var(--muted)" }}>
+            Clear or adjust the filters to see purchases on
+            this page.
+          </p>
+          <button
+            type="button"
+            onClick={clearFilters}
+            style={buttonStyle}
+          >
+            Clear filters
+          </button>
+        </section>
       ) : (
         <section
           style={{
@@ -604,7 +869,7 @@ export default function BuyerPurchasesPage() {
             gap: 16,
           }}
         >
-          {transactions.map((transaction) => (
+          {displayedTransactions.map((transaction) => (
             <PurchaseCard
               key={transaction.id}
               transaction={transaction}
