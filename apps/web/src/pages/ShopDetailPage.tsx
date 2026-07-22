@@ -114,6 +114,41 @@ export default function ShopDetailPage() {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (
+      loading ||
+      error ||
+      !shop ||
+      window.location.hash !==
+        "#inventory"
+    ) {
+      return;
+    }
+
+    const frame =
+      window.requestAnimationFrame(
+        () => {
+          document
+            .getElementById(
+              "inventory",
+            )
+            ?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+        },
+      );
+
+    return () =>
+      window.cancelAnimationFrame(
+        frame,
+      );
+  }, [
+    loading,
+    error,
+    shop,
+  ]);
+
   const categoryOptions = useMemo(() => {
     return Array.from(
       new Set(
@@ -332,7 +367,13 @@ export default function ShopDetailPage() {
         </div>
       </section>
 
-      <section style={styles.section}>
+      <section
+        id="inventory"
+        style={{
+          ...styles.section,
+          scrollMarginTop: 180,
+        }}
+      >
         <div style={styles.sectionHeader}>
           <h3 style={styles.sectionTitle}>Available Inventory</h3>
           <Link to="/auctions" style={styles.backLink}>

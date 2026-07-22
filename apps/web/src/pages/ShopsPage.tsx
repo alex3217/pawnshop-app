@@ -1,10 +1,97 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+} from "react-router-dom";
 import { getMarketplaceShops, type Shop } from "../services/shops";
-import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
+import {
+  directionsUrl,
+  distanceMiles,
+  formatMiles,
+  hasCoordinates,
+  type GeoPoint,
+} from "../utils/geoDistance";
 import "../styles/shops-v2.css";
 
+// PawnLoop shop action controls v1
+// PawnLoop shops followed-filter polish v1
+// PawnLoop complete shop filters v1
+
 type ViewMode = "grid" | "list" | "map";
+type ShopSortMode =
+  | "recommended"
+  | "name"
+  | "nearest";
+
+type DistanceRadius =
+  | "all"
+  | "5"
+  | "10"
+  | "25"
+  | "50"
+  | "100";
+
+const FOLLOWED_SHOPS_STORAGE_KEY =
+  "pawnloop.followedShopIds.v1";
+
+function shopPhoneHref(
+  phone: string | null | undefined,
+): string | null {
+  const value = String(phone || "").trim();
+
+  if (!value) return null;
+
+  const normalized =
+    value.replace(/[^\d+]/g, "");
+
+  return normalized
+    ? `tel:${normalized}`
+    : null;
+}
+
+function readFollowedShopIds(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw =
+      window.localStorage.getItem(
+        FOLLOWED_SHOPS_STORAGE_KEY,
+      );
+
+    if (!raw) return [];
+
+    const parsed: unknown =
+      JSON.parse(raw);
+
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (value): value is string =>
+            typeof value === "string",
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeFollowedShopIds(
+  shopIds: string[],
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      FOLLOWED_SHOPS_STORAGE_KEY,
+      JSON.stringify(shopIds),
+    );
+  } catch {
+    // Browsing can continue when storage is unavailable.
+  }
+}
 
 const SHOPS_PAGE_SIZE = 36;
 
@@ -60,11 +147,18 @@ function ShopCard({
   shop,
   userPoint,
   compact = false,
+  isFollowed,
+  onToggleFollow,
 }: {
   shop: Shop;
   userPoint: GeoPoint | null;
   compact?: boolean;
+  isFollowed: boolean;
+  onToggleFollow: (shop: Shop) => void;
 }) {
+  const callHref =
+    shopPhoneHref(shop.phone);
+
   return (
     <article className={compact ? "shops2-card shops2-card-list" : "shops2-card"}>
       <div className="shops2-card-map">
@@ -82,7 +176,11 @@ function ShopCard({
           </div>
 
           <span className="shops2-open-chip">
-            {hasValue(shop.hours) ? "Hours listed" : "Call shop"}
+            {hasValue(shop.hours)
+              ? "Hours listed"
+              : hasValue(shop.phone)
+                ? "Phone available"
+                : "Contact unavailable"}
           </span>
         </div>
 
@@ -99,24 +197,57 @@ function ShopCard({
         </div>
 
         <div className="shops2-actions">
-          <Link to={`/shops/${shop.id}`} className="shops2-primary-small">
+          <Link
+            to={`/shops/${shop.id}`}
+            className="shops2-primary-small"
+          >
             View storefront
           </Link>
+
+          {callHref ? (
+            <a
+              href={callHref}
+              className="shops2-secondary-small"
+              aria-label={`Call ${shop.name}`}
+            >
+              Call shop
+            </a>
+          ) : null}
+
           {shopDirectionsUrl(shop) ? (
             <a
               href={shopDirectionsUrl(shop) || "#"}
               target="_blank"
               rel="noreferrer"
               className="shops2-secondary-small"
+              aria-label={`Get directions to ${shop.name}`}
             >
               Directions
             </a>
           ) : null}
-          <Link to="/marketplace" className="shops2-secondary-small">
+
+          <Link
+            to={`/shops/${shop.id}#inventory`}
+            className="shops2-secondary-small"
+          >
             Browse inventory
           </Link>
-          <button type="button" className="shops2-secondary-small">
-            Follow
+
+          <button
+            type="button"
+            className={
+              isFollowed
+                ? "shops2-secondary-small shops2-follow-button active"
+                : "shops2-secondary-small shops2-follow-button"
+            }
+            aria-pressed={isFollowed}
+            onClick={() =>
+              onToggleFollow(shop)
+            }
+          >
+            {isFollowed
+              ? "Following"
+              : "Follow"}
           </button>
         </div>
       </div>
@@ -124,6 +255,7 @@ function ShopCard({
   );
 }
 
+// PawnLoop map shop navigation v1
 function ShopsMap({
   shops,
   userPoint,
@@ -135,12 +267,44 @@ function ShopsMap({
   selectedShopId: string | null;
   setSelectedShopId: (id: string) => void;
 }) {
-  const mapShops = shops.slice(0, 8);
+  const navigate = useNavigate();
+
+  const mapShops =
+    shops.slice(0, 8);
+
+  function openShop(
+    shop: Shop,
+  ) {
+    setSelectedShopId(
+      shop.id,
+    );
+
+    navigate(
+      `/shops/${encodeURIComponent(
+        shop.id,
+      )}`,
+    );
+  }
 
   return (
     <section className="shops2-map-shell">
       <div className="shops2-map-stage">
-        <div className="shops2-map-user">You</div>
+        {/* PawnLoop map location accuracy v1 */}
+        {userPoint ? (
+          <div
+            className="shops2-map-user"
+            title="Your approximate location"
+          >
+            You
+          </div>
+        ) : (
+          <div
+            className="shops2-map-location-hint"
+            role="status"
+          >
+            Enable location to calculate distances
+          </div>
+        )}
 
         {mapShops.map((shop, index) => {
           const [x, y] = mapPosition(index);
@@ -152,8 +316,11 @@ function ShopsMap({
               type="button"
               className={selected ? "shops2-map-pin selected" : "shops2-map-pin"}
               style={{ left: `${x}%`, top: `${y}%` }}
-              onClick={() => setSelectedShopId(shop.id)}
-              title={shop.name}
+              onClick={() =>
+                openShop(shop)
+              }
+              aria-label={`Open ${shop.name} storefront`}
+              title={`Open ${shop.name} storefront`}
             >
               <strong>{displayValue(shop.name, "Shop").slice(0, 2).toUpperCase()}</strong>
               <span>{distanceLabel(shop, userPoint)}</span>
@@ -181,7 +348,11 @@ function ShopsMap({
             key={shop.id}
             type="button"
             className={selectedShopId === shop.id ? "shops2-map-row active" : "shops2-map-row"}
-            onClick={() => setSelectedShopId(shop.id)}
+            onClick={() =>
+              openShop(shop)
+            }
+            aria-label={`Open ${shop.name} storefront`}
+            title={`Open ${shop.name} storefront`}
           >
             <span>
               <strong>{displayValue(shop.name, "Unnamed pawnshop")}</strong>
@@ -202,8 +373,28 @@ export default function ShopsPage() {
   const [locationQuery, setLocationQuery] = useState("");
   const [requirePhone, setRequirePhone] = useState(false);
   const [requireHours, setRequireHours] = useState(false);
+  const [requireFollowed, setRequireFollowed] = useState(false);
+  const [requireCoordinates, setRequireCoordinates] = useState(false);
+
+  const [stateFilter, setStateFilter] =
+    useState("all");
+
+  const [cityFilter, setCityFilter] =
+    useState("all");
+
+  const [distanceRadius, setDistanceRadius] =
+    useState<DistanceRadius>("all");
+
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [sortMode, setSortMode] =
+    useState<ShopSortMode>("recommended");
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [followedShopIds, setFollowedShopIds] =
+    useState<string[]>(readFollowedShopIds);
+  const [actionMessage, setActionMessage] =
+    useState<string | null>(null);
+  const [reloadToken, setReloadToken] =
+    useState(0);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState("your area");
   const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
@@ -240,7 +431,65 @@ export default function ShopsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
+
+  const stateOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          shops
+            .map((shop) =>
+              String(
+                shop.state || "",
+              ).trim(),
+            )
+            .filter(Boolean),
+        ),
+      ).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [shops],
+  );
+
+  const cityOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          shops
+            .filter(
+              (shop) =>
+                stateFilter === "all" ||
+                String(
+                  shop.state || "",
+                ).trim() === stateFilter,
+            )
+            .map((shop) =>
+              String(
+                shop.city || "",
+              ).trim(),
+            )
+            .filter(Boolean),
+        ),
+      ).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [shops, stateFilter],
+  );
+
+  useEffect(() => {
+    setVisibleCount(SHOPS_PAGE_SIZE);
+  }, [
+    query,
+    locationQuery,
+    requirePhone,
+    requireHours,
+    requireFollowed,
+    requireCoordinates,
+    stateFilter,
+    cityFilter,
+    distanceRadius,
+    sortMode,
+  ]);
 
   const filteredShops = useMemo(() => {
     const q = normalizeText(query);
@@ -250,6 +499,9 @@ export default function ShopsPage() {
       const searchable = [
         shop.name,
         shop.address || "",
+        shop.city || "",
+        shop.state || "",
+        shop.zip || "",
         shop.phone || "",
         shop.description || "",
         shop.hours || "",
@@ -257,40 +509,179 @@ export default function ShopsPage() {
         .join(" ")
         .toLowerCase();
 
-      const locationHaystack = [shop.address || "", shop.name]
+      const shopState =
+        String(
+          shop.state || "",
+        ).trim();
+
+      const shopCity =
+        String(
+          shop.city || "",
+        ).trim();
+
+      const locationHaystack = [
+        shop.address || "",
+        shop.city || "",
+        shop.state || "",
+        shop.zip || "",
+        shop.name,
+      ]
         .join(" ")
         .toLowerCase();
 
       if (q && !searchable.includes(q)) return false;
       if (locationQ && !locationHaystack.includes(locationQ)) return false;
-      if (requirePhone && !hasValue(shop.phone)) return false;
-      if (requireHours && !hasValue(shop.hours)) return false;
+      if (
+        stateFilter !== "all" &&
+        shopState !== stateFilter
+      ) {
+        return false;
+      }
+
+      if (
+        cityFilter !== "all" &&
+        shopCity !== cityFilter
+      ) {
+        return false;
+      }
+
+      if (
+        requirePhone &&
+        !hasValue(shop.phone)
+      ) {
+        return false;
+      }
+
+      if (
+        requireHours &&
+        !hasValue(shop.hours)
+      ) {
+        return false;
+      }
+
+      if (
+        requireFollowed &&
+        !followedShopIds.includes(shop.id)
+      ) {
+        return false;
+      }
+
+      if (
+        requireCoordinates &&
+        !hasCoordinates(shopPoint(shop))
+      ) {
+        return false;
+      }
+
+      if (
+        distanceRadius !== "all"
+      ) {
+        const distance =
+          userPoint
+            ? shopDistanceMiles(
+                shop,
+                userPoint,
+              )
+            : null;
+
+        if (
+          distance === null ||
+          distance >
+            Number(distanceRadius)
+        ) {
+          return false;
+        }
+      }
 
       return true;
     });
-  }, [shops, query, locationQuery, requirePhone, requireHours]);
+  }, [
+    shops,
+    query,
+    locationQuery,
+    requirePhone,
+    requireHours,
+    requireFollowed,
+    requireCoordinates,
+    followedShopIds,
+    stateFilter,
+    cityFilter,
+    distanceRadius,
+    userPoint,
+  ]);
 
   const stats = useMemo(() => {
     const withPhone = filteredShops.filter((shop) => hasValue(shop.phone)).length;
     const withHours = filteredShops.filter((shop) => hasValue(shop.hours)).length;
+
+    const followed = shops.filter(
+      (shop) =>
+        followedShopIds.includes(shop.id),
+    ).length;
+
+    const mapReady = shops.filter(
+      (shop) =>
+        hasCoordinates(
+          shopPoint(shop),
+        ),
+    ).length;
 
     return {
       total: shops.length,
       filtered: filteredShops.length,
       withPhone,
       withHours,
+      followed,
+      mapReady,
     };
-  }, [shops, filteredShops]);
+  }, [
+    shops,
+    filteredShops,
+    followedShopIds,
+  ]);
 
   const visibleShops = useMemo(() => {
     const ranked = [...filteredShops];
 
-    if (userPoint) {
+    if (sortMode === "name") {
+      ranked.sort((a, b) =>
+        displayValue(
+          a.name,
+          "Unnamed pawnshop",
+        ).localeCompare(
+          displayValue(
+            b.name,
+            "Unnamed pawnshop",
+          ),
+        ),
+      );
+    } else if (
+      userPoint &&
+      (
+        sortMode === "nearest" ||
+        sortMode === "recommended"
+      )
+    ) {
       ranked.sort((a, b) => {
-        const aDistance = shopDistanceMiles(a, userPoint);
-        const bDistance = shopDistanceMiles(b, userPoint);
+        const aDistance =
+          shopDistanceMiles(
+            a,
+            userPoint,
+          );
 
-        if (aDistance === null && bDistance === null) return 0;
+        const bDistance =
+          shopDistanceMiles(
+            b,
+            userPoint,
+          );
+
+        if (
+          aDistance === null &&
+          bDistance === null
+        ) {
+          return 0;
+        }
+
         if (aDistance === null) return 1;
         if (bDistance === null) return -1;
 
@@ -298,13 +689,30 @@ export default function ShopsPage() {
       });
     }
 
-    return ranked.slice(0, visibleCount);
-  }, [filteredShops, visibleCount, userPoint]);
+    return ranked.slice(
+      0,
+      visibleCount,
+    );
+  }, [
+    filteredShops,
+    visibleCount,
+    userPoint,
+    sortMode,
+  ]);
 
   const hiddenShopCount = Math.max(filteredShops.length - visibleShops.length, 0);
 
   const hasActiveFilters = Boolean(
-    query.trim() || locationQuery.trim() || requirePhone || requireHours,
+    query.trim() ||
+      locationQuery.trim() ||
+      requirePhone ||
+      requireHours ||
+      requireFollowed ||
+      requireCoordinates ||
+      stateFilter !== "all" ||
+      cityFilter !== "all" ||
+      distanceRadius !== "all" ||
+      sortMode !== "recommended",
   );
 
   function clearFilters() {
@@ -312,8 +720,45 @@ export default function ShopsPage() {
     setLocationQuery("");
     setRequirePhone(false);
     setRequireHours(false);
+    setRequireFollowed(false);
+    setRequireCoordinates(false);
+    setStateFilter("all");
+    setCityFilter("all");
+    setDistanceRadius("all");
+    setSortMode("recommended");
     setLocationMessage(null);
     setUserPoint(null);
+    setVisibleCount(SHOPS_PAGE_SIZE);
+  }
+
+  function toggleFollow(shop: Shop) {
+    setFollowedShopIds(
+      (current) => {
+        const isCurrentlyFollowed =
+          current.includes(shop.id);
+
+        const next =
+          isCurrentlyFollowed
+            ? current.filter(
+                (id) =>
+                  id !== shop.id,
+              )
+            : [
+                ...current,
+                shop.id,
+              ];
+
+        writeFollowedShopIds(next);
+
+        setActionMessage(
+          isCurrentlyFollowed
+            ? `${shop.name} was removed from followed shops.`
+            : `${shop.name} is now followed on this browser.`,
+        );
+
+        return next;
+      },
+    );
   }
 
   function handleUseLocation() {
@@ -359,28 +804,62 @@ export default function ShopsPage() {
 
           <div className="shops2-search-row">
             <input
+              type="search"
+              aria-label="Search shops"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) =>
+                setQuery(event.target.value)
+              }
               placeholder="Search shops by name, phone, or description..."
             />
             <input
+              type="search"
+              aria-label="Search by city, area, or address"
               value={locationQuery}
-              onChange={(event) => setLocationQuery(event.target.value)}
+              onChange={(event) =>
+                setLocationQuery(
+                  event.target.value,
+                )
+              }
               placeholder="City, area, or address..."
             />
-            <button type="button" onClick={handleUseLocation}>
+            <button
+              type="button"
+              aria-label="Use my current location"
+              onClick={handleUseLocation}
+            >
               Use location
             </button>
           </div>
 
-          {locationMessage ? <div className="shops2-message">{locationMessage}</div> : null}
+          {locationMessage ? (
+            <div
+              className="shops2-message"
+              role="status"
+            >
+              {locationMessage}
+            </div>
+          ) : null}
+
+          {actionMessage ? (
+            <div
+              className="shops2-message"
+              role="status"
+            >
+              {actionMessage}
+            </div>
+          ) : null}
         </div>
 
         <aside className="shops2-hero-panel">
           <div>
             <span>Showing</span>
             <strong>{stats.filtered}</strong>
-            <small>matching shops</small>
+            <small>
+              {userPoint
+                ? locationLabel
+                : "matching shops"}
+            </small>
           </div>
           <div>
             <span>Total</span>
@@ -395,7 +874,7 @@ export default function ShopsPage() {
           <div>
             <span>Hours</span>
             <strong>{stats.withHours}</strong>
-            <small>{locationLabel}</small>
+            <small>with hours listed</small>
           </div>
         </aside>
       </section>
@@ -434,9 +913,168 @@ export default function ShopsPage() {
             <input
               type="checkbox"
               checked={requireHours}
-              onChange={(event) => setRequireHours(event.target.checked)}
+              onChange={(event) =>
+                setRequireHours(
+                  event.target.checked,
+                )
+              }
             />
             <span>Only shops with hours listed</span>
+          </label>
+
+          <label className="shops2-checkbox">
+            <input
+              type="checkbox"
+              checked={requireFollowed}
+              onChange={(event) =>
+                setRequireFollowed(
+                  event.target.checked,
+                )
+              }
+            />
+            <span>Only followed shops</span>
+          </label>
+
+          <label className="shops2-sort-field">
+            <span>State</span>
+
+            <select
+              value={stateFilter}
+              aria-label="Filter shops by state"
+              onChange={(event) => {
+                setStateFilter(
+                  event.target.value,
+                );
+                setCityFilter("all");
+              }}
+            >
+              <option value="all">
+                All states
+              </option>
+
+              {stateOptions.map(
+                (state) => (
+                  <option
+                    key={state}
+                    value={state}
+                  >
+                    {state}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+
+          <label className="shops2-sort-field">
+            <span>City</span>
+
+            <select
+              value={cityFilter}
+              aria-label="Filter shops by city"
+              onChange={(event) =>
+                setCityFilter(
+                  event.target.value,
+                )
+              }
+            >
+              <option value="all">
+                All cities
+              </option>
+
+              {cityOptions.map(
+                (city) => (
+                  <option
+                    key={city}
+                    value={city}
+                  >
+                    {city}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+
+          <label className="shops2-checkbox">
+            <input
+              type="checkbox"
+              checked={requireCoordinates}
+              onChange={(event) =>
+                setRequireCoordinates(
+                  event.target.checked,
+                )
+              }
+            />
+            <span>
+              Only shops with map location
+            </span>
+          </label>
+
+          <label className="shops2-sort-field">
+            <span>Distance</span>
+
+            <select
+              value={distanceRadius}
+              aria-label="Filter shops by distance"
+              disabled={!userPoint}
+              onChange={(event) =>
+                setDistanceRadius(
+                  event.target
+                    .value as DistanceRadius,
+                )
+              }
+            >
+              <option value="all">
+                {userPoint
+                  ? "Any distance"
+                  : "Enable location first"}
+              </option>
+              <option value="5">
+                Within 5 miles
+              </option>
+              <option value="10">
+                Within 10 miles
+              </option>
+              <option value="25">
+                Within 25 miles
+              </option>
+              <option value="50">
+                Within 50 miles
+              </option>
+              <option value="100">
+                Within 100 miles
+              </option>
+            </select>
+          </label>
+
+          <label className="shops2-sort-field">
+            <span>Sort shops</span>
+
+            <select
+              value={sortMode}
+              onChange={(event) =>
+                setSortMode(
+                  event.target
+                    .value as ShopSortMode,
+                )
+              }
+            >
+              <option value="recommended">
+                Recommended
+              </option>
+
+              <option value="name">
+                Name A–Z
+              </option>
+
+              <option
+                value="nearest"
+                disabled={!userPoint}
+              >
+                {userPoint
+                  ? "Nearest first"
+                  : "Nearest — enable location"}
+              </option>
+            </select>
           </label>
 
           <div className="shops2-view-toggle" aria-label="Shop view mode">
@@ -452,6 +1090,25 @@ export default function ShopsPage() {
             ))}
           </div>
         </div>
+
+        <p
+          className="shops2-follow-summary"
+          role="status"
+          aria-live="polite"
+        >
+          Showing {stats.filtered} of{" "}
+          {stats.total} shops.{" "}
+          {stats.mapReady}{" "}
+          {stats.mapReady === 1
+            ? "shop has"
+            : "shops have"}{" "}
+          map coordinates. Following{" "}
+          {stats.followed}{" "}
+          {stats.followed === 1
+            ? "saved shop"
+            : "saved shops"}{" "}
+          on this browser.
+        </p>
       </section>
 
       <section className="shops2-discovery-strip">
@@ -473,6 +1130,18 @@ export default function ShopsPage() {
         <section className="shops2-error">
           <h2>Shops could not load</h2>
           <p>{error}</p>
+
+          <button
+            type="button"
+            onClick={() =>
+              setReloadToken(
+                (current) =>
+                  current + 1,
+              )
+            }
+          >
+            Retry loading shops
+          </button>
         </section>
       ) : null}
 
@@ -482,7 +1151,7 @@ export default function ShopsPage() {
             <div key={index} className="shops2-skeleton" />
           ))}
         </section>
-      ) : filteredShops.length === 0 ? (
+      ) : error ? null : filteredShops.length === 0 ? (
         <section className="shops2-empty">
           <h2>No shops matched your filters</h2>
           <p>Try clearing filters or searching a different city, area, or shop name.</p>
@@ -505,6 +1174,10 @@ export default function ShopsPage() {
               shop={shop}
               userPoint={userPoint}
               compact={viewMode === "list"}
+              isFollowed={followedShopIds.includes(
+                shop.id,
+              )}
+              onToggleFollow={toggleFollow}
             />
           ))}
         </section>
