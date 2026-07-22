@@ -660,3 +660,27 @@
   border-color: #93c5fd !important;
   box-shadow: 0 10px 28px rgba(37, 99, 235, 0.38) !important;
 }
+
+/* Saved Searches keyboard-focus visibility. */
+.saved2-hero-actions a:focus-visible,
+.saved2-hero-actions button:focus-visible,
+.saved2-discovery-strip a:focus-visible,
+.saved2-form input:focus-visible,
+.saved2-form button:focus-visible,
+.saved2-starters button:focus-visible,
+.saved2-filter-row input:focus-visible,
+.saved2-filter-row select:focus-visible,
+.saved2-filter-row button:focus-visible,
+.saved2-card-actions a:focus-visible,
+.saved2-remove:focus-visible,
+.saved2-empty a:focus-visible,
+.saved2-empty button:focus-visible,
+.saved2-error button:focus-visible {
+  outline: 3px solid #4338ca;
+  outline-offset: 3px;
+}
+
+:root[data-theme="dark"] .saved2-page :is(a, button, input, select):focus-visible,
+.dark .saved2-page :is(a, button, input, select):focus-visible {
+  outline-color: #a5b4fc;
+}
