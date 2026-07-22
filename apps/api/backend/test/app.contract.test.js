@@ -10,6 +10,30 @@ const TEST_JWT_SECRET =
 let app;
 let createApp;
 
+const AUTH_VERSION = 0;
+const authenticatedUsers = new Map([
+  [
+    "consumer-core-test",
+    {
+      id: "consumer-core-test",
+      email: "consumer@test.pawnloop.local",
+      role: "CONSUMER",
+      isActive: true,
+      authVersion: AUTH_VERSION,
+    },
+  ],
+  [
+    "owner-auction-permission-test",
+    {
+      id: "owner-auction-permission-test",
+      email: "owner-auction@test.pawnloop.local",
+      role: "OWNER",
+      isActive: true,
+      authVersion: AUTH_VERSION,
+    },
+  ],
+]);
+
 before(async () => {
   Object.assign(process.env, {
     NODE_ENV: "test",
@@ -21,7 +45,13 @@ before(async () => {
     JSON_LIMIT: "2mb",
   });
 
-  const appModule = await import("../src/app.js");
+  const [{ prisma }, appModule] = await Promise.all([
+    import("../src/lib/prisma.js"),
+    import("../src/app.js"),
+  ]);
+
+  prisma.user.findUnique = async ({ where }) =>
+    authenticatedUsers.get(where.id) || null;
 
   createApp = appModule.createApp;
   app = createApp({
@@ -257,6 +287,7 @@ test("consumer tokens cannot access owner-only routes", async () => {
       sub: "consumer-core-test",
       email: "consumer@test.pawnloop.local",
       role: "CONSUMER",
+      authVersion: AUTH_VERSION,
     },
     TEST_JWT_SECRET,
     {
@@ -477,6 +508,7 @@ test(
         email:
           "owner-auction@test.pawnloop.local",
         role: "OWNER",
+        authVersion: AUTH_VERSION,
       },
       TEST_JWT_SECRET,
       {

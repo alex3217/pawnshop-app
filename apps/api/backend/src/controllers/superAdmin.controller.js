@@ -555,6 +555,10 @@ export async function updateSuperAdminUser(req, res) {
       throw badRequest("No valid user updates provided.");
     }
 
+    if (update.isActive === false || update.role !== undefined) {
+      update.authVersion = { increment: 1 };
+    }
+
     await requireUser(userId);
 
     const updated = await prisma.user.update({

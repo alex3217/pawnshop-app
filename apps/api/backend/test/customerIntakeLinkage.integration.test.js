@@ -36,6 +36,7 @@ function tokenFor(user) {
       sub: user.id,
       email: user.email,
       role: user.role,
+      authVersion: user.authVersion,
     },
     TEST_JWT_SECRET,
     {

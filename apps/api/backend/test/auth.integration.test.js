@@ -16,6 +16,7 @@ const TEST_DOMAIN = "@integration.pawnloop.test";
 
 let app;
 let prisma;
+let databaseVerified = false;
 
 function email(prefix) {
   return `${prefix}${TEST_DOMAIN}`;
@@ -24,7 +25,7 @@ function email(prefix) {
 async function registerUser({
   name = "Integration Consumer",
   userEmail = email("consumer"),
-  password = "Consumer123!",
+  password = "ConsumerSecure123!",
   role = "CONSUMER",
 } = {}) {
   return request(app)
@@ -79,9 +80,17 @@ before(async () => {
     databaseResult[0]?.database_name,
     "pawnshop_test",
   );
+
+  databaseVerified = true;
 });
 
 beforeEach(async () => {
+  assert.equal(
+    databaseVerified,
+    true,
+    "Database isolation must be verified before cleanup",
+  );
+
   await prisma.user.deleteMany({
     where: {
       email: {
@@ -94,15 +103,19 @@ beforeEach(async () => {
 after(async () => {
   if (!prisma) return;
 
-  await prisma.user.deleteMany({
-    where: {
-      email: {
-        endsWith: TEST_DOMAIN,
-      },
-    },
-  });
-
-  await prisma.$disconnect();
+  try {
+    if (databaseVerified) {
+      await prisma.user.deleteMany({
+        where: {
+          email: {
+            endsWith: TEST_DOMAIN,
+          },
+        },
+      });
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 
 test("consumer registration persists a normalized user", async () => {
@@ -126,11 +139,12 @@ test("consumer registration persists a normalized user", async () => {
   });
 
   assert.ok(stored);
+  assert.ok(stored.emailVerifiedAt instanceof Date);
   assert.equal(stored.role, "CONSUMER");
-  assert.notEqual(stored.password, "Consumer123!");
+  assert.notEqual(stored.password, "ConsumerSecure123!");
   assert.equal(
     await bcrypt.compare(
-      "Consumer123!",
+      "ConsumerSecure123!",
       stored.password,
     ),
     true,
@@ -143,6 +157,7 @@ test("consumer registration persists a normalized user", async () => {
 
   assert.equal(tokenPayload.sub, stored.id);
   assert.equal(tokenPayload.role, "CONSUMER");
+  assert.equal(tokenPayload.authVersion, 0);
 });
 
 test("duplicate registration returns 409", async () => {
@@ -183,7 +198,7 @@ test("public registration cannot create an admin", async () => {
   assert.equal(stored, null);
 });
 
-test("registration rejects short passwords", async () => {
+test("registration applies the centralized password policy", async () => {
   const response = await registerUser({
     userEmail: email("short-password"),
     password: "12345",
@@ -191,14 +206,15 @@ test("registration rejects short passwords", async () => {
 
   assert.equal(response.status, 400);
   assert.deepEqual(response.body, {
-    error: "Password must be at least 6 characters",
+    error: "Password must be at least 12 characters.",
+    code: "PASSWORD_TOO_SHORT",
   });
 });
 
 test("registered users can log in", async () => {
   const registered = await registerUser({
     userEmail: email("login"),
-    password: "Login123!",
+    password: "LoginSecure123!",
   });
 
   assert.equal(registered.status, 201);
@@ -207,7 +223,7 @@ test("registered users can log in", async () => {
     .post("/api/auth/login")
     .send({
       email: "LOGIN@INTEGRATION.PAWNLOOP.TEST",
-      password: "Login123!",
+      password: "LoginSecure123!",
     });
 
   assert.equal(response.status, 200);
@@ -221,12 +237,13 @@ test("registered users can log in", async () => {
   );
 
   assert.equal(payload.role, "CONSUMER");
+  assert.equal(payload.authVersion, 0);
 });
 
 test("login rejects an incorrect password", async () => {
   const registered = await registerUser({
     userEmail: email("wrong-password"),
-    password: "Correct123!",
+    password: "CorrectSecure123!",
   });
 
   assert.equal(registered.status, 201);
@@ -235,7 +252,7 @@ test("login rejects an incorrect password", async () => {
     .post("/api/auth/login")
     .send({
       email: email("wrong-password"),
-      password: "Incorrect123!",
+      password: "IncorrectSecure123!",
     });
 
   assert.equal(response.status, 401);
@@ -264,7 +281,7 @@ test("inactive users cannot log in", async () => {
     .post("/api/auth/login")
     .send({
       email: email("inactive"),
-      password: "Consumer123!",
+      password: "ConsumerSecure123!",
     });
 
   assert.equal(response.status, 401);
@@ -293,6 +310,119 @@ test("authenticated users can load their profile", async () => {
   assert.equal("password" in response.body.user, false);
 });
 
+test("legacy password hashes continue to authenticate", async () => {
+  await prisma.user.create({
+    data: {
+      name: "Legacy User",
+      email: email("legacy-password"),
+      password: await bcrypt.hash("old-pass", 10),
+      role: "CONSUMER",
+      isActive: true,
+    },
+  });
+
+  const response = await request(app).post("/api/auth/login").send({
+    email: email("legacy-password"),
+    password: "old-pass",
+  });
+  assert.equal(response.status, 200);
+});
+
+test("authenticated requests reject missing or wrong authVersion", async () => {
+  const registered = await registerUser({ userEmail: email("token-version") });
+  const payload = jwt.decode(registered.body.token);
+  const legacyToken = jwt.sign({ sub: payload.sub, role: "CONSUMER" }, TEST_JWT_SECRET);
+  const wrongToken = jwt.sign(
+    { sub: payload.sub, role: "CONSUMER", authVersion: 99 },
+    TEST_JWT_SECRET,
+  );
+
+  for (const token of [legacyToken, wrongToken]) {
+    const response = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(response.status, 401);
+    assert.deepEqual(response.body, { error: "Invalid token" });
+  }
+});
+
+test("authenticated requests reject users made inactive after issuance", async () => {
+  const registered = await registerUser({ userEmail: email("session-inactive") });
+  await prisma.user.update({
+    where: { email: email("session-inactive") },
+    data: { isActive: false },
+  });
+
+  const response = await request(app)
+    .post("/api/auth/refresh")
+    .set("Authorization", `Bearer ${registered.body.token}`);
+  assert.equal(response.status, 401);
+});
+
+test("database role, not stale JWT role, controls authorization", async () => {
+  const user = await prisma.user.create({
+    data: {
+      name: "Role Authority",
+      email: email("role-authority"),
+      password: await bcrypt.hash("RoleAuthoritySecure123!", 12),
+      role: "CONSUMER",
+      isActive: true,
+    },
+  });
+
+  const forgedPrivilege = jwt.sign(
+    { sub: user.id, role: "SUPER_ADMIN", authVersion: user.authVersion },
+    TEST_JWT_SECRET,
+  );
+  const denied = await request(app)
+    .post("/api/auth/super-admin/users")
+    .set("Authorization", `Bearer ${forgedPrivilege}`)
+    .send({ name: "Denied", email: email("denied-role"), password: "DeniedSecure123!", role: "ADMIN" });
+  assert.equal(denied.status, 403);
+
+  await prisma.user.update({ where: { id: user.id }, data: { role: "SUPER_ADMIN" } });
+  const staleLowRole = jwt.sign(
+    { sub: user.id, role: "CONSUMER", authVersion: user.authVersion },
+    TEST_JWT_SECRET,
+  );
+  const allowed = await request(app)
+    .post("/api/auth/super-admin/users")
+    .set("Authorization", `Bearer ${staleLowRole}`)
+    .send({ name: "Allowed", email: email("allowed-role"), password: "AllowedSecure123!", role: "ADMIN" });
+  assert.equal(allowed.status, 201);
+});
+
+test("admin and super-admin creation use the centralized password policy", async () => {
+  const admin = await prisma.user.create({
+    data: {
+      name: "Creation Admin",
+      email: email("creation-admin"),
+      password: await bcrypt.hash("CreationAdminSecure123!", 12),
+      role: "SUPER_ADMIN",
+      isActive: true,
+    },
+  });
+  const token = jwt.sign(
+    { sub: admin.id, role: admin.role, authVersion: admin.authVersion },
+    TEST_JWT_SECRET,
+  );
+  const input = { name: "Weak User", email: email("weak-created"), password: "short", role: "CONSUMER" };
+
+  const adminResponse = await request(app)
+    .post("/api/admin/users")
+    .set("Authorization", `Bearer ${token}`)
+    .send(input);
+  assert.equal(adminResponse.status, 400);
+  assert.equal(adminResponse.body.code, "PASSWORD_TOO_SHORT");
+
+  const superResponse = await request(app)
+    .post("/api/auth/super-admin/users")
+    .set("Authorization", `Bearer ${token}`)
+    .send(input);
+  assert.equal(superResponse.status, 400);
+  assert.equal(superResponse.body.code, "PASSWORD_TOO_SHORT");
+});
+
 test("authenticated users can refresh their token", async () => {
   const registered = await registerUser({
     userEmail: email("refresh"),
@@ -318,6 +448,73 @@ test("authenticated users can refresh their token", async () => {
   );
 
   assert.equal(payload.role, "CONSUMER");
+  assert.equal(payload.authVersion, 0);
+});
+
+test("admin deactivation increments authVersion and invalidates an issued token", async () => {
+  const superAdmin = await prisma.user.create({
+    data: {
+      name: "Session Admin",
+      email: email("session-admin"),
+      password: await bcrypt.hash("SessionAdminSecure123!", 12),
+      role: "SUPER_ADMIN",
+      isActive: true,
+    },
+  });
+  const target = await registerUser({ userEmail: email("session-target") });
+  const actorToken = jwt.sign(
+    { sub: superAdmin.id, role: superAdmin.role, authVersion: superAdmin.authVersion },
+    TEST_JWT_SECRET,
+  );
+
+  const deactivated = await request(app)
+    .delete(`/api/admin/users/${target.body.user.id}`)
+    .set("Authorization", `Bearer ${actorToken}`);
+  assert.equal(deactivated.status, 200);
+
+  const stored = await prisma.user.findUnique({ where: { id: target.body.user.id } });
+  assert.equal(stored.isActive, false);
+  assert.equal(stored.authVersion, 1);
+
+  const denied = await request(app)
+    .get("/api/auth/me")
+    .set("Authorization", `Bearer ${target.body.token}`);
+  assert.equal(denied.status, 401);
+});
+
+test("super-admin role changes increment authVersion", async () => {
+  const superAdmin = await prisma.user.create({
+    data: {
+      name: "Governance Admin",
+      email: email("governance-admin"),
+      password: await bcrypt.hash("GovernanceAdminSecure123!", 12),
+      role: "SUPER_ADMIN",
+      isActive: true,
+    },
+  });
+  const target = await prisma.user.create({
+    data: {
+      name: "Governance Target",
+      email: email("governance-target"),
+      password: await bcrypt.hash("GovernanceTargetSecure123!", 12),
+      role: "CONSUMER",
+      isActive: true,
+    },
+  });
+  const actorToken = jwt.sign(
+    { sub: superAdmin.id, role: superAdmin.role, authVersion: superAdmin.authVersion },
+    TEST_JWT_SECRET,
+  );
+
+  const response = await request(app)
+    .patch(`/api/super-admin/users/${target.id}`)
+    .set("Authorization", `Bearer ${actorToken}`)
+    .send({ role: "OWNER" });
+  assert.equal(response.status, 200);
+
+  const stored = await prisma.user.findUnique({ where: { id: target.id } });
+  assert.equal(stored.role, "OWNER");
+  assert.equal(stored.authVersion, 1);
 });
 
 test("consumers cannot create privileged users", async () => {
@@ -336,7 +533,7 @@ test("consumers cannot create privileged users", async () => {
     .send({
       name: "Unauthorized Admin",
       email: email("unauthorized-admin"),
-      password: "Admin123!",
+      password: "AdminSecure123!",
       role: "ADMIN",
     });
 

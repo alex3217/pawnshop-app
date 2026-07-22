@@ -164,8 +164,13 @@ export default function AdminUsersPage() {
       return;
     }
 
-    if (modalMode === "create" && form.password.length < 8) {
-      setError("Temporary password must be at least 8 characters.");
+    if (modalMode === "create" && form.password.length < 12) {
+      setError("Temporary password must be at least 12 characters.");
+      return;
+    }
+
+    if (modalMode === "create" && form.password.length > 128) {
+      setError("Temporary password must be no more than 128 characters.");
       return;
     }
 
@@ -504,11 +509,15 @@ export default function AdminUsersPage() {
                     value={form.password}
                     onChange={(event) => updateForm("password", event.target.value)}
                     className="admin-control-input"
-                    placeholder="At least 8 characters"
+                    placeholder="12–128 characters"
                     type="password"
-                    minLength={8}
+                    minLength={12}
+                    maxLength={128}
                     required
                   />
+                  <small>
+                    Use 12–128 characters. Common test or placeholder passwords are rejected, and the complete email address cannot appear in the password.
+                  </small>
                 </label>
               ) : null}
 

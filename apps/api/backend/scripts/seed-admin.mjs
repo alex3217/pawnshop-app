@@ -1,16 +1,14 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaClient, Prisma } from "@prisma/client";
+import { validatePassword } from "../src/services/passwordPolicy.service.js";
 
 const prisma = new PrismaClient();
 
 const EMAIL = process.env.ADMIN_SEED_EMAIL || "admin1@example.com";
-const PASSWORD = process.env.ADMIN_SEED_PASSWORD || "password123";
+const PASSWORD = process.env.ADMIN_SEED_PASSWORD || "PawnLoop-Dev-Admin-2026!";
 const NAME = process.env.ADMIN_SEED_NAME || "Admin";
 const ROLE_PREFERRED = process.env.ADMIN_SEED_ROLE || "ADMIN";
-
-// If set to "1", store plaintext in the password field (not recommended unless your login code uses plaintext)
-const STORE_PLAINTEXT_PASSWORD = process.env.ADMIN_SEED_PLAINTEXT === "1";
 
 function getModelMeta(modelName) {
   const models = Prisma?.dmmf?.datamodel?.models || [];
@@ -52,6 +50,7 @@ async function main() {
 
   const fieldNames = new Set(modelMeta.fields.map((f) => f.name));
 
+  validatePassword(PASSWORD, { email: EMAIL });
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
 
   // Pick ONE password field that exists (priority order)
@@ -72,7 +71,7 @@ async function main() {
 
   // password
   if (passwordField) {
-    data[passwordField] = STORE_PLAINTEXT_PASSWORD ? PASSWORD : passwordHash;
+    data[passwordField] = passwordHash;
   }
 
   // role
@@ -117,14 +116,17 @@ async function main() {
   const existing = await delegate.findFirst({ where: fieldNames.has("email") ? { email: EMAIL } : {} });
 
   if (existing?.id) {
-    const updated = await delegate.update({ where: { id: existing.id }, data });
+    const updateData = fieldNames.has("authVersion")
+      ? { ...data, authVersion: { increment: 1 } }
+      : data;
+    const updated = await delegate.update({ where: { id: existing.id }, data: updateData });
     console.log("✅ Seed admin updated:", { id: updated.id, email: EMAIL });
   } else {
     const created = await delegate.create({ data });
     console.log("✅ Seed admin created:", { id: created.id, email: EMAIL });
   }
 
-  console.log("➡️  Login with:", { email: EMAIL, password: PASSWORD });
+  console.log("✅ Admin credentials configured.");
   if (!passwordField) {
     console.log("⚠️  Note: No password field found on User; login may be impossible until schema adds one.");
   }

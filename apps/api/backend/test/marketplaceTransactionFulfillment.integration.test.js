@@ -38,6 +38,9 @@ function tokenFor(
 
       role:
         user.role,
+
+      authVersion:
+        user.authVersion,
     },
     TEST_JWT_SECRET,
     {

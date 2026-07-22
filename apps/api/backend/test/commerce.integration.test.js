@@ -847,6 +847,7 @@ async function createAdminActor(prefix) {
       userId: user.id,
       role: user.role,
       email: user.email,
+      authVersion: user.authVersion,
     },
     TEST_JWT_SECRET,
     {
