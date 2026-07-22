@@ -415,3 +415,19 @@
     transition: none;
   }
 }
+
+/* Owner checklist click-through protection
+   The floating checklist must not cover forms or transaction controls. */
+.role-checklist {
+  pointer-events: none;
+}
+
+.role-checklist button,
+.role-checklist a,
+.role-checklist input,
+.role-checklist select,
+.role-checklist textarea,
+.role-checklist summary,
+.role-checklist [role="button"] {
+  pointer-events: auto;
+}

@@ -254,6 +254,13 @@ export default function NavigationTour({ role }: NavigationTourProps) {
             overlayClickAction: false,
             dismissKeyAction: false,
             closeButtonAction: "skip",
+
+            // Assistance must never prevent the user from operating PawnLoop.
+            hideOverlay: true,
+            skipScroll: true,
+            disableFocusTrap: true,
+            blockTargetInteraction: false,
+
             showProgress: true,
             buttons: ["back", "close", "primary", "skip"],
           }}
