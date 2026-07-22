@@ -237,11 +237,11 @@ export default function NavigationTour({ role }: NavigationTourProps) {
         type="button"
         className="navigation-tour-restart"
         onClick={restartTour}
-        aria-label="Open setup and instructions"
-        title="Setup and instructions"
+        aria-label="Click here for setup and instructions"
+        title="Click here for setup and instructions"
       >
         <span aria-hidden="true">?</span>
-        <span>Setup &amp; Instructions</span>
+        <span>Click Here for Setup &amp; Instructions</span>
       </button>
     </>
   );
