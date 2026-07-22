@@ -1,248 +1,321 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Joyride } from "react-joyride";
-import type { Step } from "react-joyride";
+import type { EventData, Step } from "react-joyride";
+import { useLocation } from "react-router-dom";
 import type { Role } from "../../services/auth";
+import NavigationAssistanceCenter from "./NavigationAssistanceCenter";
+import {
+  helpForPath,
+  joyrideStepsForTopic,
+  topicsForRole,
+  type AssistanceTopic,
+} from "./navigationAssistance";
 import "../../styles/navigation-tour.css";
 
-type NavigationTourProps = {
-  role: Role | null;
+type NavigationTourProps = { role: Role | null };
+
+type AssistancePreferences = {
+  automaticPrompts: boolean;
+  completedTopics: string[];
+  dismissedGuidance: boolean;
+  floatingButtonVisible: boolean;
 };
 
-const TOUR_VERSION = "v1";
+type PendingTour = {
+  topicId: string;
+  title: string;
+  steps: Step[];
+};
+
+const TOUR_VERSION = "v2";
+const DEFAULT_PREFERENCES: AssistancePreferences = {
+  automaticPrompts: true,
+  completedTopics: [],
+  dismissedGuidance: false,
+  floatingButtonVisible: true,
+};
 
 function storageKey(role: Role | null) {
-  return `pawnloop-navigation-tour-${role || "GUEST"}-${TOUR_VERSION}`;
+  return `pawnloop-navigation-assistance-${role || "GUEST"}-${TOUR_VERSION}`;
 }
 
-function hasCompletedTour(role: Role | null) {
-  if (typeof window === "undefined") return true;
-
+function readPreferences(role: Role | null): AssistancePreferences {
+  if (typeof window === "undefined") return DEFAULT_PREFERENCES;
   try {
-    return window.localStorage.getItem(storageKey(role)) === "complete";
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey(role)) || "null") as Partial<AssistancePreferences> | null;
+    return {
+      automaticPrompts: parsed?.automaticPrompts ?? true,
+      completedTopics: Array.isArray(parsed?.completedTopics) ? parsed.completedTopics.filter((id): id is string => typeof id === "string") : [],
+      dismissedGuidance: parsed?.dismissedGuidance ?? false,
+      floatingButtonVisible: parsed?.floatingButtonVisible ?? true,
+    };
   } catch {
-    return false;
+    return DEFAULT_PREFERENCES;
   }
 }
 
-function markTourComplete(role: Role | null) {
-  try {
-    window.localStorage.setItem(storageKey(role), "complete");
-  } catch {
-    // Tour still works when storage is unavailable.
+function fullTourSteps(role: Role | null): Step[] {
+  const roleName = role?.toLowerCase().replaceAll("_", " ") ?? "guest";
+  const sharedSteps: Step[] = [
+    { target: '[data-tour="brand"]', title: "Full Tour: PawnLoop home", content: "Use the PawnLoop logo to return home from anywhere.", placement: "bottom" },
+    { target: '[data-tour="role-badge"]', title: role ? "Full Tour: Your active workspace" : "Full Tour: Guest browsing", content: role ? `This badge shows the active ${roleName} workspace and opens its dashboard.` : "This badge confirms guest access and returns you to the public marketplace.", placement: "bottom" },
+    { target: '[data-tour="primary-navigation"]', title: "Full Tour: Primary navigation", content: "Use these links for marketplace, shop, item locator, auction, and account workflows.", placement: "bottom" },
+    { target: '[data-tour="theme-toggle"]', title: "Full Tour: Display theme", content: "Switch between light and dark themes for comfortable viewing.", placement: "bottom" },
+  ];
+  if (role) {
+    sharedSteps.push(
+      { target: '[data-tour="workspace-menu"]', title: "Full Tour: Workspace tools", content: "Open this menu for role-specific saved tools, management pages, and common actions.", placement: "bottom" },
+      { target: '[data-tour="dashboard-button"]', title: "Full Tour: Dashboard", content: "Return to your dashboard to review activity and tasks that need attention.", placement: "bottom" },
+    );
   }
-}
-
-function guestSteps(): Step[] {
   return [
-    {
-      target: '[data-tour="brand"]',
-      title: "Welcome to PawnLoop",
-      content:
-        "Use the PawnLoop logo to return to the home page from anywhere on the website.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="primary-navigation"]',
-      title: "Browse PawnLoop",
-      content:
-        "Use this navigation to open the Marketplace, Item Locator, pawn shops, auctions, login, and registration.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="main-content"]',
-      title: "Page content",
-      content:
-        "The information and actions for the selected page appear in this area.",
-      placement: "top",
-    },
-    {
-      target: '[data-tour="theme-toggle"]',
-      title: "Choose your display",
-      content:
-        "Switch between light and dark themes whenever you need better visibility.",
-      placement: "bottom",
-    },
+    ...sharedSteps,
+    { target: '[data-tour="main-content"]', title: "Full Tour: Working area", content: "The selected page appears here. Open Navigation Assistance for detailed instructions for this page.", placement: "top" },
   ];
-}
-
-function buyerSteps(): Step[] {
-  return [
-    {
-      target: '[data-tour="brand"]',
-      title: "Welcome to your PawnLoop account",
-      content:
-        "Select the PawnLoop logo whenever you need to return to the home page.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="role-badge"]',
-      title: "Your account role",
-      content:
-        "This badge shows the role currently active on your account and links to your dashboard.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="primary-navigation"]',
-      title: "Buyer navigation",
-      content:
-        "Browse items, locate merchandise, sell or pawn an item, visit shops, manage offers, and participate in auctions.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="workspace-menu"]',
-      title: "Saved buyer tools",
-      content:
-        "Open this menu to reach your Watchlist, Saved Searches, bids, wins, and other account tools.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="dashboard-button"]',
-      title: "Buyer dashboard",
-      content:
-        "Your dashboard summarizes nearby items, bids, offers, watchlist activity, and saved matches.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="main-content"]',
-      title: "Complete your task",
-      content:
-        "Listings, forms, search tools, scanner workflows, and transaction details appear here.",
-      placement: "top",
-    },
-  ];
-}
-
-function ownerSteps(): Step[] {
-  return [
-    {
-      target: '[data-tour="brand"]',
-      title: "Welcome to PawnLoop",
-      content:
-        "Use the PawnLoop logo to return to the public home page at any time.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="role-badge"]',
-      title: "Owner account",
-      content:
-        "This badge confirms that you are using the Pawn Shop Owner workspace.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="primary-navigation"]',
-      title: "Main marketplace navigation",
-      content:
-        "Browse the public marketplace, shops, auctions, item locator, and customer selling tools.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="workspace-menu"]',
-      title: "Owner Tools",
-      content:
-        "Manage inventory, locations, staff, auctions, subscriptions, scanning, bulk uploads, and integrations.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="dashboard-button"]',
-      title: "Owner dashboard",
-      content:
-        "Review your setup checklist, inventory, offers, auctions, staff, and shop activity.",
-      placement: "bottom",
-    },
-    {
-      target: '[data-tour="main-content"]',
-      title: "Your working area",
-      content:
-        "The selected owner workflow appears here. Follow the page prompts to complete each task.",
-      placement: "top",
-    },
-  ];
-}
-
-function getSteps(role: Role | null): Step[] {
-  if (role === "OWNER") return ownerSteps();
-  if (role === "CONSUMER") return buyerSteps();
-  return guestSteps();
 }
 
 export default function NavigationTour({ role }: NavigationTourProps) {
-  const [run, setRun] = useState(() => !hasCompletedTour(role));
-  const steps = useMemo(() => getSteps(role), [role]);
+  const location = useLocation();
+  const [preferences, setPreferences] = useState(() => readPreferences(role));
+  const [centerOpen, setCenterOpen] = useState(false);
+  const [run, setRun] = useState(() => {
+    const initial = readPreferences(role);
+    return initial.automaticPrompts &&
+      !initial.dismissedGuidance &&
+      !initial.completedTopics.includes("full-tour");
+  });
+  const [steps, setSteps] = useState<Step[]>(() => fullTourSteps(role));
+  const [activeTopicId, setActiveTopicId] = useState("full-tour");
+  const [pendingTour, setPendingTour] = useState<PendingTour | null>(null);
+  const [tourSessionId, setTourSessionId] = useState(0);
+  const [launchStatus, setLaunchStatus] = useState("");
+  const centerOpenRef = useRef(false);
+  const pendingTourRef = useRef<PendingTour | null>(null);
+  const launchFrameRef = useRef<number | null>(null);
+  const topics = useMemo(() => topicsForRole(role), [role]);
+  const currentPageHelp = useMemo(() => helpForPath(location.pathname, role), [location.pathname, role]);
 
-  function handleEvent(data: { type: string; status: string }) {
-    const tourEnded =
-      data.type === "tour:end" ||
-      data.status === "finished" ||
-      data.status === "skipped";
+  const immediateTourSteps = useMemo(
+    () =>
+      steps.map((step) => ({
+        ...step,
+        skipBeacon: true,
+      })),
+    [steps],
+  );
 
-    if (tourEnded) {
-      markTourComplete(role);
-      setRun(false);
+  const closeCenter = useCallback(() => {
+    centerOpenRef.current = false;
+    setCenterOpen(false);
+  }, []);
+  const openCenter = useCallback(() => {
+    if (pendingTourRef.current) return;
+    if (launchFrameRef.current !== null) window.cancelAnimationFrame(launchFrameRef.current);
+    launchFrameRef.current = null;
+    setLaunchStatus("");
+    centerOpenRef.current = true;
+    setRun(false);
+    setCenterOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const next = readPreferences(role);
+    setPreferences(next);
+    setRun(
+      !centerOpenRef.current &&
+        next.automaticPrompts &&
+        !next.dismissedGuidance &&
+        !next.completedTopics.includes("full-tour"),
+    );
+    setSteps(fullTourSteps(role));
+    setActiveTopicId("full-tour");
+    pendingTourRef.current = null;
+    setPendingTour(null);
+    setLaunchStatus("");
+  }, [role]);
+
+  useEffect(() => {
+    if (centerOpen || !pendingTour) return;
+
+    launchFrameRef.current = window.requestAnimationFrame(() => {
+      launchFrameRef.current = null;
+      setSteps(pendingTour.steps);
+      setActiveTopicId(pendingTour.topicId);
+      setTourSessionId((sessionId) => sessionId + 1);
+      pendingTourRef.current = null;
+      setPendingTour(null);
+      setRun(true);
+    });
+
+    return () => {
+      if (launchFrameRef.current !== null) window.cancelAnimationFrame(launchFrameRef.current);
+      launchFrameRef.current = null;
+    };
+  }, [centerOpen, pendingTour]);
+
+  useEffect(() => {
+    window.addEventListener("pawnloop:open-navigation-assistance", openCenter);
+    return () => {
+      window.removeEventListener("pawnloop:open-navigation-assistance", openCenter);
+      if (launchFrameRef.current !== null) window.cancelAnimationFrame(launchFrameRef.current);
+    };
+  }, [openCenter]);
+
+  function savePreferences(next: AssistancePreferences) {
+    setPreferences(next);
+    try {
+      window.localStorage.setItem(storageKey(role), JSON.stringify(next));
+    } catch {
+      // Guidance remains available for this session when storage is unavailable.
     }
   }
 
-  function restartTour() {
-    setRun(false);
+  function queueTour(nextSteps: Step[], topicId: string, title: string) {
+    if (pendingTourRef.current) return;
+    const fallbackTarget = '[data-tour="main-content"]';
+    const fallbackElement = document.querySelector(fallbackTarget);
 
-    window.setTimeout(() => {
-      setRun(true);
-    }, 0);
+    if (!fallbackElement) {
+      setLaunchStatus(`Unable to start ${title} Instructions`);
+      return;
+    }
+
+    const validatedSteps = nextSteps.map((step) => {
+      if (typeof step.target === "string") {
+        try {
+          if (document.querySelector(step.target)) return step;
+        } catch {
+          // Invalid selectors use the guaranteed page-content fallback below.
+        }
+      } else if (step.target instanceof Element && document.contains(step.target)) {
+        return step;
+      }
+
+      return { ...step, target: fallbackTarget };
+    });
+
+    if (
+      validatedSteps.length === 0 ||
+      validatedSteps.some((step) => !step.target)
+    ) {
+      setLaunchStatus(`Unable to start ${title} Instructions`);
+      return;
+    }
+
+    setRun(false);
+    const queuedTour = { topicId, title, steps: validatedSteps };
+    pendingTourRef.current = queuedTour;
+    setPendingTour(queuedTour);
+    setLaunchStatus(`Starting ${title} Instructions`);
+    centerOpenRef.current = false;
+    setCenterOpen(false);
+  }
+
+  function handleEvent(data: EventData) {
+    if (data.type === "tooltip") setLaunchStatus("");
+    const ended = data.type === "tour:end" || data.status === "finished" || data.status === "skipped";
+    if (!ended) return;
+
+    const finished = data.status === "finished";
+    const completedTopics = finished && !preferences.completedTopics.includes(activeTopicId)
+      ? [...preferences.completedTopics, activeTopicId]
+      : preferences.completedTopics;
+    savePreferences({
+      ...preferences,
+      completedTopics,
+      dismissedGuidance: finished ? preferences.dismissedGuidance : true,
+    });
+    setRun(false);
+  }
+
+  function startTopic(selected: AssistanceTopic) {
+    try {
+      queueTour(joyrideStepsForTopic(selected), selected.id, selected.title);
+    } catch (error) {
+      setLaunchStatus(error instanceof Error ? error.message : `Unable to start ${selected.title} Instructions`);
+    }
   }
 
   return (
     <>
-      <Joyride
-        onEvent={handleEvent}
-        continuous
-        run={run}
-        steps={steps}
-        options={{
-          zIndex: 10000,
-          primaryColor: "#2563eb",
-          textColor: "#172033",
-          backgroundColor: "#ffffff",
-          overlayColor: "rgba(15, 23, 42, 0.72)",
-          overlayClickAction: false,
-          dismissKeyAction: false,
-          showProgress: true,
-          buttons: ["back", "close", "primary", "skip"],
-        }}
-        styles={{
-          tooltip: {
-            borderRadius: 16,
-            padding: 20,
-          },
-          buttonPrimary: {
-            borderRadius: 10,
-            padding: "10px 16px",
-          },
-          buttonBack: {
-            color: "#334155",
-          },
-          buttonSkip: {
-            color: "#475569",
-          },
-        }}
-        locale={{
-          back: "Back",
-          close: "Close",
-          last: "Finish",
-          next: "Next",
-          open: "Open tutorial",
-          skip: "Skip tutorial",
-        }}
-      />
+      {!centerOpen ? (
+        <Joyride
+          key={tourSessionId}
+          onEvent={handleEvent}
+          continuous
+          run={run && !centerOpen}
+          steps={immediateTourSteps}
+          options={{
+            zIndex: 10000,
+            primaryColor: "#2563eb",
+            textColor: "#172033",
+            backgroundColor: "#ffffff",
+            overlayColor: "rgba(15, 23, 42, 0.72)",
+            overlayClickAction: false,
+            dismissKeyAction: false,
+            closeButtonAction: "skip",
+            showProgress: true,
+            buttons: ["back", "close", "primary", "skip"],
+          }}
+          styles={{
+            tooltip: { borderRadius: 16, padding: 20 },
+            buttonPrimary: { borderRadius: 10, padding: "10px 16px" },
+            buttonBack: { color: "#334155" },
+            buttonSkip: { color: "#475569" },
+          }}
+          locale={{ back: "Back", close: "Close", last: "Finish", next: "Next", open: "Open tutorial", skip: "Skip tutorial" }}
+        />
+      ) : null}
 
-      <button
-        type="button"
-        className="navigation-tour-restart"
-        onClick={restartTour}
-        aria-label="Click here for setup and instructions"
-        title="Click here for setup and instructions"
-      >
-        <span aria-hidden="true">?</span>
-        <span>Click Here for Setup &amp; Instructions</span>
-      </button>
+      <p className="navigation-assistance-live-status" aria-live="polite" aria-atomic="true">
+        {launchStatus}
+      </p>
+
+      {preferences.floatingButtonVisible && !centerOpen && !pendingTour ? (
+        <button
+          type="button"
+          className="navigation-tour-restart"
+          onClick={openCenter}
+          aria-label="Click Here for Setup and Instructions"
+          title="Click Here for Setup and Instructions"
+        >
+          <span aria-hidden="true">?</span>
+          <span>Click Here for Setup and Instructions</span>
+        </button>
+      ) : null}
+
+      {centerOpen ? <NavigationAssistanceCenter
+        completedTopics={preferences.completedTopics}
+        currentPageHelp={currentPageHelp}
+        floatingButtonVisible={preferences.floatingButtonVisible}
+        isOpen={centerOpen}
+        launchPending={pendingTour !== null}
+        onClose={closeCenter}
+        onResetCompleted={() => {
+          savePreferences({ ...preferences, completedTopics: [] });
+          setLaunchStatus("Completed instructions reset.");
+        }}
+        onRestoreDefaults={() => {
+          savePreferences(DEFAULT_PREFERENCES);
+          setLaunchStatus("All help defaults restored.");
+        }}
+        onSetFloatingButtonVisible={(visible) => {
+          savePreferences({ ...preferences, floatingButtonVisible: visible });
+          setLaunchStatus(visible ? "Floating help button restored." : "Floating help button hidden.");
+        }}
+        onSetTipsAutomatically={(enabled) => {
+          savePreferences({
+            ...preferences,
+            automaticPrompts: enabled,
+            dismissedGuidance: enabled ? false : true,
+          });
+          setLaunchStatus(enabled ? "Automatic tips enabled." : "Automatic prompts stopped.");
+        }}
+        onStartFullTour={() => queueTour(fullTourSteps(role), "full-tour", "Full Tour")}
+        onStartTopic={startTopic}
+        tipsAutomatically={preferences.automaticPrompts}
+        topics={topics}
+      /> : null}
     </>
   );
 }
