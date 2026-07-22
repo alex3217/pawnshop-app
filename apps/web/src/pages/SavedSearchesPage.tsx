@@ -52,6 +52,25 @@ const starterSearches = [
   "Diamond ring",
 ];
 
+type SavedSearchSort =
+  | "newest"
+  | "oldest"
+  | "name-asc"
+  | "name-desc";
+
+function savedSearchTime(
+  value?: string,
+) {
+  if (!value) return 0;
+
+  const parsed =
+    new Date(value).getTime();
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : 0;
+}
+
 export default function SavedSearchesPage() {
   const [searchParams] = useSearchParams();
   const initialQuery = normalizeQuery(
@@ -70,6 +89,9 @@ export default function SavedSearchesPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [filterQuery, setFilterQuery] = useState("");
+  const [sortMode, setSortMode] =
+    useState<SavedSearchSort>("newest");
 
   async function loadSavedSearches(options: { silent?: boolean } = {}) {
     if (options.silent) {
@@ -151,13 +173,93 @@ export default function SavedSearchesPage() {
     }
   }
 
+  const visibleEntries = useMemo(() => {
+    const filter =
+      normalizeQuery(
+        filterQuery,
+      ).toLowerCase();
+
+    const nextEntries =
+      entries.filter((entry) => {
+        const entryQuery =
+          normalizeQuery(
+            entry.query,
+          ).toLowerCase();
+
+        return (
+          !filter ||
+          entryQuery.includes(filter)
+        );
+      });
+
+    nextEntries.sort((a, b) => {
+      if (sortMode === "oldest") {
+        return (
+          savedSearchTime(a.createdAt) -
+          savedSearchTime(b.createdAt)
+        );
+      }
+
+      if (sortMode === "name-asc") {
+        return normalizeQuery(
+          a.query,
+        ).localeCompare(
+          normalizeQuery(b.query),
+        );
+      }
+
+      if (sortMode === "name-desc") {
+        return normalizeQuery(
+          b.query,
+        ).localeCompare(
+          normalizeQuery(a.query),
+        );
+      }
+
+      return (
+        savedSearchTime(b.createdAt) -
+        savedSearchTime(a.createdAt)
+      );
+    });
+
+    return nextEntries;
+  }, [
+    entries,
+    filterQuery,
+    sortMode,
+  ]);
+
+  const hasActiveControls =
+    Boolean(
+      filterQuery.trim() ||
+      sortMode !== "newest",
+    );
+
+  function clearControls() {
+    setFilterQuery("");
+    setSortMode("newest");
+  }
+
   const stats = useMemo(() => {
-    const newest = entries[0];
+    const newest =
+      [...entries].sort(
+        (a, b) =>
+          savedSearchTime(
+            b.createdAt,
+          ) -
+          savedSearchTime(
+            a.createdAt,
+          ),
+      )[0];
 
     return {
       total: entries.length,
-      newest: newest ? normalizeQuery(newest.query) : "None yet",
-      active: entries.length,
+      newest: newest
+        ? normalizeQuery(
+            newest.query,
+          )
+        : "None yet",
+      ready: entries.length,
     };
   }, [entries]);
 
@@ -192,9 +294,9 @@ export default function SavedSearchesPage() {
             <small>saved searches</small>
           </div>
           <div>
-            <span>Active tracking</span>
-            <strong>{stats.active}</strong>
-            <small>watching inventory</small>
+            <span>Ready to run</span>
+            <strong>{stats.ready}</strong>
+            <small>saved searches available</small>
           </div>
           <div>
             <span>Newest</span>
@@ -261,6 +363,67 @@ export default function SavedSearchesPage() {
             ))}
           </div>
         </div>
+
+        {entries.length > 0 ? (
+          <>
+            <div
+              className="saved2-filter-row"
+              aria-label="Saved search filters"
+            >
+              <label>
+                <span>Filter saved searches</span>
+                <input
+                  type="search"
+                  aria-label="Filter saved searches by phrase"
+                  value={filterQuery}
+                  onChange={(event) =>
+                    setFilterQuery(event.target.value)
+                  }
+                  placeholder="Filter by phrase..."
+                />
+              </label>
+
+              <label>
+                <span>Sort saved searches</span>
+                <select
+                  aria-label="Sort saved searches"
+                  value={sortMode}
+                  onChange={(event) =>
+                    setSortMode(
+                      event.target.value as SavedSearchSort,
+                    )
+                  }
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="name-asc">Phrase A–Z</option>
+                  <option value="name-desc">Phrase Z–A</option>
+                </select>
+              </label>
+
+              <button
+                type="button"
+                onClick={clearControls}
+                disabled={!hasActiveControls}
+              >
+                Clear filters
+              </button>
+            </div>
+
+            <p
+              className="saved2-control-summary"
+              role="status"
+              aria-live="polite"
+            >
+              Showing {visibleEntries.length} of{" "}
+              {entries.length} saved searches
+            </p>
+          </>
+        ) : (
+          <p className="saved2-empty-helper">
+            Create your first saved search to unlock filtering and sorting.
+          </p>
+        )}
       </section>
 
       {notice ? <section className="saved2-notice">{notice}</section> : null}
@@ -290,9 +453,24 @@ export default function SavedSearchesPage() {
           </p>
           <Link to={marketplaceHref(query, initialRadius)}>Browse marketplace</Link>
         </section>
+      ) : visibleEntries.length === 0 ? (
+        <section className="saved2-empty">
+          <h2>No saved searches match these filters</h2>
+          <p>
+            Change the filter phrase or sorting controls to show your saved
+            searches again.
+          </p>
+          <button
+            type="button"
+            className="saved2-secondary-small"
+            onClick={clearControls}
+          >
+            Clear filters
+          </button>
+        </section>
       ) : (
         <section className="saved2-grid">
-          {entries.map((entry) => {
+          {visibleEntries.map((entry) => {
             const entryQuery = normalizeQuery(entry.query);
             const removing = removingId === entry.id;
 
