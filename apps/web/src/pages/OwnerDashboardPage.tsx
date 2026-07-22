@@ -20,6 +20,7 @@ import {
 } from "../services/ownerWorkspace";
 import "../styles/owner-dashboard-readability.css";
 import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
+import { firstUsableImage } from "../utils/imageUrl";
 
 type Shop = {
   id: string;
@@ -257,9 +258,7 @@ function getSubmissionStatusTone(status: string): CSSProperties {
 }
 
 function getSubmissionPreview(submission: OwnerBuyerItemSubmission) {
-  return Array.isArray(submission.images) && submission.images.length
-    ? submission.images[0]
-    : "";
+  return firstUsableImage(submission.images);
 }
 
 function formatMoney(cents?: number | null) {
