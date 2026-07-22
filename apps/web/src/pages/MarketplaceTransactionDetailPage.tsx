@@ -21,6 +21,8 @@ import {
 
 import { stripePromise } from "../lib/stripe";
 
+import "../styles/marketplace-transaction-detail.css";
+
 import {
   getAuthRole,
   getAuthUser,
@@ -114,6 +116,151 @@ function metadataText(
     : "";
 }
 
+type FulfillmentHistoryEvent = {
+  status: string;
+  at: string;
+  carrier: string;
+  trackingNumber: string;
+  note: string;
+  order: number;
+};
+
+function fulfillmentHistory(
+  value: unknown,
+): FulfillmentHistoryEvent[] {
+  const metadata = metadataRecord(value);
+  const fulfillment = metadataRecord(metadata.fulfillment);
+  const history = Array.isArray(fulfillment.history)
+    ? fulfillment.history
+    : [];
+
+  return history
+    .map((value, order) => {
+      const event = metadataRecord(value);
+
+      return {
+        status: metadataText(event.status),
+        at: metadataText(event.at),
+        carrier: metadataText(event.carrier),
+        trackingNumber: metadataText(event.trackingNumber),
+        note: metadataText(event.note),
+        order,
+      };
+    })
+    .filter((event) =>
+      Boolean(
+        event.status ||
+        event.at ||
+        event.carrier ||
+        event.trackingNumber ||
+        event.note,
+      ),
+    )
+    .sort((left, right) => {
+      const leftTime = new Date(left.at).getTime();
+      const rightTime = new Date(right.at).getTime();
+      const leftValid = Number.isFinite(leftTime);
+      const rightValid = Number.isFinite(rightTime);
+
+      if (leftValid && rightValid && leftTime !== rightTime) {
+        return leftTime - rightTime;
+      }
+
+      if (leftValid !== rightValid) {
+        return leftValid ? -1 : 1;
+      }
+
+      return left.order - right.order;
+    });
+}
+
+function trackingUrl(
+  carrier: string,
+  trackingNumber: string,
+) {
+  if (!trackingNumber) return "";
+
+  const encoded = encodeURIComponent(trackingNumber);
+  const normalized = carrier
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+
+  switch (normalized) {
+    case "USPS":
+      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encoded}`;
+    case "UPS":
+      return `https://www.ups.com/track?tracknum=${encoded}`;
+    case "FEDEX":
+      return `https://www.fedex.com/fedextrack/?trknbr=${encoded}`;
+    case "DHL":
+      return `https://www.dhl.com/global-en/home/tracking.html?tracking-id=${encoded}`;
+    default:
+      return "";
+  }
+}
+
+function TrackingNumber({
+  carrier,
+  trackingNumber,
+}: {
+  carrier: string;
+  trackingNumber: string;
+}) {
+  const url = trackingUrl(carrier, trackingNumber);
+
+  return url ? (
+    <a
+      className="marketplace-transaction__tracking-link"
+      href={url}
+      target="_blank"
+      rel="noreferrer noopener"
+    >
+      {trackingNumber}
+    </a>
+  ) : (
+    <>{trackingNumber}</>
+  );
+}
+
+function fulfillmentMethod(
+  transaction: MarketplaceTransaction,
+) {
+  const historyStatuses = fulfillmentHistory(transaction.metadata)
+    .map((event) => event.status.toUpperCase());
+
+  if (
+    transaction.fulfillmentStatus === "SHIPPED" ||
+    historyStatuses.includes("SHIPPED")
+  ) {
+    return "Shipping";
+  }
+  if (
+    ["READY_FOR_PICKUP", "PICKED_UP"].includes(
+      transaction.fulfillmentStatus,
+    ) ||
+    historyStatuses.some((status) =>
+      ["READY_FOR_PICKUP", "PICKED_UP"].includes(status),
+    )
+  ) {
+    return "Pickup";
+  }
+  if (
+    transaction.listing?.pickupAvailable &&
+    !transaction.listing.shippingAvailable
+  ) {
+    return "Pickup";
+  }
+  if (
+    transaction.listing?.shippingAvailable &&
+    !transaction.listing.pickupAvailable
+  ) {
+    return "Shipping";
+  }
+
+  return "Not yet selected";
+}
+
 function sellerNetAmount(
   transaction: MarketplaceTransaction,
 ) {
@@ -160,6 +307,11 @@ function fulfillmentMetadata(
       metadata.fulfillment,
     );
 
+  const history = fulfillmentHistory(transaction.metadata);
+  const pickupEvent = [...history]
+    .reverse()
+    .find((event) => event.status.toUpperCase() === "READY_FOR_PICKUP");
+
   return {
     carrier:
       metadataText(
@@ -180,6 +332,15 @@ function fulfillmentMetadata(
       metadataText(
         fulfillment.updatedAt,
       ),
+
+    pickupInstructions:
+      metadataText(fulfillment.pickupInstructions) ||
+      metadataText(fulfillment.instructions) ||
+      metadataText(fulfillment.pickupNote) ||
+      pickupEvent?.note ||
+      "",
+
+    history,
   };
 }
 
@@ -1200,6 +1361,11 @@ export default function MarketplaceTransactionDetailPage() {
       transaction,
     );
 
+  const resolvedFulfillmentMethod =
+    fulfillmentMethod(
+      transaction,
+    );
+
   const fulfillmentChoices =
     nextFulfillmentChoices(
       transaction,
@@ -1211,8 +1377,12 @@ export default function MarketplaceTransactionDetailPage() {
     );
 
   return (
-    <main style={pageStyle}>
+    <main
+      className="marketplace-transaction__page"
+      style={pageStyle}
+    >
       <div
+        className="marketplace-transaction__screen-actions"
         style={{
           display: "flex",
           justifyContent: "space-between",
@@ -1356,6 +1526,106 @@ export default function MarketplaceTransactionDetailPage() {
           </div>
         </div>
       </header>
+
+      {["PAID", "COMPLETED"].includes(transaction.status) ? (
+        <section
+          className="marketplace-transaction__confirmation"
+          aria-labelledby="transaction-confirmation-heading"
+          style={{
+            ...panelStyle,
+            padding: 24,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  margin: "0 0 6px",
+                  color: "var(--accent)",
+                  fontSize: 12,
+                  fontWeight: 900,
+                  letterSpacing: "0.07em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Payment confirmed
+              </p>
+              <h2 id="transaction-confirmation-heading">
+                Transaction confirmation
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => window.print()}
+              style={buttonStyle}
+            >
+              Print confirmation
+            </button>
+          </div>
+
+          <div className="marketplace-transaction__confirmation-grid">
+            <Field label="Transaction ID">
+              {transaction.id}
+            </Field>
+            <Field label="Item">
+              {listing?.title || "Item unavailable"}
+            </Field>
+            <Field label="Seller or shop">
+              {transaction.sellerShop?.name || sellerName}
+            </Field>
+            <Field label="Fulfillment method">
+              {resolvedFulfillmentMethod}
+            </Field>
+            <Field label="Current status">
+              {readable(transaction.status)}
+            </Field>
+            <Field label="Fulfillment status">
+              {readable(transaction.fulfillmentStatus)}
+            </Field>
+            <Field label="Created">
+              {dateLabel(transaction.createdAt)}
+            </Field>
+            {transaction.completedAt ? (
+              <Field label="Completed">
+                {dateLabel(transaction.completedAt)}
+              </Field>
+            ) : null}
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            <AmountRow
+              label="Subtotal"
+              value={transaction.subtotal}
+              currency={transaction.currency}
+            />
+            <AmountRow
+              label="Shipping"
+              value={transaction.shippingFee}
+              currency={transaction.currency}
+            />
+            <AmountRow
+              label="Tax"
+              value={transaction.taxAmount}
+              currency={transaction.currency}
+            />
+            <AmountRow
+              label="Total"
+              value={transaction.totalAmount}
+              currency={transaction.currency}
+              emphasized
+            />
+          </div>
+        </section>
+      ) : null}
 
       <section
         style={{
@@ -1514,16 +1784,42 @@ export default function MarketplaceTransactionDetailPage() {
               {listing?.shippingAvailable ? "Yes" : "No"}
             </Field>
 
-            {fulfillmentInfo.carrier ? (
-              <Field label="Carrier">
-                {fulfillmentInfo.carrier}
+            {resolvedFulfillmentMethod === "Pickup" ? (
+              <Field label="Pickup instructions">
+                {fulfillmentInfo.pickupInstructions ||
+                  "Pickup instructions are unavailable. Contact the seller before pickup."}
               </Field>
             ) : null}
 
-            {fulfillmentInfo.trackingNumber ? (
-              <Field label="Tracking number">
-                {fulfillmentInfo.trackingNumber}
-              </Field>
+            {resolvedFulfillmentMethod === "Shipping" ? (
+              <>
+                <Field label="Shipping carrier">
+                  {fulfillmentInfo.carrier || "Carrier information is unavailable."}
+                </Field>
+
+                <Field label="Tracking number">
+                  {fulfillmentInfo.trackingNumber ? (
+                    <TrackingNumber
+                      carrier={fulfillmentInfo.carrier}
+                      trackingNumber={fulfillmentInfo.trackingNumber}
+                    />
+                  ) : (
+                    "Tracking information is unavailable."
+                  )}
+                </Field>
+              </>
+            ) : null}
+
+            {resolvedFulfillmentMethod === "Not yet selected" ? (
+              <p
+                role="status"
+                style={{
+                  color: "var(--muted)",
+                  margin: 0,
+                }}
+              >
+                Fulfillment details are unavailable until pickup or shipping is selected.
+              </p>
             ) : null}
 
             {fulfillmentInfo.note ? (
@@ -1556,7 +1852,7 @@ export default function MarketplaceTransactionDetailPage() {
             padding: 22,
           }}
         >
-          <h2>Timeline</h2>
+          <h2>Transaction lifecycle</h2>
 
           <div
             style={{
@@ -1581,11 +1877,60 @@ export default function MarketplaceTransactionDetailPage() {
               {dateLabel(transaction.canceledAt)}
             </Field>
           </div>
+
+          <section
+            aria-labelledby="fulfillment-history-heading"
+            style={{
+              marginTop: 26,
+              paddingTop: 22,
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <h3 id="fulfillment-history-heading">Fulfillment history</h3>
+
+            {fulfillmentInfo.history.length > 0 ? (
+              <ol className="marketplace-transaction__timeline">
+                {fulfillmentInfo.history.map((event) => (
+                  <li
+                    className="marketplace-transaction__timeline-item"
+                    key={`${event.order}-${event.at}-${event.status}`}
+                  >
+                    <strong>
+                      {event.status
+                        ? readable(event.status)
+                        : "Fulfillment update"}
+                    </strong>
+                    <p>
+                      <time dateTime={event.at || undefined}>
+                        {event.at ? dateLabel(event.at) : "Timestamp unavailable"}
+                      </time>
+                    </p>
+                    {event.note ? <p>{event.note}</p> : null}
+                    {event.carrier ? <p>Carrier: {event.carrier}</p> : null}
+                    {event.trackingNumber ? (
+                      <p>
+                        Tracking: {" "}
+                        <TrackingNumber
+                          carrier={event.carrier}
+                          trackingNumber={event.trackingNumber}
+                        />
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p style={{ color: "var(--muted)", marginBottom: 0 }}>
+                No fulfillment history is available yet.
+              </p>
+            )}
+          </section>
         </section>
       </section>
 
       {canManageFulfillment ? (
         <section
+          className="marketplace-transaction__fulfillment-controls"
           style={{
             ...panelStyle,
             padding: 22,
@@ -1607,6 +1952,7 @@ export default function MarketplaceTransactionDetailPage() {
 
           {fulfillmentError ? (
             <p
+              className="marketplace-transaction__alerts"
               role="alert"
               style={{
                 padding: 14,
@@ -1622,6 +1968,7 @@ export default function MarketplaceTransactionDetailPage() {
 
           {fulfillmentNotice ? (
             <p
+              className="marketplace-transaction__alerts"
               role="status"
               style={{
                 padding: 14,
@@ -1824,6 +2171,7 @@ export default function MarketplaceTransactionDetailPage() {
 
       {canManageCheckout ? (
         <section
+          className="marketplace-transaction__payment-controls"
           style={{
             ...panelStyle,
             padding: 22,
@@ -1846,6 +2194,7 @@ export default function MarketplaceTransactionDetailPage() {
 
           {actionError ? (
             <p
+              className="marketplace-transaction__alerts"
               role="alert"
               style={{
                 padding: 14,
@@ -1864,6 +2213,7 @@ export default function MarketplaceTransactionDetailPage() {
 
           {actionNotice ? (
             <p
+              className="marketplace-transaction__alerts"
               role="status"
               style={{
                 padding: 14,
@@ -1999,6 +2349,7 @@ export default function MarketplaceTransactionDetailPage() {
       ) : null}
 
       <div
+        className="marketplace-transaction__screen-navigation"
         style={{
           display: "flex",
           justifyContent: "center",
