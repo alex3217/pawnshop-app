@@ -65,8 +65,37 @@ export default function RegisterPage() {
         throw new Error("Email is required.");
       }
 
-      if (password.length < 6) {
-        throw new Error("Password must be at least 6 characters.");
+      if (password.length < 12) {
+        throw new Error("Password must be at least 12 characters.");
+      }
+
+      if (password.length > 128) {
+        throw new Error("Password must be no more than 128 characters.");
+      }
+
+      const normalizedPassword = password.normalize("NFKC").toLocaleLowerCase("en-US");
+      const placeholderPasswords = new Set([
+        "password",
+        "password123",
+        "password123!",
+        "changeme",
+        "changeme123",
+        "temporarypassword",
+        "testpassword",
+        "admin123!",
+        "owner123!",
+        "buyer123!",
+        "superadmin123!",
+        "admin123",
+      ]);
+
+      if (placeholderPasswords.has(normalizedPassword.trim())) {
+        throw new Error("Choose a password that is not a common test or placeholder value.");
+      }
+
+      const normalizedEmail = trimmedEmail.normalize("NFKC").toLocaleLowerCase("en-US");
+      if (normalizedPassword.includes(normalizedEmail)) {
+        throw new Error("Password must not contain your complete email address.");
       }
 
       const { token, user } = await register(
@@ -174,10 +203,11 @@ export default function RegisterPage() {
                 onChange={(event) =>
                   setPassword(event.target.value)
                 }
-                placeholder="At least 6 characters"
+                placeholder="12–128 characters"
                 type="password"
                 autoComplete="new-password"
-                minLength={6}
+                minLength={12}
+                maxLength={128}
                 required
               />
             </div>

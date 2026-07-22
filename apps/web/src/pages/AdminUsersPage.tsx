@@ -164,8 +164,13 @@ export default function AdminUsersPage() {
       return;
     }
 
-    if (modalMode === "create" && form.password.length < 8) {
-      setError("Temporary password must be at least 8 characters.");
+    if (modalMode === "create" && form.password.length < 12) {
+      setError("Temporary password must be at least 12 characters.");
+      return;
+    }
+
+    if (modalMode === "create" && form.password.length > 128) {
+      setError("Temporary password must be no more than 128 characters.");
       return;
     }
 
@@ -506,7 +511,8 @@ export default function AdminUsersPage() {
                     className="admin-control-input"
                     placeholder="At least 8 characters"
                     type="password"
-                    minLength={8}
+                    minLength={12}
+                    maxLength={128}
                     required
                   />
                 </label>

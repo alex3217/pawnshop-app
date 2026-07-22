@@ -223,7 +223,8 @@ export default function SuperAdminUsersPage() {
             }
             placeholder="Temporary password"
             type="password"
-            minLength={8}
+            minLength={12}
+            maxLength={128}
             required
             className="rounded-lg border px-3 py-2 text-sm"
           />

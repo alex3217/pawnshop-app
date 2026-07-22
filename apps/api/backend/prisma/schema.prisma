@@ -14,6 +14,9 @@ model User {
   password                  String
   role                      Role                       @default(CONSUMER)
   isActive                  Boolean                    @default(true)
+  emailVerifiedAt           DateTime?
+  authVersion               Int                        @default(0)
+  passwordChangedAt         DateTime?
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   Bid                       Bid[]

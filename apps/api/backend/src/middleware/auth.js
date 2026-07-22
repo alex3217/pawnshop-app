@@ -1,6 +1,7 @@
 // File: apps/api/backend/src/middleware/auth.js
 
 import jwt from "jsonwebtoken";
+import { prisma } from "../lib/prisma.js";
 
 const ROLE_ALIASES = new Map([
   ["USER", "CONSUMER"],
@@ -82,7 +83,32 @@ function normalizeUserPayload(payload) {
   };
 }
 
-export function authRequired(req, res, next) {
+async function authenticateToken(token, secret) {
+  const payload = jwt.verify(token, secret);
+  const tokenUser = normalizeUserPayload(payload);
+
+  if (!tokenUser.sub || !Number.isInteger(payload?.authVersion)) return null;
+
+  const currentUser = await prisma.user.findUnique({ where: { id: tokenUser.sub } });
+  if (
+    !currentUser ||
+    currentUser.isActive === false ||
+    currentUser.authVersion !== payload.authVersion
+  ) return null;
+
+  return {
+    payload,
+    user: normalizeUserPayload({
+      ...payload,
+      id: currentUser.id,
+      email: currentUser.email,
+      role: currentUser.role,
+      authVersion: currentUser.authVersion,
+    }),
+  };
+}
+
+export async function authRequired(req, res, next) {
   const token = getTokenFromRequest(req);
 
   if (!token) {
@@ -97,12 +123,9 @@ export function authRequired(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, secret);
-    const user = normalizeUserPayload(payload);
-
-    if (!user.sub || !user.role) {
-      return res.status(401).json({ error: "Invalid token payload" });
-    }
+    const authenticated = await authenticateToken(token, secret);
+    if (!authenticated) return res.status(401).json({ error: "Invalid token" });
+    const { payload, user } = authenticated;
 
     req.user = user;
     req.auth = {
@@ -117,7 +140,7 @@ export function authRequired(req, res, next) {
   }
 }
 
-export function optionalAuth(req, _res, next) {
+export async function optionalAuth(req, _res, next) {
   const token = getTokenFromRequest(req);
   const secret = getJwtSecret();
 
@@ -128,10 +151,10 @@ export function optionalAuth(req, _res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, secret);
-    const user = normalizeUserPayload(payload);
-
-    req.user = user.sub && user.role ? user : null;
+    const authenticated = await authenticateToken(token, secret);
+    const payload = authenticated?.payload;
+    const user = authenticated?.user;
+    req.user = user || null;
     req.auth = req.user
       ? {
           token,

@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
+import { validatePassword } from "../services/passwordPolicy.service.js";
 
 function sendError(res, error, fallbackMessage = "Internal server error") {
   const status =
@@ -12,6 +13,7 @@ function sendError(res, error, fallbackMessage = "Internal server error") {
   return res.status(status).json({
     success: false,
     error: error?.message || fallbackMessage,
+    ...(error?.code ? { code: error.code } : {}),
     ...(error?.details ? { details: error.details } : {}),
   });
 }
@@ -113,7 +115,7 @@ function serializeAdminItem(item) {
 
 function pickAdminUserCreateData(body = {}, actorRole = "ADMIN") {
   const email = normalizeEmail(body.email);
-  const password = normalizeString(body.password, "");
+  const password = typeof body.password === "string" ? body.password : "";
   const role = normalizeRole(body.role, "CONSUMER");
 
   if (!email) {
@@ -122,11 +124,7 @@ function pickAdminUserCreateData(body = {}, actorRole = "ADMIN") {
     throw error;
   }
 
-  if (!password || password.length < 8) {
-    const error = new Error("Password must be at least 8 characters.");
-    error.statusCode = 400;
-    throw error;
-  }
+  validatePassword(password, { email });
 
   if (!ADMIN_USER_ROLES.has(role)) {
     const error = new Error("Invalid role.");
@@ -172,6 +170,10 @@ function pickAdminUserUpdateData(body = {}, actorRole = "ADMIN") {
     }
 
     data.role = role;
+  }
+
+  if (body.isActive === false || body.role !== undefined) {
+    data.authVersion = { increment: 1 };
   }
 
   return data;
@@ -284,6 +286,7 @@ export async function createAdminUser(req, res) {
         password: passwordHash,
         role: input.role,
         isActive: input.isActive,
+        emailVerifiedAt: new Date(),
       },
     });
 
@@ -609,7 +612,7 @@ export async function blockUser(req, res) {
     const { id } = req.params;
     const user = await prisma.user.update({
       where: { id },
-      data: { isActive: false },
+      data: { isActive: false, authVersion: { increment: 1 } },
     });
 
     return res.json({ ok: true, id: user.id, isActive: user.isActive });

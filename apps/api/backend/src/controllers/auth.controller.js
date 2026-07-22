@@ -3,6 +3,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
+import { validatePassword } from "../services/passwordPolicy.service.js";
 import {
   getMyShopAccess,
 } from "../services/shopAccess.service.js";
@@ -77,6 +78,7 @@ function issueToken(user) {
       userId: user.id,
       role: normalizeRole(user.role),
       email: user.email,
+      authVersion: user.authVersion,
     },
     secret,
     { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
@@ -129,14 +131,6 @@ function requireSuperAdminUser(req) {
   return user;
 }
 
-function validatePassword(password) {
-  if (String(password || "").length < 6) {
-    throw Object.assign(new Error("Password must be at least 6 characters"), {
-      statusCode: 400,
-    });
-  }
-}
-
 async function ensureEmailAvailable(email) {
   const existing = await prisma.user.findUnique({ where: { email } });
 
@@ -155,6 +149,7 @@ function sendError(res, error, fallbackMessage) {
 
   return res.status(status).json({
     error: error?.message || fallbackMessage,
+    ...(error?.code ? { code: error.code } : {}),
     ...(error?.details ? { details: error.details } : {}),
   });
 }
@@ -170,7 +165,7 @@ export async function register(req, res) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    validatePassword(password);
+    validatePassword(password, { email });
 
     const roleCheck = resolvePublicRole(rawBody.role);
     if (!roleCheck.ok) {
@@ -188,6 +183,8 @@ export async function register(req, res) {
         password: hash,
         role: roleCheck.role,
         isActive: true,
+        // PR 2 will replace this compatibility behavior with verification tokens.
+        emailVerifiedAt: new Date(),
       },
     });
 
@@ -323,7 +320,7 @@ export async function createSuperAdminUser(req, res) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    validatePassword(password);
+    validatePassword(password, { email });
 
     const roleCheck = resolvePrivilegedRole(rawBody.role);
     if (!roleCheck.ok) {
@@ -345,6 +342,7 @@ export async function createSuperAdminUser(req, res) {
         role: roleCheck.role,
         isActive:
           typeof rawBody.isActive === "boolean" ? rawBody.isActive : true,
+        emailVerifiedAt: new Date(),
       },
     });
 
