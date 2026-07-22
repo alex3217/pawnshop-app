@@ -596,13 +596,22 @@ test(
       .toBe(1);
 
     await expect(
-      page.getByText(
-        "Paid",
-        {
-          exact:
-            true,
-        },
-      ),
+      page
+        .getByRole(
+          "heading",
+          {
+            name:
+              "Marketplace checkout browser test item",
+          },
+        )
+        .locator("..")
+        .getByText(
+          "Paid",
+          {
+            exact:
+              true,
+          },
+        ),
     ).toBeVisible();
 
     await expect(
