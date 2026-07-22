@@ -502,7 +502,7 @@ export default function SiteLayout() {
 
       <ScrollToTopButton />
       <NavigationTour role={role} />
-      <RoleSetupChecklist role={role} />
+      {role === "OWNER" ? <RoleSetupChecklist role={role} /> : null}
 
       <footer className="site-footer">
         <div className="site-footer-inner">
