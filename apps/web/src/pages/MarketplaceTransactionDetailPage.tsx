@@ -1179,6 +1179,9 @@ export default function MarketplaceTransactionDetailPage() {
     transaction.status ===
       "PAYMENT_PROCESSING";
 
+  const transactionCanBeCanceled =
+    transaction.status === "PENDING";
+
   const buyerName =
     transaction.buyer?.name ||
     "Marketplace buyer";
@@ -1922,7 +1925,7 @@ export default function MarketplaceTransactionDetailPage() {
                 void cancelReservation()
               }
               disabled={
-                !transactionIsActionable ||
+                !transactionCanBeCanceled ||
                 actionBusy !== null ||
                 refreshing
               }
@@ -1933,7 +1936,7 @@ export default function MarketplaceTransactionDetailPage() {
                 color:
                   "var(--danger)",
                 opacity:
-                  !transactionIsActionable ||
+                  !transactionCanBeCanceled ||
                   actionBusy !== null ||
                   refreshing
                     ? 0.65
