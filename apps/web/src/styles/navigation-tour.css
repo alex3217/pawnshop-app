@@ -16,6 +16,7 @@
   cursor: pointer;
   font: inherit;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .navigation-tour-restart:hover {
@@ -48,12 +49,11 @@
   .navigation-tour-restart {
     right: 12px;
     bottom: 72px;
-    padding: 10px;
+    max-width: calc(100vw - 24px);
+    padding: 10px 12px;
+    font-size: 13px;
   }
 
-  .navigation-tour-restart > span:last-child {
-    display: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
