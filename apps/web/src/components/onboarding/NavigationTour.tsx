@@ -237,11 +237,11 @@ export default function NavigationTour({ role }: NavigationTourProps) {
         type="button"
         className="navigation-tour-restart"
         onClick={restartTour}
-        aria-label="Start the PawnLoop website navigation tutorial"
-        title="Website navigation tutorial"
+        aria-label="Open setup and instructions"
+        title="Setup and instructions"
       >
         <span aria-hidden="true">?</span>
-        <span>Website Tour</span>
+        <span>Setup &amp; Instructions</span>
       </button>
     </>
   );
