@@ -526,6 +526,17 @@ export default function SiteLayout() {
                 {item.label}
               </Link>
             ))}
+            <button
+              type="button"
+              className="navigation-assistance-footer-control"
+              onClick={() => {
+                window.dispatchEvent(
+                  new Event("pawnloop:open-navigation-assistance"),
+                );
+              }}
+            >
+              Navigation Assistance
+            </button>
           </div>
         </div>
       </footer>
