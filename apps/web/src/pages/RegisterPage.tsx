@@ -210,6 +210,9 @@ export default function RegisterPage() {
                 maxLength={128}
                 required
               />
+              <small>
+                Use 12–128 characters. Common test or placeholder passwords are rejected, and the complete email address cannot appear in the password.
+              </small>
             </div>
 
             <div className="register-field">

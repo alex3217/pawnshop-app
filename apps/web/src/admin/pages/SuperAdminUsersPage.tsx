@@ -228,6 +228,9 @@ export default function SuperAdminUsersPage() {
             required
             className="rounded-lg border px-3 py-2 text-sm"
           />
+          <small>
+            Use 12–128 characters. Common test or placeholder passwords are rejected, and the complete email address cannot appear in the password.
+          </small>
 
           <select
             value={createForm.role}

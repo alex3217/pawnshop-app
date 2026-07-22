@@ -116,14 +116,17 @@ async function main() {
   const existing = await delegate.findFirst({ where: fieldNames.has("email") ? { email: EMAIL } : {} });
 
   if (existing?.id) {
-    const updated = await delegate.update({ where: { id: existing.id }, data });
+    const updateData = fieldNames.has("authVersion")
+      ? { ...data, authVersion: { increment: 1 } }
+      : data;
+    const updated = await delegate.update({ where: { id: existing.id }, data: updateData });
     console.log("✅ Seed admin updated:", { id: updated.id, email: EMAIL });
   } else {
     const created = await delegate.create({ data });
     console.log("✅ Seed admin created:", { id: created.id, email: EMAIL });
   }
 
-  console.log("➡️  Login with:", { email: EMAIL, password: PASSWORD });
+  console.log("✅ Admin credentials configured.");
   if (!passwordField) {
     console.log("⚠️  Note: No password field found on User; login may be impossible until schema adds one.");
   }

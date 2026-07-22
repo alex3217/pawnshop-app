@@ -147,7 +147,10 @@ async function upsertUser({ email, name, role, password }) {
   const existing = await prisma.user.findFirst({ where: { email } });
 
   if (existing) {
-    return prisma.user.update({ where: { id: existing.id }, data });
+    const updateData = hasField("User", "authVersion")
+      ? { ...data, authVersion: { increment: 1 } }
+      : data;
+    return prisma.user.update({ where: { id: existing.id }, data: updateData });
   }
 
   return prisma.user.create({ data });
@@ -213,6 +216,7 @@ async function main() {
     admin: admin.email,
     superAdmin: superAdmin.email,
   });
+  console.log("✅ Demo user credentials configured.");
 
   const shops = [];
 
