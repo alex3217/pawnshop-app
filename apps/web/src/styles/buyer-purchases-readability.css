@@ -15,19 +15,30 @@
 }
 
 :root:not([data-theme="dark"]) .buyer-purchases-page {
-  color: #0f172a;
+  --surface: #ffffff;
+  --surface-strong: #f8fafc;
+  --text: #1e293b;
+  --text-strong: #0f172a;
+  --muted: #475569;
+  --border: #d7dee8;
+  --border-strong: #94a3b8;
+  --accent: #1d4ed8;
+  --danger: #b91c1c;
+  --success: #15803d;
+  --warning: #a16207;
+  --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.1);
+  color: var(--text);
 }
 
-:root:not([data-theme="dark"]) .buyer-purchases-page h1,
-:root:not([data-theme="dark"]) .buyer-purchases-page h2,
-:root:not([data-theme="dark"]) .buyer-purchases-page label,
-:root:not([data-theme="dark"]) .buyer-purchases-page strong {
-  color: #0f172a !important;
+:root:not([data-theme="dark"]) .buyer-purchases-page input,
+:root:not([data-theme="dark"]) .buyer-purchases-page select {
+  background: #ffffff;
+  color: var(--text-strong);
+  border-color: var(--border);
 }
 
-:root:not([data-theme="dark"]) .buyer-purchases-page small,
-:root:not([data-theme="dark"]) .buyer-purchases-filter-actions {
-  color: #475569 !important;
+:root:not([data-theme="dark"]) .buyer-purchases-page input::placeholder {
+  color: #64748b;
 }
 
 @media (max-width: 640px) {
