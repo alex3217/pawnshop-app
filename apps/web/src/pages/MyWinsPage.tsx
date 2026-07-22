@@ -376,6 +376,18 @@ export default function MyWinsPage() {
     await load("refresh");
   }
 
+  async function copyReference(label: string, value: string) {
+    setError("");
+    setNotice("");
+
+    try {
+      await navigator.clipboard.writeText(value);
+      setNotice(`${label} copied.`);
+    } catch {
+      setError(`Unable to copy ${label.toLowerCase()}.`);
+    }
+  }
+
   const summary = useMemo(() => {
     const totalCommittedCents = wins.reduce(
       (sum, row) => sum + row.finalAmountCents,
@@ -707,7 +719,39 @@ export default function MyWinsPage() {
                     </button>
                   ) : null}
 
-                  {paid ? <span className="wins2-paid-label">Payment completed</span> : null}
+                  <button
+                    type="button"
+                    className="wins2-secondary-button"
+                    onClick={() =>
+                      void copyReference(
+                        "Settlement ID",
+                        win.settlementId,
+                      )
+                    }
+                  >
+                    Copy settlement ID
+                  </button>
+
+                  {win.stripePaymentIntent ? (
+                    <button
+                      type="button"
+                      className="wins2-secondary-button"
+                      onClick={() =>
+                        void copyReference(
+                          "Payment ID",
+                          win.stripePaymentIntent || "",
+                        )
+                      }
+                    >
+                      Copy payment ID
+                    </button>
+                  ) : null}
+
+                  {paid ? (
+                    <span className="wins2-paid-label">
+                      Payment completed
+                    </span>
+                  ) : null}
 
                   {win.auctionId ? (
                     <Link to={`/auctions/${win.auctionId}`}>View auction</Link>

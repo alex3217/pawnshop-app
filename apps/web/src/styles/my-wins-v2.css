@@ -829,3 +829,19 @@ body:not(.dark) .wins2-discovery-strip a span {
   -webkit-text-fill-color: #eef2ff !important;
 }
 /* END final My Wins light-mode readability. */
+
+/* ===== MY WINS DARK CONTRAST OVERRIDE V1 ===== */
+html[data-theme="dark"] body .wins2-page { background: linear-gradient(180deg, #020617, #0f172a) !important; color: #e2e8f0 !important; }
+html[data-theme="dark"] body .wins2-hero, html[data-theme="dark"] body .wins2-control-panel, html[data-theme="dark"] body .wins2-card, html[data-theme="dark"] body .wins2-state, html[data-theme="dark"] body .wins2-hero-panel > div, html[data-theme="dark"] body .wins2-discovery-strip a { background: #111827 !important; color: #e2e8f0 !important; border-color: #475569 !important; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.34) !important; }
+html[data-theme="dark"] body .wins2-detail-grid > div, html[data-theme="dark"] body .wins2-payment-intent { background: #1e293b !important; color: #e2e8f0 !important; border: 1px solid #475569 !important; }
+html[data-theme="dark"] body .wins2-hero h1, html[data-theme="dark"] body .wins2-card h2, html[data-theme="dark"] body .wins2-hero-panel strong, html[data-theme="dark"] body .wins2-detail-grid strong, html[data-theme="dark"] body .wins2-state h2 { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+html[data-theme="dark"] body .wins2-hero p, html[data-theme="dark"] body .wins2-card p, html[data-theme="dark"] body .wins2-hero-panel span, html[data-theme="dark"] body .wins2-hero-panel small, html[data-theme="dark"] body .wins2-detail-grid span, html[data-theme="dark"] body .wins2-discovery-strip span, html[data-theme="dark"] body .wins2-control-summary { color: #cbd5e1 !important; -webkit-text-fill-color: #cbd5e1 !important; }
+html[data-theme="dark"] body .wins2-control-row input, html[data-theme="dark"] body .wins2-control-row select { background: #0f172a !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; border-color: #64748b !important; color-scheme: dark; }
+html[data-theme="dark"] body .wins2-control-row input::placeholder { color: #cbd5e1 !important; -webkit-text-fill-color: #cbd5e1 !important; opacity: 1 !important; }
+html[data-theme="dark"] body .wins2-filter-tabs button, html[data-theme="dark"] body .wins2-clear-controls, html[data-theme="dark"] body .wins2-card-actions a, html[data-theme="dark"] body .wins2-hero-actions a, html[data-theme="dark"] body .wins2-hero-actions button { background: #1e293b !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; border-color: #64748b !important; }
+html[data-theme="dark"] body .wins2-filter-tabs button.active, html[data-theme="dark"] body .wins2-hero-actions a:first-child { background: #4f46e5 !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; border-color: #818cf8 !important; }
+html[data-theme="dark"] body .wins2-pill { background: #4338ca !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; border: 1px solid #818cf8 !important; }
+html[data-theme="dark"] body .wins2-amount { background: #064e3b !important; color: #d1fae5 !important; -webkit-text-fill-color: #d1fae5 !important; }
+html[data-theme="dark"] body .wins2-status-charged, html[data-theme="dark"] body .wins2-paid-label { background: #064e3b !important; color: #d1fae5 !important; -webkit-text-fill-color: #d1fae5 !important; }
+html[data-theme="dark"] body .wins2-status-pending { background: #713f12 !important; color: #fef3c7 !important; -webkit-text-fill-color: #fef3c7 !important; }
+html[data-theme="dark"] body .wins2-status-failed { background: #7f1d1d !important; color: #fee2e2 !important; -webkit-text-fill-color: #fee2e2 !important; }
