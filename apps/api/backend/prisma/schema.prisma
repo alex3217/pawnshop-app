@@ -347,9 +347,10 @@ model BuyerItemSubmission {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  buyer      User                       @relation("BuyerItemSubmissions", fields: [buyerId], references: [id], onDelete: Cascade)
-  offers     BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOffers")
-  itemIntake ItemIntake?                @relation("ItemIntakeLinkedSubmission")
+  buyer                  User                       @relation("BuyerItemSubmissions", fields: [buyerId], references: [id], onDelete: Cascade)
+  offers                 BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOffers")
+  itemIntake             ItemIntake?                @relation("ItemIntakeLinkedSubmission")
+  marketplaceTransaction MarketplaceTransaction?    @relation("MarketplaceTransactionSubmission")
 
   @@index([buyerId, createdAt])
   @@index([status, createdAt])
@@ -368,10 +369,12 @@ model BuyerItemSubmissionOffer {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  submission BuyerItemSubmission @relation("BuyerItemSubmissionOffers", fields: [submissionId], references: [id], onDelete: Cascade)
-  shop       PawnShop            @relation("BuyerItemSubmissionOfferShop", fields: [shopId], references: [id], onDelete: Cascade)
-  owner      User                @relation("BuyerItemSubmissionOfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  submission             BuyerItemSubmission     @relation("BuyerItemSubmissionOffers", fields: [submissionId], references: [id], onDelete: Cascade)
+  shop                   PawnShop                @relation("BuyerItemSubmissionOfferShop", fields: [shopId], references: [id], onDelete: Cascade)
+  owner                  User                    @relation("BuyerItemSubmissionOfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  marketplaceTransaction MarketplaceTransaction? @relation("MarketplaceTransactionSubmissionOffer")
 
+  @@unique([id, submissionId])
   @@index([submissionId, status])
   @@index([shopId, createdAt])
   @@index([ownerId, createdAt])
@@ -764,7 +767,9 @@ model MarketplaceListing {
 
 model MarketplaceTransaction {
   id                String                       @id @default(cuid())
-  listingId         String
+  listingId         String?
+  submissionId      String?                      @unique
+  submissionOfferId String?                      @unique
   buyerUserId       String
   buyerShopId       String?
   sellerUserId      String
@@ -786,11 +791,13 @@ model MarketplaceTransaction {
   createdAt         DateTime                     @default(now())
   updatedAt         DateTime                     @updatedAt
 
-  listing    MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Restrict)
-  buyer      User               @relation("MarketplaceTransactionBuyer", fields: [buyerUserId], references: [id], onDelete: Restrict)
-  buyerShop  PawnShop?          @relation("MarketplaceTransactionBuyerShop", fields: [buyerShopId], references: [id], onDelete: SetNull)
-  seller     User               @relation("MarketplaceTransactionSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
-  sellerShop PawnShop?          @relation("MarketplaceTransactionSellerShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
+  listing         MarketplaceListing?       @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  submission      BuyerItemSubmission?      @relation("MarketplaceTransactionSubmission", fields: [submissionId], references: [id], onDelete: Restrict)
+  submissionOffer BuyerItemSubmissionOffer? @relation("MarketplaceTransactionSubmissionOffer", fields: [submissionOfferId], references: [id], onDelete: Restrict)
+  buyer           User                      @relation("MarketplaceTransactionBuyer", fields: [buyerUserId], references: [id], onDelete: Restrict)
+  buyerShop       PawnShop?                 @relation("MarketplaceTransactionBuyerShop", fields: [buyerShopId], references: [id], onDelete: SetNull)
+  seller          User                      @relation("MarketplaceTransactionSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  sellerShop      PawnShop?                 @relation("MarketplaceTransactionSellerShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
 
   @@index([listingId, status])
   @@index([buyerUserId, status, createdAt])
