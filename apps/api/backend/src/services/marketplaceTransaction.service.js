@@ -112,6 +112,89 @@ const TRANSACTION_INCLUDE = {
   sellerShop: {
     select: SHOP_SUMMARY_SELECT,
   },
+  submission: {
+    select: {
+      id: true,
+      buyerId: true,
+      title: true,
+      category: true,
+      condition: true,
+      images: true,
+      intent: true,
+      status: true,
+    },
+  },
+  submissionOffer: {
+    select: {
+      id: true,
+      submissionId: true,
+      shopId: true,
+      ownerId: true,
+      amount: true,
+      message: true,
+      status: true,
+      respondedAt: true,
+    },
+  },
+  customerSellFulfillment: {
+    select: {
+      id: true,
+      handoffMethod: true,
+      lifecycleStatus: true,
+      inspectionStatus: true,
+      originalAmount: true,
+      finalAmount: true,
+      currency: true,
+      observedCondition: true,
+      verifiedSerial: true,
+      identityVerificationResult: true,
+      mismatchReason: true,
+      rejectionReason: true,
+      itemReceivedAt: true,
+      inspectionStartedAt: true,
+      inspectedAt: true,
+      revisedPriceProposedAt: true,
+      customerDecidedAt: true,
+      readyForPaymentAt: true,
+      paidAt: true,
+      completedAt: true,
+      rejectedAt: true,
+      returnedAt: true,
+      customerAcknowledgedAt: true,
+      version: true,
+      intakeId: true,
+      inventoryItemId: true,
+      revenuePolicy: true,
+      platformFee: true,
+    },
+  },
+  customerSellPayment: {
+    select: {
+      id: true,
+      method: true,
+      status: true,
+      amount: true,
+      currency: true,
+      referenceNumber: true,
+      recordedByUserId: true,
+      recordedAt: true,
+      createdAt: true,
+    },
+  },
+  customerSellReceipt: true,
+  events: {
+    select: {
+      id: true,
+      actorUserId: true,
+      actorRole: true,
+      eventType: true,
+      fromStatus: true,
+      toStatus: true,
+      data: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "asc" },
+  },
 };
 
 function httpError(
@@ -365,12 +448,26 @@ export async function getMarketplaceTransaction({
     );
   }
 
+  const staffAccess = transaction.buyerShopId
+    ? await prisma.staff.findFirst({
+        where: {
+          shopId: transaction.buyerShopId,
+          userId,
+          status: "ACTIVE",
+          permissions: { hasSome: ["customer-sell:read", "customer-sell:write"] },
+          shop: { isDeleted: false, subscriptionStatus: "ACTIVE" },
+        },
+        select: { id: true },
+      })
+    : null;
+
   const mayAccess =
     isAdminRole(role) ||
     transaction.buyerUserId === userId ||
     transaction.sellerUserId === userId ||
     transaction.buyerShop?.ownerId === userId ||
-    transaction.sellerShop?.ownerId === userId;
+    transaction.sellerShop?.ownerId === userId ||
+    Boolean(staffAccess);
 
   if (!mayAccess) {
     throw httpError("Forbidden", 403);

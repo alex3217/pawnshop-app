@@ -41,6 +41,14 @@ model User {
   marketplaceListings       MarketplaceListing[]       @relation("MarketplaceListingSeller")
   marketplacePurchases      MarketplaceTransaction[]   @relation("MarketplaceTransactionBuyer")
   marketplaceSales          MarketplaceTransaction[]   @relation("MarketplaceTransactionSeller")
+  customerSellFulfillments  CustomerSellFulfillment[]   @relation("CustomerSellFulfillmentCustomer")
+  customerSellAcceptedOwner CustomerSellFulfillment[]   @relation("CustomerSellFulfillmentAcceptedOwner")
+  customerSellActions       CustomerSellFulfillment[]   @relation("CustomerSellFulfillmentActor")
+  customerSellPaymentReceipts CustomerSellPayment[]     @relation("CustomerSellPaymentCustomer")
+  customerSellPaymentsRecorded CustomerSellPayment[]    @relation("CustomerSellPaymentRecorder")
+  customerSellEvents        MarketplaceTransactionEvent[] @relation("MarketplaceTransactionEventActor")
+  customerSellReceiptCustomer CustomerSellReceipt[] @relation("CustomerSellReceiptCustomer")
+  customerSellReceiptsCompleted CustomerSellReceipt[] @relation("CustomerSellReceiptCompletedBy")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -114,6 +122,9 @@ model PawnShop {
   marketplaceListings           MarketplaceListing[]       @relation("MarketplaceListingShop")
   marketplaceBuyerTransactions  MarketplaceTransaction[]   @relation("MarketplaceTransactionBuyerShop")
   marketplaceSellerTransactions MarketplaceTransaction[]   @relation("MarketplaceTransactionSellerShop")
+  customerSellFulfillments       CustomerSellFulfillment[]
+  customerSellPayments           CustomerSellPayment[]
+  customerSellReceipts           CustomerSellReceipt[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -166,6 +177,7 @@ model Item {
   offers              Offer[]
   watchlistEntries    Watchlist[]          @relation("ItemWatchlist")
   marketplaceListings MarketplaceListing[]
+  customerSellAcquisition CustomerSellFulfillment? @relation("CustomerSellAcquiredItem")
 
   @@index([pawnShopId, status, isDeleted])
   @@index([category, status, isDeleted])
@@ -351,6 +363,7 @@ model BuyerItemSubmission {
   offers                 BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOffers")
   itemIntake             ItemIntake?                @relation("ItemIntakeLinkedSubmission")
   marketplaceTransaction MarketplaceTransaction?    @relation("MarketplaceTransactionSubmission")
+  customerSellFulfillment CustomerSellFulfillment?
 
   @@index([buyerId, createdAt])
   @@index([status, createdAt])
@@ -373,6 +386,7 @@ model BuyerItemSubmissionOffer {
   shop                   PawnShop                @relation("BuyerItemSubmissionOfferShop", fields: [shopId], references: [id], onDelete: Cascade)
   owner                  User                    @relation("BuyerItemSubmissionOfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   marketplaceTransaction MarketplaceTransaction? @relation("MarketplaceTransactionSubmissionOffer")
+  customerSellFulfillment CustomerSellFulfillment?
 
   @@unique([id, submissionId])
   @@index([submissionId, status])
@@ -556,6 +570,7 @@ model ItemIntake {
   linkedSubmission BuyerItemSubmission? @relation("ItemIntakeLinkedSubmission", fields: [linkedSubmissionId], references: [id], onDelete: SetNull)
 
   linkedMarketplaceListing MarketplaceListing? @relation("ItemIntakeLinkedMarketplaceListing", fields: [linkedMarketplaceListingId], references: [id], onDelete: SetNull)
+  customerSellFulfillment CustomerSellFulfillment? @relation("CustomerSellFulfillmentIntake")
 
   @@index([shopId, status, createdAt])
   @@index([capturedByUserId, createdAt])
@@ -649,6 +664,52 @@ enum MarketplaceTransactionStatus {
   CANCELED
   REFUNDED
   DISPUTED
+}
+
+enum CustomerSellHandoffMethod {
+  IN_PERSON
+}
+
+enum CustomerSellLifecycleStatus {
+  AWAITING_HANDOFF
+  ITEM_RECEIVED
+  INSPECTION_PENDING
+  REVISED_PRICE_AWAITING_CUSTOMER
+  READY_FOR_PAYMENT
+  PAID
+  COMPLETED
+  REJECTED_PENDING_RETURN
+  RETURNED
+}
+
+enum CustomerSellInspectionStatus {
+  NOT_STARTED
+  PENDING
+  ACCEPTED_ORIGINAL_PRICE
+  REVISED_PRICE_PROPOSED
+  REVISED_PRICE_ACCEPTED
+  REVISED_PRICE_REFUSED
+  REJECTED
+}
+
+enum CustomerSellPaymentMethod {
+  CASH
+  SHOP_CHECK
+}
+
+enum CustomerSellPaymentStatus {
+  PENDING
+  COMPLETED
+}
+
+enum CustomerSellIdentityResult {
+  NOT_CHECKED
+  VERIFIED
+  NOT_VERIFIED
+}
+
+enum CustomerSellRevenuePolicy {
+  SUBSCRIPTION_COVERED_ZERO_PLATFORM_FEE
 }
 
 enum Role {
@@ -798,6 +859,10 @@ model MarketplaceTransaction {
   buyerShop       PawnShop?                 @relation("MarketplaceTransactionBuyerShop", fields: [buyerShopId], references: [id], onDelete: SetNull)
   seller          User                      @relation("MarketplaceTransactionSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
   sellerShop      PawnShop?                 @relation("MarketplaceTransactionSellerShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
+  customerSellFulfillment CustomerSellFulfillment?
+  customerSellPayment CustomerSellPayment?
+  customerSellReceipt CustomerSellReceipt?
+  events MarketplaceTransactionEvent[]
 
   @@index([listingId, status])
   @@index([buyerUserId, status, createdAt])
@@ -806,6 +871,155 @@ model MarketplaceTransaction {
   @@index([sellerShopId, status, createdAt])
   @@index([type, status, createdAt])
   @@index([createdAt])
+}
+
+model CustomerSellFulfillment {
+  id                         String                       @id @default(cuid())
+  transactionId              String                       @unique
+  submissionId               String                       @unique
+  submissionOfferId          String                       @unique
+  shopId                     String
+  customerId                 String
+  acceptedShopOwnerId        String
+  handoffMethod              CustomerSellHandoffMethod    @default(IN_PERSON)
+  lifecycleStatus            CustomerSellLifecycleStatus  @default(AWAITING_HANDOFF)
+  inspectionStatus           CustomerSellInspectionStatus @default(NOT_STARTED)
+  originalAmount             Decimal                      @db.Decimal(10, 2)
+  finalAmount                Decimal?                     @db.Decimal(10, 2)
+  currency                   String                       @default("USD")
+  observedCondition          String?
+  verifiedSerial             String?
+  identityVerificationResult CustomerSellIdentityResult   @default(NOT_CHECKED)
+  mismatchReason             String?
+  rejectionReason            String?
+  evidenceUrls               String[]                     @default([])
+  itemReceivedAt             DateTime?
+  inspectionStartedAt        DateTime?
+  inspectedAt                DateTime?
+  revisedPriceProposedAt     DateTime?
+  customerDecidedAt          DateTime?
+  readyForPaymentAt          DateTime?
+  paidAt                     DateTime?
+  completedAt                DateTime?
+  rejectedAt                 DateTime?
+  returnedAt                 DateTime?
+  customerAcknowledgedAt     DateTime?
+  lastActorUserId            String?
+  transitionIdempotencyKey   String?                      @unique
+  version                    Int                          @default(0)
+  intakeId                   String?                      @unique
+  inventoryItemId            String?                      @unique
+  revenuePolicy              CustomerSellRevenuePolicy    @default(SUBSCRIPTION_COVERED_ZERO_PLATFORM_FEE)
+  platformFee                Decimal                      @default(0) @db.Decimal(10, 2)
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+
+  transaction MarketplaceTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  submission BuyerItemSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+  submissionOffer BuyerItemSubmissionOffer @relation(fields: [submissionOfferId], references: [id], onDelete: Restrict)
+  shop PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  customer User @relation("CustomerSellFulfillmentCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  acceptedShopOwner User @relation("CustomerSellFulfillmentAcceptedOwner", fields: [acceptedShopOwnerId], references: [id], onDelete: Restrict)
+  lastActor User? @relation("CustomerSellFulfillmentActor", fields: [lastActorUserId], references: [id], onDelete: SetNull)
+  intake ItemIntake? @relation("CustomerSellFulfillmentIntake", fields: [intakeId], references: [id], onDelete: Restrict)
+  inventoryItem Item? @relation("CustomerSellAcquiredItem", fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  payment CustomerSellPayment?
+  receipt CustomerSellReceipt?
+  events MarketplaceTransactionEvent[]
+
+  @@index([shopId, lifecycleStatus, createdAt])
+  @@index([customerId, lifecycleStatus, createdAt])
+  @@index([transactionId, version])
+}
+
+model CustomerSellPayment {
+  id               String                    @id @default(cuid())
+  transactionId    String                    @unique
+  fulfillmentId    String                    @unique
+  shopId           String
+  customerId       String
+  method           CustomerSellPaymentMethod?
+  status           CustomerSellPaymentStatus @default(PENDING)
+  amount           Decimal                   @db.Decimal(10, 2)
+  currency         String                    @default("USD")
+  referenceNumber  String?
+  evidenceUrls     String[]                  @default([])
+  recordedByUserId String?
+  idempotencyKey   String?                   @unique
+  recordedAt       DateTime?
+  createdAt        DateTime                  @default(now())
+
+  transaction MarketplaceTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  fulfillment CustomerSellFulfillment @relation(fields: [fulfillmentId], references: [id], onDelete: Restrict)
+  shop PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  customer User @relation("CustomerSellPaymentCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  recordedBy User? @relation("CustomerSellPaymentRecorder", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+  receipt CustomerSellReceipt?
+
+  @@index([shopId, status, createdAt])
+  @@index([customerId, status, createdAt])
+}
+
+model MarketplaceTransactionEvent {
+  id             String   @id @default(cuid())
+  transactionId  String
+  fulfillmentId  String?
+  actorUserId    String?
+  actorRole      String
+  eventType      String
+  fromStatus     String?
+  toStatus       String?
+  idempotencyKey String?  @unique
+  data           Json?
+  createdAt      DateTime @default(now())
+
+  transaction MarketplaceTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  fulfillment CustomerSellFulfillment? @relation(fields: [fulfillmentId], references: [id], onDelete: Restrict)
+  actor User? @relation("MarketplaceTransactionEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId, createdAt])
+  @@index([fulfillmentId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model CustomerSellReceipt {
+  id                     String   @id @default(cuid())
+  transactionId          String   @unique
+  fulfillmentId          String   @unique
+  paymentId              String   @unique
+  shopId                 String
+  customerId             String
+  submissionId           String
+  submissionOfferId      String
+  inventoryItemId        String   @unique
+  originalAmount         Decimal  @db.Decimal(10, 2)
+  finalAmount            Decimal  @db.Decimal(10, 2)
+  currency               String
+  paymentMethod          CustomerSellPaymentMethod
+  paymentReferenceNumber String?
+  shopName               String
+  shopAddress            String?
+  customerName           String
+  itemTitle              String
+  observedCondition      String?
+  verifiedSerial         String?
+  revenuePolicy          CustomerSellRevenuePolicy
+  platformFee            Decimal  @default(0) @db.Decimal(10, 2)
+  completedByUserId      String
+  completedByRole        String
+  customerAcknowledgedAt DateTime?
+  snapshot               Json
+  createdAt              DateTime @default(now())
+
+  transaction MarketplaceTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  fulfillment CustomerSellFulfillment @relation(fields: [fulfillmentId], references: [id], onDelete: Restrict)
+  payment CustomerSellPayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  shop PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  customer User @relation("CustomerSellReceiptCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  completedBy User @relation("CustomerSellReceiptCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([shopId, createdAt])
+  @@index([customerId, createdAt])
 }
 
 enum SellerLedgerEntryType {

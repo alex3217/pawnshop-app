@@ -13,6 +13,13 @@ import {
 import {
   cancelMarketplaceTransactionReservation,
 } from "../services/marketplaceTransactionReservationRelease.service.js";
+import {
+  acknowledgeCustomerSell,
+  mutateCustomerSellFulfillment,
+} from "../services/customerSellFulfillment.service.js";
+import {
+  completeCustomerSellWithOfflinePayment,
+} from "../services/customerSellPayment.service.js";
 
 function sendError(
   res,
@@ -41,6 +48,67 @@ function getActor(req) {
     userId: req?.user?.sub,
     role: req?.user?.role,
   };
+}
+
+function idempotencyKey(req) {
+  return req.get?.("Idempotency-Key") || req.body?.idempotencyKey;
+}
+
+async function runCustomerSellMutation(req, res, action) {
+  try {
+    const actor = getActor(req);
+    const result = await mutateCustomerSellFulfillment({
+      transactionId: req.params.id,
+      action,
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      idempotencyKey: idempotencyKey(req),
+      ...(req.body || {}),
+    });
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Unable to update customer sale");
+  }
+}
+
+export const receiveCustomerSellItem = (req, res) => runCustomerSellMutation(req, res, "RECEIVE_ITEM");
+export const startCustomerSellInspection = (req, res) => runCustomerSellMutation(req, res, "START_INSPECTION");
+export const acceptCustomerSellOriginalPrice = (req, res) => runCustomerSellMutation(req, res, "ACCEPT_ORIGINAL_PRICE");
+export const proposeCustomerSellRevisedPrice = (req, res) => runCustomerSellMutation(req, res, "PROPOSE_REVISED_PRICE");
+export const acceptCustomerSellRevisedPrice = (req, res) => runCustomerSellMutation(req, res, "ACCEPT_REVISED_PRICE");
+export const refuseCustomerSellRevisedPrice = (req, res) => runCustomerSellMutation(req, res, "REFUSE_REVISED_PRICE");
+export const rejectCustomerSellItem = (req, res) => runCustomerSellMutation(req, res, "REJECT_ITEM");
+export const returnCustomerSellItem = (req, res) => runCustomerSellMutation(req, res, "MARK_RETURNED");
+
+export async function recordCustomerSellOfflinePayment(req, res) {
+  try {
+    const actor = getActor(req);
+    const result = await completeCustomerSellWithOfflinePayment({
+      transactionId: req.params.id,
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      idempotencyKey: idempotencyKey(req),
+      ...(req.body || {}),
+    });
+    return res.status(result.reused ? 200 : 201).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Unable to record customer sale payment");
+  }
+}
+
+export async function acknowledgeCompletedCustomerSell(req, res) {
+  try {
+    const actor = getActor(req);
+    const result = await acknowledgeCustomerSell({
+      transactionId: req.params.id,
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      idempotencyKey: idempotencyKey(req),
+    });
+    return res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Unable to acknowledge customer sale");
+  }
 }
 
 export async function listMyMarketplacePurchases(

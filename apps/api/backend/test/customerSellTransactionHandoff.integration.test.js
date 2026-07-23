@@ -137,6 +137,42 @@ async function cleanup() {
   const userIds = users.map(({ id }) => id);
   if (!userIds.length) return;
 
+  const transactionIds = (
+    await prisma.marketplaceTransaction.findMany({
+      where: { OR: [{ buyerUserId: { in: userIds } }, { sellerUserId: { in: userIds } }] },
+      select: { id: true },
+    })
+  ).map(({ id }) => id);
+  if (transactionIds.length) {
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'ALTER TABLE "MarketplaceTransactionEvent" DISABLE TRIGGER "MarketplaceTransactionEvent_append_only_trigger"',
+      );
+      await tx.$executeRawUnsafe(
+        'ALTER TABLE "CustomerSellReceipt" DISABLE TRIGGER "CustomerSellReceipt_immutable_trigger"',
+      );
+
+      await tx.marketplaceTransactionEvent.deleteMany({
+        where: { transactionId: { in: transactionIds } },
+      });
+      await tx.customerSellReceipt.deleteMany({
+        where: { transactionId: { in: transactionIds } },
+      });
+      await tx.customerSellPayment.deleteMany({
+        where: { transactionId: { in: transactionIds } },
+      });
+      await tx.customerSellFulfillment.deleteMany({
+        where: { transactionId: { in: transactionIds } },
+      });
+
+      await tx.$executeRawUnsafe(
+        'ALTER TABLE "MarketplaceTransactionEvent" ENABLE TRIGGER "MarketplaceTransactionEvent_append_only_trigger"',
+      );
+      await tx.$executeRawUnsafe(
+        'ALTER TABLE "CustomerSellReceipt" ENABLE TRIGGER "CustomerSellReceipt_immutable_trigger"',
+      );
+    });
+  }
   await prisma.marketplaceTransaction.deleteMany({
     where: { OR: [{ buyerUserId: { in: userIds } }, { sellerUserId: { in: userIds } }] },
   });
@@ -225,6 +261,16 @@ test("customer accepts a SELL offer and creates one correctly directed linked tr
   assert.equal(String(transaction.totalAmount), "175.25");
   assert.equal(String(transaction.subtotal), "175.25");
   assert.equal(transaction.paymentIntentId, null);
+  const fulfillment = await prisma.customerSellFulfillment.findUnique({
+    where: { transactionId: transaction.id },
+    include: { payment: true, events: true },
+  });
+  assert.equal(fulfillment.lifecycleStatus, "AWAITING_HANDOFF");
+  assert.equal(fulfillment.inspectionStatus, "NOT_STARTED");
+  assert.equal(String(fulfillment.originalAmount), "175.25");
+  assert.equal(String(fulfillment.platformFee), "0");
+  assert.equal(fulfillment.payment.status, "PENDING");
+  assert.equal(fulfillment.events.length, 1);
 
   const competing = await prisma.buyerItemSubmissionOffer.findUnique({
     where: { id: fixture.competingOffer.id },
