@@ -292,6 +292,9 @@ before(async () => {
       "usd",
   });
 
+  assert.equal(process.env.NODE_ENV, "test");
+  assert.equal(process.env.APP_ENV, "test");
+
   const rawDatabaseUrl =
     String(
       process.env.DATABASE_URL || "",
@@ -312,10 +315,11 @@ before(async () => {
       ),
     );
 
-  assert.equal(
-    databaseName,
-    "pawnloop_test",
-    "Integration tests may only use pawnloop_test",
+  assert.ok(
+    ["pawnloop_test", "pawnshop_test"].includes(
+      databaseName,
+    ),
+    "Integration tests may only use pawnloop_test or pawnshop_test",
   );
 
   const appModule =
