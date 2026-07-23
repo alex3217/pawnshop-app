@@ -88,3 +88,6 @@ apps/**/.env.*
 **/*.bak.*
 **/*.backup
 **/*.backup.*
+
+# Generated local audit reports
+audit-results/

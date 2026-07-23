@@ -123,10 +123,10 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 function getBaseReturnUrl() {
   if (typeof window === "undefined") {
-    return "http://127.0.0.1:5176/owner/subscription";
+    return "/owner/subscription";
   }
 
-  return `${window.location.origin}/owner/subscription`;
+  return new URL("/owner/subscription", window.location.origin).toString();
 }
 
 function buildCheckoutReturnUrl(

@@ -5,10 +5,8 @@ import "./index.css";
 import "./styles/theme.css";
 import "./styles/readability-guard.css";
 
-console.log("[BOOT] main.tsx loaded");
 
 const rootEl = document.getElementById("root");
-console.log("[BOOT] rootEl:", rootEl);
 
 if (!rootEl) {
   document.body.innerHTML = "<pre>ERROR: #root element not found in index.html</pre>";
