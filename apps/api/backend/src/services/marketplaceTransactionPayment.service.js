@@ -10,6 +10,13 @@ const PAYABLE_TRANSACTION_STATUSES = [
   "PAYMENT_PROCESSING",
 ];
 
+const SUPPORTED_PAYMENT_TRANSACTION_TYPES =
+  new Set([
+    "DIRECT_PURCHASE",
+    "ACCEPTED_OFFER",
+    "DEALER_TRANSFER",
+  ]);
+
 const REUSABLE_PAYMENT_INTENT_STATUSES = new Set([
   "requires_payment_method",
   "requires_confirmation",
@@ -104,6 +111,32 @@ function assertTransactionMayBePaid({
       "Marketplace transaction not found",
       404,
       "MARKETPLACE_TRANSACTION_NOT_FOUND",
+    );
+  }
+
+  if (normalizeId(transaction.submissionId)) {
+    throw httpError(
+      "Submission-origin customer sales are not supported by this payment workflow",
+      409,
+      "MARKETPLACE_TRANSACTION_PAYMENT_TYPE_UNSUPPORTED",
+    );
+  }
+
+  const isListingOriginCustomerSale =
+    transaction.type ===
+      "CUSTOMER_SELL_TO_SHOP" &&
+    Boolean(normalizeId(transaction.listingId));
+
+  if (
+    !SUPPORTED_PAYMENT_TRANSACTION_TYPES.has(
+      transaction.type,
+    ) &&
+    !isListingOriginCustomerSale
+  ) {
+    throw httpError(
+      "Marketplace transaction type is not supported by this payment workflow",
+      409,
+      "MARKETPLACE_TRANSACTION_PAYMENT_TYPE_UNSUPPORTED",
     );
   }
 
@@ -212,6 +245,7 @@ async function loadPaymentTransaction({
     select: {
       id: true,
       listingId: true,
+      submissionId: true,
       buyerUserId: true,
       sellerUserId: true,
       type: true,

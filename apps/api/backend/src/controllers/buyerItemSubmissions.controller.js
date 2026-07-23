@@ -4,6 +4,7 @@ import {
   loadCustomerItemIntakeForLinkage,
   recordItemIntakeScan,
 } from "../services/itemIntake.service.js";
+import { acceptSubmissionOffer } from "../services/customerSellTransaction.service.js";
 
 const CUSTOMER_SCAN_DESTINATIONS =
   new Set([
@@ -804,9 +805,9 @@ export async function createBuyerItemSubmissionOffer(req, res) {
     const shop = await prisma.pawnShop.findFirst({
       where:
         requesterRole === "ADMIN" || requesterRole === "SUPER_ADMIN"
-          ? { id: shopId, isDeleted: false }
-          : { id: shopId, ownerId, isDeleted: false },
-      select: { id: true },
+          ? { id: shopId, isDeleted: false, subscriptionStatus: "ACTIVE" }
+          : { id: shopId, ownerId, isDeleted: false, subscriptionStatus: "ACTIVE" },
+      select: { id: true, ownerId: true },
     });
 
     if (!shop) {
@@ -820,7 +821,7 @@ export async function createBuyerItemSubmissionOffer(req, res) {
       data: {
         submissionId,
         shopId,
-        ownerId,
+        ownerId: shop.ownerId,
         amount,
         message,
         status: "PENDING",
@@ -902,61 +903,22 @@ export async function acceptBuyerItemSubmissionOffer(req, res) {
       return res.status(400).json({ success: false, error: "Offer id is required" });
     }
 
-    const existing = await prisma.buyerItemSubmissionOffer.findUnique({
-      where: { id: offerId },
-      include: { submission: true },
-    });
-
-    if (!existing || existing.submission.buyerId !== buyerId) {
-      return res.status(404).json({ success: false, error: "Offer not found" });
-    }
-
-    if (String(existing.status || "").toUpperCase() !== "PENDING") {
-      return res.status(400).json({
-        success: false,
-        error: "Only pending offers can be accepted",
-      });
-    }
-
-    const offer = await prisma.buyerItemSubmissionOffer.update({
-      where: { id: offerId },
-      data: {
-        status: "ACCEPTED",
-        respondedAt: new Date(),
-      },
-      include: {
-        submission: true,
-        shop: {
-          select: { id: true, name: true, address: true, phone: true },
-        },
-      },
-    });
-
-    await prisma.buyerItemSubmissionOffer.updateMany({
-      where: {
-        submissionId: existing.submissionId,
-        id: { not: offerId },
-        status: "PENDING",
-      },
-      data: {
-        status: "REJECTED",
-        respondedAt: new Date(),
-      },
-    });
-
-    await prisma.buyerItemSubmission.update({
-      where: { id: existing.submissionId },
-      data: {
-        status: "ACCEPTED",
-        reviewMessage: "Buyer accepted a shop offer.",
-      },
-    });
+    const result = await acceptSubmissionOffer({ offerId, customerId: buyerId });
 
     return res.json({
       success: true,
-      offer: normalizeSubmissionOffer(offer),
+      offer: normalizeSubmissionOffer(result.offer),
+      submission: normalizeSubmission(result.submission),
+      transaction: result.transaction,
     });
   } catch (error) {
+    if (Number.isInteger(error?.statusCode) && error.statusCode < 500) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: error.message,
+        ...(error.code ? { code: error.code } : {}),
+      });
+    }
     console.error("[buyer-item-submissions] offer accept failed:", error);
     return res.status(500).json({
       success: false,
