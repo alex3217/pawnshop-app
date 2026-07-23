@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../lib/prisma.js";
+import { appendMarketplaceTransactionEvent } from "./marketplaceTransactionEvent.service.js";
 
 const MAX_ACCEPTANCE_ATTEMPTS = 3;
 const MAX_PRISMA_CONNECTOR_DIAGNOSTIC_LENGTH = 4096;
@@ -258,6 +259,39 @@ async function acceptSubmissionOfferOnce({ offerId, customerId, prismaClient = p
             fulfillmentStatus: "PAYMENT_PENDING",
             metadata: { settlementMethod: "OFFLINE_IN_PERSON", settlementDirection: "SHOP_TO_CUSTOMER" },
           },
+        });
+        const fulfillment = await tx.customerSellFulfillment.create({
+          data: {
+            transactionId: transaction.id,
+            submissionId: existing.submissionId,
+            submissionOfferId: existing.id,
+            shopId: existing.shopId,
+            customerId,
+            acceptedShopOwnerId: existing.ownerId,
+            originalAmount: existing.amount,
+            currency: "USD",
+          },
+        });
+        await tx.customerSellPayment.create({
+          data: {
+            transactionId: transaction.id,
+            fulfillmentId: fulfillment.id,
+            shopId: existing.shopId,
+            customerId,
+            amount: existing.amount,
+            currency: "USD",
+          },
+        });
+        await appendMarketplaceTransactionEvent({
+          tx,
+          transactionId: transaction.id,
+          fulfillmentId: fulfillment.id,
+          actorUserId: customerId,
+          actorRole: "CONSUMER",
+          eventType: "CUSTOMER_SELL_FULFILLMENT_INITIALIZED",
+          toStatus: "AWAITING_HANDOFF",
+          idempotencyKey: `customer-sell-handoff:${transaction.id}`,
+          data: { handoffMethod: "IN_PERSON", revenuePolicy: "SUBSCRIPTION_COVERED_ZERO_PLATFORM_FEE" },
         });
       }
 

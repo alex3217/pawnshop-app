@@ -85,12 +85,18 @@ async function loadStaffRowsForUser(req) {
           id: true,
           ownerId: true,
           isDeleted: true,
+          subscriptionStatus: true,
         },
       },
     },
   });
 
-  const activeRecords = records.filter((row) => row.shop && !row.shop.isDeleted);
+  const activeRecords = records.filter(
+    (row) =>
+      row.shop &&
+      !row.shop.isDeleted &&
+      normalizeUpper(row.shop.subscriptionStatus) === "ACTIVE",
+  );
 
   req.staffAccess = {
     records: activeRecords,

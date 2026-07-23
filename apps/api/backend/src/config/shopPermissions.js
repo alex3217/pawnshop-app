@@ -28,6 +28,8 @@ export const SHOP_PERMISSION_CODES = Object.freeze([
   "staff:read",
   "staff:write",
   "settlements:read",
+  "customer-sell:read",
+  "customer-sell:write",
 ]);
 
 export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
@@ -44,6 +46,8 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "staff:read",
       "staff:write",
       "settlements:read",
+      "customer-sell:read",
+      "customer-sell:write",
     ]),
     SHOP_MANAGER: Object.freeze([
       "inventory:read",
@@ -56,23 +60,29 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "locations:write",
       "staff:read",
       "settlements:read",
+      "customer-sell:read",
+      "customer-sell:write",
     ]),
     SHOP_STAFF: Object.freeze([
       "inventory:read",
       "auctions:read",
       "offers:read",
       "locations:read",
+      "customer-sell:read",
     ]),
     SHOP_VIEWER: Object.freeze([
       "inventory:read",
       "auctions:read",
       "offers:read",
       "locations:read",
+      "customer-sell:read",
     ]),
     INVENTORY_MANAGER: Object.freeze([
       "inventory:read",
       "inventory:write",
       "locations:read",
+      "customer-sell:read",
+      "customer-sell:write",
     ]),
     AUCTION_MANAGER: Object.freeze([
       "inventory:read",
@@ -83,10 +93,13 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "inventory:read",
       "offers:read",
       "offers:write",
+      "customer-sell:read",
+      "customer-sell:write",
     ]),
     FINANCE_VIEWER: Object.freeze([
       "settlements:read",
       "offers:read",
+      "customer-sell:read",
     ]),
   });
 
