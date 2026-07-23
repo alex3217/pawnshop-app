@@ -144,10 +144,34 @@ async function cleanup() {
     })
   ).map(({ id }) => id);
   if (transactionIds.length) {
-    await prisma.marketplaceTransactionEvent.deleteMany({ where: { transactionId: { in: transactionIds } } });
-    await prisma.customerSellReceipt.deleteMany({ where: { transactionId: { in: transactionIds } } });
-    await prisma.customerSellPayment.deleteMany({ where: { transactionId: { in: transactionIds } } });
-    await prisma.customerSellFulfillment.deleteMany({ where: { transactionId: { in: transactionIds } } });
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        'ALTER TABLE "MarketplaceTransactionEvent" DISABLE TRIGGER "MarketplaceTransactionEvent_append_only_trigger"',
+      );
+      await tx.$executeRawUnsafe(
+        'ALTER TABLE "CustomerSellReceipt" DISABLE TRIGGER "CustomerSellReceipt_immutable_trigger"',
+      );
+
+      await tx.marketplaceTransactionEvent.deleteMany({
+        where: { transactionId: { in: transactionIds } },
+      });
+      await tx.customerSellReceipt.deleteMany({
+        where: { transactionId: { in: transactionIds } },
+      });
+      await tx.customerSellPayment.deleteMany({
+        where: { transactionId: { in: transactionIds } },
+      });
+      await tx.customerSellFulfillment.deleteMany({
+        where: { transactionId: { in: transactionIds } },
+      });
+
+      await tx.$executeRawUnsafe(
+        'ALTER TABLE "MarketplaceTransactionEvent" ENABLE TRIGGER "MarketplaceTransactionEvent_append_only_trigger"',
+      );
+      await tx.$executeRawUnsafe(
+        'ALTER TABLE "CustomerSellReceipt" ENABLE TRIGGER "CustomerSellReceipt_immutable_trigger"',
+      );
+    });
   }
   await prisma.marketplaceTransaction.deleteMany({
     where: { OR: [{ buyerUserId: { in: userIds } }, { sellerUserId: { in: userIds } }] },
