@@ -6,6 +6,7 @@ import test, {
 } from "node:test";
 
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import Stripe from "stripe";
 import request from "supertest";
 
@@ -30,7 +31,25 @@ function testEmail(prefix) {
   return `${prefix}${TEST_DOMAIN}`;
 }
 
-async function createUser(prefix) {
+function tokenFor(user) {
+  return jwt.sign(
+    {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      authVersion: user.authVersion,
+    },
+    TEST_JWT_SECRET,
+    {
+      expiresIn: "15m",
+    },
+  );
+}
+
+async function createUser(
+  prefix,
+  role = "CONSUMER",
+) {
   return prisma.user.create({
     data: {
       name: `${prefix} user`,
@@ -39,7 +58,7 @@ async function createUser(prefix) {
         "MarketplaceWebhook123!",
         4,
       ),
-      role: "CONSUMER",
+      role,
       isActive: true,
     },
   });
@@ -47,13 +66,17 @@ async function createUser(prefix) {
 
 async function createListing({
   seller,
+  sellerShop = null,
+  listingType = "CUSTOMER_TO_CUSTOMER",
   price = "89.99",
+  quantity = 1,
 }) {
   return prisma.marketplaceListing.create({
     data: {
       sellerUserId: seller.id,
-      listingType:
-        "CUSTOMER_TO_CUSTOMER",
+      sellerShopId:
+        sellerShop?.id || null,
+      listingType,
       status: "ACTIVE",
       title:
         "Stripe webhook integration item",
@@ -63,7 +86,7 @@ async function createListing({
       condition: "Good",
       price,
       currency: "USD",
-      quantity: 1,
+      quantity,
       images: [],
       allowOffers: true,
       pickupAvailable: true,
@@ -234,6 +257,14 @@ async function cleanupTestRecords() {
       },
     });
 
+  await prisma.pawnShop.deleteMany({
+    where: {
+      ownerId: {
+        in: userIds,
+      },
+    },
+  });
+
   await prisma.user.deleteMany({
     where: {
       id: {
@@ -261,6 +292,9 @@ before(async () => {
       "usd",
   });
 
+  assert.equal(process.env.NODE_ENV, "test");
+  assert.equal(process.env.APP_ENV, "test");
+
   const rawDatabaseUrl =
     String(
       process.env.DATABASE_URL || "",
@@ -281,10 +315,11 @@ before(async () => {
       ),
     );
 
-  assert.equal(
-    databaseName,
-    "pawnshop_test",
-    "Integration tests may only use pawnshop_test",
+  assert.ok(
+    ["pawnloop_test", "pawnshop_test"].includes(
+      databaseName,
+    ),
+    "Integration tests may only use pawnloop_test or pawnshop_test",
   );
 
   const appModule =
@@ -606,5 +641,180 @@ test(
       storedListing.status,
       "RESERVED",
     );
+  },
+);
+
+test(
+  "dealer transfer reserves multiple units, pays by signed webhook, and completes pickup",
+  async () => {
+    const seller = await createUser(
+      "dealer-lifecycle-seller",
+      "OWNER",
+    );
+
+    const buyer = await createUser(
+      "dealer-lifecycle-buyer",
+      "OWNER",
+    );
+
+    const sellerShop = await prisma.pawnShop.create({
+      data: {
+        name: "Dealer lifecycle seller shop",
+        ownerId: seller.id,
+        subscriptionStatus: "ACTIVE",
+        isDeleted: false,
+      },
+    });
+
+    const buyerShop = await prisma.pawnShop.create({
+      data: {
+        name: "Dealer lifecycle buyer shop",
+        ownerId: buyer.id,
+        subscriptionStatus: "ACTIVE",
+        isDeleted: false,
+      },
+    });
+
+    const listing = await createListing({
+      seller,
+      sellerShop,
+      listingType: "SHOP_TO_SHOP",
+      price: "300.00",
+      quantity: 5,
+    });
+
+    assert.equal(buyerShop.ownerId, buyer.id);
+    assert.equal(listing.listingType, "SHOP_TO_SHOP");
+
+    const reservation = await request(app)
+      .post(
+        "/api/marketplace-transactions/reserve",
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(buyer)}`,
+      )
+      .send({
+        listingId: listing.id,
+        buyerShopId: buyerShop.id,
+        quantity: 2,
+      });
+
+    assert.equal(reservation.status, 201);
+
+    const transaction = reservation.body.transaction;
+
+    assert.equal(transaction.type, "DEALER_TRANSFER");
+    assert.equal(transaction.buyerShopId, buyerShop.id);
+    assert.equal(transaction.quantity, 2);
+
+    let storedListing =
+      await prisma.marketplaceListing.findUnique({
+        where: {
+          id: listing.id,
+        },
+      });
+
+    assert.equal(storedListing.quantity, 3);
+    assert.equal(storedListing.status, "ACTIVE");
+
+    const tooEarly = await request(app)
+      .patch(
+        `/api/marketplace-transactions/${transaction.id}/fulfillment`,
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(seller)}`,
+      )
+      .send({
+        fulfillmentStatus: "READY_FOR_PICKUP",
+      });
+
+    assert.equal(tooEarly.status, 409);
+
+    const paymentIntentId =
+      "pi_dealer_transfer_lifecycle_integration";
+
+    const paymentTransaction =
+      await prisma.marketplaceTransaction.update({
+        where: {
+          id: transaction.id,
+        },
+        data: {
+          status: "PAYMENT_PROCESSING",
+          paymentIntentId,
+        },
+      });
+
+    const paymentResponse = await sendSignedWebhook(
+      createStripeEvent({
+        type: "payment_intent.succeeded",
+        transaction: paymentTransaction,
+        paymentIntentId,
+        amount: 60000,
+      }),
+    );
+
+    assert.equal(paymentResponse.status, 200);
+
+    const paidTransaction =
+      await prisma.marketplaceTransaction.findUnique({
+        where: {
+          id: transaction.id,
+        },
+      });
+
+    assert.equal(paidTransaction.status, "PAID");
+    assert.equal(
+      paidTransaction.metadata.payment.status,
+      "succeeded",
+    );
+
+    for (const fulfillmentStatus of [
+      "READY_FOR_PICKUP",
+      "PICKED_UP",
+      "COMPLETED",
+    ]) {
+      const fulfillment = await request(app)
+        .patch(
+          `/api/marketplace-transactions/${transaction.id}/fulfillment`,
+        )
+        .set(
+          "Authorization",
+          `Bearer ${tokenFor(seller)}`,
+        )
+        .send({
+          fulfillmentStatus,
+        });
+
+      assert.equal(fulfillment.status, 200);
+      assert.equal(
+        fulfillment.body.transaction.fulfillmentStatus,
+        fulfillmentStatus,
+      );
+    }
+
+    const completedTransaction =
+      await prisma.marketplaceTransaction.findUnique({
+        where: {
+          id: transaction.id,
+        },
+      });
+
+    storedListing =
+      await prisma.marketplaceListing.findUnique({
+        where: {
+          id: listing.id,
+        },
+      });
+
+    assert.equal(completedTransaction.status, "COMPLETED");
+    assert.equal(
+      completedTransaction.fulfillmentStatus,
+      "COMPLETED",
+    );
+    assert.ok(completedTransaction.completedAt);
+    assert.equal(storedListing.quantity, 3);
+    assert.equal(storedListing.status, "ACTIVE");
   },
 );
