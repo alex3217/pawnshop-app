@@ -24,6 +24,10 @@ type NavItem = {
 };
 
 const PUBLIC_NAV: NavItem[] = [
+  {
+    to: "/for-pawn-shops",
+    label: "Own a Pawn Shop?",
+  },
   { to: "/", label: "Home", end: true },
   { to: "/marketplace", label: "Marketplace" },
   { to: "/marketplace/buy-now", label: "Buy Now" },

@@ -18,6 +18,7 @@ import BuyerDashboardPage from "./pages/BuyerDashboardPage";
 import BuyerItemLocatorPage from "./pages/BuyerItemLocatorPage";
 
 import BuyerSellItemPage from "./pages/BuyerSellItemPage";
+import OwnerRegistrationPage from "./pages/OwnerRegistrationPage";
 
 type RouteConfig =
   | {
@@ -457,6 +458,7 @@ export default function App() {
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
+                <Route path="/for-pawn-shops" element={<OwnerRegistrationPage />} />
       </Routes>
     </BrowserRouter>
   );
