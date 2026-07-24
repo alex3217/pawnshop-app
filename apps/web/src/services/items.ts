@@ -18,11 +18,61 @@ export type Item = {
   title: string;
   description?: string | null;
   price: string | number;
+  currency?: string | null;
   status: string;
   category?: string | null;
   condition?: string | null;
   images?: string[] | null;
   shop?: ItemShop | null;
+};
+
+
+export type ItemPriceComparisonReason =
+  | "SHOP_LOCATION_UNAVAILABLE"
+  | "NO_COMPARABLES"
+  | "INSUFFICIENT_SAMPLE"
+  | null;
+
+export type ItemPriceComparisonStatistics = {
+  low: number;
+  median: number;
+  average: number;
+  high: number;
+};
+
+export type ItemPriceComparable = {
+  id: string;
+  title: string;
+  price: number;
+  currency: string;
+  category?: string | null;
+  condition?: string | null;
+  shopId: string;
+  shopName?: string | null;
+  distanceMiles: number;
+  listedAt?: string | null;
+};
+
+export type ItemPriceComparisonResult = {
+  score: number | null;
+  dealScore: number | null;
+  scoreRuleVersion: string;
+  confidence: number;
+  benchmark: number | null;
+  statistics: ItemPriceComparisonStatistics | null;
+  sampleCount: number;
+  shopCount: number;
+  comparables: ItemPriceComparable[];
+};
+
+export type ItemPriceComparisonResponse = {
+  success: boolean;
+  itemId: string;
+  radiusMiles: number;
+  freshnessDays: number;
+  perShopCap: number;
+  reason: ItemPriceComparisonReason;
+  comparison: ItemPriceComparisonResult;
 };
 
 export type CreateItemInput = {
@@ -104,6 +154,22 @@ export async function getItemById(
     auth: false,
     signal,
   });
+}
+
+
+export async function getItemPriceComparison(
+  id: string,
+  signal?: AbortSignal,
+): Promise<ItemPriceComparisonResponse> {
+  if (!id) throw new Error("Missing item id.");
+
+  return api.get<ItemPriceComparisonResponse>(
+    `/items/${encodeURIComponent(id)}/price-comparison`,
+    {
+      auth: false,
+      signal,
+    },
+  );
 }
 
 export async function getMyItems(signal?: AbortSignal): Promise<Item[]> {
