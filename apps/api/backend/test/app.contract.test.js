@@ -9,6 +9,7 @@ const TEST_JWT_SECRET =
 
 let app;
 let createApp;
+let prisma;
 
 const AUTH_VERSION = 0;
 const authenticatedUsers = new Map([
@@ -45,10 +46,12 @@ before(async () => {
     JSON_LIMIT: "2mb",
   });
 
-  const [{ prisma }, appModule] = await Promise.all([
+  const [prismaModule, appModule] = await Promise.all([
     import("../src/lib/prisma.js"),
     import("../src/app.js"),
   ]);
+
+  prisma = prismaModule.prisma;
 
   prisma.user.findUnique = async ({ where }) =>
     authenticatedUsers.get(where.id) || null;
@@ -589,3 +592,217 @@ test(
     );
   },
 );
+
+
+test("GET /api/items/:id/price-comparison returns local pricing intelligence", async () => {
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalFindUnique = prisma.item.findUnique;
+  const originalFindMany = prisma.item.findMany;
+
+  const itemColumns = [
+    "id",
+    "pawnShopId",
+    "title",
+    "description",
+    "price",
+    "currency",
+    "images",
+    "category",
+    "condition",
+    "status",
+    "createdAt",
+    "updatedAt",
+    "isDeleted",
+  ];
+
+  const pawnShopColumns = [
+    "id",
+    "name",
+    "address",
+    "city",
+    "state",
+    "zip",
+    "latitude",
+    "longitude",
+    "phone",
+    "description",
+    "hours",
+    "ownerId",
+    "createdAt",
+    "updatedAt",
+    "isDeleted",
+    "subscriptionBillingInterval",
+  ];
+
+  const now = new Date();
+
+  const target = {
+    id: "price-target",
+    pawnShopId: "shop-target",
+    title: "Sony PS5 Console",
+    description: null,
+    price: 400,
+    currency: "USD",
+    images: [],
+    category: "Electronics",
+    condition: "Good",
+    status: "AVAILABLE",
+    isDeleted: false,
+    createdAt: now,
+    updatedAt: now,
+    shop: {
+      id: "shop-target",
+      name: "Target Pawn",
+      latitude: 41,
+      longitude: -87,
+      isDeleted: false,
+    },
+  };
+
+  const candidate = ({
+    id,
+    shopId,
+    price,
+    latitude,
+  }) => ({
+    id,
+    pawnShopId: shopId,
+    title: "Sony PlayStation 5 Console",
+    description: null,
+    price,
+    currency: "USD",
+    images: [],
+    category: "Electronics",
+    condition: "Good",
+    status: "AVAILABLE",
+    isDeleted: false,
+    createdAt: now,
+    updatedAt: now,
+    shop: {
+      id: shopId,
+      name: `${shopId} Pawn`,
+      latitude,
+      longitude: -87,
+      isDeleted: false,
+    },
+  });
+
+  let capturedFindManyArguments;
+
+  try {
+    const invalidResponse = await request(app)
+      .get(
+        "/api/items/price-target/price-comparison"
+          + "?radiusMiles=0",
+      )
+      .expect(400);
+
+    assert.match(
+      invalidResponse.body.error,
+      /radiusMiles must be an integer between 1 and 100/,
+    );
+
+    prisma.$queryRaw = async (_strings, tableName) => {
+      const fields =
+        tableName === "PawnShop"
+          ? pawnShopColumns
+          : itemColumns;
+
+      return fields.map((columnName) => ({
+        column_name: columnName,
+      }));
+    };
+
+    prisma.item.findUnique = async () => target;
+
+    prisma.item.findMany = async (argumentsObject) => {
+      capturedFindManyArguments = argumentsObject;
+
+      return [
+        candidate({
+          id: "price-candidate-1",
+          shopId: "shop-2",
+          price: 450,
+          latitude: 41.01,
+        }),
+        candidate({
+          id: "price-candidate-2",
+          shopId: "shop-3",
+          price: 500,
+          latitude: 41.02,
+        }),
+        candidate({
+          id: "price-candidate-3",
+          shopId: "shop-4",
+          price: 550,
+          latitude: 41.03,
+        }),
+      ];
+    };
+
+    const response = await request(app)
+      .get(
+        "/api/items/price-target/price-comparison"
+          + "?radiusMiles=100"
+          + "&freshnessDays=30"
+          + "&perShopCap=3",
+      )
+      .expect(200);
+
+    assert.equal(response.body.success, true);
+    assert.equal(response.body.itemId, "price-target");
+    assert.equal(response.body.radiusMiles, 100);
+    assert.equal(response.body.freshnessDays, 30);
+    assert.equal(response.body.perShopCap, 3);
+    assert.equal(response.body.reason, null);
+
+    assert.equal(response.body.comparison.sampleCount, 3);
+    assert.equal(response.body.comparison.shopCount, 3);
+    assert.equal(response.body.comparison.benchmark, 500);
+    assert.equal(response.body.comparison.score, 90);
+    assert.equal(
+      response.body.comparison.comparables.length,
+      3,
+    );
+
+    assert.equal(capturedFindManyArguments.take, 500);
+    assert.equal(
+      capturedFindManyArguments.where.status,
+      "AVAILABLE",
+    );
+    assert.equal(
+      capturedFindManyArguments.where.pawnShopId.not,
+      "shop-target",
+    );
+
+    assert.equal(
+      response.headers["cache-control"],
+      "no-store",
+    );
+
+    assert.equal(
+      Object.hasOwn(
+        response.body.comparison.comparables[0],
+        "shop",
+      ),
+      false,
+    );
+
+    prisma.item.findUnique = async () => null;
+
+    const missingResponse = await request(app)
+      .get(
+        "/api/items/missing-item/price-comparison",
+      )
+      .expect(404);
+
+    assert.equal(
+      missingResponse.body.error,
+      "Available item not found",
+    );
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    prisma.item.findUnique = originalFindUnique;
+    prisma.item.findMany = originalFindMany;
+  }
+});

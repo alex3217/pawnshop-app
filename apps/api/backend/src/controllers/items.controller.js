@@ -2,6 +2,10 @@ import { prisma } from "../lib/prisma.js";
 import { canAccessShopWithStaffPermission, getStaffAccessibleShopIds } from "../middleware/staffAccess.middleware.js";
 import { assertCanCreateListingForShop } from "../services/sellerPlan.service.js";
 import { recordItemIntakeScan } from "../services/itemIntake.service.js";
+import {
+  calculateItemPriceComparison,
+  coordinatesAreValid,
+} from "../services/itemPriceComparison.service.js";
 
 const VALID_CATEGORIES = [
   "Jewelry",
@@ -63,10 +67,94 @@ const PAWNSHOP_SAFE_FIELDS = [
 
 const tableColumnsCache = new Map();
 
+const PRICE_COMPARISON_DEFAULTS = Object.freeze({
+  radiusMiles: 25,
+  freshnessDays: 30,
+  perShopCap: 3,
+  candidateLimit: 500,
+});
+
+const PRICE_COMPARISON_LIMITS = Object.freeze({
+  radiusMiles: { minimum: 1, maximum: 100 },
+  freshnessDays: { minimum: 1, maximum: 180 },
+  perShopCap: { minimum: 1, maximum: 10 },
+});
+
 function createHttpError(statusCode, message) {
   const err = new Error(message);
   err.statusCode = statusCode;
   return err;
+}
+
+function parseBoundedInteger(
+  value,
+  {
+    name,
+    fallback,
+    minimum,
+    maximum,
+  },
+) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+
+  if (
+    !Number.isInteger(parsed)
+    || parsed < minimum
+    || parsed > maximum
+  ) {
+    throw createHttpError(
+      400,
+      `${name} must be an integer between ${minimum} and ${maximum}`,
+    );
+  }
+
+  return parsed;
+}
+
+function buildPriceComparisonCoordinateBounds(
+  latitude,
+  longitude,
+  radiusMiles,
+) {
+  if (!coordinatesAreValid(latitude, longitude)) {
+    return null;
+  }
+
+  const numericLatitude = Number(latitude);
+  const numericLongitude = Number(longitude);
+  const latitudeDelta = Number(radiusMiles) / 69;
+  const longitudeScale = Math.abs(
+    Math.cos((numericLatitude * Math.PI) / 180),
+  );
+  const longitudeDelta =
+    longitudeScale < 0.01
+      ? 180
+      : Math.min(
+          180,
+          Number(radiusMiles) / (69 * longitudeScale),
+        );
+
+  const minimumLongitude = numericLongitude - longitudeDelta;
+  const maximumLongitude = numericLongitude + longitudeDelta;
+
+  return {
+    latitude: {
+      gte: Math.max(-90, numericLatitude - latitudeDelta),
+      lte: Math.min(90, numericLatitude + latitudeDelta),
+    },
+    ...(minimumLongitude >= -180 && maximumLongitude <= 180
+      ? {
+          longitude: {
+            gte: minimumLongitude,
+            lte: maximumLongitude,
+          },
+        }
+      : {}),
+  };
 }
 
 async function getTableColumns(tableName) {
@@ -400,6 +488,190 @@ export async function getItem(req, res) {
     return res.json(item);
   } catch (err) {
     return handleControllerError(res, err, "Failed to get item");
+  }
+}
+
+
+export async function getItemPriceComparison(req, res) {
+  try {
+    const id = String(req.params.id || "").trim();
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing item id",
+      });
+    }
+
+    const radiusMiles = parseBoundedInteger(
+      req.query?.radiusMiles,
+      {
+        name: "radiusMiles",
+        fallback: PRICE_COMPARISON_DEFAULTS.radiusMiles,
+        ...PRICE_COMPARISON_LIMITS.radiusMiles,
+      },
+    );
+
+    const freshnessDays = parseBoundedInteger(
+      req.query?.freshnessDays,
+      {
+        name: "freshnessDays",
+        fallback: PRICE_COMPARISON_DEFAULTS.freshnessDays,
+        ...PRICE_COMPARISON_LIMITS.freshnessDays,
+      },
+    );
+
+    const perShopCap = parseBoundedInteger(
+      req.query?.perShopCap,
+      {
+        name: "perShopCap",
+        fallback: PRICE_COMPARISON_DEFAULTS.perShopCap,
+        ...PRICE_COMPARISON_LIMITS.perShopCap,
+      },
+    );
+
+    const target = await prisma.item.findUnique({
+      where: { id },
+      select: await buildItemSelect({ includeShop: true }),
+    });
+
+    if (
+      !target
+      || target.isDeleted
+      || target.status !== "AVAILABLE"
+      || target.shop?.isDeleted
+    ) {
+      return res.status(404).json({
+        success: false,
+        error: "Available item not found",
+      });
+    }
+
+    const targetLatitude = target.shop?.latitude;
+    const targetLongitude = target.shop?.longitude;
+    const coordinateBounds =
+      buildPriceComparisonCoordinateBounds(
+        targetLatitude,
+        targetLongitude,
+        radiusMiles,
+      );
+
+    let candidates = [];
+    let reason = null;
+
+    if (!coordinateBounds) {
+      reason = "SHOP_LOCATION_UNAVAILABLE";
+    } else {
+      const itemColumns = await getTableColumns("Item");
+      const freshnessCutoff = new Date(
+        Date.now()
+          - freshnessDays * 24 * 60 * 60 * 1000,
+      );
+
+      const shopWhere = await buildPawnShopWhere(
+        coordinateBounds,
+      );
+
+      const candidateWhere = await buildItemWhere({
+        id: { not: id },
+        ...(itemColumns.has("pawnShopId")
+          ? {
+              pawnShopId: {
+                not: target.pawnShopId,
+              },
+            }
+          : {}),
+        ...(itemColumns.has("status")
+          ? { status: "AVAILABLE" }
+          : {}),
+        ...(itemColumns.has("category")
+          ? { category: target.category ?? null }
+          : {}),
+        ...(itemColumns.has("currency")
+          ? { currency: target.currency }
+          : {}),
+        ...(itemColumns.has("createdAt")
+          ? {
+              createdAt: {
+                gte: freshnessCutoff,
+              },
+            }
+          : {}),
+        shop: {
+          is: shopWhere,
+        },
+      });
+
+      candidates = await prisma.item.findMany({
+        where: candidateWhere,
+        select: await buildItemSelect({
+          includeShop: true,
+        }),
+        orderBy: itemColumns.has("createdAt")
+          ? [
+              { createdAt: "desc" },
+              { id: "asc" },
+            ]
+          : { id: "asc" },
+        take: PRICE_COMPARISON_DEFAULTS.candidateLimit,
+      });
+    }
+
+    const comparison = calculateItemPriceComparison({
+      target,
+      candidates,
+      radiusMiles,
+      freshnessDays,
+      perShopCap,
+    });
+
+    if (!reason) {
+      if (comparison.sampleCount === 0) {
+        reason = "NO_COMPARABLES";
+      } else if (comparison.score === null) {
+        reason = "INSUFFICIENT_SAMPLE";
+      }
+    }
+
+    const publicComparables =
+      comparison.comparables.map((comparable) => ({
+        id: comparable.id,
+        title: comparable.title,
+        price: comparable.price,
+        currency: comparable.currency,
+        category: comparable.category ?? null,
+        condition: comparable.condition ?? null,
+        shopId: comparable.shopId,
+        shopName: comparable.shop?.name ?? null,
+        distanceMiles: Number(
+          Number(comparable.distanceMiles).toFixed(2),
+        ),
+        listedAt:
+          comparable.createdAt
+          ?? comparable.updatedAt
+          ?? null,
+      }));
+
+    res.set("Cache-Control", "no-store");
+
+    return res.json({
+      success: true,
+      itemId: target.id,
+      radiusMiles,
+      freshnessDays,
+      perShopCap,
+      reason,
+      comparison: {
+        ...comparison,
+        comparables: publicComparables,
+      },
+    });
+  } catch (err) {
+    return handleControllerError(
+      res,
+      err,
+      "Failed to calculate item price comparison",
+    );
   }
 }
 
