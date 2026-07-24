@@ -91,3 +91,6 @@ apps/**/.env.*
 
 # Generated local audit reports
 audit-results/
+
+.env.production
+**/.env.production
