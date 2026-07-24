@@ -4,6 +4,7 @@ import { requireOwnerAdminOrStaffPermission } from "../middleware/staffAccess.mi
 import {
   listItems,
   getItem,
+  getItemPriceComparison,
   createItem,
   listMyItems,
   updateItem,
@@ -29,7 +30,8 @@ router.post("/", authRequired, requireOwnerAdminOrStaffPermission("inventory:wri
 router.put("/:id", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), updateItem);
 router.delete("/:id", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), deleteItem);
 
-// Public single-item lookup
+// Public item pricing intelligence and single-item lookup
+router.get("/:id/price-comparison", getItemPriceComparison);
 router.get("/:id", getItem);
 
 export default router;
