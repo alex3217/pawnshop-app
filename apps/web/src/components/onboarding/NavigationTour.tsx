@@ -89,6 +89,10 @@ export default function NavigationTour({ role }: NavigationTourProps) {
   const [pendingTour, setPendingTour] = useState<PendingTour | null>(null);
   const [tourSessionId, setTourSessionId] = useState(0);
   const [launchStatus, setLaunchStatus] = useState("");
+  const [
+    floatingShortcutDismissed,
+    setFloatingShortcutDismissed,
+  ] = useState(false);
   const centerOpenRef = useRef(false);
   const pendingTourRef = useRef<PendingTour | null>(null);
   const launchFrameRef = useRef<number | null>(null);
@@ -132,6 +136,7 @@ export default function NavigationTour({ role }: NavigationTourProps) {
     pendingTourRef.current = null;
     setPendingTour(null);
     setLaunchStatus("");
+    setFloatingShortcutDismissed(false);
   }, [role]);
 
   useEffect(() => {
@@ -278,17 +283,37 @@ export default function NavigationTour({ role }: NavigationTourProps) {
         {launchStatus}
       </p>
 
-      {preferences.floatingButtonVisible && !centerOpen && !pendingTour ? (
-        <button
-          type="button"
-          className="navigation-tour-restart"
-          onClick={openCenter}
-          aria-label="Click Here for Setup and Instructions"
-          title="Click Here for Setup and Instructions"
-        >
-          <span aria-hidden="true">?</span>
-          <span>Click Here for Setup and Instructions</span>
-        </button>
+      {preferences.floatingButtonVisible
+      && !floatingShortcutDismissed
+      && !centerOpen
+      && !pendingTour ? (
+        <div className="navigation-tour-floating">
+          <button
+            type="button"
+            className="navigation-tour-restart"
+            onClick={openCenter}
+            aria-label="Click Here for Setup and Instructions"
+            title="Click Here for Setup and Instructions"
+          >
+            <span aria-hidden="true">?</span>
+            <span>Click Here for Setup and Instructions</span>
+          </button>
+
+          <button
+            type="button"
+            className="navigation-tour-dismiss"
+            onClick={() => {
+              setFloatingShortcutDismissed(true);
+              setLaunchStatus(
+                "Setup and instructions shortcut closed for this session.",
+              );
+            }}
+            aria-label="Close setup and instructions shortcut"
+            title="Close setup and instructions shortcut"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
       ) : null}
 
       {centerOpen ? <NavigationAssistanceCenter
