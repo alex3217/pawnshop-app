@@ -445,3 +445,156 @@
     grid-template-columns: 1fr;
   }
 }
+
+.owner-launch-readiness {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color, #d8dee8);
+  border-radius: 1.25rem;
+  background: var(--surface-color, #ffffff);
+}
+
+.owner-launch-readiness-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.owner-launch-readiness-header h2 {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.owner-launch-readiness-header p {
+  margin: 0;
+  max-width: 42rem;
+}
+
+.owner-launch-readiness-eyebrow {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.owner-launch-readiness-score {
+  min-width: 8rem;
+  text-align: right;
+}
+
+.owner-launch-readiness-score strong {
+  display: block;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.owner-launch-readiness-score span {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.owner-launch-readiness-progress {
+  height: 0.75rem;
+  margin: 1.25rem 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.2);
+}
+
+.owner-launch-readiness-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+  transition: width 180ms ease;
+}
+
+.owner-launch-readiness-status {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.owner-launch-readiness-status.ready {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.owner-launch-readiness-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.owner-launch-readiness-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d8dee8);
+  border-radius: 1rem;
+}
+
+.owner-launch-readiness-item.complete {
+  opacity: 0.82;
+}
+
+.owner-launch-readiness-check {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.14);
+  font-weight: 800;
+}
+
+.owner-launch-readiness-item-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.owner-launch-readiness-item-heading span {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.14);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.owner-launch-readiness-item p {
+  margin: 0.3rem 0 0;
+}
+
+.owner-launch-readiness-item a {
+  min-width: 5.5rem;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .owner-launch-readiness-header {
+    display: grid;
+  }
+
+  .owner-launch-readiness-score {
+    text-align: left;
+  }
+
+  .owner-launch-readiness-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .owner-launch-readiness-item a {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

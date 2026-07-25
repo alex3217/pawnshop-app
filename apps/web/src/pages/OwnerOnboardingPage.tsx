@@ -8,9 +8,11 @@ import {
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import OwnerLaunchReadiness from "../components/onboarding/OwnerLaunchReadiness";
 import {
   createShop,
   getMyShops,
+  getShopItems,
   type Shop,
 } from "../services/shops";
 import {
@@ -19,6 +21,9 @@ import {
   updateShopSubscription,
 } from "../services/ownerWorkspace";
 import { inviteStaffMember } from "../services/staff";
+import {
+  buildOwnerReadiness,
+} from "../services/ownerOnboardingReadiness";
 
 import "../styles/owner-onboarding.css";
 
@@ -122,6 +127,9 @@ export default function OwnerOnboardingPage() {
   const [planSubmitting, setPlanSubmitting] = useState(false);
   const [staffSubmitting, setStaffSubmitting] = useState(false);
 
+  const [inventoryCount, setInventoryCount] = useState(0);
+  const [hasInvitedStaff, setHasInvitedStaff] = useState(false);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -134,6 +142,22 @@ export default function OwnerOnboardingPage() {
     () =>
       plans.find((plan) => plan.code === selectedPlanCode) ?? null,
     [plans, selectedPlanCode],
+  );
+
+  const readiness = useMemo(
+    () =>
+      buildOwnerReadiness({
+        shop: selectedShop,
+        selectedPlanCode,
+        hasStaffInvite: hasInvitedStaff,
+        inventoryCount,
+      }),
+    [
+      selectedShop,
+      selectedPlanCode,
+      hasInvitedStaff,
+      inventoryCount,
+    ],
   );
 
   function goToStep(nextStep: number) {
@@ -218,6 +242,36 @@ export default function OwnerOnboardingPage() {
 
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (!selectedShopId) {
+      setInventoryCount(0);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadInventoryCount() {
+      try {
+        const result = await getShopItems(
+          selectedShopId,
+          controller.signal,
+        );
+
+        if (!controller.signal.aborted) {
+          setInventoryCount(result.items.length);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setInventoryCount(0);
+        }
+      }
+    }
+
+    void loadInventoryCount();
+
+    return () => controller.abort();
+  }, [selectedShopId]);
 
   async function submitShop(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -364,6 +418,7 @@ export default function OwnerOnboardingPage() {
         ],
       });
 
+      setHasInvitedStaff(true);
       setMessage(`Invitation sent to ${email}.`);
       setStaffEmail("");
       setStaffName("");
@@ -768,27 +823,7 @@ export default function OwnerOnboardingPage() {
             </p>
           </div>
 
-          <div className="owner-onboarding-review">
-            <article>
-              <span>Shop</span>
-              <strong>{selectedShop?.name || "Created"}</strong>
-              <small>{selectedShop?.address || "Address can be updated later"}</small>
-            </article>
-
-            <article>
-              <span>Plan</span>
-              <strong>
-                {selectedPlan?.label || selectedPlanCode || "Free"}
-              </strong>
-              <small>Manage billing from Owner Subscription.</small>
-            </article>
-
-            <article>
-              <span>Recommended next action</span>
-              <strong>Add your first inventory item</strong>
-              <small>Listings make your shop visible to buyers.</small>
-            </article>
-          </div>
+          <OwnerLaunchReadiness summary={readiness} />
 
           <div className="owner-onboarding-next-links">
             <Link to="/owner/items/new">Add inventory</Link>
