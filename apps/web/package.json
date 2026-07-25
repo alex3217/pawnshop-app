@@ -19,7 +19,7 @@
     "test:customer-scan-marketplace-listing": "playwright test customer-scan-marketplace-listing.spec.ts --config playwright.marketplace.config.ts"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.2.2",
+    "@hookform/resolvers": "5.2.2",
     "@stripe/react-stripe-js": "^6.3.0",
     "@stripe/stripe-js": "^9.3.1",
     "@zxing/browser": "^0.1.5",
