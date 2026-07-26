@@ -8,6 +8,7 @@ import {
   ITEM_CATEGORY_OPTIONS,
   ITEM_CONDITION_OPTIONS,
 } from "../constants/itemOptions";
+import { firstUsableImage } from "../utils/imageUrl";
 import "../styles/marketplace-v2.css";
 
 type ViewMode = "grid" | "list" | "map";
@@ -64,7 +65,7 @@ function itemDirectionsUrl(item: Item): string | null {
 
 
 function itemImage(item: Item) {
-  return Array.isArray(item.images) && item.images.length ? item.images[0] : "";
+  return firstUsableImage(item.images);
 }
 
 function mapPosition(index: number) {
@@ -108,21 +109,42 @@ function ItemCard({
   watchingItemId: string | null;
 }) {
   const image = itemImage(item);
+  const [failedImage, setFailedImage] = useState("");
   const shopName = itemShopName(item);
   const watching = watchingItemId === item.id;
+  const title = normalizeLabel(item.title, "Untitled item");
+  const showImage = image && image !== failedImage;
 
   return (
     <article className={compact ? "mp2-item-card mp2-item-card-list" : "mp2-item-card"}>
-      <Link to={itemHref(item)} className="mp2-item-media" aria-label={`View ${item.title}`}>
-        {image ? <img src={image} alt={item.title} /> : <div className="mp2-item-placeholder">PawnLoop</div>}
-        <span className="mp2-media-chip">Local inventory</span>
+      <Link to={itemHref(item)} className="mp2-item-media-frame" aria-label={`View ${title}`}>
+        {showImage ? (
+          <img
+            className="mp2-item-media-image"
+            src={image}
+            alt={`${title} marketplace photo`}
+            loading="lazy"
+            onError={() => setFailedImage(image)}
+          />
+        ) : (
+          <div className="mp2-item-media-placeholder">
+            <span className="mp2-item-media-placeholder-icon" aria-hidden="true" />
+            <span>No photo available</span>
+          </div>
+        )}
+        <span className="mp2-item-media-badges" aria-label="Item availability and location">
+          <span className="mp2-item-media-badge mp2-item-media-badge-available">
+            {normalizeLabel(item.status, "Available").toUpperCase()}
+          </span>
+          <span className="mp2-item-media-badge mp2-item-media-badge-local">Local</span>
+        </span>
       </Link>
 
       <div className="mp2-item-body">
         <div className="mp2-item-heading">
           <div>
             <Link to={itemHref(item)} className="mp2-item-title">
-              {normalizeLabel(item.title, "Untitled item")}
+              {title}
             </Link>
             <p>
               {shopName}
