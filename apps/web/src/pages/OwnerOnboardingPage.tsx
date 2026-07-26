@@ -20,7 +20,10 @@ import {
   getSellerPlans,
   updateShopSubscription,
 } from "../services/ownerWorkspace";
-import { inviteStaffMember } from "../services/staff";
+import {
+  getShopStaff,
+  inviteStaffMember,
+} from "../services/staff";
 import {
   buildOwnerReadiness,
 } from "../services/ownerOnboardingReadiness";
@@ -269,6 +272,37 @@ export default function OwnerOnboardingPage() {
     }
 
     void loadInventoryCount();
+
+    return () => controller.abort();
+  }, [selectedShopId]);
+
+  useEffect(() => {
+    if (!selectedShopId) {
+      setHasInvitedStaff(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function loadStaffProgress() {
+      try {
+        const result = await getShopStaff(
+          selectedShopId,
+          { page: 1, pageSize: 1 },
+          controller.signal,
+        );
+
+        if (!controller.signal.aborted) {
+          setHasInvitedStaff(result.total > 0);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setHasInvitedStaff(false);
+        }
+      }
+    }
+
+    void loadStaffProgress();
 
     return () => controller.abort();
   }, [selectedShopId]);
