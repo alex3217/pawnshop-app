@@ -33,6 +33,36 @@ const authenticatedUsers = new Map([
       authVersion: AUTH_VERSION,
     },
   ],
+  [
+    "owner-onboarding-test",
+    {
+      id: "owner-onboarding-test",
+      email: "owner-onboarding@test.pawnloop.local",
+      role: "OWNER",
+      isActive: true,
+      authVersion: AUTH_VERSION,
+    },
+  ],
+  [
+    "other-owner-onboarding-test",
+    {
+      id: "other-owner-onboarding-test",
+      email: "other-owner-onboarding@test.pawnloop.local",
+      role: "OWNER",
+      isActive: true,
+      authVersion: AUTH_VERSION,
+    },
+  ],
+  [
+    "admin-onboarding-test",
+    {
+      id: "admin-onboarding-test",
+      email: "admin-onboarding@test.pawnloop.local",
+      role: "ADMIN",
+      isActive: true,
+      authVersion: AUTH_VERSION,
+    },
+  ],
 ]);
 
 before(async () => {
@@ -306,6 +336,199 @@ test("consumer tokens cannot access owner-only routes", async () => {
   assert.deepEqual(response.body, {
     error: "Forbidden",
   });
+});
+
+test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract", async () => {
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalFindFirst = prisma.pawnShop.findFirst;
+  const originalUpdate = prisma.pawnShop.update;
+
+  const tokenFor = (id) => {
+    const user = authenticatedUsers.get(id);
+    return jwt.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        authVersion: user.authVersion,
+      },
+      TEST_JWT_SECRET,
+      { expiresIn: "5m" },
+    );
+  };
+
+  const ownerToken = tokenFor("owner-onboarding-test");
+  const otherOwnerToken = tokenFor("other-owner-onboarding-test");
+  const adminToken = tokenFor("admin-onboarding-test");
+  const consumerToken = tokenFor("consumer-core-test");
+  const completedAt = new Date("2026-07-26T12:00:00.000Z");
+  const shops = new Map([
+    [
+      "owner-shop",
+      {
+        id: "owner-shop",
+        ownerId: "owner-onboarding-test",
+        isDeleted: false,
+        onboardingCompletedAt: null,
+      },
+    ],
+    [
+      "other-owner-shop",
+      {
+        id: "other-owner-shop",
+        ownerId: "other-owner-onboarding-test",
+        isDeleted: false,
+        onboardingCompletedAt: null,
+      },
+    ],
+    [
+      "deleted-shop",
+      {
+        id: "deleted-shop",
+        ownerId: "owner-onboarding-test",
+        isDeleted: true,
+        onboardingCompletedAt: null,
+      },
+    ],
+    [
+      "completed-shop",
+      {
+        id: "completed-shop",
+        ownerId: "owner-onboarding-test",
+        isDeleted: false,
+        onboardingCompletedAt: completedAt,
+      },
+    ],
+  ]);
+  let includeOnboardingColumn = false;
+  const updateCalls = [];
+
+  try {
+    prisma.$queryRaw = async () => [
+      "id",
+      "ownerId",
+      "isDeleted",
+      ...(includeOnboardingColumn ? ["onboardingCompletedAt"] : []),
+    ].map((columnName) => ({ column_name: columnName }));
+
+    prisma.pawnShop.findFirst = async ({ where, select }) => {
+      assert.equal(select.id, true);
+      assert.equal(select.ownerId, true);
+      assert.equal(select.isDeleted, true);
+      assert.equal(select.onboardingCompletedAt, true);
+      assert.equal(where.isDeleted, false);
+
+      const shop = shops.get(where.id);
+      if (!shop || shop.isDeleted) return null;
+      return shop;
+    };
+
+    prisma.pawnShop.update = async (argumentsObject) => {
+      updateCalls.push(argumentsObject);
+      const shop = shops.get(argumentsObject.where.id);
+      const updated = {
+        ...shop,
+        onboardingCompletedAt: argumentsObject.data.onboardingCompletedAt,
+      };
+      shops.set(shop.id, updated);
+      return {
+        id: updated.id,
+        onboardingCompletedAt: updated.onboardingCompletedAt,
+      };
+    };
+
+    await request(app)
+      .put("/api/shops/owner-shop/onboarding/complete")
+      .expect(401);
+
+    await request(app)
+      .put("/api/shops/owner-shop/onboarding/complete")
+      .set("Authorization", `Bearer ${consumerToken}`)
+      .expect(403);
+
+    const unavailableResponse = await request(app)
+      .put("/api/shops/owner-shop/onboarding/complete")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(503);
+
+    assert.deepEqual(unavailableResponse.body, {
+      success: false,
+      error:
+        "Shop onboarding completion is not available until the database migration is applied.",
+    });
+
+    includeOnboardingColumn = true;
+
+    const ownerResponse = await request(app)
+      .put("/api/shops/owner-shop/onboarding/complete")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(200);
+
+    assert.equal(ownerResponse.body.success, true);
+    assert.equal(ownerResponse.body.shop.id, "owner-shop");
+    assert.equal(
+      Number.isNaN(Date.parse(ownerResponse.body.shop.onboardingCompletedAt)),
+      false,
+    );
+
+    const hiddenResponse = await request(app)
+      .put("/api/shops/other-owner-shop/onboarding/complete")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(404);
+    assert.deepEqual(hiddenResponse.body, {
+      success: false,
+      error: "Shop not found",
+    });
+
+    for (const id of ["missing-shop", "deleted-shop"]) {
+      const response = await request(app)
+        .put(`/api/shops/${id}/onboarding/complete`)
+        .set("Authorization", `Bearer ${ownerToken}`)
+        .expect(404);
+      assert.deepEqual(response.body, {
+        success: false,
+        error: "Shop not found",
+      });
+    }
+
+    const adminResponse = await request(app)
+      .put("/api/shops/other-owner-shop/onboarding/complete")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+    assert.equal(adminResponse.body.success, true);
+    assert.equal(adminResponse.body.shop.id, "other-owner-shop");
+
+    const repeatedResponse = await request(app)
+      .put("/api/shops/completed-shop/onboarding/complete")
+      .set("Authorization", `Bearer ${otherOwnerToken}`)
+      .expect(404);
+    assert.deepEqual(repeatedResponse.body, {
+      success: false,
+      error: "Shop not found",
+    });
+
+    const idempotentResponse = await request(app)
+      .put("/api/shops/completed-shop/onboarding/complete")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(200);
+    assert.equal(
+      idempotentResponse.body.shop.onboardingCompletedAt,
+      completedAt.toISOString(),
+    );
+
+    assert.equal(updateCalls.length, 2);
+    for (const call of updateCalls) {
+      assert.deepEqual(call.select, {
+        id: true,
+        onboardingCompletedAt: true,
+      });
+      assert.ok(call.data.onboardingCompletedAt instanceof Date);
+    }
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    prisma.pawnShop.findFirst = originalFindFirst;
+    prisma.pawnShop.update = originalUpdate;
+  }
 });
 
 test("admin routes reject unauthenticated requests", async () => {
