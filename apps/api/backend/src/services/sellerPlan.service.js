@@ -96,15 +96,37 @@ function createPlanError(
   return new PlanRestrictionError(message, code, statusCode, details);
 }
 
+function isExpiredSellerTrial(shop, now = Date.now()) {
+  const subscriptionStatus = normalizeStoredSubscriptionStatus(shop);
+
+  if (subscriptionStatus !== "TRIALING") {
+    return false;
+  }
+
+  const periodEnd = new Date(
+    shop?.subscriptionCurrentPeriodEnd || "",
+  ).getTime();
+
+  return Number.isFinite(periodEnd) && periodEnd <= now;
+}
+
+function isShopSubscriptionUsable(shop) {
+  const subscriptionStatus = normalizeStoredSubscriptionStatus(shop);
+
+  return (
+    isSubscriptionUsable(subscriptionStatus) &&
+    !isExpiredSellerTrial(shop)
+  );
+}
+
 function getEffectivePlanCode(shop) {
   const storedPlan = normalizeStoredPlan(shop);
-  const subscriptionStatus = normalizeStoredSubscriptionStatus(shop);
 
   if (storedPlan === DEFAULT_SELLER_PLAN) {
     return DEFAULT_SELLER_PLAN;
   }
 
-  return isSubscriptionUsable(subscriptionStatus)
+  return isShopSubscriptionUsable(shop)
     ? storedPlan
     : DEFAULT_SELLER_PLAN;
 }
@@ -172,7 +194,8 @@ function buildEntitlements(
         );
 
   const usingTrialLimit =
-    normalizedStatus === "TRIALING";
+    normalizedStatus === "TRIALING" &&
+    !isExpiredSellerTrial(shop);
 
   const appliedListingLimit =
     usingTrialLimit
@@ -198,8 +221,7 @@ function buildEntitlements(
       storedPlan,
       effectivePlan: effectivePlanCode,
       status: normalizedStatus,
-      isUsable:
-        isSubscriptionUsable(normalizedStatus),
+      isUsable: isShopSubscriptionUsable(shop),
       isPaid: Boolean(plan.isPaid),
       isFree: Boolean(plan.isFree),
       rank: Number(plan.rank || 0),
