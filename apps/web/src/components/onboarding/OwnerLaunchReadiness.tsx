@@ -58,11 +58,16 @@ export default function OwnerLaunchReadiness({
             : "owner-launch-readiness-status"
         }
       >
-        <strong>
-          {summary.readyToLaunch
-            ? "Required launch steps are complete"
-            : "Your shop still has required setup steps"}
-        </strong>
+        <div className="owner-launch-readiness-item-heading">
+          <strong>
+            {summary.readyToLaunch
+              ? "Required launch steps are complete"
+              : "Your shop still has required setup steps"}
+          </strong>
+          <span>
+            {summary.readyToLaunch ? "READY" : "NOT READY"}
+          </span>
+        </div>
         <span>
           {summary.readyToLaunch
             ? "Review optional setup items and then prepare your first public listings."
