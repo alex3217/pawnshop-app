@@ -178,7 +178,7 @@ export async function myShops(req, res) {
 
     const [where, select] = await Promise.all([
       buildPawnShopWhere({ ownerId: userId }),
-      buildPawnShopSelect(),
+      buildPawnShopSelect(["onboardingCompletedAt"]),
     ]);
 
     const shops = await prisma.pawnShop.findMany({
