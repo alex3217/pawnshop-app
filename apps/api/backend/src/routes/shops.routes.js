@@ -7,6 +7,7 @@ import {
   myShops,
   createShop,
   updateShop,
+  completeShopOnboarding,
   getShopItems,
   getShopById,
 } from "../controllers/shops.controller.js";
@@ -44,6 +45,13 @@ router.get(
   authRequired,
   requireRole("OWNER", "ADMIN"),
   getShopFinancePayouts,
+);
+
+router.put(
+  "/:id/onboarding/complete",
+  authRequired,
+  requireRole("OWNER", "ADMIN"),
+  completeShopOnboarding,
 );
 
 // Public detail routes

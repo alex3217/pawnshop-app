@@ -178,7 +178,7 @@ export async function myShops(req, res) {
 
     const [where, select] = await Promise.all([
       buildPawnShopWhere({ ownerId: userId }),
-      buildPawnShopSelect(),
+      buildPawnShopSelect(["onboardingCompletedAt"]),
     ]);
 
     const shops = await prisma.pawnShop.findMany({
@@ -243,6 +243,72 @@ export async function updateShop(req, res) {
     });
 
     return res.json(updated);
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function completeShopOnboarding(req, res) {
+  try {
+    const userId = req?.user?.sub;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const actualColumns = await getPawnShopColumns();
+    if (!actualColumns.has("onboardingCompletedAt")) {
+      pawnShopColumnsCache = null;
+      return res.status(503).json({
+        success: false,
+        error:
+          "Shop onboarding completion is not available until the database migration is applied.",
+      });
+    }
+
+    const where = await buildPawnShopWhere({ id: req.params.id });
+    const select = {
+      id: true,
+      ownerId: true,
+      ...(actualColumns.has("isDeleted") ? { isDeleted: true } : {}),
+      onboardingCompletedAt: true,
+    };
+
+    const shop = await prisma.pawnShop.findFirst({
+      where,
+      select,
+    });
+
+    if (!shop || shop.isDeleted) {
+      return res.status(404).json({ success: false, error: "Shop not found" });
+    }
+
+    if (req.user.role !== "ADMIN" && shop.ownerId !== userId) {
+      return res.status(404).json({ success: false, error: "Shop not found" });
+    }
+
+    if (shop.onboardingCompletedAt) {
+      return res.status(200).json({
+        success: true,
+        shop: {
+          id: shop.id,
+          onboardingCompletedAt: shop.onboardingCompletedAt,
+        },
+      });
+    }
+
+    const completedShop = await prisma.pawnShop.update({
+      where: { id: shop.id },
+      data: { onboardingCompletedAt: new Date() },
+      select: {
+        id: true,
+        onboardingCompletedAt: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      shop: completedShop,
+    });
   } catch (error) {
     return sendError(res, error);
   }

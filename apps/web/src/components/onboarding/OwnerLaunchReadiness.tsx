@@ -11,6 +11,27 @@ type OwnerLaunchReadinessProps = {
 export default function OwnerLaunchReadiness({
   summary,
 }: OwnerLaunchReadinessProps) {
+  const status = summary.launched
+    ? {
+        heading: "Your shop onboarding is complete",
+        label: "LAUNCHED",
+        description:
+          "Launch completion is saved to your shop account.",
+      }
+    : summary.readyToLaunch
+      ? {
+          heading: "Required launch steps are complete",
+          label: "READY",
+          description:
+            "Use the completion action below to save your launch to the shop account.",
+        }
+      : {
+          heading: "Your shop still has required setup steps",
+          label: "NOT READY",
+          description:
+            "Complete each required item marked below before launch.",
+        };
+
   return (
     <section
       className="owner-launch-readiness"
@@ -53,21 +74,16 @@ export default function OwnerLaunchReadiness({
 
       <div
         className={
-          summary.readyToLaunch
+          summary.launched || summary.readyToLaunch
             ? "owner-launch-readiness-status ready"
             : "owner-launch-readiness-status"
         }
       >
-        <strong>
-          {summary.readyToLaunch
-            ? "Required launch steps are complete"
-            : "Your shop still has required setup steps"}
-        </strong>
-        <span>
-          {summary.readyToLaunch
-            ? "Review optional setup items and then prepare your first public listings."
-            : "Complete each required item marked below before launch."}
-        </span>
+        <div className="owner-launch-readiness-item-heading">
+          <strong>{status.heading}</strong>
+          <span>{status.label}</span>
+        </div>
+        <span>{status.description}</span>
       </div>
 
       <ul className="owner-launch-readiness-list">
