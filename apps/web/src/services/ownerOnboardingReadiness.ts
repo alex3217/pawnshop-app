@@ -14,6 +14,7 @@ export type OwnerReadinessSummary = {
   totalCount: number;
   percentComplete: number;
   readyToLaunch: boolean;
+  launched: boolean;
   items: OwnerReadinessItem[];
 };
 
@@ -113,6 +114,7 @@ export function buildOwnerReadiness({
   const totalCount = items.length;
   const requiredItems = items.filter((item) => item.required);
   const readyToLaunch = requiredItems.every((item) => item.complete);
+  const launched = Boolean(shop?.onboardingCompletedAt);
 
   return {
     completedCount,
@@ -122,6 +124,7 @@ export function buildOwnerReadiness({
         ? 0
         : Math.round((completedCount / totalCount) * 100),
     readyToLaunch,
+    launched,
     items,
   };
 }

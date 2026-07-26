@@ -6,10 +6,11 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 import OwnerLaunchReadiness from "../components/onboarding/OwnerLaunchReadiness";
 import {
+  completeShopOnboarding,
   createShop,
   getMyShops,
   getShopItems,
@@ -104,8 +105,6 @@ function formatMoney(cents: number) {
 }
 
 export default function OwnerOnboardingPage() {
-  const navigate = useNavigate();
-
   const [step, setStep] = useState(getInitialStep);
   const [loading, setLoading] = useState(true);
 
@@ -129,6 +128,7 @@ export default function OwnerOnboardingPage() {
   const [shopSubmitting, setShopSubmitting] = useState(false);
   const [planSubmitting, setPlanSubmitting] = useState(false);
   const [staffSubmitting, setStaffSubmitting] = useState(false);
+  const [completionSubmitting, setCompletionSubmitting] = useState(false);
 
   const [inventoryCount, setInventoryCount] = useState(0);
   const [hasInvitedStaff, setHasInvitedStaff] = useState(false);
@@ -469,15 +469,51 @@ export default function OwnerOnboardingPage() {
     }
   }
 
-  function completeOnboarding() {
-    if (typeof window !== "undefined" && selectedShopId) {
-      window.localStorage.setItem(
-        `pawnloop-owner-onboarding-complete:${selectedShopId}`,
-        new Date().toISOString(),
-      );
+  async function completeOnboarding() {
+    if (completionSubmitting) return;
+
+    if (!selectedShop?.id) {
+      setError("Create or select a shop before completing onboarding.");
+      return;
     }
 
-    navigate("/owner", { replace: true });
+    if (readiness.launched) return;
+
+    if (!readiness.readyToLaunch) {
+      setError("Complete all required setup steps before launching.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setCompletionSubmitting(true);
+
+    try {
+      const result = await completeShopOnboarding(selectedShop.id);
+
+      setShops((current) =>
+        current.map((shop) =>
+          shop.id === result.shop.id
+            ? {
+                ...shop,
+                onboardingCompletedAt:
+                  result.shop.onboardingCompletedAt,
+              }
+            : shop,
+        ),
+      );
+      setMessage(
+        "Shop onboarding is complete and saved to your shop account.",
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to complete shop onboarding.",
+      );
+    } finally {
+      setCompletionSubmitting(false);
+    }
   }
 
   if (loading) {
@@ -875,8 +911,20 @@ export default function OwnerOnboardingPage() {
               Back
             </button>
 
-            <button type="button" onClick={completeOnboarding}>
-              Finish and open dashboard
+            <button
+              type="button"
+              onClick={() => void completeOnboarding()}
+              disabled={
+                completionSubmitting ||
+                readiness.launched ||
+                !readiness.readyToLaunch
+              }
+            >
+              {completionSubmitting
+                ? "Saving launch..."
+                : readiness.launched
+                  ? "LAUNCHED"
+                  : "Complete onboarding"}
             </button>
           </div>
         </section>

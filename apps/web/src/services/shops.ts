@@ -13,9 +13,18 @@ export type Shop = {
   description?: string | null;
   hours?: string | null;
   ownerId?: string | null;
+  onboardingCompletedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   isDeleted?: boolean;
+};
+
+export type CompleteShopOnboardingResponse = {
+  success: boolean;
+  shop: {
+    id: string;
+    onboardingCompletedAt: string;
+  };
 };
 
 export type ShopItem = {
@@ -92,6 +101,14 @@ export async function createShop(
       hours: input.hours || undefined,
     },
     { signal },
+  );
+}
+
+export async function completeShopOnboarding(
+  shopId: string,
+): Promise<CompleteShopOnboardingResponse> {
+  return api.put<CompleteShopOnboardingResponse>(
+    `/shops/${encodeURIComponent(shopId)}/onboarding/complete`,
   );
 }
 
