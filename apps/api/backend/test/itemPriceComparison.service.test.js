@@ -150,6 +150,30 @@ test("filters stale inventory while including the freshness boundary", () => {
   assert.deepEqual(result.comparables.map(({ id }) => id), ["boundary"]);
 });
 
+test("returns an empty result for NaN freshnessDays", () => {
+  const result = comparison([item()], { freshnessDays: Number.NaN });
+  assert.equal(result.sampleCount, 0);
+  assert.deepEqual(result.comparables, []);
+});
+
+test("returns an empty result for infinite freshnessDays", () => {
+  const result = comparison([item()], { freshnessDays: Number.POSITIVE_INFINITY });
+  assert.equal(result.sampleCount, 0);
+  assert.deepEqual(result.comparables, []);
+});
+
+test("returns an empty result for negative freshnessDays", () => {
+  const result = comparison([item()], { freshnessDays: -1 });
+  assert.equal(result.sampleCount, 0);
+  assert.deepEqual(result.comparables, []);
+});
+
+test("rejects inventory soft-deleted with isDeleted", () => {
+  const result = comparison([item({ isDeleted: true })]);
+  assert.equal(result.sampleCount, 0);
+  assert.deepEqual(result.comparables, []);
+});
+
 test("applies per-shop caps after stable ordering", () => {
   const result = comparison([
     item({ id: "b", price: 450 }),

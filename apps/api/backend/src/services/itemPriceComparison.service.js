@@ -266,8 +266,7 @@ export function calculateItemPriceComparison({
   const targetCoordinates = coordinatePair(target);
   const targetPrice = Number(target?.price);
   const nowTime = new Date(now).getTime();
-  const freshnessCutoff =
-    nowTime - Number(freshnessDays) * 24 * 60 * 60 * 1000;
+  const freshnessDaysNumber = Number(freshnessDays);
 
   if (
     !target
@@ -278,6 +277,8 @@ export function calculateItemPriceComparison({
     || !Number.isFinite(targetPrice)
     || targetPrice <= 0
     || !Number.isFinite(nowTime)
+    || !Number.isFinite(freshnessDaysNumber)
+    || freshnessDaysNumber < 0
     || !Number.isFinite(Number(radiusMiles))
     || Number(radiusMiles) < 0
     || !Number.isInteger(Number(perShopCap))
@@ -285,6 +286,9 @@ export function calculateItemPriceComparison({
   ) {
     return emptyResult;
   }
+
+  const freshnessCutoff =
+    nowTime - freshnessDaysNumber * 24 * 60 * 60 * 1000;
 
   const qualified = candidates.flatMap((candidate) => {
     const candidateCoordinates = coordinatePair(candidate);
@@ -307,6 +311,7 @@ export function calculateItemPriceComparison({
       || sameShop
       || candidateShopId == null
       || candidate?.status !== "AVAILABLE"
+      || candidate?.isDeleted === true
       || candidate?.deletedAt != null
       || candidate?.available === false
       || candidate?.category !== target.category
