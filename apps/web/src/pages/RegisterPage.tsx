@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { persistAuth, register } from "../services/auth";
+import { register } from "../services/auth";
 import type { Role } from "../services/auth";
 import "../styles/register-page.css";
 import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
@@ -12,10 +12,6 @@ type PublicRole = Extract<Role, "CONSUMER" | "OWNER">;
 
 function isPublicRole(value: string): value is PublicRole {
   return value === "CONSUMER" || value === "OWNER";
-}
-
-function getPostRegisterRoute(role: PublicRole) {
-  return role === "OWNER" ? "/owner/onboarding" : "/auctions";
 }
 
 export default function RegisterPage() {
@@ -98,15 +94,17 @@ export default function RegisterPage() {
         throw new Error("Password must not contain your complete email address.");
       }
 
-      const { token, user } = await register(
+      await register(
         trimmedName,
         trimmedEmail,
         password,
         role
       );
 
-      persistAuth(token, user.role, user);
-      nav(getPostRegisterRoute(user.role as PublicRole), { replace: true });
+      nav("/verification-pending", {
+        replace: true,
+        state: { email: trimmedEmail, role },
+      });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {

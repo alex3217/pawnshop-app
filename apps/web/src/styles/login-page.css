@@ -135,6 +135,31 @@
   opacity: 0.68;
 }
 
+.login-link {
+  color: #4338ca;
+  font-weight: 750;
+  text-underline-offset: 3px;
+}
+
+:root[data-theme="dark"] .login-link {
+  color: #a5b4fc;
+}
+
+.login-success {
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f0fdf4;
+  color: #166534;
+  font-weight: 700;
+}
+
+:root[data-theme="dark"] .login-success {
+  border-color: #166534;
+  background: #052e16;
+  color: #bbf7d0;
+}
+
 .login-error {
   border: 1px solid #fecaca;
   border-radius: 12px;

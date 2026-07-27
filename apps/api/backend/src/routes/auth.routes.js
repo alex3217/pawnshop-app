@@ -9,6 +9,10 @@ import {
   me,
   refresh,
   createSuperAdminUser,
+  resendVerification,
+  verifyEmail,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/auth.controller.js";
 
 const router = Router();
@@ -30,6 +34,10 @@ router.post("/register", asyncRoute(register));
  * POST /api/auth/login
  */
 router.post("/login", asyncRoute(login));
+router.post("/resend-verification", asyncRoute(resendVerification));
+router.post("/verify-email", asyncRoute(verifyEmail));
+router.post("/forgot-password", asyncRoute(forgotPassword));
+router.post("/reset-password", asyncRoute(resetPassword));
 
 /**
  * Authenticated
@@ -63,6 +71,10 @@ router.post(
 export const AUTH_ROUTE_MAP = Object.freeze({
   register: "POST /api/auth/register",
   login: "POST /api/auth/login",
+  resendVerification: "POST /api/auth/resend-verification",
+  verifyEmail: "POST /api/auth/verify-email",
+  forgotPassword: "POST /api/auth/forgot-password",
+  resetPassword: "POST /api/auth/reset-password",
   shopAccess: "GET /api/auth/shop-access",
   me: "GET /api/auth/me",
   refresh: "POST /api/auth/refresh",

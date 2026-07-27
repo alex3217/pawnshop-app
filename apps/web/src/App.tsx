@@ -127,6 +127,10 @@ const CreateShopPage = lazyPage(() => import("./pages/CreateShopPage"));
 const HomePage = lazyPage(() => import("./pages/HomePage"));
 const ItemDetailPage = lazyPage(() => import("./pages/ItemDetailPage"));
 const LoginPage = lazyPage(() => import("./pages/LoginPage"));
+const VerificationPendingPage = lazyPage(() => import("./pages/VerificationPendingPage"));
+const VerifyEmailPage = lazyPage(() => import("./pages/VerifyEmailPage"));
+const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazyPage(() => import("./pages/ResetPasswordPage"));
 const MarketplacePage = lazyPage(() => import("./pages/MarketplacePage"));
 const MarketplaceBuyNowPage = lazyPage(() =>
   import("./pages/MarketplaceBuyNowPage"),
@@ -248,6 +252,10 @@ const publicRoutes: RouteConfig[] = [
   { path: "/auctions/:id", element: <AuctionDetailPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
+  { path: "/verification-pending", element: <VerificationPendingPage /> },
+  { path: "/verify-email", element: <VerifyEmailPage /> },
+  { path: "/forgot-password", element: <ForgotPasswordPage /> },
+  { path: "/reset-password", element: <ResetPasswordPage /> },
 ];
 
 const consumerRoutes: RouteConfig[] = [

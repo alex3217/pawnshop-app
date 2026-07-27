@@ -50,9 +50,24 @@ model User {
   customerSellEvents        MarketplaceTransactionEvent[] @relation("MarketplaceTransactionEventActor")
   customerSellReceiptCustomer CustomerSellReceipt[] @relation("CustomerSellReceiptCustomer")
   customerSellReceiptsCompleted CustomerSellReceipt[] @relation("CustomerSellReceiptCompletedBy")
+  accountActionTokens       AccountActionToken[]
 
   @@index([role, isActive])
   @@index([createdAt])
+}
+
+model AccountActionToken {
+  id          String                    @id @default(cuid())
+  userId      String
+  purpose     AccountActionTokenPurpose
+  tokenDigest String                    @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime                  @default(now())
+  user        User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, consumedAt])
+  @@index([purpose, expiresAt])
 }
 
 model BuyerSubscription {
@@ -726,6 +741,11 @@ enum CustomerSellIdentityResult {
 
 enum CustomerSellRevenuePolicy {
   SUBSCRIPTION_COVERED_ZERO_PLATFORM_FEE
+}
+
+enum AccountActionTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }
 
 enum Role {

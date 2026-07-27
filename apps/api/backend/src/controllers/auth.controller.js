@@ -5,6 +5,15 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
 import { validatePassword } from "../services/passwordPolicy.service.js";
 import {
+  ACCOUNT_ACTION_PURPOSE,
+  digestAccountActionToken,
+  replaceActiveAccountActionToken,
+} from "../services/accountActionToken.service.js";
+import {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "../services/transactionalEmail.service.js";
+import {
   getMyShopAccess,
 } from "../services/shopAccess.service.js";
 
@@ -57,6 +66,7 @@ function safeUser(user) {
     email: user.email,
     role: normalizeRole(user.role),
     isActive: Boolean(user.isActive),
+    emailVerifiedAt: user.emailVerifiedAt ?? null,
     createdAt: user.createdAt ?? null,
     updatedAt: user.updatedAt ?? null,
   };
@@ -135,7 +145,7 @@ async function ensureEmailAvailable(email) {
   const existing = await prisma.user.findUnique({ where: { email } });
 
   if (existing) {
-    throw Object.assign(new Error("Email already registered"), {
+    throw Object.assign(new Error("Unable to create account with those details"), {
       statusCode: 409,
     });
   }
@@ -176,25 +186,41 @@ export async function register(req, res) {
 
     const hash = await bcrypt.hash(password, 12);
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hash,
-        role: roleCheck.role,
-        isActive: true,
-        // PR 2 will replace this compatibility behavior with verification tokens.
-        emailVerifiedAt: new Date(),
-      },
+    const { user, rawToken } = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hash,
+          role: roleCheck.role,
+          isActive: true,
+          emailVerifiedAt: null,
+        },
+      });
+      const actionToken = await replaceActiveAccountActionToken(tx, {
+        userId: createdUser.id,
+        purpose: ACCOUNT_ACTION_PURPOSE.EMAIL_VERIFICATION,
+      });
+      return { user: createdUser, rawToken: actionToken.rawToken };
     });
+
+    await sendVerificationEmail({ to: user.email, name: user.name, token: rawToken });
 
     return res.status(201).json({
       success: true,
-      token: issueToken(user),
       user: safeUser(user),
+      nextStep: "VERIFY_EMAIL",
     });
   } catch (error) {
-    console.error("[auth.register] error", error);
+    console.error("[auth.register] failed", {
+      name: error?.name || "Error",
+      code: error?.code || null,
+    });
+    if (error?.code === "P2002") {
+      return res.status(409).json({
+        error: "Unable to create account with those details",
+      });
+    }
     return sendError(res, error, "Registration failed");
   }
 }
@@ -220,6 +246,13 @@ export async function login(req, res) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
+    if (!user.emailVerifiedAt) {
+      return res.status(403).json({
+        error: "Email verification is required",
+        code: "EMAIL_VERIFICATION_REQUIRED",
+      });
+    }
+
     return res.json({
       success: true,
       token: issueToken(user),
@@ -228,6 +261,175 @@ export async function login(req, res) {
   } catch (error) {
     console.error("[auth.login] error", error);
     return sendError(res, error, "Login failed");
+  }
+}
+
+const GENERIC_VERIFICATION_RESPONSE = Object.freeze({
+  success: true,
+  message: "If the account is eligible, a verification email will be sent.",
+});
+const GENERIC_PASSWORD_RESPONSE = Object.freeze({
+  success: true,
+  message: "If an account exists for that email, password reset instructions will be sent.",
+});
+
+export async function resendVerification(req, res) {
+  const email = normalizeEmail(req.body?.email);
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user?.isActive && !user.emailVerifiedAt) {
+      const { rawToken } = await prisma.$transaction((tx) =>
+        replaceActiveAccountActionToken(tx, {
+          userId: user.id,
+          purpose: ACCOUNT_ACTION_PURPOSE.EMAIL_VERIFICATION,
+        }),
+      );
+      await sendVerificationEmail({ to: user.email, name: user.name, token: rawToken });
+    }
+  } catch (error) {
+    console.error("[auth.resendVerification] delivery failed", {
+      name: error?.name || "Error",
+    });
+  }
+  return res.json(GENERIC_VERIFICATION_RESPONSE);
+}
+
+export async function verifyEmail(req, res) {
+  try {
+    const rawToken = String(req.body?.token || "");
+    if (!rawToken) return res.status(400).json({ error: "Verification token is required" });
+    const now = new Date();
+    const digest = digestAccountActionToken(rawToken);
+
+    const user = await prisma.$transaction(async (tx) => {
+      const token = await tx.accountActionToken.findUnique({
+        where: { tokenDigest: digest },
+      });
+      if (
+        !token ||
+        token.purpose !== ACCOUNT_ACTION_PURPOSE.EMAIL_VERIFICATION ||
+        token.consumedAt ||
+        token.expiresAt <= now
+      ) {
+        throw Object.assign(new Error("Verification link is invalid or expired"), {
+          statusCode: 400,
+          code: "INVALID_OR_EXPIRED_TOKEN",
+        });
+      }
+      const claimed = await tx.accountActionToken.updateMany({
+        where: { id: token.id, consumedAt: null, expiresAt: { gt: now } },
+        data: { consumedAt: now },
+      });
+      if (claimed.count !== 1) {
+        throw Object.assign(new Error("Verification link is invalid or expired"), {
+          statusCode: 400,
+          code: "INVALID_OR_EXPIRED_TOKEN",
+        });
+      }
+      return tx.user.update({
+        where: { id: token.userId },
+        data: { emailVerifiedAt: now },
+      });
+    });
+
+    return res.json({ success: true, user: safeUser(user), nextStep: "LOGIN" });
+  } catch (error) {
+    return sendError(res, error, "Email verification failed");
+  }
+}
+
+export async function forgotPassword(req, res) {
+  const email = normalizeEmail(req.body?.email);
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user?.isActive) {
+      const { rawToken } = await prisma.$transaction((tx) =>
+        replaceActiveAccountActionToken(tx, {
+          userId: user.id,
+          purpose: ACCOUNT_ACTION_PURPOSE.PASSWORD_RESET,
+        }),
+      );
+      await sendPasswordResetEmail({ to: user.email, name: user.name, token: rawToken });
+    }
+  } catch (error) {
+    console.error("[auth.forgotPassword] delivery failed", {
+      name: error?.name || "Error",
+    });
+  }
+  return res.json(GENERIC_PASSWORD_RESPONSE);
+}
+
+export async function resetPassword(req, res) {
+  try {
+    const rawToken = String(req.body?.token || "");
+    const password = String(req.body?.password || "");
+    if (!rawToken || !password) return res.status(400).json({ error: "Token and password are required" });
+
+    const digest = digestAccountActionToken(rawToken);
+    const tokenRecord = await prisma.accountActionToken.findUnique({
+      where: { tokenDigest: digest },
+      include: { user: { select: { email: true } } },
+    });
+    const validationNow = new Date();
+    if (
+      !tokenRecord ||
+      tokenRecord.purpose !== ACCOUNT_ACTION_PURPOSE.PASSWORD_RESET ||
+      tokenRecord.consumedAt ||
+      tokenRecord.expiresAt <= validationNow
+    ) {
+      throw Object.assign(new Error("Password reset link is invalid or expired"), {
+        statusCode: 400,
+        code: "INVALID_OR_EXPIRED_TOKEN",
+      });
+    }
+    validatePassword(password, { email: tokenRecord?.user?.email });
+    const passwordHash = await bcrypt.hash(password, 12);
+    const now = new Date();
+
+    await prisma.$transaction(async (tx) => {
+      const token = await tx.accountActionToken.findUnique({ where: { tokenDigest: digest } });
+      if (
+        !token ||
+        token.purpose !== ACCOUNT_ACTION_PURPOSE.PASSWORD_RESET ||
+        token.consumedAt ||
+        token.expiresAt <= now
+      ) {
+        throw Object.assign(new Error("Password reset link is invalid or expired"), {
+          statusCode: 400,
+          code: "INVALID_OR_EXPIRED_TOKEN",
+        });
+      }
+      const invalidated = await tx.accountActionToken.updateMany({
+        where: {
+          userId: token.userId,
+          purpose: ACCOUNT_ACTION_PURPOSE.PASSWORD_RESET,
+          consumedAt: null,
+        },
+        data: { consumedAt: now },
+      });
+      if (invalidated.count < 1) {
+        throw Object.assign(new Error("Password reset link is invalid or expired"), {
+          statusCode: 400,
+          code: "INVALID_OR_EXPIRED_TOKEN",
+        });
+      }
+      await tx.user.update({
+        where: { id: token.userId },
+        data: {
+          password: passwordHash,
+          passwordChangedAt: now,
+          authVersion: { increment: 1 },
+        },
+      });
+    });
+
+    return res.json({ success: true, nextStep: "LOGIN" });
+  } catch (error) {
+    return sendError(res, error, "Password reset failed");
   }
 }
 

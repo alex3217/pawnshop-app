@@ -46,9 +46,31 @@ async function registerActor(prefix, role) {
     JSON.stringify(response.body),
   );
 
+  await prisma.user.update({
+    where: {
+      email: email(prefix),
+    },
+    data: {
+      emailVerifiedAt: new Date(),
+    },
+  });
+
+  const login = await request(app)
+    .post("/api/auth/login")
+    .send({
+      email: email(prefix),
+      password,
+    });
+
+  assert.equal(
+    login.status,
+    200,
+    JSON.stringify(login.body),
+  );
+
   return {
-    token: response.body.token,
-    user: response.body.user,
+    token: login.body.token,
+    user: login.body.user,
     password,
   };
 }

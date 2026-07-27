@@ -139,6 +139,7 @@ async function upsertUser({ email, name, role, password }) {
     name,
     role,
     isActive: true,
+    emailVerifiedAt: new Date(),
     password: passwordHash,
     passwordHash,
     hashedPassword: passwordHash,
