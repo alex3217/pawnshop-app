@@ -14,6 +14,21 @@ export type AuthResponse = {
   user: AuthUser;
 };
 
+export type RegistrationResponse = {
+  user: AuthUser;
+  nextStep: "VERIFY_EMAIL";
+};
+
+export class AuthRequestError extends Error {
+  code?: string;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "AuthRequestError";
+    this.code = code;
+  }
+}
+
 const STORAGE_KEYS = {
   token: "auth_token",
   role: "auth_role",
@@ -232,7 +247,10 @@ async function requestAuth(
           ? data.message
           : `Request failed (${res.status})`;
 
-    throw new Error(message);
+    throw new AuthRequestError(
+      message,
+      typeof data?.code === "string" ? data.code : undefined,
+    );
   }
 
   const { token, user } = unwrapAuthPayload(data);
@@ -264,17 +282,58 @@ export async function register(
   email: string,
   password: string,
   role: Role,
-): Promise<AuthResponse> {
+): Promise<RegistrationResponse> {
   if (role === "ADMIN" || role === "SUPER_ADMIN") {
     throw new Error("Public registration for privileged roles is not allowed.");
   }
 
-  return requestAuth("/auth/register", {
+  const data = await postAuthAction("/auth/register", {
     name: name.trim(),
     email: email.trim().toLowerCase(),
     password,
     role,
   });
+  const user = normalizeUser(data.user);
+  if (!user || data.nextStep !== "VERIFY_EMAIL") {
+    throw new Error("Invalid registration response from server.");
+  }
+  return { user, nextStep: "VERIFY_EMAIL" };
+}
+
+async function postAuthAction(
+  path: string,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const res = await fetch(joinUrl(API_BASE, path), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  const data = await parseJson<Record<string, unknown>>(res);
+  if (!res.ok) {
+    throw new AuthRequestError(
+      typeof data.error === "string" ? data.error : `Request failed (${res.status})`,
+      typeof data.code === "string" ? data.code : undefined,
+    );
+  }
+  return data;
+}
+
+export async function resendVerification(email: string) {
+  return postAuthAction("/auth/resend-verification", { email: email.trim().toLowerCase() });
+}
+
+export async function verifyEmail(token: string) {
+  return postAuthAction("/auth/verify-email", { token });
+}
+
+export async function forgotPassword(email: string) {
+  return postAuthAction("/auth/forgot-password", { email: email.trim().toLowerCase() });
+}
+
+export async function resetPassword(token: string, password: string) {
+  return postAuthAction("/auth/reset-password", { token, password });
 }
 
 export function persistAuth(token: string, role: Role, user?: AuthUser) {

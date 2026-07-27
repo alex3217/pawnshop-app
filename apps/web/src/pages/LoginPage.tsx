@@ -1,11 +1,12 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import {
+  Link,
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
 
-import { login, persistAuth } from "../services/auth";
+import { AuthRequestError, login, persistAuth } from "../services/auth";
 import "../styles/login-page.css";
 
 function safeNextPath(
@@ -42,11 +43,13 @@ export default function LoginPage() {
     showDevelopmentCredentials ? "Buyer123!" : "",
   );
   const [error, setError] = useState<string | null>(null);
+  const [verificationRequired, setVerificationRequired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setVerificationRequired(false);
     setSubmitting(true);
 
     try {
@@ -75,6 +78,12 @@ export default function LoginPage() {
         nav("/auctions");
       }
     } catch (loginError: unknown) {
+      if (
+        loginError instanceof AuthRequestError &&
+        loginError.code === "EMAIL_VERIFICATION_REQUIRED"
+      ) {
+        setVerificationRequired(true);
+      }
       setError(
         loginError instanceof Error
           ? loginError.message
@@ -132,6 +141,10 @@ export default function LoginPage() {
               />
             </div>
 
+            <Link to="/forgot-password" className="login-link">
+              Forgot password?
+            </Link>
+
             <div className="login-field">
               <label
                 className="login-label"
@@ -170,6 +183,15 @@ export default function LoginPage() {
               >
                 {error}
               </div>
+            ) : null}
+            {verificationRequired ? (
+              <Link
+                to="/verification-pending"
+                state={{ email: email.trim().toLowerCase() }}
+                className="login-link"
+              >
+                Resend verification email
+              </Link>
             ) : null}
           </form>
 
