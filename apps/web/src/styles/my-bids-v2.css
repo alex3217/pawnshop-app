@@ -94,7 +94,7 @@
   gap: 12px;
 }
 
-.mybids2-hero-panel div {
+.mybids2-summary-box {
   min-height: 126px;
   border-radius: 24px;
   padding: 18px;
@@ -103,15 +103,15 @@
   box-shadow: 0 12px 34px rgba(15, 23, 42, 0.07);
 }
 
-.mybids2-hero-panel span,
-.mybids2-hero-panel small {
+.mybids2-summary-label,
+.mybids2-summary-supporting {
   display: block;
   color: #64748b;
   font-size: 13px;
   font-weight: 800;
 }
 
-.mybids2-hero-panel strong {
+.mybids2-summary-value {
   display: block;
   margin: 10px 0 6px;
   color: #0f172a;
@@ -351,20 +351,39 @@
 :root[data-theme="dark"] .mybids2-card,
 :root[data-theme="dark"] .mybids2-empty,
 :root[data-theme="dark"] .mybids2-error,
-:root[data-theme="dark"] .mybids2-discovery-strip a,
-:root[data-theme="dark"] .mybids2-hero-panel div {
+:root[data-theme="dark"] .mybids2-discovery-strip a {
   background: #111827;
   color: #e5e7eb;
   border-color: rgba(148, 163, 184, 0.22);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
 }
 
+:root[data-theme="dark"] .mybids2-hero-panel .mybids2-summary-box {
+  background: #111827;
+  border-color: #334155;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24);
+}
+
 :root[data-theme="dark"] .mybids2-hero h1,
 :root[data-theme="dark"] .mybids2-title,
 :root[data-theme="dark"] .mybids2-money-grid strong,
-:root[data-theme="dark"] .mybids2-meta-grid strong,
-:root[data-theme="dark"] .mybids2-hero-panel strong {
+:root[data-theme="dark"] .mybids2-meta-grid strong {
   color: #f8fafc;
+}
+
+:root[data-theme="dark"] .mybids2-hero-panel .mybids2-summary-value {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="dark"] .mybids2-hero-panel .mybids2-summary-label {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+:root[data-theme="dark"] .mybids2-hero-panel .mybids2-summary-supporting {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
 }
 
 :root[data-theme="dark"] .mybids2-hero p,
@@ -372,8 +391,6 @@
 :root[data-theme="dark"] .mybids2-money-grid span,
 :root[data-theme="dark"] .mybids2-meta-grid span,
 :root[data-theme="dark"] .mybids2-discovery-strip span,
-:root[data-theme="dark"] .mybids2-hero-panel span,
-:root[data-theme="dark"] .mybids2-hero-panel small,
 :root[data-theme="dark"] .mybids2-empty p,
 :root[data-theme="dark"] .mybids2-error p {
   color: #94a3b8;
@@ -436,7 +453,7 @@
 :root:not([data-theme="dark"]) .mybids2-title,
 :root:not([data-theme="dark"]) .mybids2-money-grid strong,
 :root:not([data-theme="dark"]) .mybids2-meta-grid strong,
-:root:not([data-theme="dark"]) .mybids2-hero-panel strong {
+:root:not([data-theme="dark"]) .mybids2-summary-value {
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
   background: transparent !important;
@@ -449,8 +466,8 @@
 :root:not([data-theme="dark"]) .mybids2-money-grid span,
 :root:not([data-theme="dark"]) .mybids2-meta-grid span,
 :root:not([data-theme="dark"]) .mybids2-discovery-strip span,
-:root:not([data-theme="dark"]) .mybids2-hero-panel span,
-:root:not([data-theme="dark"]) .mybids2-hero-panel small {
+:root:not([data-theme="dark"]) .mybids2-summary-label,
+:root:not([data-theme="dark"]) .mybids2-summary-supporting {
   color: #475569 !important;
   -webkit-text-fill-color: #475569 !important;
   background: transparent !important;
@@ -471,7 +488,7 @@
 }
 
 :root:not([data-theme="dark"]) .mybids2-card,
-:root:not([data-theme="dark"]) .mybids2-hero-panel div,
+:root:not([data-theme="dark"]) .mybids2-summary-box,
 :root:not([data-theme="dark"]) .mybids2-discovery-strip a {
   background: #ffffff !important;
   color: #0f172a !important;
@@ -855,24 +872,24 @@ body:not(.dark) .mybids2-card {
 :root:not([data-theme="dark"]) .mybids2-page h1,
 :root:not([data-theme="dark"]) .mybids2-page h2,
 :root:not([data-theme="dark"]) .mybids2-page h3,
-:root:not([data-theme="dark"]) .mybids2-page strong,
+:root:not([data-theme="dark"]) .mybids2-page strong:not(.mybids2-summary-value),
 :root:not([data-theme="dark"]) .mybids2-title,
 body:not(.dark) .mybids2-page h1,
 body:not(.dark) .mybids2-page h2,
 body:not(.dark) .mybids2-page h3,
-body:not(.dark) .mybids2-page strong,
+body:not(.dark) .mybids2-page strong:not(.mybids2-summary-value),
 body:not(.dark) .mybids2-title {
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
 }
 
 :root:not([data-theme="dark"]) .mybids2-page p,
-:root:not([data-theme="dark"]) .mybids2-page span,
-:root:not([data-theme="dark"]) .mybids2-page small,
+:root:not([data-theme="dark"]) .mybids2-page span:not(.mybids2-summary-label),
+:root:not([data-theme="dark"]) .mybids2-page small:not(.mybids2-summary-supporting),
 :root:not([data-theme="dark"]) .mybids2-page label,
 body:not(.dark) .mybids2-page p,
-body:not(.dark) .mybids2-page span,
-body:not(.dark) .mybids2-page small,
+body:not(.dark) .mybids2-page span:not(.mybids2-summary-label),
+body:not(.dark) .mybids2-page small:not(.mybids2-summary-supporting),
 body:not(.dark) .mybids2-page label {
   color: #475569 !important;
   -webkit-text-fill-color: #475569 !important;
