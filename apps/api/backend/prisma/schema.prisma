@@ -404,7 +404,7 @@ model BuyerItemSubmissionOffer {
   marketplaceTransaction MarketplaceTransaction? @relation("MarketplaceTransactionSubmissionOffer")
   customerSellFulfillment CustomerSellFulfillment?
 
-  @@unique([id, submissionId])
+  @@unique([id, submissionId], map: "BuyerItemSubmissionOffer_id_submissionId_key")
   @@index([submissionId, status])
   @@index([shopId, createdAt])
   @@index([ownerId, createdAt])
