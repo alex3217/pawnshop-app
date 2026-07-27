@@ -10,6 +10,7 @@ import {
 import { getIo } from "../realtime/socket.js";
 import {
   buildMyBidsWhere,
+  getBuyerBidStatus,
   getBidArchiveEligibility,
   setBidArchived,
 } from "../services/bidArchive.service.js";
@@ -659,10 +660,15 @@ export async function myBids(req, res) {
           archived,
           archivedAt: toSerializableDate(archiveByBidId.get(row.id)),
           canArchive: eligibility.eligible,
-          isWinner:
-            (row.auction?.settlement?.winnerUserId ||
-              row.auction?.bids?.[0]?.userId ||
-              null) === row.userId,
+          buyerStatus: getBuyerBidStatus(row, now),
+          isWinner: row.auction?.settlement?.winnerUserId === row.userId,
+          settlement: row.auction?.settlement
+            ? {
+                winnerUserId: row.auction.settlement.winnerUserId,
+                status: row.auction.settlement.status,
+                fulfillmentStatus: row.auction.settlement.fulfillmentStatus,
+              }
+            : null,
         };
       }),
     });

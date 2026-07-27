@@ -16,6 +16,32 @@
   backdrop-filter: blur(16px);
 }
 
+@media (min-width: 1401px) {
+  body:has(.mybids2-page):has(.role-checklist:not(.role-checklist-collapsed)) .site-main {
+    padding-right: calc(430px + env(safe-area-inset-right, 0px));
+  }
+
+  body:has(.mybids2-page):has(.role-checklist-collapsed) .site-main {
+    padding-right: calc(285px + env(safe-area-inset-right, 0px));
+  }
+
+  body:has(.mybids2-page) .role-checklist {
+    right: max(20px, env(safe-area-inset-right, 0px));
+  }
+}
+
+@media (max-width: 1400px) {
+  body:has(.mybids2-page) .role-checklist,
+  body:has(.mybids2-page) .role-checklist-collapsed {
+    position: relative;
+    inset: auto;
+    width: min(390px, calc(100% - 32px));
+    max-height: none;
+    margin: 20px max(16px, env(safe-area-inset-right, 0px))
+      calc(20px + env(safe-area-inset-bottom, 0px)) auto;
+  }
+}
+
 .role-checklist-collapsed {
   width: 245px;
   max-height: none;
@@ -164,6 +190,12 @@
     max-height: calc(100vh - 120px);
   }
 
+  body:has(.mybids2-page) .role-checklist {
+    inset: auto;
+    max-height: none;
+    margin-right: max(12px, env(safe-area-inset-right, 0px));
+  }
+
   .role-checklist-collapsed {
     width: 215px;
   }
@@ -178,6 +210,10 @@
 @media (max-width: 1100px) and (min-width: 641px) {
   .role-checklist {
     right: 16px;
+  }
+
+  body:has(.mybids2-page) .role-checklist {
+    inset: auto;
   }
 
   .role-checklist-collapsed {
