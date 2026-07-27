@@ -402,25 +402,25 @@ export default function MyBidsPage() {
         </div>
 
         <aside className="mybids2-hero-panel">
-          <div>
-            <span>Total bids</span>
-            <strong>{summary.total}</strong>
-            <small>bid records</small>
+          <div className="mybids2-summary-box">
+            <span className="mybids2-summary-label">Total bids</span>
+            <strong className="mybids2-summary-value">{summary.total}</strong>
+            <small className="mybids2-summary-supporting">bid records</small>
           </div>
-          <div>
-            <span>Live</span>
-            <strong>{summary.liveCount}</strong>
-            <small>active auctions</small>
+          <div className="mybids2-summary-box">
+            <span className="mybids2-summary-label">Live</span>
+            <strong className="mybids2-summary-value">{summary.liveCount}</strong>
+            <small className="mybids2-summary-supporting">active auctions</small>
           </div>
-          <div>
-            <span>Leading</span>
-            <strong>{summary.leadingCount}</strong>
-            <small>{summary.outbidCount} outbid</small>
+          <div className="mybids2-summary-box">
+            <span className="mybids2-summary-label">Leading</span>
+            <strong className="mybids2-summary-value">{summary.leadingCount}</strong>
+            <small className="mybids2-summary-supporting">{summary.outbidCount} outbid</small>
           </div>
-          <div>
-            <span>Bid value</span>
-            <strong>{formatMoney(summary.totalBidValue)}</strong>
-            <small>tracked total</small>
+          <div className="mybids2-summary-box">
+            <span className="mybids2-summary-label">Bid value</span>
+            <strong className="mybids2-summary-value">{formatMoney(summary.totalBidValue)}</strong>
+            <small className="mybids2-summary-supporting">tracked total</small>
           </div>
         </aside>
       </section>
@@ -489,17 +489,17 @@ export default function MyBidsPage() {
       </section>
 
       <section className="mybids2-discovery-strip">
-        <Link to="/buyer/dashboard">
-          Buyer dashboard <span>Return to command center</span>
+        <Link to="/buyer/dashboard" className="mybids2-shortcut-banner">
+          Buyer dashboard <span className="mybids2-shortcut-subtitle">Return to command center</span>
         </Link>
-        <Link to="/auctions">
-          Auctions <span>Find active auctions</span>
+        <Link to="/auctions" className="mybids2-shortcut-banner">
+          Auctions <span className="mybids2-shortcut-subtitle">Find active auctions</span>
         </Link>
-        <Link to="/my-wins">
-          My wins <span>Review won auctions</span>
+        <Link to="/my-wins" className="mybids2-shortcut-banner">
+          My wins <span className="mybids2-shortcut-subtitle">Review won auctions</span>
         </Link>
-        <Link to="/watchlist">
-          Watchlist <span>Track saved inventory</span>
+        <Link to="/watchlist" className="mybids2-shortcut-banner">
+          Watchlist <span className="mybids2-shortcut-subtitle">Track saved inventory</span>
         </Link>
       </section>
 

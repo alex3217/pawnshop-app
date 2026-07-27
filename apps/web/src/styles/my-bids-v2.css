@@ -130,8 +130,6 @@
   display: block;
   border-radius: 22px;
   padding: 16px;
-  background: #fff;
-  color: #0f172a;
   border: 1px solid rgba(148, 163, 184, 0.24);
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
   font-weight: 950;
@@ -140,7 +138,6 @@
 .mybids2-discovery-strip span {
   display: block;
   margin-top: 5px;
-  color: #64748b;
   font-size: 13px;
   font-weight: 750;
 }
@@ -340,74 +337,6 @@
   }
 }
 
-:root[data-theme="dark"] .mybids2-page {
-  background:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 34rem),
-    linear-gradient(180deg, #020617 0%, #0f172a 100%);
-  color: #e5e7eb;
-}
-
-:root[data-theme="dark"] .mybids2-hero,
-:root[data-theme="dark"] .mybids2-card,
-:root[data-theme="dark"] .mybids2-empty,
-:root[data-theme="dark"] .mybids2-error,
-:root[data-theme="dark"] .mybids2-discovery-strip a {
-  background: #111827;
-  color: #e5e7eb;
-  border-color: rgba(148, 163, 184, 0.22);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
-}
-
-:root[data-theme="dark"] .mybids2-hero-panel .mybids2-summary-box {
-  background: #111827;
-  border-color: #334155;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24);
-}
-
-:root[data-theme="dark"] .mybids2-hero h1,
-:root[data-theme="dark"] .mybids2-title,
-:root[data-theme="dark"] .mybids2-money-grid strong,
-:root[data-theme="dark"] .mybids2-meta-grid strong {
-  color: #f8fafc;
-}
-
-:root[data-theme="dark"] .mybids2-hero-panel .mybids2-summary-value {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-:root[data-theme="dark"] .mybids2-hero-panel .mybids2-summary-label {
-  color: #cbd5e1 !important;
-  -webkit-text-fill-color: #cbd5e1 !important;
-}
-
-:root[data-theme="dark"] .mybids2-hero-panel .mybids2-summary-supporting {
-  color: #94a3b8 !important;
-  -webkit-text-fill-color: #94a3b8 !important;
-}
-
-:root[data-theme="dark"] .mybids2-hero p,
-:root[data-theme="dark"] .mybids2-card-top p,
-:root[data-theme="dark"] .mybids2-money-grid span,
-:root[data-theme="dark"] .mybids2-meta-grid span,
-:root[data-theme="dark"] .mybids2-discovery-strip span,
-:root[data-theme="dark"] .mybids2-empty p,
-:root[data-theme="dark"] .mybids2-error p {
-  color: #94a3b8;
-}
-
-:root[data-theme="dark"] .mybids2-money-grid div,
-:root[data-theme="dark"] .mybids2-meta-grid div,
-:root[data-theme="dark"] .mybids2-secondary-small {
-  background: #1e293b;
-  color: #e5e7eb;
-}
-
-:root[data-theme="dark"] .mybids2-skeleton {
-  background: linear-gradient(90deg, #111827, #1e293b, #111827);
-  background-size: 200% 100%;
-}
-
 @media (max-width: 1180px) {
   .mybids2-hero {
     grid-template-columns: 1fr;
@@ -443,17 +372,17 @@
 }
 
 /* ===== FINAL MY BIDS LIGHT MODE CONTRAST LOCK ===== */
-:root:not([data-theme="dark"]) .mybids2-page,
-:root:not([data-theme="dark"]) .mybids2-page * {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page * {
   text-shadow: none !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-hero h1,
-:root:not([data-theme="dark"]) .mybids2-hero h1 *,
-:root:not([data-theme="dark"]) .mybids2-title,
-:root:not([data-theme="dark"]) .mybids2-money-grid strong,
-:root:not([data-theme="dark"]) .mybids2-meta-grid strong,
-:root:not([data-theme="dark"]) .mybids2-summary-value {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-hero h1,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-hero h1 *,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-title,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-money-grid strong,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-meta-grid strong,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-summary-value {
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
   background: transparent !important;
@@ -461,35 +390,33 @@
   mix-blend-mode: normal !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-hero p,
-:root:not([data-theme="dark"]) .mybids2-card-top p,
-:root:not([data-theme="dark"]) .mybids2-money-grid span,
-:root:not([data-theme="dark"]) .mybids2-meta-grid span,
-:root:not([data-theme="dark"]) .mybids2-discovery-strip span,
-:root:not([data-theme="dark"]) .mybids2-summary-label,
-:root:not([data-theme="dark"]) .mybids2-summary-supporting {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-hero p,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-card-top p,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-money-grid span,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-meta-grid span,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-summary-label,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-summary-supporting {
   color: #475569 !important;
   -webkit-text-fill-color: #475569 !important;
   background: transparent !important;
   opacity: 1 !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-pill {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-pill {
   color: #4338ca !important;
   -webkit-text-fill-color: #4338ca !important;
   background: #eef2ff !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-hero {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-hero {
   background:
     radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 28rem),
     linear-gradient(135deg, #ffffff 0%, #f8fafc 54%, #eef2ff 100%) !important;
   color: #0f172a !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-card,
-:root:not([data-theme="dark"]) .mybids2-summary-box,
-:root:not([data-theme="dark"]) .mybids2-discovery-strip a {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-card,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-summary-box {
   background: #ffffff !important;
   color: #0f172a !important;
 }
@@ -584,31 +511,6 @@
   cursor: pointer;
 }
 
-:root[data-theme="dark"] .mybids2-control-panel {
-  background: #111827;
-  color: #e5e7eb;
-  border-color: rgba(148, 163, 184, 0.22);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
-}
-
-:root[data-theme="dark"] .mybids2-filter-tabs button,
-:root[data-theme="dark"] .mybids2-control-row input,
-:root[data-theme="dark"] .mybids2-control-row select {
-  background: #0f172a;
-  color: #f8fafc;
-  border-color: rgba(148, 163, 184, 0.22);
-}
-
-:root[data-theme="dark"] .mybids2-filter-tabs button.active {
-  background: #4f46e5;
-  border-color: #4f46e5;
-  color: #ffffff;
-}
-
-:root[data-theme="dark"] .mybids2-control-row span {
-  color: #94a3b8;
-}
-
 @media (max-width: 780px) {
   .mybids2-control-row {
     grid-template-columns: 1fr;
@@ -673,64 +575,6 @@
   cursor: pointer;
 }
 
-:root[data-theme="dark"] .mybids2-pagination-panel {
-  background: #111827;
-  color: #f8fafc;
-  border-color: rgba(148, 163, 184, 0.28);
-}
-
-:root[data-theme="dark"] .mybids2-pagination-panel p {
-  color: #cbd5e1;
-}
-
-:root[data-theme="dark"] .mybids2-pagination-panel button {
-  background: #4f46e5;
-  border-color: #4f46e5;
-  color: #ffffff;
-  -webkit-text-fill-color: #ffffff;
-}
-
-/* My Bids dark-mode status readability polish.
-   Targets only the failing dark audit selectors:
-   Buyer bidding center pill, Leading status, and Outbid status. */
-
-:root[data-theme="dark"] .mybids2-page .mybids2-pill,
-.dark .mybids2-page .mybids2-pill {
-  background: #1d4ed8 !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  border: 1px solid #93c5fd !important;
-  font-weight: 900 !important;
-}
-
-:root[data-theme="dark"] .mybids2-page .mybids2-position-leading,
-.dark .mybids2-page .mybids2-position-leading {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  background: #14532d !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  border: 1px solid #86efac !important;
-  border-radius: 999px !important;
-  padding: 0.28rem 0.62rem !important;
-  font-weight: 900 !important;
-}
-
-:root[data-theme="dark"] .mybids2-page .mybids2-position-outbid,
-.dark .mybids2-page .mybids2-position-outbid {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  background: #7f1d1d !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  border: 1px solid #fecaca !important;
-  border-radius: 999px !important;
-  padding: 0.28rem 0.62rem !important;
-  font-weight: 900 !important;
-}
-
 .mybids2-clear-controls {
   border: 1px solid rgba(37, 99, 235, 0.25);
   border-radius: 14px;
@@ -752,26 +596,16 @@
   font-weight: 700;
 }
 
-:root[data-theme="dark"] .mybids2-clear-controls {
-  background: #1e293b;
-  color: #bfdbfe;
-  border-color: rgba(96, 165, 250, 0.35);
-}
-
-:root[data-theme="dark"] .mybids2-control-summary {
-  color: #dbeafe;
-}
-
 /* Light-mode My Bids filter chip readability + sizing fix.
    Prevents the active "All" filter from collapsing into an unreadable circle. */
-:root:not([data-theme="dark"]) .mybids2-filter-tabs {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-filter-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
   align-items: center;
 }
 
-:root:not([data-theme="dark"]) .mybids2-filter-tabs button {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-filter-tabs button {
   width: auto !important;
   min-width: 68px !important;
   min-height: 46px !important;
@@ -791,7 +625,7 @@
   font-weight: 900 !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-filter-tabs button.active {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-filter-tabs button.active {
   background: #4f46e5 !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
@@ -799,14 +633,14 @@
   box-shadow: 0 12px 26px rgba(79, 70, 229, 0.24) !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-clear-controls {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-clear-controls {
   background: #ffffff !important;
   color: #1d4ed8 !important;
   -webkit-text-fill-color: #1d4ed8 !important;
   border-color: rgba(37, 99, 235, 0.28) !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-clear-controls:disabled {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-clear-controls:disabled {
   background: #f8fafc !important;
   color: #64748b !important;
   -webkit-text-fill-color: #64748b !important;
@@ -827,16 +661,7 @@
   box-shadow: 0 20px 42px rgba(79, 70, 229, 0.38) !important;
 }
 
-:root[data-theme="dark"] .mybids2-hero-actions a:first-child,
-.dark .mybids2-hero-actions a:first-child {
-  background: linear-gradient(135deg, #6366f1, #2563eb) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  border-color: rgba(191, 219, 254, 0.45) !important;
-  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.36) !important;
-}
-
-:root:not([data-theme="dark"]) .mybids2-filter-tabs button.active {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-filter-tabs button.active {
   background: #4f46e5 !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
@@ -845,99 +670,463 @@
 }
 
 /* FINAL override: My Bids light-mode readability. */
-:root:not([data-theme="dark"]) .mybids2-page,
-body:not(.dark) .mybids2-page {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page {
   background:
     radial-gradient(circle at top left, rgba(79, 70, 229, 0.10), transparent 30rem),
     linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
   color: #0f172a !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-hero,
-:root:not([data-theme="dark"]) .mybids2-control-panel,
-:root:not([data-theme="dark"]) .mybids2-empty,
-:root:not([data-theme="dark"]) .mybids2-error,
-:root:not([data-theme="dark"]) .mybids2-card,
-body:not(.dark) .mybids2-hero,
-body:not(.dark) .mybids2-control-panel,
-body:not(.dark) .mybids2-empty,
-body:not(.dark) .mybids2-error,
-body:not(.dark) .mybids2-card {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-hero,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-control-panel,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-empty,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-error,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-card,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-hero,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-control-panel,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-empty,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-error,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-card {
   background: #ffffff !important;
   color: #0f172a !important;
   border-color: rgba(148, 163, 184, 0.30) !important;
   box-shadow: 0 16px 44px rgba(15, 23, 42, 0.08) !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-page h1,
-:root:not([data-theme="dark"]) .mybids2-page h2,
-:root:not([data-theme="dark"]) .mybids2-page h3,
-:root:not([data-theme="dark"]) .mybids2-page strong:not(.mybids2-summary-value),
-:root:not([data-theme="dark"]) .mybids2-title,
-body:not(.dark) .mybids2-page h1,
-body:not(.dark) .mybids2-page h2,
-body:not(.dark) .mybids2-page h3,
-body:not(.dark) .mybids2-page strong:not(.mybids2-summary-value),
-body:not(.dark) .mybids2-title {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page h1,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page h2,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page h3,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page strong:not(.mybids2-summary-value),
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-title,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page h1,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page h2,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page h3,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page strong:not(.mybids2-summary-value),
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-title {
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-page p,
-:root:not([data-theme="dark"]) .mybids2-page span:not(.mybids2-summary-label),
-:root:not([data-theme="dark"]) .mybids2-page small:not(.mybids2-summary-supporting),
-:root:not([data-theme="dark"]) .mybids2-page label,
-body:not(.dark) .mybids2-page p,
-body:not(.dark) .mybids2-page span:not(.mybids2-summary-label),
-body:not(.dark) .mybids2-page small:not(.mybids2-summary-supporting),
-body:not(.dark) .mybids2-page label {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page p,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page span:not(.mybids2-summary-label):not(.mybids2-shortcut-subtitle),
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page small:not(.mybids2-summary-supporting),
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page label,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page p,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page span:not(.mybids2-summary-label):not(.mybids2-shortcut-subtitle),
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page small:not(.mybids2-summary-supporting),
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page label {
   color: #475569 !important;
   -webkit-text-fill-color: #475569 !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-empty h2,
-:root:not([data-theme="dark"]) .mybids2-error h2,
-body:not(.dark) .mybids2-empty h2,
-body:not(.dark) .mybids2-error h2 {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-empty h2,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-error h2,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-empty h2,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-error h2 {
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
   font-weight: 950 !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-empty p,
-:root:not([data-theme="dark"]) .mybids2-error p,
-body:not(.dark) .mybids2-empty p,
-body:not(.dark) .mybids2-error p {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-empty p,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-error p,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-empty p,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-error p {
   color: #334155 !important;
   -webkit-text-fill-color: #334155 !important;
   font-weight: 750 !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-page input,
-:root:not([data-theme="dark"]) .mybids2-page select,
-body:not(.dark) .mybids2-page input,
-body:not(.dark) .mybids2-page select {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page input,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page select,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page input,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-page select {
   background: #ffffff !important;
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
   border-color: rgba(148, 163, 184, 0.50) !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-discovery-strip a,
-:root:not([data-theme="dark"]) .mybids2-empty a,
-:root:not([data-theme="dark"]) .mybids2-primary-small,
-body:not(.dark) .mybids2-discovery-strip a,
-body:not(.dark) .mybids2-empty a,
-body:not(.dark) .mybids2-primary-small {
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-empty a,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-primary-small,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-empty a,
+:root:not([data-theme="dark"]):not(.dark) body:not(.dark) .mybids2-primary-small {
   background: linear-gradient(135deg, #7c3aed, #2563eb) !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   border-color: rgba(221, 214, 254, 0.70) !important;
 }
 
-:root:not([data-theme="dark"]) .mybids2-discovery-strip a span,
-body:not(.dark) .mybids2-discovery-strip a span {
-  color: #eef2ff !important;
-  -webkit-text-fill-color: #eef2ff !important;
-}
 /* END final My Bids light-mode readability. */
+
+/* My Bids dark theme. Keep every override scoped to this page so the global
+   readability guard and the light-mode contrast locks cannot leak across themes. */
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page,
+.mybids2-page.dark {
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 34rem),
+    linear-gradient(180deg, #080f1f 0%, #080f1f 100%) !important;
+  color: #f8fafc !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-hero,
+  .mybids2-control-panel,
+  .mybids2-summary-box,
+  .mybids2-card,
+  .mybids2-empty,
+  .mybids2-error,
+  .mybids2-pagination-panel
+),
+.mybids2-page.dark :is(
+  .mybids2-hero,
+  .mybids2-control-panel,
+  .mybids2-summary-box,
+  .mybids2-card,
+  .mybids2-empty,
+  .mybids2-error,
+  .mybids2-pagination-panel
+) {
+  background: #111827 !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32) !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-hero h1,
+  .mybids2-title,
+  .mybids2-money-grid strong,
+  .mybids2-meta-grid strong,
+  .mybids2-empty h2,
+  .mybids2-error h2,
+  .mybids2-pagination-panel strong
+),
+.mybids2-page.dark :is(
+  .mybids2-hero h1,
+  .mybids2-title,
+  .mybids2-money-grid strong,
+  .mybids2-meta-grid strong,
+  .mybids2-empty h2,
+  .mybids2-error h2,
+  .mybids2-pagination-panel strong
+) {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-hero p,
+  .mybids2-card-top p,
+  .mybids2-money-grid span,
+  .mybids2-meta-grid span,
+  .mybids2-empty p,
+  .mybids2-error p,
+  .mybids2-pagination-panel p,
+  .mybids2-control-row span
+),
+.mybids2-page.dark :is(
+  .mybids2-hero p,
+  .mybids2-card-top p,
+  .mybids2-money-grid span,
+  .mybids2-meta-grid span,
+  .mybids2-empty p,
+  .mybids2-error p,
+  .mybids2-pagination-panel p,
+  .mybids2-control-row span
+) {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-summary-label,
+.mybids2-page.dark .mybids2-summary-label {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-summary-value,
+.mybids2-page.dark .mybids2-summary-value {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-summary-supporting,
+.mybids2-page.dark .mybids2-summary-supporting {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-money-grid span,
+  .mybids2-meta-grid span,
+  .mybids2-control-row span
+) {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page .mybids2-card-top p {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-control-row input,
+  .mybids2-control-row select
+),
+.mybids2-page.dark :is(
+  .mybids2-control-row input,
+  .mybids2-control-row select
+) {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-control-row input::placeholder,
+.mybids2-page.dark .mybids2-control-row input::placeholder {
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+  opacity: 1;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-control-row input,
+  .mybids2-control-row select
+):focus-visible,
+.mybids2-page.dark :is(
+  .mybids2-control-row input,
+  .mybids2-control-row select
+):focus-visible {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.42);
+  outline: 2px solid transparent;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page .mybids2-filter-tabs button,
+.mybids2-page.dark .mybids2-filter-tabs button {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+  border-color: #475569 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-filter-tabs button.active,
+.mybids2-page.dark .mybids2-filter-tabs button.active {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #6366f1 !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-money-grid div,
+  .mybids2-meta-grid div,
+  .mybids2-secondary-small
+),
+.mybids2-page.dark :is(
+  .mybids2-money-grid div,
+  .mybids2-meta-grid div,
+  .mybids2-secondary-small
+) {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-primary-small,
+  .mybids2-empty a,
+  .mybids2-error button,
+  .mybids2-pagination-panel button
+),
+.mybids2-page.dark :is(
+  .mybids2-primary-small,
+  .mybids2-empty a,
+  .mybids2-error button,
+  .mybids2-pagination-panel button
+) {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #6366f1 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-hero-actions a:first-child,
+.mybids2-page.dark .mybids2-hero-actions a:first-child {
+  background: linear-gradient(135deg, #6366f1, #2563eb) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(191, 219, 254, 0.45) !important;
+  box-shadow: 0 18px 42px rgba(37, 99, 235, 0.36) !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-hero-actions a:nth-child(2),
+  .mybids2-hero-actions button,
+  .mybids2-clear-controls
+),
+.mybids2-page.dark :is(
+  .mybids2-hero-actions a:nth-child(2),
+  .mybids2-hero-actions button,
+  .mybids2-clear-controls
+) {
+  background: #1e293b !important;
+  color: #bfdbfe !important;
+  -webkit-text-fill-color: #bfdbfe !important;
+  border-color: #475569 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-control-summary,
+.mybids2-page.dark .mybids2-control-summary {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-notice,
+.mybids2-page.dark .mybids2-notice {
+  background: #1e1b4b !important;
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+  border: 1px solid #475569 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-pill,
+.mybids2-page.dark .mybids2-pill {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #93c5fd !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-position-leading,
+.mybids2-page.dark .mybids2-position-leading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #14532d;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #86efac;
+  border-radius: 999px;
+  padding: 0.28rem 0.62rem;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-position-outbid,
+.mybids2-page.dark .mybids2-position-outbid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #7f1d1d;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  padding: 0.28rem 0.62rem;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-status,
+.mybids2-page.dark .mybids2-status {
+  background: #334155 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-status-live,
+.mybids2-page.dark .mybids2-status-live {
+  background: #14532d !important;
+  color: #dcfce7 !important;
+  -webkit-text-fill-color: #dcfce7 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-status-canceled,
+.mybids2-page.dark .mybids2-status-canceled {
+  background: #7f1d1d !important;
+  color: #fee2e2 !important;
+  -webkit-text-fill-color: #fee2e2 !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page :is(
+  a,
+  button,
+  input,
+  select
+):focus-visible {
+  outline: 3px solid #60a5fa !important;
+  outline-offset: 3px;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page :is(
+  .mybids2-filter-tabs button:not(.active),
+  .mybids2-secondary-small,
+  .mybids2-clear-controls,
+  .mybids2-hero-actions a:nth-child(2),
+  .mybids2-hero-actions button
+):not(:disabled):hover {
+  background: #334155 !important;
+  border-color: #64748b !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark) .mybids2-page button:disabled {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+  border-color: #334155 !important;
+  opacity: 1 !important;
+}
+
+:is(:root[data-theme="dark"], .dark) .mybids2-page .mybids2-skeleton,
+.mybids2-page.dark .mybids2-skeleton {
+  background: linear-gradient(90deg, #111827, #1e293b, #111827);
+  background-size: 200% 100%;
+}
+
+/* My Bids shortcut banners: one theme-independent contrast and interaction lock. */
+.mybids2-page .mybids2-shortcut-banner,
+.mybids2-page .mybids2-shortcut-banner:visited,
+.mybids2-page .mybids2-shortcut-banner:hover,
+.mybids2-page .mybids2-shortcut-banner:focus-visible,
+.mybids2-page .mybids2-shortcut-banner:active {
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: rgba(221, 214, 254, 0.7);
+  transition:
+    filter 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.mybids2-page .mybids2-shortcut-banner *,
+.mybids2-page .mybids2-shortcut-banner:visited *,
+.mybids2-page .mybids2-shortcut-banner:hover *,
+.mybids2-page .mybids2-shortcut-banner:focus-visible *,
+.mybids2-page .mybids2-shortcut-banner:active * {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.mybids2-page .mybids2-shortcut-banner .mybids2-shortcut-subtitle,
+.mybids2-page .mybids2-shortcut-banner:visited .mybids2-shortcut-subtitle,
+.mybids2-page .mybids2-shortcut-banner:hover .mybids2-shortcut-subtitle,
+.mybids2-page .mybids2-shortcut-banner:focus-visible .mybids2-shortcut-subtitle,
+.mybids2-page .mybids2-shortcut-banner:active .mybids2-shortcut-subtitle {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+.mybids2-page .mybids2-shortcut-banner:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(37, 99, 235, 0.3);
+}
+
+.mybids2-page .mybids2-shortcut-banner:focus-visible {
+  outline: 3px solid #ffffff !important;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px #2563eb;
+}
