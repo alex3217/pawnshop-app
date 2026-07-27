@@ -8,6 +8,9 @@ import {
 import {
   getSellerPayoutHistory,
 } from "../services/payouts/sellerPayoutHistory.service.js";
+import {
+  isAdminRole,
+} from "../middleware/auth.js";
 
 function normalizeId(value) {
   const id = String(value || "").trim();
@@ -15,9 +18,7 @@ function normalizeId(value) {
 }
 
 function isAdminRequest(req) {
-  return String(req?.user?.role || "")
-    .trim()
-    .toUpperCase() === "ADMIN";
+  return isAdminRole(req?.user?.role);
 }
 
 function sendError(res, error) {
@@ -37,72 +38,91 @@ function sendError(res, error) {
   });
 }
 
-export async function getShopFinanceBalance(req, res) {
-  try {
-    const shopId = normalizeId(req?.params?.id);
-    const requesterId = normalizeId(req?.user?.sub);
+export function createShopFinanceBalanceController({
+  prismaClient = prisma,
+  loadSellerBalance = getSellerBalance,
+  logger = console,
+} = {}) {
+  return async function shopFinanceBalanceController(req, res) {
+    try {
+      const shopId = normalizeId(req?.params?.id);
+      const requesterId = normalizeId(
+        req?.user?.sub ||
+          req?.user?.id ||
+          req?.user?.userId,
+      );
 
-    if (!requesterId) {
-      return res.status(401).json({
-        success: false,
-        error: "Unauthorized",
+      if (!requesterId) {
+        return res.status(401).json({
+          success: false,
+          error: "Unauthorized",
+        });
+      }
+
+      if (!shopId) {
+        return res.status(400).json({
+          success: false,
+          error: "Shop id is required",
+        });
+      }
+
+      const shop = await prismaClient.pawnShop.findFirst({
+        where: {
+          id: shopId,
+          isDeleted: false,
+        },
+        select: {
+          id: true,
+          name: true,
+          ownerId: true,
+        },
       });
-    }
 
-    if (!shopId) {
-      return res.status(400).json({
-        success: false,
-        error: "Shop id is required",
+      if (!shop) {
+        return res.status(404).json({
+          success: false,
+          error: "Shop not found",
+        });
+      }
+
+      if (
+        !isAdminRole(req?.user?.role) &&
+        shop.ownerId !== requesterId
+      ) {
+        return res.status(403).json({
+          success: false,
+          error: "Forbidden",
+        });
+      }
+
+      const balance = await loadSellerBalance({
+        sellerUserId: shop.ownerId,
+        shopId: shop.id,
+        currency: "USD",
+        prismaClient,
       });
-    }
 
-    const shop = await prisma.pawnShop.findUnique({
-      where: {
-        id: shopId,
-      },
-      select: {
-        id: true,
-        name: true,
-        ownerId: true,
-        isDeleted: true,
-      },
-    });
-
-    if (!shop || shop.isDeleted) {
-      return res.status(404).json({
-        success: false,
-        error: "Shop not found",
+      return res.status(200).json({
+        success: true,
+        shop: {
+          id: shop.id,
+          name: shop.name,
+          ownerId: shop.ownerId,
+        },
+        balance,
       });
+    } catch (error) {
+      logger.error(
+        "[shopFinance.getShopFinanceBalance]",
+        error,
+      );
+      return sendError(res, error);
     }
-
-    if (!isAdminRequest(req) && shop.ownerId !== requesterId) {
-      return res.status(403).json({
-        success: false,
-        error: "Forbidden",
-      });
-    }
-
-    const balance = await getSellerBalance({
-      sellerUserId: shop.ownerId,
-      shopId: shop.id,
-      currency: "USD",
-      prismaClient: prisma,
-    });
-
-    return res.status(200).json({
-      success: true,
-      shop: {
-        id: shop.id,
-        name: shop.name,
-        ownerId: shop.ownerId,
-      },
-      balance,
-    });
-  } catch (error) {
-    console.error("[shopFinance.getShopFinanceBalance]", error);
-    return sendError(res, error);
-  }
+  };
 }
+
+export const getShopFinanceBalance =
+  createShopFinanceBalanceController();
 
 export async function getShopFinanceLedger(req, res) {
   try {
@@ -284,4 +304,3 @@ export async function getShopFinancePayouts(req, res) {
     return sendError(res, error);
   }
 }
-
