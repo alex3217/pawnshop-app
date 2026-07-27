@@ -1127,18 +1127,22 @@
 
 :root[data-theme="dark"] .marketplace-v2 .mp2-item-media-badge-available,
 .dark .marketplace-v2 .mp2-item-media-badge-available {
-  color: #14532d;
-  -webkit-text-fill-color: #14532d;
-  opacity: 1;
-  text-shadow: none;
+  background: #bbf7d0 !important;
+  color: #14532d !important;
+  -webkit-text-fill-color: #14532d !important;
+  border-color: #4ade80 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
 }
 
 :root[data-theme="dark"] .marketplace-v2 .mp2-item-media-badge-local,
 .dark .marketplace-v2 .mp2-item-media-badge-local {
-  color: #1e293b;
-  -webkit-text-fill-color: #1e293b;
-  opacity: 1;
-  text-shadow: none;
+  background: #f8fafc !important;
+  color: #1e293b !important;
+  -webkit-text-fill-color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
 }
 
 /* Marketplace light-mode readability polish.
