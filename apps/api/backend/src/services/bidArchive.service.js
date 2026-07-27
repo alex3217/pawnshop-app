@@ -82,11 +82,14 @@ export async function setBidArchived(db, { bidId, userId, archived, now = new Da
 
     await db.bidArchive.upsert({
       where: { userId_bidId: { userId, bidId } },
-      create: { userId, bidId },
-      update: {},
+      create: { userId, bidId, archivedAt: now },
+      update: { archivedAt: now },
     });
   } else {
-    await db.bidArchive.deleteMany({ where: { userId, bidId } });
+    await db.bidArchive.updateMany({
+      where: { userId, bidId, archivedAt: { not: null } },
+      data: { archivedAt: null },
+    });
   }
 
   return { bidId, archived };

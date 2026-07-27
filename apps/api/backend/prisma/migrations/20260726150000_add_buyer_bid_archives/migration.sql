@@ -2,7 +2,7 @@ CREATE TABLE "BidArchive" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "bidId" TEXT NOT NULL,
-    "archivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "archivedAt" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "BidArchive_pkey" PRIMARY KEY ("id")
 );

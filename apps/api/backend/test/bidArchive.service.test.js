@@ -27,29 +27,58 @@ function bidFixture(overrides = {}) {
 }
 
 function dbFor(bid) {
-  const calls = { upsert: 0, deleteMany: 0 };
+  const calls = { upsert: [], updateMany: [] };
   return {
     calls,
     bid: { findUnique: async () => bid },
     bidArchive: {
-      upsert: async () => { calls.upsert += 1; },
-      deleteMany: async () => { calls.deleteMany += 1; },
+      upsert: async (args) => { calls.upsert.push(args); },
+      updateMany: async (args) => { calls.updateMany.push(args); },
     },
   };
 }
 
-test("eligible buyer can archive and repeated archive requests are idempotent", async () => {
+test("eligible buyer can archive and repeated archive requests refresh archivedAt", async () => {
   const db = dbFor(bidFixture());
   await setBidArchived(db, { bidId: "bid-1", userId: "buyer-1", archived: true, now: NOW });
   await setBidArchived(db, { bidId: "bid-1", userId: "buyer-1", archived: true, now: NOW });
-  assert.equal(db.calls.upsert, 2);
+  assert.equal(db.calls.upsert.length, 2);
+  assert.deepEqual(db.calls.upsert[0], {
+    where: { userId_bidId: { userId: "buyer-1", bidId: "bid-1" } },
+    create: { userId: "buyer-1", bidId: "bid-1", archivedAt: NOW },
+    update: { archivedAt: NOW },
+  });
 });
 
 test("eligible buyer can restore and repeated restore requests are idempotent", async () => {
   const db = dbFor(bidFixture());
   await setBidArchived(db, { bidId: "bid-1", userId: "buyer-1", archived: false, now: NOW });
   await setBidArchived(db, { bidId: "bid-1", userId: "buyer-1", archived: false, now: NOW });
-  assert.equal(db.calls.deleteMany, 2);
+  assert.equal(db.calls.updateMany.length, 2);
+  assert.deepEqual(db.calls.updateMany[0], {
+    where: {
+      userId: "buyer-1",
+      bidId: "bid-1",
+      archivedAt: { not: null },
+    },
+    data: { archivedAt: null },
+  });
+});
+
+test("restored bids can be re-archived by refreshing archivedAt", async () => {
+  const db = dbFor(bidFixture());
+  await setBidArchived(db, { bidId: "bid-1", userId: "buyer-1", archived: false, now: NOW });
+
+  const rearchiveTime = new Date("2026-07-26T19:00:00.000Z");
+  await setBidArchived(db, {
+    bidId: "bid-1",
+    userId: "buyer-1",
+    archived: true,
+    now: rearchiveTime,
+  });
+
+  assert.equal(db.calls.updateMany.length, 1);
+  assert.deepEqual(db.calls.upsert[0].update, { archivedAt: rearchiveTime });
 });
 
 test("another buyer cannot change the record", async () => {
@@ -58,7 +87,7 @@ test("another buyer cannot change the record", async () => {
     setBidArchived(db, { bidId: "bid-1", userId: "buyer-2", archived: true, now: NOW }),
     (error) => error.statusCode === 403,
   );
-  assert.equal(db.calls.upsert, 0);
+  assert.equal(db.calls.upsert.length, 0);
 });
 
 test("missing bids return 404", async () => {

@@ -615,7 +615,7 @@ export async function myBids(req, res) {
 
     const archived = archivedParam === "true";
     const archivedRows = await prisma.bidArchive.findMany({
-      where: { userId: req.user.sub },
+      where: { userId: req.user.sub, archivedAt: { not: null } },
       select: { bidId: true, archivedAt: true },
     });
     const archiveByBidId = new Map(

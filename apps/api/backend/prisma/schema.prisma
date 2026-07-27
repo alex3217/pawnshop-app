@@ -265,7 +265,7 @@ model BidArchive {
   id         String   @id @default(cuid())
   userId     String
   bidId      String
-  archivedAt DateTime @default(now())
+  archivedAt DateTime? @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   bid        Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
 
