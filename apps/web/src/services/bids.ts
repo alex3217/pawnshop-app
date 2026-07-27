@@ -12,6 +12,13 @@ export type BidRow = {
   archivedAt?: string | null;
   canArchive?: boolean;
   isWinner?: boolean;
+  isLeading?: boolean;
+  buyerStatus?: BuyerBidStatus;
+  settlement?: {
+    winnerUserId: string;
+    status: string;
+    fulfillmentStatus: string;
+  } | null;
   auction?: {
     id: string;
     status: string;
@@ -30,6 +37,15 @@ export type BidRow = {
     } | null;
   } | null;
 };
+
+export type BuyerBidStatus =
+  | "CANCELED"
+  | "PAYMENT_DUE"
+  | "WON"
+  | "LOST"
+  | "CLOSED"
+  | "LEADING"
+  | "OUTBID";
 
 function normalizeBidRows(payload: unknown): BidRow[] {
   if (Array.isArray(payload)) return payload as BidRow[];

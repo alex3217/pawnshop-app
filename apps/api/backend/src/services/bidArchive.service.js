@@ -1,5 +1,33 @@
 import { getEffectiveAuctionStatus } from "../lib/auctionStatus.js";
 
+const PAYABLE_SETTLEMENT_STATUSES = new Set(["PENDING", "FAILED"]);
+
+export function getBuyerBidStatus(bid, now = new Date()) {
+  const auction = bid?.auction;
+  const auctionStatus = getEffectiveAuctionStatus(auction, now);
+  const settlement = auction?.settlement || null;
+  const winnerUserId = settlement?.winnerUserId || null;
+  const leaderUserId = auction?.bids?.[0]?.userId || null;
+  const buyerId = bid?.userId || null;
+
+  if (auctionStatus === "CANCELED") return "CANCELED";
+
+  if (winnerUserId === buyerId) {
+    const paymentRequired =
+      settlement?.fulfillmentStatus === "PAYMENT_PENDING" &&
+      PAYABLE_SETTLEMENT_STATUSES.has(String(settlement?.status || "").toUpperCase());
+    return paymentRequired ? "PAYMENT_DUE" : "WON";
+  }
+
+  if (winnerUserId) return "LOST";
+  if (auctionStatus === "ENDED") return "CLOSED";
+  if (auctionStatus === "LIVE") {
+    return leaderUserId === buyerId ? "LEADING" : "OUTBID";
+  }
+
+  return "CLOSED";
+}
+
 function httpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildMyBidsWhere,
+  getBuyerBidStatus,
   getBidArchiveEligibility,
   setBidArchived,
 } from "../src/services/bidArchive.service.js";
@@ -141,4 +142,35 @@ test("archive filters are buyer-specific and default results exclude archived bi
     userId: "buyer-1",
     id: { notIn: ["bid-1"] },
   });
+});
+
+test("buyer bid status follows auction, winner, and payment precedence", () => {
+  const active = {
+    status: "LIVE",
+    startsAt: new Date("2026-07-26T15:00:00.000Z"),
+    endsAt: new Date("2026-07-26T19:00:00.000Z"),
+    settlement: null,
+  };
+  const ended = { ...active, status: "ENDED", endsAt: new Date("2026-07-26T16:00:00.000Z") };
+
+  const statusFor = (auction, overrides = {}) =>
+    getBuyerBidStatus(bidFixture({ auction, isLeading: true, ...overrides }), NOW);
+
+  assert.equal(statusFor({ ...active, bids: [{ userId: "buyer-1" }] }), "LEADING");
+  assert.equal(statusFor({ ...active, bids: [{ userId: "buyer-2" }] }), "OUTBID");
+  assert.equal(statusFor({
+    ...ended,
+    settlement: { winnerUserId: "buyer-1", status: "PENDING", fulfillmentStatus: "PAYMENT_PENDING" },
+  }), "PAYMENT_DUE");
+  assert.equal(statusFor({
+    ...ended,
+    settlement: { winnerUserId: "buyer-1", status: "CHARGED", fulfillmentStatus: "READY_FOR_PICKUP" },
+  }), "WON");
+  assert.equal(statusFor({
+    ...ended,
+    settlement: { winnerUserId: "buyer-2", status: "PENDING", fulfillmentStatus: "PAYMENT_PENDING" },
+  }), "LOST");
+  assert.equal(statusFor({ ...ended, settlement: null, bids: [] }), "CLOSED");
+  assert.equal(statusFor({ ...ended, status: "CANCELED", settlement: null }), "CANCELED");
+  assert.equal(statusFor({ ...ended, settlement: null, bids: [{ userId: "buyer-1" }] }), "CLOSED");
 });

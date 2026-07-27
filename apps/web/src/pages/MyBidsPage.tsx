@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
-import { archiveBid, getMyBids, restoreBid, type BidRow } from "../services/bids";
+import {
+  archiveBid,
+  getMyBids,
+  restoreBid,
+  type BidRow,
+  type BuyerBidStatus,
+} from "../services/bids";
 import { addToWatchlist } from "../services/watchlist";
 import "../styles/my-bids-v2.css";
 
@@ -42,42 +48,82 @@ function getAuctionEndDate(row: BidRow) {
 }
 
 function getAuctionEndLabel(row: BidRow) {
-  const endDate = getAuctionEndDate(row);
-  if (!endDate) return "End time unavailable";
-
-  const diffMs = endDate.getTime() - Date.now();
-
-  if (diffMs <= 0) return "Ended";
-
-  const totalMinutes = Math.floor(diffMs / 60_000);
-  const days = Math.floor(totalMinutes / 1440);
-  const hours = Math.floor((totalMinutes % 1440) / 60);
-  const minutes = totalMinutes % 60;
-
-  if (days > 0) return `${days}d ${hours}h left`;
-  if (hours > 0) return `${hours}h ${minutes}m left`;
-  return `${Math.max(minutes, 1)}m left`;
+  const auctionStatus = normalizeStatus(row.auction?.status);
+  if (auctionStatus === "CANCELED") return "Canceled";
+  if (auctionStatus === "ENDED") return "Ended";
+  return formatDateTime(row.auction?.extendedEndsAt || row.auction?.endsAt);
 }
 
 function normalizeStatus(status: string | null | undefined) {
   return String(status || "UNKNOWN").toUpperCase();
 }
 
-function getBidPosition(row: BidRow) {
+function getLiveBidPosition(row: BidRow): "LEADING" | "OUTBID" {
   const bid = Number(row.amount);
   const current = Number(row.auction?.currentPrice);
 
-  if (!Number.isFinite(bid) || !Number.isFinite(current)) return "Unknown";
-  if (bid >= current) return "Leading";
-  return "Outbid";
+  if (Number.isFinite(bid) && Number.isFinite(current) && bid >= current) {
+    return "LEADING";
+  }
+  return "OUTBID";
+}
+
+function isBuyerBidStatus(status: string | null | undefined): status is BuyerBidStatus {
+  return [
+    "CANCELED",
+    "PAYMENT_DUE",
+    "WON",
+    "LOST",
+    "CLOSED",
+    "LEADING",
+    "OUTBID",
+  ].includes(status || "");
+}
+
+function getBuyerStatus(row: BidRow): BuyerBidStatus {
+  if (isBuyerBidStatus(row.buyerStatus)) return row.buyerStatus;
+
+  const auctionStatus = normalizeStatus(row.auction?.status);
+  const settlement = row.settlement;
+
+  if (auctionStatus === "CANCELED") return "CANCELED";
+
+  if (settlement?.winnerUserId === row.userId) {
+    const payable =
+      settlement.fulfillmentStatus === "PAYMENT_PENDING" &&
+      ["PENDING", "FAILED"].includes(normalizeStatus(settlement.status));
+    return payable ? "PAYMENT_DUE" : "WON";
+  }
+
+  if (settlement?.winnerUserId) return "LOST";
+  if (auctionStatus === "ENDED") return "CLOSED";
+  if (auctionStatus === "LIVE") return getLiveBidPosition(row);
+  return "CLOSED";
+}
+
+const STATUS_PRESENTATION: Record<
+  BuyerBidStatus,
+  { label: string; helper: string }
+> = {
+  CANCELED: { label: "Canceled", helper: "The seller canceled this auction." },
+  PAYMENT_DUE: { label: "Payment due", helper: "You won. Complete payment to continue." },
+  WON: { label: "Won", helper: "You won and no payment action remains." },
+  LOST: { label: "Lost", helper: "Another bidder won this auction." },
+  CLOSED: { label: "Closed", helper: "The auction closed without a winning outcome for you." },
+  LEADING: { label: "Leading", helper: "Your bid currently leads this active auction." },
+  OUTBID: { label: "Outbid", helper: "Another bidder currently leads this active auction." },
+};
+
+function isPayableWinner(row: BidRow) {
+  return getBuyerStatus(row) === "PAYMENT_DUE";
 }
 
 function statusClass(status: string | null | undefined) {
-  return `mybids2-status mybids2-status-${normalizeStatus(status).toLowerCase()}`;
+  return `mybids2-status mybids2-status-${normalizeStatus(status).toLowerCase().replaceAll("_", "-")}`;
 }
 
 function bidPositionClass(position: string) {
-  return `mybids2-position mybids2-position-${position.toLowerCase()}`;
+  return `mybids2-position mybids2-position-${position.toLowerCase().replaceAll("_", "-")}`;
 }
 
 function itemIdFor(row: BidRow) {
@@ -101,7 +147,7 @@ function isLiveBid(row: BidRow) {
 }
 
 function isEndedBid(row: BidRow) {
-  return normalizeStatus(row.auction?.status) === "ENDED" || getAuctionEndLabel(row) === "Ended";
+  return ["ENDED", "CANCELED"].includes(normalizeStatus(row.auction?.status));
 }
 
 const MY_BIDS_PAGE_SIZE = 36;
@@ -119,16 +165,15 @@ function BidCard({
   processingBidId: string | null;
   onArchiveAction: (row: BidRow) => void;
 }) {
-  const status = normalizeStatus(row.auction?.status);
-  const position = getBidPosition(row);
+  const buyerStatus = getBuyerStatus(row);
+  const presentation = STATUS_PRESENTATION[buyerStatus];
   const itemTitle = itemTitleFor(row);
   const shopName = shopNameFor(row);
   const itemId = itemIdFor(row);
   const shopId = shopIdFor(row);
   const live = isLiveBid(row);
-  const ended = isEndedBid(row);
-  const outbid = position === "Outbid";
-  const leading = position === "Leading";
+  const outbid = buyerStatus === "OUTBID";
+  const leading = buyerStatus === "LEADING";
   const processing = processingBidId === row.id;
 
   return (
@@ -141,7 +186,7 @@ function BidCard({
           <p>{shopName}</p>
         </div>
 
-        <span className={statusClass(status)}>{status}</span>
+        <span className={statusClass(buyerStatus)}>{presentation.label}</span>
       </div>
 
       <div className="mybids2-money-grid">
@@ -158,7 +203,8 @@ function BidCard({
       <div className="mybids2-meta-grid">
         <div>
           <span>Bid position</span>
-          <strong className={bidPositionClass(position)}>{position}</strong>
+          <strong className={bidPositionClass(buyerStatus)}>{presentation.label}</strong>
+          <small className="mybids2-status-helper">{presentation.helper}</small>
         </div>
         <div>
           <span>Minimum increment</span>
@@ -202,13 +248,19 @@ function BidCard({
           </button>
         ) : null}
 
-        {ended && row.isWinner ? (
+        {isPayableWinner(row) ? (
           <Link to="/my-wins" className="mybids2-primary-small">
-            View win / payment
+            Pay now
           </Link>
         ) : null}
 
-        {ended && !row.isWinner ? (
+        {buyerStatus === "WON" ? (
+          <Link to="/my-wins" className="mybids2-secondary-small">
+            View receipt
+          </Link>
+        ) : null}
+
+        {["LOST", "CLOSED", "CANCELED"].includes(buyerStatus) ? (
           <Link to={`/buyer/item-locator?search=${encodeURIComponent(itemTitle)}`} className="mybids2-secondary-small">
             Find similar
           </Link>
@@ -286,8 +338,8 @@ export default function MyBidsPage() {
   const summary = useMemo(() => {
     const liveCount = rows.filter(isLiveBid).length;
     const endedCount = rows.filter(isEndedBid).length;
-    const leadingCount = rows.filter((row) => getBidPosition(row) === "Leading").length;
-    const outbidCount = rows.filter((row) => getBidPosition(row) === "Outbid").length;
+    const leadingCount = rows.filter((row) => getBuyerStatus(row) === "LEADING").length;
+    const outbidCount = rows.filter((row) => getBuyerStatus(row) === "OUTBID").length;
 
     const totalBidValue = rows.reduce((sum, row) => {
       const amount = Number(row.amount);
@@ -308,8 +360,8 @@ export default function MyBidsPage() {
     const q = query.trim().toLowerCase();
 
     const nextRows = rows.filter((row) => {
-      const status = normalizeStatus(row.auction?.status);
-      const position = getBidPosition(row).toUpperCase();
+      const status = getBuyerStatus(row);
+      const position = status;
       const searchable = [
         itemTitleFor(row),
         shopNameFor(row),
@@ -337,7 +389,7 @@ export default function MyBidsPage() {
       }
 
       if (sortMode === "OUTBID_FIRST") {
-        return Number(getBidPosition(b) === "Outbid") - Number(getBidPosition(a) === "Outbid");
+        return Number(getBuyerStatus(b) === "OUTBID") - Number(getBuyerStatus(a) === "OUTBID");
       }
 
       if (sortMode === "LIVE_FIRST") {
