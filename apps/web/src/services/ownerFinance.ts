@@ -87,6 +87,14 @@ export type FinanceBalanceResponse = {
     ownerId: string;
   };
   balance: OwnerFinanceBalance;
+  minimumPayoutCents: number;
+};
+
+export type PayoutMutationResponse = {
+  success: true;
+  created?: boolean;
+  minimumPayoutCents?: number;
+  payout: OwnerFinancePayout;
 };
 
 export type FinanceLedgerResponse = {
@@ -302,6 +310,41 @@ export async function getOwnerFinancePayouts(
   return api.get<FinancePayoutResponse>(
     `/shops/${encodeURIComponent(shopId)}/finance/payouts${query}`,
     { signal },
+  );
+}
+
+export async function requestOwnerFinancePayout(
+  shopId: string,
+  input: {
+    amountCents: number;
+    currency: string;
+    requestNote?: string;
+    idempotencyKey: string;
+  },
+) {
+  if (!shopId) throw new Error("Missing shop id.");
+  if (!input.idempotencyKey) throw new Error("Missing idempotency key.");
+  return api.post<PayoutMutationResponse>(
+    `/shops/${encodeURIComponent(shopId)}/finance/payouts`,
+    {
+      amountCents: input.amountCents,
+      currency: input.currency,
+      requestNote: input.requestNote,
+    },
+    { headers: { "Idempotency-Key": input.idempotencyKey } },
+  );
+}
+
+export async function cancelOwnerFinancePayout(
+  shopId: string,
+  payoutId: string,
+  idempotencyKey: string,
+) {
+  if (!shopId || !payoutId) throw new Error("Missing payout details.");
+  return api.post<PayoutMutationResponse>(
+    `/shops/${encodeURIComponent(shopId)}/finance/payouts/${encodeURIComponent(payoutId)}/cancel`,
+    {},
+    { headers: { "Idempotency-Key": idempotencyKey } },
   );
 }
 

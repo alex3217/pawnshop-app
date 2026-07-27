@@ -9,11 +9,13 @@ import { exportCsv } from "../admin/utils/exportCsv";
 import {
   createOwnerFinanceConnectAccount,
   createOwnerFinanceConnectOnboardingLink,
+  cancelOwnerFinancePayout,
   getOwnerFinanceBalance,
   getOwnerFinanceConnectStatus,
   getOwnerFinanceLedger,
   getOwnerFinancePayouts,
   getOwnerFinanceShops,
+  requestOwnerFinancePayout,
   type FinancePagination,
   type OwnerFinanceBalance,
   type OwnerFinanceConnectStatus,
@@ -184,6 +186,13 @@ export default function OwnerFinancePage() {
   const [loadingConnect, setLoadingConnect] =
     useState(false);
   const [connectError, setConnectError] = useState("");
+  const [minimumPayoutCents, setMinimumPayoutCents] = useState(1000);
+  const [payoutAmount, setPayoutAmount] = useState("");
+  const [payoutMutationKey, setPayoutMutationKey] = useState("");
+  const [payoutMutationPending, setPayoutMutationPending] = useState(false);
+  const [cancelingPayoutId, setCancelingPayoutId] = useState("");
+  const [payoutMessage, setPayoutMessage] = useState("");
+  const [payoutError, setPayoutError] = useState("");
 
   const [error, setError] = useState("");
   const [activeSection, setActiveSection] = useState<
@@ -273,6 +282,7 @@ export default function OwnerFinancePage() {
       ]);
 
       setBalance(balanceResponse.balance);
+      setMinimumPayoutCents(balanceResponse.minimumPayoutCents || 1000);
       setLedgerRows(ledgerResponse.rows);
       setLedgerPagination(ledgerResponse.pagination);
       setPayoutRows(payoutResponse.rows);
@@ -388,6 +398,62 @@ export default function OwnerFinancePage() {
       );
     } finally {
       setLoadingConnect(false);
+    }
+  }
+
+  function newIdempotencyKey() {
+    return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `payout-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  const payoutAmountCents = Math.round(Number(payoutAmount) * 100);
+  const payoutAmountValid =
+    /^\d+(\.\d{1,2})?$/.test(payoutAmount) &&
+    Number.isFinite(payoutAmountCents) &&
+    payoutAmountCents >= minimumPayoutCents &&
+    payoutAmountCents <= Number(balance?.availableCents || 0);
+
+  async function submitPayoutRequest() {
+    if (!selectedShopId || !payoutAmountValid || payoutMutationPending) return;
+    if (!window.confirm(`Request a ${formatMoney(payoutAmountCents, balance?.currency)} payout?`)) return;
+    const key = payoutMutationKey || newIdempotencyKey();
+    setPayoutMutationKey(key);
+    setPayoutMutationPending(true);
+    setPayoutError("");
+    setPayoutMessage("");
+    try {
+      await requestOwnerFinancePayout(selectedShopId, {
+        amountCents: payoutAmountCents,
+        currency: balance?.currency || "USD",
+        idempotencyKey: key,
+      });
+      setPayoutMessage("Payout request created. Funds are now reserved.");
+      setPayoutAmount("");
+      setPayoutMutationKey("");
+      setActiveSection("payouts");
+      await loadFinance();
+    } catch (requestError) {
+      setPayoutError(getErrorMessage(requestError));
+    } finally {
+      setPayoutMutationPending(false);
+    }
+  }
+
+  async function cancelPayout(payout: OwnerFinancePayout) {
+    if (cancelingPayoutId || payout.status !== "PENDING") return;
+    if (!window.confirm(`Cancel the ${formatMoney(payout.amountCents, payout.currency)} payout request?`)) return;
+    setCancelingPayoutId(payout.id);
+    setPayoutError("");
+    setPayoutMessage("");
+    try {
+      await cancelOwnerFinancePayout(selectedShopId, payout.id, newIdempotencyKey());
+      setPayoutMessage("Payout request canceled and reserved funds released.");
+      await loadFinance();
+    } catch (cancelError) {
+      setPayoutError(getErrorMessage(cancelError));
+    } finally {
+      setCancelingPayoutId("");
     }
   }
 
@@ -704,6 +770,55 @@ export default function OwnerFinancePage() {
           </small>
         </article>
       </section>
+
+      {connectStatus?.state === "PAYOUTS_ENABLED" ? (
+        <section className="owner-finance-payout-request" aria-labelledby="payout-request-title">
+          <div>
+            <p className="owner-finance-eyebrow">Owner payout</p>
+            <h2 id="payout-request-title">Request payout</h2>
+            <p>
+              Available {formatMoney(balance?.availableCents, balance?.currency)} ·
+              minimum {formatMoney(minimumPayoutCents, balance?.currency)}
+            </p>
+          </div>
+          <div className="owner-finance-payout-form">
+            <label htmlFor="owner-payout-amount">Amount</label>
+            <div className="owner-finance-amount-input">
+              <span aria-hidden="true">$</span>
+              <input
+                id="owner-payout-amount"
+                type="number"
+                inputMode="decimal"
+                min={(minimumPayoutCents / 100).toFixed(2)}
+                max={(Number(balance?.availableCents || 0) / 100).toFixed(2)}
+                step="0.01"
+                value={payoutAmount}
+                onChange={(event) => {
+                  setPayoutAmount(event.target.value);
+                  setPayoutMutationKey("");
+                  setPayoutError("");
+                }}
+                disabled={payoutMutationPending}
+                aria-describedby="owner-payout-help"
+              />
+            </div>
+            <small id="owner-payout-help">
+              Enter an amount between {formatMoney(minimumPayoutCents, balance?.currency)} and{" "}
+              {formatMoney(balance?.availableCents, balance?.currency)}.
+            </small>
+            <button
+              className="owner-finance-primary-button"
+              type="button"
+              disabled={!payoutAmountValid || payoutMutationPending}
+              onClick={() => void submitPayoutRequest()}
+            >
+              {payoutMutationPending ? "Requesting…" : "Request payout"}
+            </button>
+          </div>
+          {payoutMessage ? <p className="owner-finance-success" role="status">{payoutMessage}</p> : null}
+          {payoutError ? <p className="owner-finance-connect-error" role="alert">{payoutError}</p> : null}
+        </section>
+      ) : null}
 
       <section className="owner-finance-panel">
         <div className="owner-finance-tabs">
@@ -1049,6 +1164,7 @@ export default function OwnerFinancePage() {
                     <th className="owner-finance-money-column">
                       Amount
                     </th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
 
@@ -1086,6 +1202,18 @@ export default function OwnerFinancePage() {
                           payout.amountCents,
                           payout.currency,
                         )}
+                      </td>
+                      <td>
+                        {payout.status === "PENDING" ? (
+                          <button
+                            type="button"
+                            className="owner-finance-filter-button"
+                            disabled={Boolean(cancelingPayoutId)}
+                            onClick={() => void cancelPayout(payout)}
+                          >
+                            {cancelingPayoutId === payout.id ? "Canceling…" : "Cancel request"}
+                          </button>
+                        ) : "—"}
                       </td>
                     </tr>
                   ))}

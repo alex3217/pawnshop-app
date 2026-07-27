@@ -200,6 +200,7 @@ test("returns the current balance contract to the shop owner", async () => {
     success: true,
     shop,
     balance,
+    minimumPayoutCents: 1000,
   });
   assert.deepEqual(calls.balanceInput, {
     sellerUserId: "owner_1",

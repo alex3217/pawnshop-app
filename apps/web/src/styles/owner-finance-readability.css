@@ -11,10 +11,51 @@
 .owner-finance-toolbar,
 .owner-finance-panel,
 .owner-finance-connect-panel,
+.owner-finance-payout-request,
 .owner-finance-balance-grid article {
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: rgba(15, 23, 42, 0.78);
   box-shadow: 0 18px 45px rgba(2, 6, 23, 0.18);
+}
+
+.owner-finance-payout-request {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 1rem 2rem;
+  border-radius: 1rem;
+  padding: 1.2rem;
+}
+
+.owner-finance-payout-request h2,
+.owner-finance-payout-request p {
+  margin: 0.2rem 0;
+}
+
+.owner-finance-payout-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.owner-finance-amount-input {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.owner-finance-amount-input input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 0.7rem;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+}
+
+.owner-finance-success {
+  grid-column: 1 / -1;
+  color: #bbf7d0;
 }
 
 .owner-finance-connect-panel {
@@ -347,6 +388,7 @@
   .owner-finance-toolbar,
   .owner-finance-panel,
   .owner-finance-connect-panel,
+  .owner-finance-payout-request,
   .owner-finance-balance-grid article {
     border-color: rgba(100, 116, 139, 0.24);
     background: #fff;
@@ -362,6 +404,11 @@
 
   .owner-finance-toolbar select,
   .owner-finance-filters select {
+    background: #fff;
+    color: #0f172a;
+  }
+
+  .owner-finance-amount-input input {
     background: #fff;
     color: #0f172a;
   }
@@ -402,6 +449,10 @@
   .owner-finance-pagination {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .owner-finance-payout-request {
+    grid-template-columns: 1fr;
   }
 
   .owner-finance-hero-actions {

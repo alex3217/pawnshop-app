@@ -156,7 +156,6 @@ export async function getSellerPayoutHistory({
         currency: true,
         provider: true,
         providerPayoutId: true,
-        idempotencyKey: true,
         failureCode: true,
         failureMessage: true,
         requestedAt: true,

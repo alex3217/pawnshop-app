@@ -1119,24 +1119,30 @@ model SellerBalanceLedger {
 }
 
 model SellerPayout {
-  id               String             @id @default(cuid())
-  sellerUserId     String
-  shopId           String
-  status           SellerPayoutStatus @default(PENDING)
-  amountCents      Int
-  currency         String             @default("USD")
-  provider         String?
-  providerPayoutId String?            @unique
-  idempotencyKey   String             @unique
-  failureCode      String?
-  failureMessage   String?
-  requestedAt      DateTime           @default(now())
-  processingAt     DateTime?
-  paidAt           DateTime?
-  failedAt         DateTime?
-  canceledAt       DateTime?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  id                 String             @id @default(cuid())
+  sellerUserId       String
+  shopId             String
+  status             SellerPayoutStatus @default(PENDING)
+  amountCents        Int
+  currency           String             @default("USD")
+  provider           String?
+  providerPayoutId   String?            @unique
+  idempotencyKey     String             @unique
+  requestedByUserId  String?
+  requestNote        String?
+  reviewedByUserId   String?
+  reviewedAt         DateTime?
+  cancellationReason String?
+  stripeTransferId   String?            @unique
+  failureCode        String?
+  failureMessage     String?
+  requestedAt        DateTime           @default(now())
+  processingAt       DateTime?
+  paidAt             DateTime?
+  failedAt           DateTime?
+  canceledAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   seller        User                  @relation("SellerPayoutUser", fields: [sellerUserId], references: [id], onDelete: Restrict)
   shop          PawnShop              @relation("SellerPayoutShop", fields: [shopId], references: [id], onDelete: Restrict)
@@ -1145,6 +1151,7 @@ model SellerPayout {
   @@index([sellerUserId, status, createdAt])
   @@index([shopId, status, createdAt])
   @@index([status, requestedAt])
+  @@index([requestedByUserId, requestedAt])
   @@index([createdAt])
 }
 

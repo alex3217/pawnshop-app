@@ -15,6 +15,9 @@ import {
   getShopFinanceBalance,
   getShopFinanceLedger,
   getShopFinancePayouts,
+  requestShopFinancePayout,
+  cancelShopFinancePayout,
+  processShopFinancePayout,
 } from "../controllers/shopFinance.controller.js";
 import {
   createShopFinanceConnectAccount,
@@ -37,6 +40,27 @@ router.get(
   authRequired,
   requireRole(...FINANCE_ROLES),
   getShopFinanceBalance,
+);
+
+router.post(
+  "/:id/finance/payouts",
+  authRequired,
+  requireRole(...FINANCE_ROLES),
+  requestShopFinancePayout,
+);
+
+router.post(
+  "/:id/finance/payouts/:payoutId/cancel",
+  authRequired,
+  requireRole(...FINANCE_ROLES),
+  cancelShopFinancePayout,
+);
+
+router.post(
+  "/:id/finance/payouts/:payoutId/process",
+  authRequired,
+  requireRole("ADMIN", "SUPER_ADMIN"),
+  processShopFinancePayout,
 );
 
 router.get(

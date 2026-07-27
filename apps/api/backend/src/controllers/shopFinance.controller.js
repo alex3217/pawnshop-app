@@ -11,6 +11,13 @@ import {
 import {
   isAdminRole,
 } from "../middleware/auth.js";
+import {
+  PayoutRequestError,
+  cancelPayoutRequest,
+  createPayoutRequest,
+  getMinimumPayoutCents,
+  processPayoutRequest,
+} from "../services/payouts/payoutRequest.service.js";
 
 function normalizeId(value) {
   const id = String(value || "").trim();
@@ -110,6 +117,7 @@ export function createShopFinanceBalanceController({
           ownerId: shop.ownerId,
         },
         balance,
+        minimumPayoutCents: getMinimumPayoutCents(),
       });
     } catch (error) {
       logger.error(
@@ -119,6 +127,117 @@ export function createShopFinanceBalanceController({
       return sendError(res, error);
     }
   };
+}
+
+function payoutContract(payout) {
+  return {
+    id: payout.id,
+    shopId: payout.shopId,
+    status: payout.status,
+    amountCents: payout.amountCents,
+    currency: payout.currency,
+    provider: payout.provider,
+    providerReferenceId:
+      payout.stripeTransferId || payout.providerPayoutId || null,
+    failureCode: payout.failureCode,
+    failureMessage: payout.failureMessage,
+    requestedAt: payout.requestedAt,
+    processingAt: payout.processingAt,
+    paidAt: payout.paidAt,
+    failedAt: payout.failedAt,
+    canceledAt: payout.canceledAt,
+  };
+}
+
+async function findAuthorizedShop(req, shopId) {
+  if (!shopId) {
+    throw new PayoutRequestError("Shop id is required", 400, "INVALID_SHOP_ID");
+  }
+  const shop = await prisma.pawnShop.findFirst({
+    where: { id: shopId, isDeleted: false },
+    select: { id: true, ownerId: true },
+  });
+  if (!shop) throw new PayoutRequestError("Shop not found", 404, "SHOP_NOT_FOUND");
+  const requesterId = normalizeId(req?.user?.sub || req?.user?.id);
+  if (!isAdminRequest(req) && shop.ownerId !== requesterId) {
+    throw new PayoutRequestError("Forbidden", 403, "FORBIDDEN");
+  }
+  return { shop, requesterId };
+}
+
+function sendPayoutError(res, error) {
+  const status = Number(error?.statusCode || 500);
+  return res.status(status).json({
+    success: false,
+    error: status >= 500 && !(error instanceof PayoutRequestError)
+      ? "Payout request failed"
+      : error?.message || "Payout request failed",
+    ...(error?.code ? { code: error.code } : {}),
+  });
+}
+
+export async function requestShopFinancePayout(req, res) {
+  try {
+    const shopId = normalizeId(req?.params?.id);
+    const { requesterId } = await findAuthorizedShop(req, shopId);
+    const result = await createPayoutRequest({
+      shopId,
+      amountCents: req?.body?.amountCents,
+      currency: req?.body?.currency,
+      requestNote: req?.body?.requestNote,
+      requesterId,
+      idempotencyKey: req.get("Idempotency-Key"),
+    });
+    return res.status(result.created ? 201 : 200).json({
+      success: true,
+      created: result.created,
+      minimumPayoutCents: result.minimumPayoutCents,
+      payout: payoutContract(result.payout),
+    });
+  } catch (error) {
+    console.error("[shopFinance.requestPayout]", error);
+    return sendPayoutError(res, error);
+  }
+}
+
+export async function cancelShopFinancePayout(req, res) {
+  try {
+    if (!normalizeId(req.get("Idempotency-Key"))) {
+      throw new PayoutRequestError(
+        "Idempotency-Key is required",
+        400,
+        "INVALID_IDEMPOTENCY_KEY",
+      );
+    }
+    const shopId = normalizeId(req?.params?.id);
+    const { requesterId } = await findAuthorizedShop(req, shopId);
+    const payout = await cancelPayoutRequest({
+      shopId,
+      payoutId: normalizeId(req?.params?.payoutId),
+      requesterId,
+      cancellationReason: req?.body?.reason,
+    });
+    return res.status(200).json({ success: true, payout: payoutContract(payout) });
+  } catch (error) {
+    console.error("[shopFinance.cancelPayout]", error);
+    return sendPayoutError(res, error);
+  }
+}
+
+export async function processShopFinancePayout(req, res) {
+  try {
+    const shopId = normalizeId(req?.params?.id);
+    const { requesterId } = await findAuthorizedShop(req, shopId);
+    const payout = await processPayoutRequest({
+      shopId,
+      payoutId: normalizeId(req?.params?.payoutId),
+      reviewerId: requesterId,
+    });
+    return res.status(200).json({ success: true, payout: payoutContract(payout) });
+  } catch (error) {
+    console.error("[shopFinance.processPayout]", error);
+    return sendPayoutError(res, error);
+  }
 }
 
 export const getShopFinanceBalance =
