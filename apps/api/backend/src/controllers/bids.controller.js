@@ -8,6 +8,11 @@ import {
   normalizeBidRowForResponse,
 } from "../lib/auctionStatus.js";
 import { getIo } from "../realtime/socket.js";
+import {
+  buildMyBidsWhere,
+  getBidArchiveEligibility,
+  setBidArchived,
+} from "../services/bidArchive.service.js";
 
 const BID_SAFE_FIELDS = ["id", "auctionId", "userId", "amount", "createdAt"];
 
@@ -600,19 +605,93 @@ export async function myBids(req, res) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
+    const archivedParam = req.query?.archived;
+    if (archivedParam !== undefined && !["true", "false"].includes(archivedParam)) {
+      return res.status(400).json({
+        success: false,
+        error: 'The "archived" query parameter must be "true" or "false".',
+      });
+    }
+
+    const archived = archivedParam === "true";
+    const archivedRows = await prisma.bidArchive.findMany({
+      where: { userId: req.user.sub, archivedAt: { not: null } },
+      select: { bidId: true, archivedAt: true },
+    });
+    const archiveByBidId = new Map(
+      archivedRows.map((row) => [row.bidId, row.archivedAt]),
+    );
+    const archivedBidIds = [...archiveByBidId.keys()];
+
+    const bidSelect = await buildBidSelect({ includeAuction: true });
+    bidSelect.auction.select.settlement = {
+      select: {
+        winnerUserId: true,
+        status: true,
+        fulfillmentStatus: true,
+      },
+    };
+    bidSelect.auction.select.bids = {
+      orderBy: [{ amount: "desc" }, { createdAt: "asc" }],
+      take: 1,
+      select: { userId: true },
+    };
+
     const bids = await prisma.bid.findMany({
-      where: { userId: req.user.sub },
+      where: buildMyBidsWhere(req.user.sub, archivedBidIds, archived),
       orderBy: { createdAt: "desc" },
-      select: await buildBidSelect({ includeAuction: true }),
+      select: bidSelect,
     });
 
     const now = new Date();
 
     return res.json({
       success: true,
-      rows: bids.map((row) => normalizeBidRowForResponse(row, now)),
+      rows: bids.map((row) => {
+        const eligibility = getBidArchiveEligibility(row, now);
+        const normalized = normalizeBidRowForResponse(row, now);
+        if (normalized.auction) {
+          delete normalized.auction.bids;
+          delete normalized.auction.settlement;
+        }
+        return {
+          ...normalized,
+          archived,
+          archivedAt: toSerializableDate(archiveByBidId.get(row.id)),
+          canArchive: eligibility.eligible,
+          isWinner:
+            (row.auction?.settlement?.winnerUserId ||
+              row.auction?.bids?.[0]?.userId ||
+              null) === row.userId,
+        };
+      }),
     });
   } catch (error) {
     return sendError(res, error, "Failed to list bids");
   }
+}
+
+async function updateBidArchive(req, res, archived) {
+  try {
+    if (!req.user?.sub) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const result = await setBidArchived(prisma, {
+      bidId: req.params.bidId,
+      userId: req.user.sub,
+      archived,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to update bid archive state");
+  }
+}
+
+export function archiveBid(req, res) {
+  return updateBidArchive(req, res, true);
+}
+
+export function restoreBid(req, res) {
+  return updateBidArchive(req, res, false);
 }

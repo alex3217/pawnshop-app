@@ -8,6 +8,10 @@ export type BidRow = {
   userId: string;
   amount: string | number;
   createdAt: string;
+  archived?: boolean;
+  archivedAt?: string | null;
+  canArchive?: boolean;
+  isWinner?: boolean;
   auction?: {
     id: string;
     status: string;
@@ -58,7 +62,18 @@ function normalizeBidRows(payload: unknown): BidRow[] {
   return [];
 }
 
-export async function getMyBids(signal?: AbortSignal): Promise<BidRow[]> {
-  const data = await api.get<unknown>("/bids/mine", { signal });
+export async function getMyBids(
+  archived = false,
+  signal?: AbortSignal,
+): Promise<BidRow[]> {
+  const data = await api.get<unknown>(`/bids/mine?archived=${archived}`, { signal });
   return normalizeBidRows(data);
+}
+
+export async function archiveBid(bidId: string): Promise<void> {
+  await api.put(`/bids/${encodeURIComponent(bidId)}/archive`);
+}
+
+export async function restoreBid(bidId: string): Promise<void> {
+  await api.delete(`/bids/${encodeURIComponent(bidId)}/archive`);
 }
