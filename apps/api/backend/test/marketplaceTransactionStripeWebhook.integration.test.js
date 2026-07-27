@@ -183,6 +183,37 @@ function createStripeEvent({
   };
 }
 
+function createConnectAccountUpdatedEvent({
+  accountId,
+  detailsSubmitted,
+  chargesEnabled,
+  payoutsEnabled,
+}) {
+  return {
+    id: `evt_account_updated_${accountId}`,
+    object: "event",
+    api_version: "2025-01-27.acacia",
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: accountId,
+        object: "account",
+        type: "express",
+        details_submitted: detailsSubmitted,
+        charges_enabled: chargesEnabled,
+        payouts_enabled: payoutsEnabled,
+      },
+    },
+    livemode: false,
+    pending_webhooks: 1,
+    request: {
+      id: null,
+      idempotency_key: null,
+    },
+    type: "account.updated",
+  };
+}
+
 async function sendSignedWebhook(event) {
   const payload =
     JSON.stringify(event);
@@ -408,6 +439,54 @@ test(
       ),
       /missing stripe signature/i,
     );
+  },
+);
+
+test(
+  "signed account.updated synchronizes a matching shop and acknowledges unmatched accounts",
+  async () => {
+    const owner = await createUser(
+      "connect-account-updated-owner",
+      "OWNER",
+    );
+    const shop = await prisma.pawnShop.create({
+      data: {
+        name: "Connect webhook shop",
+        ownerId: owner.id,
+        stripeConnectAccountId: `acct_${owner.id}`,
+      },
+    });
+
+    const matched = await sendSignedWebhook(
+      createConnectAccountUpdatedEvent({
+        accountId: shop.stripeConnectAccountId,
+        detailsSubmitted: true,
+        chargesEnabled: true,
+        payoutsEnabled: true,
+      }),
+    );
+    assert.equal(matched.status, 200);
+    assert.deepEqual(matched.body, { received: true });
+
+    const updated = await prisma.pawnShop.findUnique({
+      where: { id: shop.id },
+    });
+    assert.equal(updated.stripeConnectDetailsSubmitted, true);
+    assert.equal(updated.stripeConnectChargesEnabled, true);
+    assert.equal(updated.stripeConnectPayoutsEnabled, true);
+    assert.ok(updated.stripeConnectOnboardingCompletedAt);
+    assert.ok(updated.stripeConnectStatusUpdatedAt);
+
+    const unmatched = await sendSignedWebhook(
+      createConnectAccountUpdatedEvent({
+        accountId: "acct_unmatched_connect_webhook",
+        detailsSubmitted: true,
+        chargesEnabled: false,
+        payoutsEnabled: false,
+      }),
+    );
+    assert.equal(unmatched.status, 200);
+    assert.deepEqual(unmatched.body, { received: true });
   },
 );
 

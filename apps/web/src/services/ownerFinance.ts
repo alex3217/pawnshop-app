@@ -118,6 +118,42 @@ export type FinancePayoutResponse = {
   };
 };
 
+export type StripeConnectState =
+  | "DISABLED"
+  | "NOT_STARTED"
+  | "SETUP_INCOMPLETE"
+  | "RESTRICTED"
+  | "PAYOUTS_ENABLED";
+
+export type OwnerFinanceConnectStatus = {
+  enabled: boolean;
+  state: StripeConnectState;
+  hasAccount: boolean;
+  detailsSubmitted: boolean;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  onboardingCompletedAt: string | null;
+  statusUpdatedAt: string | null;
+};
+
+export type FinanceConnectStatusResponse = {
+  success: true;
+  connect: OwnerFinanceConnectStatus;
+};
+
+export type FinanceConnectAccountResponse =
+  FinanceConnectStatusResponse & {
+    created: boolean;
+  };
+
+export type FinanceConnectOnboardingLinkResponse =
+  FinanceConnectStatusResponse & {
+    onboarding: {
+      url: string;
+      expiresAt: string | null;
+    };
+  };
+
 export type LedgerQuery = {
   page?: number;
   limit?: number;
@@ -266,5 +302,42 @@ export async function getOwnerFinancePayouts(
   return api.get<FinancePayoutResponse>(
     `/shops/${encodeURIComponent(shopId)}/finance/payouts${query}`,
     { signal },
+  );
+}
+
+export async function getOwnerFinanceConnectStatus(
+  shopId: string,
+  signal?: AbortSignal,
+) {
+  if (!shopId) throw new Error("Missing shop id.");
+
+  return api.get<FinanceConnectStatusResponse>(
+    `/shops/${encodeURIComponent(shopId)}/finance/connect/status`,
+    { signal },
+  );
+}
+
+export async function createOwnerFinanceConnectAccount(
+  shopId: string,
+) {
+  if (!shopId) throw new Error("Missing shop id.");
+
+  return api.post<FinanceConnectAccountResponse>(
+    `/shops/${encodeURIComponent(shopId)}/finance/connect/account`,
+  );
+}
+
+export async function createOwnerFinanceConnectOnboardingLink(
+  shopId: string,
+  input: {
+    returnUrl: string;
+    refreshUrl: string;
+  },
+) {
+  if (!shopId) throw new Error("Missing shop id.");
+
+  return api.post<FinanceConnectOnboardingLinkResponse>(
+    `/shops/${encodeURIComponent(shopId)}/finance/connect/onboarding-link`,
+    input,
   );
 }
