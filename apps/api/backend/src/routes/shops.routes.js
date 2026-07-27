@@ -18,6 +18,7 @@ import {
 } from "../controllers/shopFinance.controller.js";
 
 const router = Router();
+const FINANCE_ROLES = ["OWNER", "ADMIN", "SUPER_ADMIN"];
 
 // Public
 router.get("/", listShops);
@@ -29,21 +30,21 @@ router.get("/mine", authRequired, requireRole("OWNER", "ADMIN"), myShops);
 router.get(
   "/:id/finance/balance",
   authRequired,
-  requireRole("OWNER", "ADMIN"),
+  requireRole(...FINANCE_ROLES),
   getShopFinanceBalance,
 );
 
 router.get(
   "/:id/finance/ledger",
   authRequired,
-  requireRole("OWNER", "ADMIN"),
+  requireRole(...FINANCE_ROLES),
   getShopFinanceLedger,
 );
 
 router.get(
   "/:id/finance/payouts",
   authRequired,
-  requireRole("OWNER", "ADMIN"),
+  requireRole(...FINANCE_ROLES),
   getShopFinancePayouts,
 );
 
