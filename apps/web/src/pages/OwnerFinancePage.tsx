@@ -7,12 +7,16 @@ import {
 import { Link } from "react-router-dom";
 import { exportCsv } from "../admin/utils/exportCsv";
 import {
+  createOwnerFinanceConnectAccount,
+  createOwnerFinanceConnectOnboardingLink,
   getOwnerFinanceBalance,
+  getOwnerFinanceConnectStatus,
   getOwnerFinanceLedger,
   getOwnerFinancePayouts,
   getOwnerFinanceShops,
   type FinancePagination,
   type OwnerFinanceBalance,
+  type OwnerFinanceConnectStatus,
   type OwnerFinanceLedgerEntry,
   type OwnerFinancePayout,
   type OwnerFinanceShop,
@@ -175,6 +179,11 @@ export default function OwnerFinancePage() {
   const [loadingShops, setLoadingShops] = useState(true);
   const [loadingFinance, setLoadingFinance] =
     useState(false);
+  const [connectStatus, setConnectStatus] =
+    useState<OwnerFinanceConnectStatus | null>(null);
+  const [loadingConnect, setLoadingConnect] =
+    useState(false);
+  const [connectError, setConnectError] = useState("");
 
   const [error, setError] = useState("");
   const [activeSection, setActiveSection] = useState<
@@ -199,9 +208,21 @@ export default function OwnerFinancePage() {
       setShops(rows);
 
       if (rows.length > 0) {
+        const requestedShopId =
+          typeof window === "undefined"
+            ? ""
+            : new URLSearchParams(
+                window.location.search,
+              ).get("shopId") || "";
+
         setSelectedShopId((current) =>
           rows.some((shop) => shop.id === current)
             ? current
+            : rows.some(
+                  (shop) =>
+                    shop.id === requestedShopId,
+                )
+              ? requestedShopId
             : rows[0].id,
         );
       }
@@ -225,6 +246,7 @@ export default function OwnerFinancePage() {
         balanceResponse,
         ledgerResponse,
         payoutResponse,
+        connectResponse,
       ] = await Promise.all([
         getOwnerFinanceBalance(selectedShopId),
 
@@ -244,6 +266,10 @@ export default function OwnerFinancePage() {
           from: startOfDate(payoutFrom),
           to: endOfDate(payoutTo),
         }),
+
+        getOwnerFinanceConnectStatus(selectedShopId).catch(
+          () => null,
+        ),
       ]);
 
       setBalance(balanceResponse.balance);
@@ -251,6 +277,7 @@ export default function OwnerFinancePage() {
       setLedgerPagination(ledgerResponse.pagination);
       setPayoutRows(payoutResponse.rows);
       setPayoutPagination(payoutResponse.pagination);
+      setConnectStatus(connectResponse?.connect || null);
     } catch (loadError) {
       setError(getErrorMessage(loadError));
     } finally {
@@ -307,6 +334,107 @@ export default function OwnerFinancePage() {
     setPayoutTo("");
     resetPayoutPage();
   }
+
+  async function startConnectOnboarding() {
+    if (!selectedShopId || typeof window === "undefined") {
+      return;
+    }
+
+    setLoadingConnect(true);
+    setConnectError("");
+
+    try {
+      const accountResponse =
+        await createOwnerFinanceConnectAccount(
+          selectedShopId,
+        );
+      setConnectStatus(accountResponse.connect);
+
+      const financeUrl = new URL(
+        "/owner/finance",
+        window.location.origin,
+      );
+      financeUrl.searchParams.set("shopId", selectedShopId);
+      financeUrl.searchParams.set("connect", "returned");
+
+      const refreshUrl = new URL(financeUrl);
+      refreshUrl.searchParams.set("connect", "refresh");
+
+      const response =
+        await createOwnerFinanceConnectOnboardingLink(
+          selectedShopId,
+          {
+            returnUrl: financeUrl.toString(),
+            refreshUrl: refreshUrl.toString(),
+          },
+        );
+
+      const onboardingUrl = new URL(
+        response.onboarding.url,
+      );
+      if (
+        onboardingUrl.protocol !== "https:" ||
+        onboardingUrl.hostname !== "connect.stripe.com"
+      ) {
+        throw new Error(
+          "Stripe returned an untrusted onboarding URL.",
+        );
+      }
+
+      window.location.assign(onboardingUrl.toString());
+    } catch (connectSetupError) {
+      setConnectError(
+        getErrorMessage(connectSetupError),
+      );
+    } finally {
+      setLoadingConnect(false);
+    }
+  }
+
+  const connectPresentation = useMemo(() => {
+    switch (connectStatus?.state) {
+      case "NOT_STARTED":
+        return {
+          title: "Set up payouts",
+          message:
+            "Connect your shop with Stripe to begin payout verification.",
+          action: "Set up payouts",
+          tone: "neutral",
+        };
+      case "SETUP_INCOMPLETE":
+        return {
+          title: "Payout setup is incomplete",
+          message:
+            "Stripe still needs information before it can review your payout account.",
+          action: "Continue Stripe setup",
+          tone: "warning",
+        };
+      case "RESTRICTED":
+        return {
+          title: "Payout account under review",
+          message:
+            "Your information was submitted, but Stripe has not enabled payouts yet.",
+          action: "Continue Stripe setup",
+          tone: "warning",
+        };
+      case "PAYOUTS_ENABLED":
+        return {
+          title: "Payouts enabled",
+          message:
+            "Stripe has verified this shop and enabled payouts.",
+          action: null,
+          tone: "success",
+        };
+      default:
+        return {
+          title: "Stripe payouts unavailable",
+          message:
+            "Payout onboarding is not enabled for this environment.",
+          action: null,
+          tone: "muted",
+        };
+    }
+  }, [connectStatus]);
 
   function exportLedgerRows() {
     if (ledgerRows.length === 0) return;
@@ -468,6 +596,52 @@ export default function OwnerFinancePage() {
           <span>{error}</span>
         </div>
       ) : null}
+
+      <section
+        className={`owner-finance-connect-panel is-${connectPresentation.tone}`}
+        aria-labelledby="owner-finance-connect-title"
+      >
+        <div>
+          <p className="owner-finance-eyebrow">
+            Payout setup
+          </p>
+          <h2 id="owner-finance-connect-title">
+            {connectPresentation.title}
+          </h2>
+          <p>{connectPresentation.message}</p>
+          {connectStatus?.statusUpdatedAt ? (
+            <small>
+              Stripe status checked{" "}
+              {formatDate(connectStatus.statusUpdatedAt)}
+            </small>
+          ) : null}
+          {connectError ? (
+            <span
+              className="owner-finance-connect-error"
+              role="alert"
+            >
+              {connectError}
+            </span>
+          ) : null}
+        </div>
+
+        {connectPresentation.action ? (
+          <button
+            className="owner-finance-primary-button"
+            type="button"
+            disabled={
+              loadingConnect ||
+              loadingFinance ||
+              !selectedShopId
+            }
+            onClick={() => void startConnectOnboarding()}
+          >
+            {loadingConnect
+              ? "Opening Stripe…"
+              : connectPresentation.action}
+          </button>
+        ) : null}
+      </section>
 
       <section
         className="owner-finance-balance-grid"

@@ -17,6 +17,9 @@ import {
   mapStripeSubscriptionStatus,
   toAmountCents,
 } from "../lib/stripe.js";
+import {
+  syncStripeConnectAccountUpdated,
+} from "../services/stripeConnect.service.js";
 
 const PI_REUSABLE_STATUSES = new Set([
   "requires_payment_method",
@@ -455,6 +458,14 @@ export async function handleStripeWebhook(req, res) {
     );
 
     switch (event.type) {
+      case "account.updated": {
+        await syncStripeConnectAccountUpdated({
+          account: event.data.object,
+          prismaClient: prisma,
+        });
+        break;
+      }
+
       case "checkout.session.completed": {
         const session = event.data.object;
         const shopId = normalizeId(session?.metadata?.shopId);

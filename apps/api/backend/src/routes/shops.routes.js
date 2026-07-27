@@ -16,6 +16,11 @@ import {
   getShopFinanceLedger,
   getShopFinancePayouts,
 } from "../controllers/shopFinance.controller.js";
+import {
+  createShopFinanceConnectAccount,
+  createShopFinanceConnectOnboardingLink,
+  getShopFinanceConnectStatus,
+} from "../controllers/shopFinanceConnect.controller.js";
 
 const router = Router();
 const FINANCE_ROLES = ["OWNER", "ADMIN", "SUPER_ADMIN"];
@@ -46,6 +51,27 @@ router.get(
   authRequired,
   requireRole(...FINANCE_ROLES),
   getShopFinancePayouts,
+);
+
+router.get(
+  "/:id/finance/connect/status",
+  authRequired,
+  requireRole(...FINANCE_ROLES),
+  getShopFinanceConnectStatus,
+);
+
+router.post(
+  "/:id/finance/connect/account",
+  authRequired,
+  requireRole(...FINANCE_ROLES),
+  createShopFinanceConnectAccount,
+);
+
+router.post(
+  "/:id/finance/connect/onboarding-link",
+  authRequired,
+  requireRole(...FINANCE_ROLES),
+  createShopFinanceConnectOnboardingLink,
 );
 
 router.put(

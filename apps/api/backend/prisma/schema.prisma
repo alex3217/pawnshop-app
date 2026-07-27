@@ -8,49 +8,49 @@ datasource db {
 }
 
 model User {
-  id                        String                     @id @default(cuid())
-  name                      String
-  email                     String                     @unique
-  password                  String
-  role                      Role                       @default(CONSUMER)
-  isActive                  Boolean                    @default(true)
-  emailVerifiedAt           DateTime?
-  authVersion               Int                        @default(0)
-  passwordChangedAt         DateTime?
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
-  Bid                       Bid[]
-  bidArchives               BidArchive[]
-  buyerSubscription         BuyerSubscription?
-  inventoryImportJobs       InventoryImportJob[]       @relation("UserInventoryImportJobs")
-  inventoryIntegrations     InventoryIntegration[]     @relation("UserInventoryIntegrations")
-  buyerOffers               Offer[]                    @relation("OfferBuyer")
-  ownerOffers               Offer[]                    @relation("OfferOwner")
-  shops                     PawnShop[]
-  savedSearches             SavedSearch[]              @relation("UserSavedSearches")
-  wonSettlements            Settlement[]               @relation("SettlementWinner")
-  sellerLedgerEntries       SellerBalanceLedger[]      @relation("SellerBalanceLedgerUser")
-  sellerPayouts             SellerPayout[]             @relation("SellerPayoutUser")
-  watchlistEntries          Watchlist[]                @relation("UserWatchlist")
-  buyerItemSubmissions      BuyerItemSubmission[]      @relation("BuyerItemSubmissions")
-  buyerItemSubmissionOffers BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferOwner")
-  updatedPlatformSettings   PlatformSetting[]          @relation("PlatformSettingUpdatedByUser")
-  staffMemberships          Staff[]                    @relation("StaffUser")
-  autoBids                  AutoBid[]
-  capturedItemIntakes       ItemIntake[]               @relation("ItemIntakeCapturedBy")
-  customerItemIntakes       ItemIntake[]               @relation("ItemIntakeCustomer")
-  marketplaceListings       MarketplaceListing[]       @relation("MarketplaceListingSeller")
-  marketplacePurchases      MarketplaceTransaction[]   @relation("MarketplaceTransactionBuyer")
-  marketplaceSales          MarketplaceTransaction[]   @relation("MarketplaceTransactionSeller")
-  customerSellFulfillments  CustomerSellFulfillment[]   @relation("CustomerSellFulfillmentCustomer")
-  customerSellAcceptedOwner CustomerSellFulfillment[]   @relation("CustomerSellFulfillmentAcceptedOwner")
-  customerSellActions       CustomerSellFulfillment[]   @relation("CustomerSellFulfillmentActor")
-  customerSellPaymentReceipts CustomerSellPayment[]     @relation("CustomerSellPaymentCustomer")
-  customerSellPaymentsRecorded CustomerSellPayment[]    @relation("CustomerSellPaymentRecorder")
-  customerSellEvents        MarketplaceTransactionEvent[] @relation("MarketplaceTransactionEventActor")
-  customerSellReceiptCustomer CustomerSellReceipt[] @relation("CustomerSellReceiptCustomer")
-  customerSellReceiptsCompleted CustomerSellReceipt[] @relation("CustomerSellReceiptCompletedBy")
-  accountActionTokens       AccountActionToken[]
+  id                            String                        @id @default(cuid())
+  name                          String
+  email                         String                        @unique
+  password                      String
+  role                          Role                          @default(CONSUMER)
+  isActive                      Boolean                       @default(true)
+  emailVerifiedAt               DateTime?
+  authVersion                   Int                           @default(0)
+  passwordChangedAt             DateTime?
+  createdAt                     DateTime                      @default(now())
+  updatedAt                     DateTime                      @updatedAt
+  Bid                           Bid[]
+  bidArchives                   BidArchive[]
+  buyerSubscription             BuyerSubscription?
+  inventoryImportJobs           InventoryImportJob[]          @relation("UserInventoryImportJobs")
+  inventoryIntegrations         InventoryIntegration[]        @relation("UserInventoryIntegrations")
+  buyerOffers                   Offer[]                       @relation("OfferBuyer")
+  ownerOffers                   Offer[]                       @relation("OfferOwner")
+  shops                         PawnShop[]
+  savedSearches                 SavedSearch[]                 @relation("UserSavedSearches")
+  wonSettlements                Settlement[]                  @relation("SettlementWinner")
+  sellerLedgerEntries           SellerBalanceLedger[]         @relation("SellerBalanceLedgerUser")
+  sellerPayouts                 SellerPayout[]                @relation("SellerPayoutUser")
+  watchlistEntries              Watchlist[]                   @relation("UserWatchlist")
+  buyerItemSubmissions          BuyerItemSubmission[]         @relation("BuyerItemSubmissions")
+  buyerItemSubmissionOffers     BuyerItemSubmissionOffer[]    @relation("BuyerItemSubmissionOfferOwner")
+  updatedPlatformSettings       PlatformSetting[]             @relation("PlatformSettingUpdatedByUser")
+  staffMemberships              Staff[]                       @relation("StaffUser")
+  autoBids                      AutoBid[]
+  capturedItemIntakes           ItemIntake[]                  @relation("ItemIntakeCapturedBy")
+  customerItemIntakes           ItemIntake[]                  @relation("ItemIntakeCustomer")
+  marketplaceListings           MarketplaceListing[]          @relation("MarketplaceListingSeller")
+  marketplacePurchases          MarketplaceTransaction[]      @relation("MarketplaceTransactionBuyer")
+  marketplaceSales              MarketplaceTransaction[]      @relation("MarketplaceTransactionSeller")
+  customerSellFulfillments      CustomerSellFulfillment[]     @relation("CustomerSellFulfillmentCustomer")
+  customerSellAcceptedOwner     CustomerSellFulfillment[]     @relation("CustomerSellFulfillmentAcceptedOwner")
+  customerSellActions           CustomerSellFulfillment[]     @relation("CustomerSellFulfillmentActor")
+  customerSellPaymentReceipts   CustomerSellPayment[]         @relation("CustomerSellPaymentCustomer")
+  customerSellPaymentsRecorded  CustomerSellPayment[]         @relation("CustomerSellPaymentRecorder")
+  customerSellEvents            MarketplaceTransactionEvent[] @relation("MarketplaceTransactionEventActor")
+  customerSellReceiptCustomer   CustomerSellReceipt[]         @relation("CustomerSellReceiptCustomer")
+  customerSellReceiptsCompleted CustomerSellReceipt[]         @relation("CustomerSellReceiptCompletedBy")
+  accountActionTokens           AccountActionToken[]
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -97,51 +97,57 @@ model BuyerSubscription {
 }
 
 model PawnShop {
-  id                            String                     @id @default(cuid())
-  name                          String
-  address                       String?
-  city                          String?
-  state                         String?
-  zip                           String?
-  latitude                      Float?
-  longitude                     Float?
-  phone                         String?
-  description                   String?
-  hours                         String?
-  ownerId                       String
-  isDeleted                     Boolean                    @default(false)
-  createdAt                     DateTime                   @default(now())
-  updatedAt                     DateTime                   @updatedAt
-  onboardingCompletedAt         DateTime?
-  cancelAtPeriodEnd             Boolean                    @default(false)
-  stripeCustomerId              String?
-  stripeSubscriptionId          String?                    @unique
-  subscriptionCurrentPeriodEnd  DateTime?
-  subscriptionPlan              String                     @default("FREE")
-  subscriptionStatus            String                     @default("ACTIVE")
-  stripeCheckoutSessionId       String?
-  stripeLatestInvoiceId         String?
-  stripePriceId                 String?
-  subscriptionBillingInterval   BillingInterval?
-  subscriptionCanceledAt        DateTime?
-  subscriptionStartedAt         DateTime?
-  auctions                      Auction[]
-  inventoryImportJobs           InventoryImportJob[]       @relation("ShopInventoryImportJobs")
-  inventoryIntegrations         InventoryIntegration[]     @relation("ShopInventoryIntegrations")
-  items                         Item[]
-  staffMembers                  Staff[]                    @relation("ShopStaffMembers")
-  owner                         User                       @relation(fields: [ownerId], references: [id])
-  inventorySyncJobs             InventorySyncJob[]
-  buyerItemSubmissionOffers     BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferShop")
-  itemIntakes                   ItemIntake[]               @relation("ShopItemIntakes")
-  sellerLedgerEntries           SellerBalanceLedger[]      @relation("SellerBalanceLedgerShop")
-  sellerPayouts                 SellerPayout[]             @relation("SellerPayoutShop")
-  marketplaceListings           MarketplaceListing[]       @relation("MarketplaceListingShop")
-  marketplaceBuyerTransactions  MarketplaceTransaction[]   @relation("MarketplaceTransactionBuyerShop")
-  marketplaceSellerTransactions MarketplaceTransaction[]   @relation("MarketplaceTransactionSellerShop")
-  customerSellFulfillments       CustomerSellFulfillment[]
-  customerSellPayments           CustomerSellPayment[]
-  customerSellReceipts           CustomerSellReceipt[]
+  id                                 String                     @id @default(cuid())
+  name                               String
+  address                            String?
+  city                               String?
+  state                              String?
+  zip                                String?
+  latitude                           Float?
+  longitude                          Float?
+  phone                              String?
+  description                        String?
+  hours                              String?
+  ownerId                            String
+  isDeleted                          Boolean                    @default(false)
+  createdAt                          DateTime                   @default(now())
+  updatedAt                          DateTime                   @updatedAt
+  onboardingCompletedAt              DateTime?
+  cancelAtPeriodEnd                  Boolean                    @default(false)
+  stripeCustomerId                   String?
+  stripeSubscriptionId               String?                    @unique
+  stripeConnectAccountId             String?                    @unique
+  stripeConnectDetailsSubmitted      Boolean                    @default(false)
+  stripeConnectChargesEnabled        Boolean                    @default(false)
+  stripeConnectPayoutsEnabled        Boolean                    @default(false)
+  stripeConnectOnboardingCompletedAt DateTime?
+  stripeConnectStatusUpdatedAt       DateTime?
+  subscriptionCurrentPeriodEnd       DateTime?
+  subscriptionPlan                   String                     @default("FREE")
+  subscriptionStatus                 String                     @default("ACTIVE")
+  stripeCheckoutSessionId            String?
+  stripeLatestInvoiceId              String?
+  stripePriceId                      String?
+  subscriptionBillingInterval        BillingInterval?
+  subscriptionCanceledAt             DateTime?
+  subscriptionStartedAt              DateTime?
+  auctions                           Auction[]
+  inventoryImportJobs                InventoryImportJob[]       @relation("ShopInventoryImportJobs")
+  inventoryIntegrations              InventoryIntegration[]     @relation("ShopInventoryIntegrations")
+  items                              Item[]
+  staffMembers                       Staff[]                    @relation("ShopStaffMembers")
+  owner                              User                       @relation(fields: [ownerId], references: [id])
+  inventorySyncJobs                  InventorySyncJob[]
+  buyerItemSubmissionOffers          BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferShop")
+  itemIntakes                        ItemIntake[]               @relation("ShopItemIntakes")
+  sellerLedgerEntries                SellerBalanceLedger[]      @relation("SellerBalanceLedgerShop")
+  sellerPayouts                      SellerPayout[]             @relation("SellerPayoutShop")
+  marketplaceListings                MarketplaceListing[]       @relation("MarketplaceListingShop")
+  marketplaceBuyerTransactions       MarketplaceTransaction[]   @relation("MarketplaceTransactionBuyerShop")
+  marketplaceSellerTransactions      MarketplaceTransaction[]   @relation("MarketplaceTransactionSellerShop")
+  customerSellFulfillments           CustomerSellFulfillment[]
+  customerSellPayments               CustomerSellPayment[]
+  customerSellReceipts               CustomerSellReceipt[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -175,25 +181,25 @@ model Staff {
 }
 
 model Item {
-  id                  String               @id @default(cuid())
-  pawnShopId          String
-  title               String
-  description         String?
-  price               Decimal              @db.Decimal(10, 2)
-  images              String[]
-  category            String?
-  condition           String?
-  status              ItemStatus           @default(AVAILABLE)
-  isDeleted           Boolean              @default(false)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  currency            String               @default("USD")
-  auction             Auction?
-  inquiries           Inquiry[]
-  shop                PawnShop             @relation(fields: [pawnShopId], references: [id])
-  offers              Offer[]
-  watchlistEntries    Watchlist[]          @relation("ItemWatchlist")
-  marketplaceListings MarketplaceListing[]
+  id                      String                   @id @default(cuid())
+  pawnShopId              String
+  title                   String
+  description             String?
+  price                   Decimal                  @db.Decimal(10, 2)
+  images                  String[]
+  category                String?
+  condition               String?
+  status                  ItemStatus               @default(AVAILABLE)
+  isDeleted               Boolean                  @default(false)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  currency                String                   @default("USD")
+  auction                 Auction?
+  inquiries               Inquiry[]
+  shop                    PawnShop                 @relation(fields: [pawnShopId], references: [id])
+  offers                  Offer[]
+  watchlistEntries        Watchlist[]              @relation("ItemWatchlist")
+  marketplaceListings     MarketplaceListing[]
   customerSellAcquisition CustomerSellFulfillment? @relation("CustomerSellAcquiredItem")
 
   @@index([pawnShopId, status, isDeleted])
@@ -262,13 +268,13 @@ model AutoBid {
 }
 
 model Bid {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   auctionId String
   userId    String
-  amount    Decimal  @db.Decimal(10, 2)
-  createdAt DateTime @default(now())
-  auction   Auction  @relation(fields: [auctionId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  amount    Decimal      @db.Decimal(10, 2)
+  createdAt DateTime     @default(now())
+  auction   Auction      @relation(fields: [auctionId], references: [id])
+  user      User         @relation(fields: [userId], references: [id])
   archives  BidArchive[]
 
   @@index([auctionId, amount])
@@ -277,12 +283,12 @@ model Bid {
 }
 
 model BidArchive {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
   bidId      String
   archivedAt DateTime? @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bid        Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bid        Bid       @relation(fields: [bidId], references: [id], onDelete: Cascade)
 
   @@unique([userId, bidId])
   @@index([userId, archivedAt])
@@ -390,10 +396,10 @@ model BuyerItemSubmission {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  buyer                  User                       @relation("BuyerItemSubmissions", fields: [buyerId], references: [id], onDelete: Cascade)
-  offers                 BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOffers")
-  itemIntake             ItemIntake?                @relation("ItemIntakeLinkedSubmission")
-  marketplaceTransaction MarketplaceTransaction?    @relation("MarketplaceTransactionSubmission")
+  buyer                   User                       @relation("BuyerItemSubmissions", fields: [buyerId], references: [id], onDelete: Cascade)
+  offers                  BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOffers")
+  itemIntake              ItemIntake?                @relation("ItemIntakeLinkedSubmission")
+  marketplaceTransaction  MarketplaceTransaction?    @relation("MarketplaceTransactionSubmission")
   customerSellFulfillment CustomerSellFulfillment?
 
   @@index([buyerId, createdAt])
@@ -413,10 +419,10 @@ model BuyerItemSubmissionOffer {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  submission             BuyerItemSubmission     @relation("BuyerItemSubmissionOffers", fields: [submissionId], references: [id], onDelete: Cascade)
-  shop                   PawnShop                @relation("BuyerItemSubmissionOfferShop", fields: [shopId], references: [id], onDelete: Cascade)
-  owner                  User                    @relation("BuyerItemSubmissionOfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  marketplaceTransaction MarketplaceTransaction? @relation("MarketplaceTransactionSubmissionOffer")
+  submission              BuyerItemSubmission      @relation("BuyerItemSubmissionOffers", fields: [submissionId], references: [id], onDelete: Cascade)
+  shop                    PawnShop                 @relation("BuyerItemSubmissionOfferShop", fields: [shopId], references: [id], onDelete: Cascade)
+  owner                   User                     @relation("BuyerItemSubmissionOfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  marketplaceTransaction  MarketplaceTransaction?  @relation("MarketplaceTransactionSubmissionOffer")
   customerSellFulfillment CustomerSellFulfillment?
 
   @@unique([id, submissionId], map: "BuyerItemSubmissionOffer_id_submissionId_key")
@@ -600,8 +606,8 @@ model ItemIntake {
 
   linkedSubmission BuyerItemSubmission? @relation("ItemIntakeLinkedSubmission", fields: [linkedSubmissionId], references: [id], onDelete: SetNull)
 
-  linkedMarketplaceListing MarketplaceListing? @relation("ItemIntakeLinkedMarketplaceListing", fields: [linkedMarketplaceListingId], references: [id], onDelete: SetNull)
-  customerSellFulfillment CustomerSellFulfillment? @relation("CustomerSellFulfillmentIntake")
+  linkedMarketplaceListing MarketplaceListing?      @relation("ItemIntakeLinkedMarketplaceListing", fields: [linkedMarketplaceListingId], references: [id], onDelete: SetNull)
+  customerSellFulfillment  CustomerSellFulfillment? @relation("CustomerSellFulfillmentIntake")
 
   @@index([shopId, status, createdAt])
   @@index([capturedByUserId, createdAt])
@@ -888,17 +894,17 @@ model MarketplaceTransaction {
   createdAt         DateTime                     @default(now())
   updatedAt         DateTime                     @updatedAt
 
-  listing         MarketplaceListing?       @relation(fields: [listingId], references: [id], onDelete: Restrict)
-  submission      BuyerItemSubmission?      @relation("MarketplaceTransactionSubmission", fields: [submissionId], references: [id], onDelete: Restrict)
-  submissionOffer BuyerItemSubmissionOffer? @relation("MarketplaceTransactionSubmissionOffer", fields: [submissionOfferId], references: [id], onDelete: Restrict)
-  buyer           User                      @relation("MarketplaceTransactionBuyer", fields: [buyerUserId], references: [id], onDelete: Restrict)
-  buyerShop       PawnShop?                 @relation("MarketplaceTransactionBuyerShop", fields: [buyerShopId], references: [id], onDelete: SetNull)
-  seller          User                      @relation("MarketplaceTransactionSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
-  sellerShop      PawnShop?                 @relation("MarketplaceTransactionSellerShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
+  listing                 MarketplaceListing?           @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  submission              BuyerItemSubmission?          @relation("MarketplaceTransactionSubmission", fields: [submissionId], references: [id], onDelete: Restrict)
+  submissionOffer         BuyerItemSubmissionOffer?     @relation("MarketplaceTransactionSubmissionOffer", fields: [submissionOfferId], references: [id], onDelete: Restrict)
+  buyer                   User                          @relation("MarketplaceTransactionBuyer", fields: [buyerUserId], references: [id], onDelete: Restrict)
+  buyerShop               PawnShop?                     @relation("MarketplaceTransactionBuyerShop", fields: [buyerShopId], references: [id], onDelete: SetNull)
+  seller                  User                          @relation("MarketplaceTransactionSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  sellerShop              PawnShop?                     @relation("MarketplaceTransactionSellerShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
   customerSellFulfillment CustomerSellFulfillment?
-  customerSellPayment CustomerSellPayment?
-  customerSellReceipt CustomerSellReceipt?
-  events MarketplaceTransactionEvent[]
+  customerSellPayment     CustomerSellPayment?
+  customerSellReceipt     CustomerSellReceipt?
+  events                  MarketplaceTransactionEvent[]
 
   @@index([listingId, status])
   @@index([buyerUserId, status, createdAt])
@@ -950,18 +956,18 @@ model CustomerSellFulfillment {
   createdAt                  DateTime                     @default(now())
   updatedAt                  DateTime                     @updatedAt
 
-  transaction MarketplaceTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  submission BuyerItemSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
-  submissionOffer BuyerItemSubmissionOffer @relation(fields: [submissionOfferId], references: [id], onDelete: Restrict)
-  shop PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
-  customer User @relation("CustomerSellFulfillmentCustomer", fields: [customerId], references: [id], onDelete: Restrict)
-  acceptedShopOwner User @relation("CustomerSellFulfillmentAcceptedOwner", fields: [acceptedShopOwnerId], references: [id], onDelete: Restrict)
-  lastActor User? @relation("CustomerSellFulfillmentActor", fields: [lastActorUserId], references: [id], onDelete: SetNull)
-  intake ItemIntake? @relation("CustomerSellFulfillmentIntake", fields: [intakeId], references: [id], onDelete: Restrict)
-  inventoryItem Item? @relation("CustomerSellAcquiredItem", fields: [inventoryItemId], references: [id], onDelete: Restrict)
-  payment CustomerSellPayment?
-  receipt CustomerSellReceipt?
-  events MarketplaceTransactionEvent[]
+  transaction       MarketplaceTransaction        @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  submission        BuyerItemSubmission           @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+  submissionOffer   BuyerItemSubmissionOffer      @relation(fields: [submissionOfferId], references: [id], onDelete: Restrict)
+  shop              PawnShop                      @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  customer          User                          @relation("CustomerSellFulfillmentCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  acceptedShopOwner User                          @relation("CustomerSellFulfillmentAcceptedOwner", fields: [acceptedShopOwnerId], references: [id], onDelete: Restrict)
+  lastActor         User?                         @relation("CustomerSellFulfillmentActor", fields: [lastActorUserId], references: [id], onDelete: SetNull)
+  intake            ItemIntake?                   @relation("CustomerSellFulfillmentIntake", fields: [intakeId], references: [id], onDelete: Restrict)
+  inventoryItem     Item?                         @relation("CustomerSellAcquiredItem", fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  payment           CustomerSellPayment?
+  receipt           CustomerSellReceipt?
+  events            MarketplaceTransactionEvent[]
 
   @@index([shopId, lifecycleStatus, createdAt])
   @@index([customerId, lifecycleStatus, createdAt])
@@ -969,28 +975,28 @@ model CustomerSellFulfillment {
 }
 
 model CustomerSellPayment {
-  id               String                    @id @default(cuid())
-  transactionId    String                    @unique
-  fulfillmentId    String                    @unique
+  id               String                     @id @default(cuid())
+  transactionId    String                     @unique
+  fulfillmentId    String                     @unique
   shopId           String
   customerId       String
   method           CustomerSellPaymentMethod?
-  status           CustomerSellPaymentStatus @default(PENDING)
-  amount           Decimal                   @db.Decimal(10, 2)
-  currency         String                    @default("USD")
+  status           CustomerSellPaymentStatus  @default(PENDING)
+  amount           Decimal                    @db.Decimal(10, 2)
+  currency         String                     @default("USD")
   referenceNumber  String?
-  evidenceUrls     String[]                  @default([])
+  evidenceUrls     String[]                   @default([])
   recordedByUserId String?
-  idempotencyKey   String?                   @unique
+  idempotencyKey   String?                    @unique
   recordedAt       DateTime?
-  createdAt        DateTime                  @default(now())
+  createdAt        DateTime                   @default(now())
 
-  transaction MarketplaceTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  transaction MarketplaceTransaction  @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   fulfillment CustomerSellFulfillment @relation(fields: [fulfillmentId], references: [id], onDelete: Restrict)
-  shop PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
-  customer User @relation("CustomerSellPaymentCustomer", fields: [customerId], references: [id], onDelete: Restrict)
-  recordedBy User? @relation("CustomerSellPaymentRecorder", fields: [recordedByUserId], references: [id], onDelete: SetNull)
-  receipt CustomerSellReceipt?
+  shop        PawnShop                @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  customer    User                    @relation("CustomerSellPaymentCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  recordedBy  User?                   @relation("CustomerSellPaymentRecorder", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+  receipt     CustomerSellReceipt?
 
   @@index([shopId, status, createdAt])
   @@index([customerId, status, createdAt])
@@ -1009,9 +1015,9 @@ model MarketplaceTransactionEvent {
   data           Json?
   createdAt      DateTime @default(now())
 
-  transaction MarketplaceTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  transaction MarketplaceTransaction   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   fulfillment CustomerSellFulfillment? @relation(fields: [fulfillmentId], references: [id], onDelete: Restrict)
-  actor User? @relation("MarketplaceTransactionEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actor       User?                    @relation("MarketplaceTransactionEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([transactionId, createdAt])
   @@index([fulfillmentId, createdAt])
@@ -1019,17 +1025,17 @@ model MarketplaceTransactionEvent {
 }
 
 model CustomerSellReceipt {
-  id                     String   @id @default(cuid())
-  transactionId          String   @unique
-  fulfillmentId          String   @unique
-  paymentId              String   @unique
+  id                     String                    @id @default(cuid())
+  transactionId          String                    @unique
+  fulfillmentId          String                    @unique
+  paymentId              String                    @unique
   shopId                 String
   customerId             String
   submissionId           String
   submissionOfferId      String
-  inventoryItemId        String   @unique
-  originalAmount         Decimal  @db.Decimal(10, 2)
-  finalAmount            Decimal  @db.Decimal(10, 2)
+  inventoryItemId        String                    @unique
+  originalAmount         Decimal                   @db.Decimal(10, 2)
+  finalAmount            Decimal                   @db.Decimal(10, 2)
   currency               String
   paymentMethod          CustomerSellPaymentMethod
   paymentReferenceNumber String?
@@ -1040,19 +1046,19 @@ model CustomerSellReceipt {
   observedCondition      String?
   verifiedSerial         String?
   revenuePolicy          CustomerSellRevenuePolicy
-  platformFee            Decimal  @default(0) @db.Decimal(10, 2)
+  platformFee            Decimal                   @default(0) @db.Decimal(10, 2)
   completedByUserId      String
   completedByRole        String
   customerAcknowledgedAt DateTime?
   snapshot               Json
-  createdAt              DateTime @default(now())
+  createdAt              DateTime                  @default(now())
 
-  transaction MarketplaceTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  transaction MarketplaceTransaction  @relation(fields: [transactionId], references: [id], onDelete: Restrict)
   fulfillment CustomerSellFulfillment @relation(fields: [fulfillmentId], references: [id], onDelete: Restrict)
-  payment CustomerSellPayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  shop PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
-  customer User @relation("CustomerSellReceiptCustomer", fields: [customerId], references: [id], onDelete: Restrict)
-  completedBy User @relation("CustomerSellReceiptCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
+  payment     CustomerSellPayment     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  shop        PawnShop                @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  customer    User                    @relation("CustomerSellReceiptCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  completedBy User                    @relation("CustomerSellReceiptCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
 
   @@index([shopId, createdAt])
   @@index([customerId, createdAt])
