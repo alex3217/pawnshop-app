@@ -20,6 +20,7 @@ import {
 import {
   syncStripeConnectAccountUpdated,
 } from "../services/stripeConnect.service.js";
+import { syncPayoutTransferEvent } from "../services/payouts/payoutRequest.service.js";
 
 const PI_REUSABLE_STATUSES = new Set([
   "requires_payment_method",
@@ -458,6 +459,16 @@ export async function handleStripeWebhook(req, res) {
     );
 
     switch (event.type) {
+      case "transfer.created":
+      case "transfer.updated":
+      case "transfer.reversed": {
+        await syncPayoutTransferEvent({
+          transfer: event.data.object,
+          eventType: event.type,
+          prismaClient: prisma,
+        });
+        break;
+      }
       case "account.updated": {
         await syncStripeConnectAccountUpdated({
           account: event.data.object,
