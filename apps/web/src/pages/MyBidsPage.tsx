@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
-import { getMyBids, type BidRow } from "../services/bids";
+import { archiveBid, getMyBids, restoreBid, type BidRow } from "../services/bids";
 import { addToWatchlist } from "../services/watchlist";
 import "../styles/my-bids-v2.css";
 
-type BidFilter = "ALL" | "LIVE" | "LEADING" | "OUTBID" | "ENDED";
+type BidFilter = "ALL" | "LIVE" | "LEADING" | "OUTBID" | "ENDED" | "ARCHIVED";
 type BidSort = "ENDING_SOON" | "RECENT" | "HIGHEST_BID" | "OUTBID_FIRST" | "LIVE_FIRST";
 
 function formatMoney(value: string | number | null | undefined) {
@@ -110,10 +110,14 @@ function BidCard({
   row,
   watchingItemId,
   onWatchItem,
+  processingBidId,
+  onArchiveAction,
 }: {
   row: BidRow;
   watchingItemId: string | null;
   onWatchItem: (row: BidRow) => void;
+  processingBidId: string | null;
+  onArchiveAction: (row: BidRow) => void;
 }) {
   const status = normalizeStatus(row.auction?.status);
   const position = getBidPosition(row);
@@ -125,9 +129,10 @@ function BidCard({
   const ended = isEndedBid(row);
   const outbid = position === "Outbid";
   const leading = position === "Leading";
+  const processing = processingBidId === row.id;
 
   return (
-    <article className="mybids2-card">
+    <article className={`mybids2-card${row.archived ? " mybids2-card-archived" : ""}`}>
       <div className="mybids2-card-top">
         <div>
           <Link to={`/auctions/${row.auctionId}`} className="mybids2-title">
@@ -197,16 +202,28 @@ function BidCard({
           </button>
         ) : null}
 
-        {ended && leading ? (
+        {ended && row.isWinner ? (
           <Link to="/my-wins" className="mybids2-primary-small">
             View win / payment
           </Link>
         ) : null}
 
-        {ended && !leading ? (
+        {ended && !row.isWinner ? (
           <Link to={`/buyer/item-locator?search=${encodeURIComponent(itemTitle)}`} className="mybids2-secondary-small">
             Find similar
           </Link>
+        ) : null}
+
+        {row.archived || row.canArchive ? (
+          <button
+            type="button"
+            className="mybids2-secondary-small mybids2-archive-action"
+            disabled={processing}
+            aria-label={`${row.archived ? "Restore" : "Archive"} bid for ${itemTitle}`}
+            onClick={() => onArchiveAction(row)}
+          >
+            {processing ? "Saving..." : row.archived ? "Restore" : "Archive"}
+          </button>
         ) : null}
       </div>
     </article>
@@ -221,6 +238,8 @@ export default function MyBidsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [watchingItemId, setWatchingItemId] = useState<string | null>(null);
+  const [processingBidId, setProcessingBidId] = useState<string | null>(null);
+  const [pendingArchiveRow, setPendingArchiveRow] = useState<BidRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState<BidFilter>("ALL");
@@ -243,7 +262,7 @@ export default function MyBidsPage() {
       setError(null);
 
       try {
-        const data = await getMyBids(signal);
+        const data = await getMyBids(filter === "ARCHIVED", signal);
         setRows(data);
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") return;
@@ -255,7 +274,7 @@ export default function MyBidsPage() {
         else setLoading(false);
       }
     },
-    [token],
+    [token, filter],
   );
 
   useEffect(() => {
@@ -302,6 +321,7 @@ export default function MyBidsPage() {
       if (filter === "ENDED" && !isEndedBid(row)) return false;
       if (filter === "LEADING" && position !== "LEADING") return false;
       if (filter === "OUTBID" && position !== "OUTBID") return false;
+      if (filter === "ARCHIVED" && !row.archived) return false;
       if (q && !searchable.includes(q)) return false;
 
       return true;
@@ -350,12 +370,39 @@ export default function MyBidsPage() {
     }
   }
 
+  async function confirmArchiveAction() {
+    const row = pendingArchiveRow;
+    if (!row) return;
+
+    setPendingArchiveRow(null);
+    setProcessingBidId(row.id);
+    setNotice(null);
+    setError(null);
+
+    try {
+      if (row.archived) await restoreBid(row.id);
+      else await archiveBid(row.id);
+
+      setRows((current) => current.filter((item) => item.id !== row.id));
+      setNotice(
+        row.archived
+          ? `"${itemTitleFor(row)}" was restored to My Bids.`
+          : `"${itemTitleFor(row)}" was archived.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update this bid.");
+    } finally {
+      setProcessingBidId(null);
+    }
+  }
+
   const filters: Array<{ value: BidFilter; label: string }> = [
     { value: "ALL", label: "All" },
     { value: "LIVE", label: "Live" },
     { value: "LEADING", label: "Leading" },
     { value: "OUTBID", label: "Outbid" },
     { value: "ENDED", label: "Ended" },
+    { value: "ARCHIVED", label: "Archived" },
   ];
 
   const visibleRows = useMemo(
@@ -503,10 +550,14 @@ export default function MyBidsPage() {
         </Link>
       </section>
 
-      {notice ? <section className="mybids2-notice">{notice}</section> : null}
+      {notice ? (
+        <section className="mybids2-notice" role="status" aria-live="polite">
+          {notice}
+        </section>
+      ) : null}
 
       {error ? (
-        <section className="mybids2-error">
+        <section className="mybids2-error" role="alert">
           <h2>Bids could not load</h2>
           <p>{error}</p>
           <button type="button" onClick={() => void load(true)}>
@@ -538,6 +589,8 @@ export default function MyBidsPage() {
                 row={row}
                 watchingItemId={watchingItemId}
                 onWatchItem={handleWatchItem}
+                processingBidId={processingBidId}
+                onArchiveAction={setPendingArchiveRow}
               />
             ))}
           </section>
@@ -568,6 +621,53 @@ export default function MyBidsPage() {
           ) : null}
         </>
       )}
+
+      {pendingArchiveRow ? (
+        <div
+          className="mybids2-dialog-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setPendingArchiveRow(null);
+          }}
+        >
+          <section
+            className="mybids2-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mybids2-dialog-title"
+            aria-describedby="mybids2-dialog-description"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setPendingArchiveRow(null);
+            }}
+          >
+            <h2 id="mybids2-dialog-title">
+              {pendingArchiveRow.archived ? "Restore this bid?" : "Archive this bid?"}
+            </h2>
+            <p id="mybids2-dialog-description">
+              {pendingArchiveRow.archived
+                ? "This returns the entry to your normal My Bids view."
+                : "This only hides the entry from your normal view. The bid, auction, payment, settlement, and audit history are preserved."}
+            </p>
+            <div className="mybids2-dialog-actions">
+              <button
+                type="button"
+                className="mybids2-secondary-small"
+                autoFocus
+                onClick={() => setPendingArchiveRow(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="mybids2-primary-small"
+                onClick={() => void confirmArchiveAction()}
+              >
+                {pendingArchiveRow.archived ? "Restore bid" : "Archive bid"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

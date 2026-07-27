@@ -7,6 +7,91 @@
   color: #0f172a;
 }
 
+.mybids2-card-archived {
+  border-style: dashed;
+}
+
+.mybids2-archive-action {
+  border: 1px solid rgba(100, 116, 139, 0.45) !important;
+}
+
+.mybids2-dialog-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.mybids2-dialog {
+  width: min(100%, 520px);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 24px;
+  padding: 24px;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+}
+
+.mybids2-dialog h2 {
+  margin: 0;
+}
+
+.mybids2-dialog p {
+  margin: 12px 0 0;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.mybids2-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.mybids2-dialog-actions button {
+  min-height: 44px;
+  border: 0;
+  cursor: pointer;
+}
+
+.mybids2-page :is(button, a, input, select):focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
+}
+
+.mybids2-page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark)
+  .mybids2-dialog {
+  border-color: #475569;
+  background: #111827;
+  color: #f8fafc;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark)
+  .mybids2-dialog p {
+  color: #cbd5e1;
+}
+
+:is(:root[data-theme="dark"], html[data-theme="dark"], body[data-theme="dark"], .dark)
+  .mybids2-page :is(button, a, input, select):focus-visible {
+  outline-color: #93c5fd;
+}
+
+@media (max-width: 520px) {
+  .mybids2-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
 .mybids2-page a {
   text-decoration: none;
 }

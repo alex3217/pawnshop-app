@@ -20,6 +20,7 @@ model User {
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   Bid                       Bid[]
+  bidArchives               BidArchive[]
   buyerSubscription         BuyerSubscription?
   inventoryImportJobs       InventoryImportJob[]       @relation("UserInventoryImportJobs")
   inventoryIntegrations     InventoryIntegration[]     @relation("UserInventoryIntegrations")
@@ -253,10 +254,24 @@ model Bid {
   createdAt DateTime @default(now())
   auction   Auction  @relation(fields: [auctionId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
+  archives  BidArchive[]
 
   @@index([auctionId, amount])
   @@index([auctionId, createdAt])
   @@index([userId, auctionId])
+}
+
+model BidArchive {
+  id         String   @id @default(cuid())
+  userId     String
+  bidId      String
+  archivedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bid        Bid      @relation(fields: [bidId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bidId])
+  @@index([userId, archivedAt])
+  @@index([bidId])
 }
 
 model Settlement {

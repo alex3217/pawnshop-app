@@ -2,7 +2,12 @@
 
 import { Router } from "express";
 import { authRequired, requireRole } from "../middleware/auth.js";
-import { myBids, placeBid } from "../controllers/bids.controller.js";
+import {
+  archiveBid,
+  myBids,
+  placeBid,
+  restoreBid,
+} from "../controllers/bids.controller.js";
 
 const router = Router();
 
@@ -37,6 +42,17 @@ function validateAuctionIdParam(req, res, next) {
   return next();
 }
 
+function validateBidIdParam(req, res, next) {
+  const raw = req.params?.bidId;
+  if (typeof raw !== "string") return badRequest(res, "Bid id is required.");
+  const bidId = raw.trim();
+  if (!bidId || bidId.length > 128 || bidId.includes("/")) {
+    return badRequest(res, "Invalid bid id.");
+  }
+  req.params.bidId = bidId;
+  return next();
+}
+
 /**
  * Buyer/Admin
  * GET /api/bids/mine
@@ -48,6 +64,22 @@ router.get(
   authRequired,
   requireRole("CONSUMER", "ADMIN"),
   asyncRoute(myBids),
+);
+
+router.put(
+  "/:bidId/archive",
+  authRequired,
+  requireRole("CONSUMER", "ADMIN"),
+  validateBidIdParam,
+  asyncRoute(archiveBid),
+);
+
+router.delete(
+  "/:bidId/archive",
+  authRequired,
+  requireRole("CONSUMER", "ADMIN"),
+  validateBidIdParam,
+  asyncRoute(restoreBid),
 );
 
 /**
@@ -66,6 +98,8 @@ router.post(
 
 export const BID_ROUTE_MAP = Object.freeze({
   mine: "GET /api/bids/mine",
+  archive: "PUT /api/bids/:bidId/archive",
+  restore: "DELETE /api/bids/:bidId/archive",
   placeBid: "POST /api/bids/:id",
 });
 
