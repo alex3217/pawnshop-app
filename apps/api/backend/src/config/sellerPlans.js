@@ -141,7 +141,7 @@ export const SELLER_PLANS = Object.freeze({
     label: "Free",
     monthlyPriceCents: 0,
     yearlyPriceCents: 0,
-    maxActiveListings: 25,
+    maxActiveListings: 20,
     trialMaxActiveListings: 50,
     maxLocations: 1,
     maxStaffUsers: 1,
@@ -150,7 +150,7 @@ export const SELLER_PLANS = Object.freeze({
     analyticsLevel: "none",
     commissionBps: 1200,
     features: [
-      "Up to 25 active listings after trial",
+      "Up to 20 active listings after trial",
       "50 active listings during trial",
       "Basic shop profile",
       "Standard support",
