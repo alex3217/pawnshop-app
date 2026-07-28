@@ -786,3 +786,406 @@ export async function adminListSubscriptions(_req, res) {
     return sendError(res, error);
   }
 }
+
+
+// OWNER APPLICATION REVIEW WORKFLOW V1
+const OWNER_APPLICATION_STATUSES = new Set([
+  "PENDING",
+  "IN_REVIEW",
+  "INFORMATION_REQUESTED",
+  "APPROVED",
+  "REJECTED",
+  "SUSPENDED",
+]);
+
+const OWNER_APPLICATION_TRANSITIONS = new Map([
+  [
+    "PENDING",
+    new Set([
+      "IN_REVIEW",
+      "INFORMATION_REQUESTED",
+      "APPROVED",
+      "REJECTED",
+    ]),
+  ],
+  [
+    "IN_REVIEW",
+    new Set([
+      "INFORMATION_REQUESTED",
+      "APPROVED",
+      "REJECTED",
+    ]),
+  ],
+  [
+    "INFORMATION_REQUESTED",
+    new Set([
+      "IN_REVIEW",
+      "APPROVED",
+      "REJECTED",
+    ]),
+  ],
+  ["APPROVED", new Set(["SUSPENDED"])],
+  ["REJECTED", new Set([])],
+  ["SUSPENDED", new Set(["APPROVED"])],
+]);
+
+const OWNER_APPLICATION_REASON_REQUIRED = new Set([
+  "INFORMATION_REQUESTED",
+  "REJECTED",
+  "SUSPENDED",
+]);
+
+function normalizeOwnerApplicationStatus(value) {
+  return normalizeString(value, "").toUpperCase();
+}
+
+function readPositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function serializeOwnerApplication(application) {
+  if (!application) return null;
+
+  return {
+    id: application.id,
+    ownerId: application.ownerId,
+    status: application.status,
+    businessName: application.businessName,
+    businessType: application.businessType,
+    businessEmail: application.businessEmail,
+    businessPhone: application.businessPhone,
+    websiteUrl: application.websiteUrl,
+    businessAddress: application.businessAddress ?? null,
+    licenseNumber: application.licenseNumber,
+    licenseState: application.licenseState,
+    applicationData: application.applicationData ?? null,
+    submittedAt: toIsoOrNull(application.submittedAt),
+    reviewedAt: toIsoOrNull(application.reviewedAt),
+    reviewedById: application.reviewedById,
+    decisionReason: application.decisionReason,
+    adminNotes: application.adminNotes,
+    statusChangedAt: toIsoOrNull(application.statusChangedAt),
+    createdAt: toIsoOrNull(application.createdAt),
+    updatedAt: toIsoOrNull(application.updatedAt),
+    owner: application.owner
+      ? {
+          id: application.owner.id,
+          name: application.owner.name,
+          email: application.owner.email,
+          role: application.owner.role,
+          isActive: application.owner.isActive,
+          authVersion: application.owner.authVersion,
+        }
+      : null,
+    reviewedBy: application.reviewedBy
+      ? {
+          id: application.reviewedBy.id,
+          name: application.reviewedBy.name,
+          email: application.reviewedBy.email,
+          role: application.reviewedBy.role,
+        }
+      : null,
+  };
+}
+
+const OWNER_APPLICATION_INCLUDE = {
+  owner: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+      authVersion: true,
+    },
+  },
+  reviewedBy: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  },
+};
+
+export async function listOwnerApplications(req, res) {
+  try {
+    const requestedStatus =
+      normalizeOwnerApplicationStatus(req.query?.status);
+
+    if (
+      requestedStatus &&
+      !OWNER_APPLICATION_STATUSES.has(requestedStatus)
+    ) {
+      const error = new Error("Invalid owner application status.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const query = normalizeString(req.query?.q, "");
+    const page = readPositiveInteger(req.query?.page, 1);
+    const limit = Math.min(
+      readPositiveInteger(req.query?.limit, 25),
+      100,
+    );
+
+    const where = {
+      ...(requestedStatus ? { status: requestedStatus } : {}),
+      ...(query
+        ? {
+            OR: [
+              {
+                businessName: {
+                  contains: query,
+                  mode: "insensitive",
+                },
+              },
+              {
+                businessEmail: {
+                  contains: query,
+                  mode: "insensitive",
+                },
+              },
+              {
+                owner: {
+                  is: {
+                    name: {
+                      contains: query,
+                      mode: "insensitive",
+                    },
+                  },
+                },
+              },
+              {
+                owner: {
+                  is: {
+                    email: {
+                      contains: query,
+                      mode: "insensitive",
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, applications] = await Promise.all([
+      prisma.ownerApplication.count({ where }),
+      prisma.ownerApplication.findMany({
+        where,
+        include: OWNER_APPLICATION_INCLUDE,
+        orderBy: [
+          { submittedAt: "desc" },
+          { createdAt: "desc" },
+        ],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return res.json({
+      success: true,
+      rows: applications.map(serializeOwnerApplication),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Failed to load owner applications.",
+    );
+  }
+}
+
+export async function getOwnerApplication(req, res) {
+  try {
+    const application =
+      await prisma.ownerApplication.findUnique({
+        where: { id: req.params.id },
+        include: OWNER_APPLICATION_INCLUDE,
+      });
+
+    if (!application) {
+      const error = new Error("Owner application not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    return res.json({
+      success: true,
+      application: serializeOwnerApplication(application),
+    });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Failed to load owner application.",
+    );
+  }
+}
+
+export async function updateOwnerApplicationStatus(req, res) {
+  try {
+    const nextStatus =
+      normalizeOwnerApplicationStatus(req.body?.status);
+    const decisionReason =
+      normalizeString(req.body?.decisionReason, "");
+    const hasAdminNotes = Object.prototype.hasOwnProperty.call(
+      req.body || {},
+      "adminNotes",
+    );
+    const adminNotes =
+      normalizeString(req.body?.adminNotes, "") || null;
+
+    if (!OWNER_APPLICATION_STATUSES.has(nextStatus)) {
+      const error = new Error(
+        "A valid owner application status is required.",
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (
+      OWNER_APPLICATION_REASON_REQUIRED.has(nextStatus) &&
+      !decisionReason
+    ) {
+      const error = new Error(
+        `A reason is required when changing status to ${nextStatus}.`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const existing =
+      await prisma.ownerApplication.findUnique({
+        where: { id: req.params.id },
+        include: OWNER_APPLICATION_INCLUDE,
+      });
+
+    if (!existing) {
+      const error = new Error("Owner application not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (existing.owner?.role !== "OWNER") {
+      const error = new Error(
+        "The application is not linked to an owner account.",
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (existing.status === nextStatus) {
+      const error = new Error(
+        `Owner application is already ${nextStatus}.`,
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const allowed =
+      OWNER_APPLICATION_TRANSITIONS.get(existing.status);
+
+    if (!allowed?.has(nextStatus)) {
+      const error = new Error(
+        `Cannot change owner application from ${existing.status} to ${nextStatus}.`,
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const reviewerId = String(
+      req.user?.sub ||
+        req.user?.id ||
+        req.user?.userId ||
+        "",
+    ).trim();
+
+    if (!reviewerId) {
+      const error = new Error("Unauthorized");
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const now = new Date();
+    const invalidateOwnerTokens =
+      existing.status === "APPROVED" ||
+      nextStatus === "APPROVED";
+
+    const application = await prisma.$transaction(
+      async (transaction) => {
+        const updated =
+          await transaction.ownerApplication.update({
+            where: { id: existing.id },
+            data: {
+              status: nextStatus,
+              reviewedAt: now,
+              reviewedById: reviewerId,
+              decisionReason: decisionReason || null,
+              statusChangedAt: now,
+              ...(hasAdminNotes ? { adminNotes } : {}),
+            },
+            include: OWNER_APPLICATION_INCLUDE,
+          });
+
+        if (invalidateOwnerTokens) {
+          await transaction.user.update({
+            where: { id: existing.ownerId },
+            data: {
+              authVersion: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        return updated;
+      },
+    );
+
+    await writeAdminActionAudit(req, {
+      action: `ADMIN_OWNER_APPLICATION_${nextStatus}`,
+      targetType: "OWNER_APPLICATION",
+      targetId: application.id,
+      metadata: {
+        ownerId: application.ownerId,
+        previousStatus: existing.status,
+        nextStatus,
+        decisionReason: decisionReason || null,
+        ownerTokensInvalidated: invalidateOwnerTokens,
+      },
+    });
+
+    const refreshed =
+      await prisma.ownerApplication.findUnique({
+        where: { id: application.id },
+        include: OWNER_APPLICATION_INCLUDE,
+      });
+
+    return res.json({
+      success: true,
+      application: serializeOwnerApplication(refreshed),
+      requiresOwnerReauthentication: invalidateOwnerTokens,
+    });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Failed to update owner application.",
+    );
+  }
+}

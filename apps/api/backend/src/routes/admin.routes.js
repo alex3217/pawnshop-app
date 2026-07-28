@@ -20,6 +20,9 @@ import {
   createAdminShop,
   updateAdminUser,
   createAdminUser,
+  listOwnerApplications,
+  getOwnerApplication,
+  updateOwnerApplicationStatus,
 } from "../controllers/admin.controller.js";
 
 const router = Router();
@@ -157,6 +160,22 @@ router.patch(
   asyncRoute(unblockUser),
 );
 
+// OWNER APPLICATION REVIEW ROUTES V1
+router.get(
+  "/owner-applications",
+  asyncRoute(listOwnerApplications),
+);
+router.get(
+  "/owner-applications/:id",
+  validateIdParam("id", "Owner application id"),
+  asyncRoute(getOwnerApplication),
+);
+router.patch(
+  "/owner-applications/:id/status",
+  validateIdParam("id", "Owner application id"),
+  asyncRoute(updateOwnerApplicationStatus),
+);
+
 router.get("/items", asyncRoute(adminListItems));
 router.post("/items", asyncRoute(createAdminItem));
 router.patch(
@@ -206,6 +225,10 @@ export const ADMIN_ROUTE_MAP = Object.freeze({
   updateUser: "PATCH /api/admin/users/:id",
   blockUser: "DELETE /api/admin/users/:id",
   unblockUser: "PATCH /api/admin/users/:id/unblock",
+  ownerApplications: "GET /api/admin/owner-applications",
+  ownerApplication: "GET /api/admin/owner-applications/:id",
+  updateOwnerApplicationStatus:
+    "PATCH /api/admin/owner-applications/:id/status",
   items: "GET /api/admin/items",
   createItem: "POST /api/admin/items",
   updateItem: "PATCH /api/admin/items/:id",
