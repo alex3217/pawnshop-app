@@ -141,6 +141,25 @@
   color: #64748b;
 }
 
+.register-input[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+.register-input[aria-invalid="true"]:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
+}
+
+.register-field-error {
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+:root[data-theme="dark"] .register-field-error {
+  color: #fca5a5;
+}
+
 .register-input:focus,
 .register-select:focus {
   border-color: #4f46e5;

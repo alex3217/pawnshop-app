@@ -20,6 +20,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<PublicRole>("CONSUMER");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -67,6 +68,14 @@ export default function RegisterPage() {
 
       if (password.length > 128) {
         throw new Error("Password must be no more than 128 characters.");
+      }
+
+      if (!confirmPassword) {
+        throw new Error("Please confirm your password.");
+      }
+
+      if (password !== confirmPassword) {
+        throw new Error("Passwords do not match.");
       }
 
       const normalizedPassword = password.normalize("NFKC").toLocaleLowerCase("en-US");
@@ -216,6 +225,59 @@ export default function RegisterPage() {
             <div className="register-field">
               <label
                 className="register-label"
+                htmlFor="register-confirm-password"
+              >
+                Confirm password
+              </label>
+
+              <input
+                id="register-confirm-password"
+                className="register-input"
+                value={confirmPassword}
+                onChange={(event) => {
+                  const nextConfirmPassword = event.target.value;
+                  setConfirmPassword(nextConfirmPassword);
+
+                  if (
+                    error === "Passwords do not match." &&
+                    nextConfirmPassword === password
+                  ) {
+                    setError(null);
+                  }
+                }}
+                placeholder="Re-enter your password"
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={128}
+                required
+                aria-invalid={
+                  confirmPassword.length > 0 &&
+                  password !== confirmPassword
+                }
+                aria-describedby={
+                  confirmPassword.length > 0 &&
+                  password !== confirmPassword
+                    ? "register-confirm-password-error"
+                    : undefined
+                }
+              />
+
+              {confirmPassword.length > 0 &&
+              password !== confirmPassword ? (
+                <small
+                  id="register-confirm-password-error"
+                  className="register-field-error"
+                  role="alert"
+                >
+                  Passwords do not match.
+                </small>
+              ) : null}
+            </div>
+
+            <div className="register-field">
+              <label
+                className="register-label"
                 htmlFor="register-role"
               >
                 Account type
@@ -275,7 +337,11 @@ export default function RegisterPage() {
             <button
               className="register-submit"
               type="submit"
-              disabled={submitting}
+              disabled={
+                submitting ||
+                (confirmPassword.length > 0 &&
+                  password !== confirmPassword)
+              }
             >
               {submitting
                 ? "Creating account…"
