@@ -24,6 +24,7 @@ export default function RegisterPage() {
   const [role, setRole] = useState<PublicRole>("CONSUMER");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [foundingProgram, setFoundingProgram] = useState(DEFAULT_FOUNDING_SHOP_PROGRAM);
 
   useEffect(() => {
@@ -48,6 +49,14 @@ export default function RegisterPage() {
     if (submitting) return;
 
     setError(null);
+
+    if (!acceptedLegal) {
+      setError(
+        "You must accept the Terms of Service and Privacy Policy.",
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -313,8 +322,8 @@ export default function RegisterPage() {
 
                 <ul>
                   <li>
-                    {foundingProgram.trialDays} days free for the
-                    first {foundingProgram.shopLimit} shops.
+                    {foundingProgram.trialDays} days free for
+                    registered pawn shops.
                   </li>
                   <li>
                     Free setup support for the first{" "}
@@ -333,6 +342,32 @@ export default function RegisterPage() {
                 </ul>
               </div>
             ) : null}
+
+            <div className="register-consent">
+              <input
+                id="register-legal-consent"
+                type="checkbox"
+                checked={acceptedLegal}
+                onChange={(event) => {
+                  setAcceptedLegal(event.target.checked);
+
+                  if (
+                    event.target.checked &&
+                    error ===
+                      "You must accept the Terms of Service and Privacy Policy."
+                  ) {
+                    setError(null);
+                  }
+                }}
+                required
+              />
+
+              <label htmlFor="register-legal-consent">
+                I agree to the{" "}
+                <Link to="/terms">Terms of Service</Link> and{" "}
+                <Link to="/privacy">Privacy Policy</Link>.
+              </label>
+            </div>
 
             <button
               className="register-submit"

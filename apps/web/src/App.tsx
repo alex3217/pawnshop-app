@@ -13,6 +13,9 @@ import RequireShopCapability from "./components/RequireShopCapability";
 import SiteLayout from "./components/SiteLayout";
 import type { Role } from "./services/auth";
 
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
+
 import BuyerDashboardPage from "./pages/BuyerDashboardPage";
 
 import BuyerItemLocatorPage from "./pages/BuyerItemLocatorPage";
@@ -239,6 +242,9 @@ const publicRoutes: RouteConfig[] = [
   { path: "/buyer/dashboard", element: <BuyerDashboardPage /> },
   { path: "/buyer/item-locator", element: <BuyerItemLocatorPage /> },
   { path: "/buyer/sell-item", element: <BuyerSellItemPage /> },
+  { path: "/terms", element: <TermsPage /> },
+  { path: "/privacy", element: <PrivacyPage /> },
+
 
   { path: "/marketplace", element: <MarketplacePage /> },
   {
