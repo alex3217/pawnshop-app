@@ -6,18 +6,22 @@ const buyerFeatures = [
   {
     title: "Browse marketplace inventory",
     body: "Search items across pawnshop stores and compare inventory in one place.",
+    href: "/marketplace",
   },
   {
     title: "Find items near you",
     body: "Use Item Locator to search a keyword and see which shops have matching items.",
+    href: "/buyer/item-locator",
   },
   {
     title: "Sell or pawn an item",
     body: "Take photos, submit an item request, and receive pawnshop offers.",
+    href: "/buyer/sell-item",
   },
   {
     title: "Bid in real time",
     body: "Place bids, track price movement, and manage auctions from your buyer view.",
+    href: "/auctions",
   },
 ];
 
@@ -25,18 +29,22 @@ const ownerFeatures = [
   {
     title: "Create item listings",
     body: "Add inventory with title, category, pricing, photos, and condition.",
+    href: "/owner/items/new",
   },
   {
     title: "Review buyer item requests",
     body: "See buyer-submitted photos and send real cash offers.",
+    href: "/owner/item-intakes",
   },
   {
     title: "Launch auctions",
     body: "Turn inventory into live auction listings with bidding controls.",
+    href: "/owner/auctions/new",
   },
   {
     title: "Manage operations",
     body: "Control staff, locations, subscriptions, inventory, offers, and integrations.",
+    href: "/owner",
   },
 ];
 
@@ -92,10 +100,16 @@ export default function HomePage() {
 
           <div className="home2-feature-list">
             {buyerFeatures.map((feature) => (
-              <div key={feature.title}>
+              <Link
+                key={feature.title}
+                className="home2-feature-link"
+                to={feature.href}
+                aria-label={`${feature.title}: ${feature.body}`}
+              >
                 <strong>{feature.title}</strong>
                 <span>{feature.body}</span>
-              </div>
+                <small aria-hidden="true">Open page →</small>
+              </Link>
             ))}
           </div>
 
@@ -117,10 +131,16 @@ export default function HomePage() {
 
           <div className="home2-feature-list">
             {ownerFeatures.map((feature) => (
-              <div key={feature.title}>
+              <Link
+                key={feature.title}
+                className="home2-feature-link"
+                to={feature.href}
+                aria-label={`${feature.title}: ${feature.body}`}
+              >
                 <strong>{feature.title}</strong>
                 <span>{feature.body}</span>
-              </div>
+                <small aria-hidden="true">Open page →</small>
+              </Link>
             ))}
           </div>
 
