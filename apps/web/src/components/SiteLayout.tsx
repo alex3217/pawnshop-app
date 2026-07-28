@@ -335,6 +335,8 @@ export default function SiteLayout() {
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
       ...(showGuestLinks ? GUEST_NAV : []),
+      { to: "/terms", label: "Terms of Service" },
+      { to: "/privacy", label: "Privacy Policy" },
     ]);
 
     return {
