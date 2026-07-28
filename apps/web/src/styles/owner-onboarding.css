@@ -598,3 +598,63 @@
     justify-self: start;
   }
 }
+
+/* owner-launch-readiness-contrast-v1 */
+.owner-launch-readiness,
+section:has(.owner-launch-readiness-item-heading) {
+  background: linear-gradient(145deg, #0f172a, #111827) !important;
+  border: 1px solid rgba(148, 163, 184, 0.4) !important;
+  color: #f8fafc !important;
+  box-shadow: 0 18px 48px rgba(2, 6, 23, 0.28);
+}
+
+.owner-launch-readiness h1,
+.owner-launch-readiness h2,
+.owner-launch-readiness h3,
+.owner-launch-readiness strong,
+section:has(.owner-launch-readiness-item-heading) h1,
+section:has(.owner-launch-readiness-item-heading) h2,
+section:has(.owner-launch-readiness-item-heading) h3,
+section:has(.owner-launch-readiness-item-heading) strong {
+  color: #f8fafc !important;
+}
+
+.owner-launch-readiness p,
+.owner-launch-readiness small,
+section:has(.owner-launch-readiness-item-heading) p,
+section:has(.owner-launch-readiness-item-heading) small {
+  color: #cbd5e1 !important;
+}
+
+.owner-launch-readiness li,
+section:has(.owner-launch-readiness-item-heading) li {
+  background: #1e293b !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+  color: #f8fafc !important;
+}
+
+.owner-launch-readiness-item-heading span {
+  background: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.owner-launch-readiness a,
+section:has(.owner-launch-readiness-item-heading) a {
+  background: #2563eb !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+}
+
+.owner-launch-readiness progress,
+section:has(.owner-launch-readiness-item-heading) progress {
+  accent-color: #22c55e;
+}
+
+main:has(.owner-launch-readiness-item-heading) {
+  padding-bottom: 10rem !important;
+}
+
+.owner-launch-readiness,
+section:has(.owner-launch-readiness-item-heading) {
+  margin-bottom: 7rem;
+}

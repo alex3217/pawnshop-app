@@ -293,16 +293,55 @@ test("unverified login is rejected and verified login remains successful", async
   assert.equal(typeof verified.body.token, "string");
 });
 
-test("OWNER verification does not create or approve a pawn shop", async () => {
-  await registerUser({ userEmail: email("owner"), role: "OWNER" });
+test("OWNER registration creates a pending application and verification does not approve a shop", async () => {
+  const registration = await registerUser({
+    userEmail: email("owner"),
+    role: "OWNER",
+  });
+
+  assert.equal(registration.status, 201);
+  assert.equal(registration.body.nextStep, "VERIFY_EMAIL");
+
+  const registeredOwner = await prisma.user.findUnique({
+    where: { email: email("owner") },
+    include: {
+      ownerApplication: true,
+      shops: true,
+    },
+  });
+
+  assert.equal(registeredOwner.role, "OWNER");
+  assert.equal(
+    registeredOwner.ownerApplication.status,
+    "PENDING",
+  );
+  assert.equal(
+    registeredOwner.ownerApplication.businessEmail,
+    email("owner"),
+  );
+  assert.equal(
+    registeredOwner.ownerApplication.reviewedAt,
+    null,
+  );
+  assert.deepEqual(registeredOwner.shops, []);
+
   const response = await verifyLatestEmail();
   assert.equal(response.status, 200);
-  const owner = await prisma.user.findUnique({
+
+  const verifiedOwner = await prisma.user.findUnique({
     where: { email: email("owner") },
-    include: { shops: true },
+    include: {
+      ownerApplication: true,
+      shops: true,
+    },
   });
-  assert.equal(owner.role, "OWNER");
-  assert.deepEqual(owner.shops, []);
+
+  assert.ok(verifiedOwner.emailVerifiedAt instanceof Date);
+  assert.equal(
+    verifiedOwner.ownerApplication.status,
+    "PENDING",
+  );
+  assert.deepEqual(verifiedOwner.shops, []);
 });
 
 test("forgot-password response is identical for existing and unknown emails", async () => {
@@ -434,6 +473,50 @@ test("authenticated verified users can load their profile", async () => {
   assert.equal(response.body.success, true);
   assert.equal(response.body.user.email, email("profile"));
   assert.equal("password" in response.body.user, false);
+  assert.equal(
+    "ownerApplication" in response.body.user,
+    false,
+  );
+});
+
+test("authenticated owners receive their pending application status through auth me", async () => {
+  await registerAndVerify({
+    userEmail: email("owner-profile"),
+    role: "OWNER",
+  });
+
+  const login = await loginUser({
+    userEmail: email("owner-profile"),
+  });
+
+  assert.equal(login.status, 200);
+
+  const response = await request(app)
+    .get("/api/auth/me")
+    .set(
+      "Authorization",
+      `Bearer ${login.body.token}`,
+    );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.user.role, "OWNER");
+  assert.equal(
+    response.body.user.ownerApplication.status,
+    "PENDING",
+  );
+  assert.equal(
+    response.body.user.ownerApplication.reviewedAt,
+    null,
+  );
+  assert.equal(
+    response.body.user.ownerApplication.decisionReason,
+    null,
+  );
+  assert.equal(
+    "adminNotes" in
+      response.body.user.ownerApplication,
+    false,
+  );
 });
 
 test("legacy password hashes continue to authenticate for verified users", async () => {
