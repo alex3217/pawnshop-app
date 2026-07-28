@@ -157,11 +157,32 @@
   margin-top: 18px;
 }
 
-.home2-feature-list div {
+.home2-feature-link {
+  display: block;
   border-radius: 18px;
   padding: 15px;
   background: #f8fafc;
+  color: inherit;
   border: 1px solid rgba(148, 163, 184, 0.20);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.home2-feature-link:hover {
+  transform: translateY(-2px);
+  background: #ffffff;
+  border-color: rgba(79, 70, 229, 0.42);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.09);
+}
+
+.home2-feature-link:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.45);
+  outline-offset: 3px;
+  border-color: #4f46e5;
 }
 
 .home2-feature-list strong,
@@ -177,6 +198,16 @@
   margin-top: 5px;
   color: #64748b;
   line-height: 1.45;
+}
+
+.home2-feature-link small {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 12px;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
 }
 
 .home2-card-actions {
@@ -211,7 +242,7 @@
 :root[data-theme="dark"] .home2-hero,
 :root[data-theme="dark"] .home2-card,
 :root[data-theme="dark"] .home2-hero-panel div,
-:root[data-theme="dark"] .home2-feature-list div,
+:root[data-theme="dark"] .home2-feature-link,
 :root[data-theme="dark"] .home2-quick-links a {
   background: #111827;
   color: #e5e7eb;
@@ -224,6 +255,16 @@
 :root[data-theme="dark"] .home2-feature-list strong,
 :root[data-theme="dark"] .home2-hero-panel strong {
   color: #f8fafc;
+}
+
+:root[data-theme="dark"] .home2-feature-link:hover {
+  background: #172033;
+  border-color: rgba(129, 140, 248, 0.58);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.32);
+}
+
+:root[data-theme="dark"] .home2-feature-link small {
+  color: #a5b4fc;
 }
 
 :root[data-theme="dark"] .home2-hero p,
