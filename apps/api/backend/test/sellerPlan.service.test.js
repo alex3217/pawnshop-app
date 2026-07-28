@@ -55,6 +55,9 @@ test("expired seller trial falls back to the FREE plan", () => {
     entitlements.limits.listingLimitSource,
     "PLAN",
   );
+  assert.equal(entitlements.limits.maxActiveListings, 25);
+  assert.equal(entitlements.limits.standardMaxActiveListings, 25);
+  assert.equal(entitlements.limits.trialMaxActiveListings, 50);
 });
 
 test("unexpired seller trial retains its paid plan", () => {
@@ -86,6 +89,9 @@ test("unexpired seller trial retains its paid plan", () => {
     entitlements.limits.listingLimitSource,
     "TRIAL",
   );
+  assert.equal(entitlements.limits.maxActiveListings, 50);
+  assert.equal(entitlements.limits.standardMaxActiveListings, 100);
+  assert.equal(entitlements.limits.trialMaxActiveListings, 50);
 });
 
 test("active seller subscription is not expired by an old period date", () => {

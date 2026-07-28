@@ -465,7 +465,7 @@ export default function SuperAdminPricingPage() {
             onChange={(event) =>
               setMetadataText(event.target.value)
             }
-            placeholder='{"maxActiveListings":50,"trialMaxActiveListings":50}'
+            placeholder='{"maxActiveListings":25,"trialMaxActiveListings":50}'
           />
           <span className="text-xs text-muted-foreground">
             Seller-plan limit rules can define listing limits,
