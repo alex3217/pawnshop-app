@@ -759,8 +759,7 @@ export default function OwnerSubscriptionPage() {
             </h2>
             <p style={styles.muted}>{foundingProgram.subtitle}</p>
             <div style={styles.planMeta}>
-              {foundingProgram.trialDays} days free for the first{" "}
-              {foundingProgram.shopLimit} shops.
+              {foundingProgram.trialDays} days free for registering shops.
             </div>
             <div style={styles.planMeta}>
               Trial starts after the shop profile is complete and{" "}
@@ -780,20 +779,28 @@ export default function OwnerSubscriptionPage() {
 
         {pageLoading ? (
           <div style={styles.card}>Loading subscription data...</div>
-        ) : !hasShops ? (
-          <div style={styles.card}>
-            This owner account does not have any shops yet. Create a shop first, then return
-            to subscription management.
-          </div>
-        ) : entitlementsLoading && !entitlements ? (
-          <div style={styles.card}>Loading shop entitlements...</div>
-        ) : !entitlements ? (
-          <div style={styles.card}>
-            Unable to load subscription details for the selected shop.
-          </div>
         ) : (
           <>
-            <div style={styles.summaryGrid}>
+            {!hasShops ? (
+              <div style={styles.card}>
+                <div style={styles.sectionLabel}>Seller Plans</div>
+                <div style={styles.planName}>
+                  Compare plans before creating your shop
+                </div>
+                <div style={styles.muted}>
+                  This owner account does not have a shop yet. You can review
+                  every plan below. Create a shop before choosing or activating
+                  a plan.
+                </div>
+              </div>
+            ) : entitlementsLoading && !entitlements ? (
+              <div style={styles.card}>Loading shop entitlements...</div>
+            ) : !entitlements ? (
+              <div style={styles.card}>
+                Unable to load subscription details for the selected shop.
+              </div>
+            ) : (
+              <div style={styles.summaryGrid}>
               <div style={styles.card}>
                 <div style={styles.sectionLabel}>Current Plan</div>
                 <div style={styles.planName}>{currentPlanLabel}</div>
@@ -897,6 +904,7 @@ export default function OwnerSubscriptionPage() {
                 </div>
               </div>
             </div>
+            )}
 
             <div style={styles.billingIntervalPanel}>
               <div>
@@ -1047,12 +1055,14 @@ export default function OwnerSubscriptionPage() {
                         ...(disabled ? styles.disabledButton : {}),
                       }}
                     >
-                      {getPlanButtonLabel(
-                        plan,
-                        currentPlanCode,
-                        switchingPlan,
-                        billingInterval,
-                      )}
+                      {!hasShops
+                        ? "Create shop to choose this plan"
+                        : getPlanButtonLabel(
+                            plan,
+                            currentPlanCode,
+                            switchingPlan,
+                            billingInterval,
+                          )}
                     </button>
                   </div>
                 );
