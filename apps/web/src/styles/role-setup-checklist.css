@@ -220,3 +220,137 @@
     width: 245px;
   }
 }
+
+
+/* OWNER SETUP CLOSE AND RETURN */
+.role-checklist-header-actions {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 8px;
+  min-width: 104px;
+}
+
+.role-checklist-header-actions .role-checklist-collapse,
+.role-checklist-close,
+.role-checklist-return-button {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.role-checklist-close {
+  border: 1px solid rgba(194, 65, 12, 0.3);
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.role-checklist-close:hover {
+  border-color: rgba(194, 65, 12, 0.55);
+  background: #ffedd5;
+}
+
+.role-checklist-return {
+  padding: 10px;
+}
+
+.role-checklist-return-button {
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.role-checklist-return-button:hover {
+  border-color: rgba(37, 99, 235, 0.55);
+  background: #dbeafe;
+}
+
+.role-checklist-close:focus-visible,
+.role-checklist-return-button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+
+/* OWNER SETUP DRAGGABLE RETURN */
+.role-checklist-return {
+  display: grid;
+  width: min(245px, calc(100vw - 24px));
+  max-height: none;
+  gap: 8px;
+  overflow: visible;
+  user-select: none;
+}
+
+body:has(.mybids2-page) .role-checklist-return {
+  position: fixed;
+  margin: 0;
+}
+
+.role-checklist-return-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.role-checklist-drag-handle,
+.role-checklist-remove-button {
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.role-checklist-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: #eff6ff;
+  color: #1d4ed8;
+  cursor: grab;
+  touch-action: none;
+}
+
+.role-checklist-drag-handle:active {
+  cursor: grabbing;
+}
+
+.role-checklist-remove-button {
+  border: 1px solid rgba(194, 65, 12, 0.32);
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.role-checklist-remove-button:hover {
+  background: #ffedd5;
+}
+
+.role-checklist-drag-handle:focus-visible,
+.role-checklist-remove-button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+:root[data-theme="dark"] .role-checklist-drag-handle {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(30, 64, 175, 0.3);
+  color: #bfdbfe;
+}
+
+:root[data-theme="dark"] .role-checklist-remove-button {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.32);
+  color: #fecaca;
+}
+
+:root[data-theme="dark"] .role-checklist-remove-button:hover {
+  background: rgba(153, 27, 27, 0.52);
+}
