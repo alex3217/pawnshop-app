@@ -2,11 +2,29 @@ import { API_BASE } from "../config";
 
 export type Role = "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
 
+export type OwnerApplicationStatus =
+  | "PENDING"
+  | "IN_REVIEW"
+  | "INFORMATION_REQUESTED"
+  | "APPROVED"
+  | "REJECTED"
+  | "SUSPENDED";
+
+export type OwnerApplicationSummary = {
+  id: string;
+  status: OwnerApplicationStatus;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  decisionReason: string | null;
+  statusChangedAt: string | null;
+};
+
 export type AuthUser = {
   id?: string;
   role: Role;
   email: string;
   name: string;
+  ownerApplication?: OwnerApplicationSummary | null;
 };
 
 export type AuthResponse = {
@@ -47,6 +65,19 @@ function isRole(value: unknown): value is Role {
     value === "OWNER" ||
     value === "ADMIN" ||
     value === "SUPER_ADMIN"
+  );
+}
+
+function isOwnerApplicationStatus(
+  value: unknown,
+): value is OwnerApplicationStatus {
+  return (
+    value === "PENDING" ||
+    value === "IN_REVIEW" ||
+    value === "INFORMATION_REQUESTED" ||
+    value === "APPROVED" ||
+    value === "REJECTED" ||
+    value === "SUSPENDED"
   );
 }
 
@@ -133,11 +164,45 @@ function normalizeUser(raw: unknown): AuthUser | null {
   if (typeof email !== "string" || !email.trim()) return null;
   if (typeof name !== "string" || !name.trim()) return null;
 
+  const rawApplication =
+    data.ownerApplication && typeof data.ownerApplication === "object"
+      ? (data.ownerApplication as Record<string, unknown>)
+      : null;
+  const applicationStatus = rawApplication?.status;
+  const ownerApplication =
+    role === "OWNER" &&
+    typeof rawApplication?.id === "string" &&
+    isOwnerApplicationStatus(applicationStatus)
+      ? {
+          id: rawApplication.id,
+          status: applicationStatus,
+          submittedAt:
+            typeof rawApplication.submittedAt === "string"
+              ? rawApplication.submittedAt
+              : null,
+          reviewedAt:
+            typeof rawApplication.reviewedAt === "string"
+              ? rawApplication.reviewedAt
+              : null,
+          decisionReason:
+            typeof rawApplication.decisionReason === "string"
+              ? rawApplication.decisionReason
+              : null,
+          statusChangedAt:
+            typeof rawApplication.statusChangedAt === "string"
+              ? rawApplication.statusChangedAt
+              : null,
+        }
+      : role === "OWNER"
+        ? null
+        : undefined;
+
   return {
     id: typeof id === "string" ? id : undefined,
     role,
     email,
     name,
+    ...(role === "OWNER" ? { ownerApplication } : {}),
   };
 }
 
@@ -275,6 +340,33 @@ export async function login(
     email: email.trim().toLowerCase(),
     password,
   });
+}
+
+export async function getCurrentUser(
+  signal?: AbortSignal,
+): Promise<AuthUser> {
+  const res = await fetch(joinUrl(API_BASE, "/auth/me"), {
+    headers: getAuthHeaders(),
+    credentials: "include",
+    signal,
+  });
+  const data = await parseJson<Record<string, unknown>>(res);
+
+  if (!res.ok) {
+    throw new AuthRequestError(
+      typeof data.error === "string"
+        ? data.error
+        : `Request failed (${res.status})`,
+      typeof data.code === "string" ? data.code : undefined,
+    );
+  }
+
+  const user = normalizeUser(data.user);
+  if (!user) {
+    throw new Error("Invalid profile response from server.");
+  }
+
+  return user;
 }
 
 export const CURRENT_LEGAL_POLICY_VERSIONS = Object.freeze({

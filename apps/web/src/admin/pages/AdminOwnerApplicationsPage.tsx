@@ -134,8 +134,10 @@ export default function AdminOwnerApplicationsPage() {
       setPagination(null);
       setError(err instanceof Error ? err.message : "Failed to load owner applications.");
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
