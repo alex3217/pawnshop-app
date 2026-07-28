@@ -6,6 +6,13 @@ import request from "supertest";
 
 const TEST_JWT_SECRET = "pawnloop-db-tests-only-secret-2026";
 const TEST_DOMAIN = "@integration.pawnloop.test";
+
+const VALID_LEGAL_CONSENT = Object.freeze({
+  accepted: true,
+  termsVersion: "2026-07-28",
+  privacyVersion: "2026-07-28",
+});
+
 const sentEmail = [];
 let app;
 let prisma;
@@ -27,13 +34,23 @@ async function registerUser({
   userEmail = email("consumer"),
   password = "ConsumerSecure123!",
   role = "CONSUMER",
+  legalConsent = VALID_LEGAL_CONSENT,
+  omitLegalConsent = false,
 } = {}) {
-  return request(app).post("/api/auth/register").send({
+  const payload = {
     name,
     email: userEmail,
     password,
     role,
-  });
+  };
+
+  if (!omitLegalConsent) {
+    payload.legalConsent = legalConsent;
+  }
+
+  return request(app)
+    .post("/api/auth/register")
+    .send(payload);
 }
 
 async function verifyLatestEmail() {
@@ -130,6 +147,71 @@ test("registration creates an unverified account without a login token", async (
   const stored = await prisma.user.findUnique({ where: { email: email("consumer") } });
   assert.equal(stored.emailVerifiedAt, null);
   assert.equal(await bcrypt.compare("ConsumerSecure123!", stored.password), true);
+});
+
+test("registration records auditable legal consent", async () => {
+  const userEmail = email("legal-audit");
+
+  const response = await registerUser({
+    userEmail,
+  });
+
+  assert.equal(response.status, 201);
+
+  const consent = await prisma.legalConsent.findFirst({
+    where: {
+      user: {
+        email: userEmail,
+      },
+    },
+  });
+
+  assert.ok(consent);
+  assert.equal(consent.termsVersion, "2026-07-28");
+  assert.equal(consent.privacyVersion, "2026-07-28");
+  assert.ok(consent.acceptedAt instanceof Date);
+});
+
+test("registration rejects missing, false, and outdated legal consent", async () => {
+  const missing = await registerUser({
+    userEmail: email("legal-missing"),
+    omitLegalConsent: true,
+  });
+
+  assert.equal(missing.status, 400);
+  assert.equal(
+    missing.body.code,
+    "LEGAL_CONSENT_REQUIRED",
+  );
+
+  const declined = await registerUser({
+    userEmail: email("legal-declined"),
+    legalConsent: {
+      ...VALID_LEGAL_CONSENT,
+      accepted: false,
+    },
+  });
+
+  assert.equal(declined.status, 400);
+  assert.equal(
+    declined.body.code,
+    "LEGAL_CONSENT_REQUIRED",
+  );
+
+  const outdated = await registerUser({
+    userEmail: email("legal-outdated"),
+    legalConsent: {
+      accepted: true,
+      termsVersion: "2026-01-01",
+      privacyVersion: "2026-01-01",
+    },
+  });
+
+  assert.equal(outdated.status, 400);
+  assert.equal(
+    outdated.body.code,
+    "LEGAL_POLICY_VERSION_MISMATCH",
+  );
 });
 
 test("registration stores only a verification token digest", async () => {

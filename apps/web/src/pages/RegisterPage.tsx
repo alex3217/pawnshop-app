@@ -116,7 +116,8 @@ export default function RegisterPage() {
         trimmedName,
         trimmedEmail,
         password,
-        role
+        role,
+        acceptedLegal,
       );
 
       nav("/verification-pending", {

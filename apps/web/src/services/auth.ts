@@ -277,11 +277,17 @@ export async function login(
   });
 }
 
+export const CURRENT_LEGAL_POLICY_VERSIONS = Object.freeze({
+  termsVersion: "2026-07-28",
+  privacyVersion: "2026-07-28",
+});
+
 export async function register(
   name: string,
   email: string,
   password: string,
   role: Role,
+  acceptedLegal: boolean,
 ): Promise<RegistrationResponse> {
   if (role === "ADMIN" || role === "SUPER_ADMIN") {
     throw new Error("Public registration for privileged roles is not allowed.");
@@ -292,6 +298,10 @@ export async function register(
     email: email.trim().toLowerCase(),
     password,
     role,
+    legalConsent: {
+      accepted: acceptedLegal,
+      ...CURRENT_LEGAL_POLICY_VERSIONS,
+    },
   });
   const user = normalizeUser(data.user);
   if (!user || data.nextStep !== "VERIFY_EMAIL") {
