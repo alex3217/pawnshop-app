@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { Link } from "react-router-dom";
 import type { Role } from "../../services/auth";
 import "../../styles/role-setup-checklist.css";
@@ -14,6 +20,18 @@ type ChecklistItem = {
   href: string;
 };
 
+type FloatingPosition = {
+  x: number;
+  y: number;
+};
+
+type ShortcutDragState = {
+  pointerId: number;
+  offsetX: number;
+  offsetY: number;
+  lastPosition: FloatingPosition;
+};
+
 const CHECKLIST_VERSION = "v1";
 
 function checklistStorageKey(role: Role) {
@@ -22,6 +40,18 @@ function checklistStorageKey(role: Role) {
 
 function collapsedStorageKey(role: Role) {
   return `pawnloop-role-checklist-collapsed-${role}-${CHECKLIST_VERSION}`;
+}
+
+function dismissedStorageKey(role: Role) {
+  return `pawnloop-role-checklist-dismissed-${role}-${CHECKLIST_VERSION}`;
+}
+
+function shortcutHiddenStorageKey(role: Role) {
+  return `pawnloop-role-checklist-shortcut-hidden-${role}-${CHECKLIST_VERSION}`;
+}
+
+function shortcutPositionStorageKey(role: Role) {
+  return `pawnloop-role-checklist-shortcut-position-${role}-${CHECKLIST_VERSION}`;
 }
 
 function getChecklistItems(role: Role): ChecklistItem[] {
@@ -140,12 +170,71 @@ function readCollapsed(role: Role) {
   }
 }
 
+function readDismissed(role: Role) {
+  if (role !== "OWNER") return false;
+
+  try {
+    return window.localStorage.getItem(dismissedStorageKey(role)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function readShortcutHidden(role: Role) {
+  if (role !== "OWNER") return false;
+
+  try {
+    return (
+      window.localStorage.getItem(shortcutHiddenStorageKey(role)) === "true"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function readShortcutPosition(role: Role): FloatingPosition | null {
+  if (role !== "OWNER") return null;
+
+  try {
+    const raw = window.localStorage.getItem(shortcutPositionStorageKey(role));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+
+    return Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)
+      ? { x: parsed.x, y: parsed.y }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function hasCollapsedPreference(role: Role) {
   try {
     return window.localStorage.getItem(collapsedStorageKey(role)) !== null;
   } catch {
     return false;
   }
+}
+
+function clampShortcutPosition(
+  position: FloatingPosition,
+  element: HTMLElement | null,
+): FloatingPosition {
+  const margin = 12;
+  const width = element?.offsetWidth ?? 245;
+  const height = element?.offsetHeight ?? 110;
+
+  return {
+    x: Math.min(
+      Math.max(margin, position.x),
+      Math.max(margin, window.innerWidth - width - margin),
+    ),
+    y: Math.min(
+      Math.max(margin, position.y),
+      Math.max(margin, window.innerHeight - height - margin),
+    ),
+  };
 }
 
 export default function RoleSetupChecklist({
@@ -166,6 +255,25 @@ export default function RoleSetupChecklist({
     supportedRole ? readCollapsed(role) : false,
   );
 
+  const [dismissed, setDismissed] = useState(() =>
+    supportedRole ? readDismissed(role) : false,
+  );
+
+  const [shortcutHidden, setShortcutHidden] = useState(() =>
+    supportedRole ? readShortcutHidden(role) : false,
+  );
+
+  const [shortcutPosition, setShortcutPosition] =
+    useState<FloatingPosition | null>(() =>
+      supportedRole ? readShortcutPosition(role) : null,
+    );
+
+  const shortcutRef = useRef<HTMLElement | null>(null);
+  const shortcutPositionRef = useRef<FloatingPosition | null>(
+    shortcutPosition,
+  );
+  const shortcutDragRef = useRef<ShortcutDragState | null>(null);
+
   const [hasManualCollapsePreference, setHasManualCollapsePreference] =
     useState(() =>
       supportedRole ? hasCollapsedPreference(role) : false,
@@ -176,8 +284,85 @@ export default function RoleSetupChecklist({
 
     setCompleted(readCompleted(role));
     setCollapsed(readCollapsed(role));
+    setDismissed(readDismissed(role));
+    setShortcutHidden(readShortcutHidden(role));
+    setShortcutPosition(readShortcutPosition(role));
     setHasManualCollapsePreference(hasCollapsedPreference(role));
   }, [role, supportedRole]);
+
+  useEffect(() => {
+    shortcutPositionRef.current = shortcutPosition;
+  }, [shortcutPosition]);
+
+  useEffect(() => {
+    if (role !== "OWNER") return;
+
+    const restoreFromSetupTab = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const anchor = target.closest<HTMLAnchorElement>("a[href]");
+      if (!anchor) return;
+
+      const url = new URL(anchor.href, window.location.origin);
+      if (
+        url.origin !== window.location.origin ||
+        url.pathname !== "/owner/onboarding"
+      ) {
+        return;
+      }
+
+      setDismissed(false);
+      setShortcutHidden(false);
+      setCollapsed(false);
+      setHasManualCollapsePreference(true);
+
+      try {
+        window.localStorage.setItem(dismissedStorageKey(role), "false");
+        window.localStorage.setItem(shortcutHiddenStorageKey(role), "false");
+        window.localStorage.setItem(collapsedStorageKey(role), "false");
+      } catch {
+        // Ignore storage errors.
+      }
+    };
+
+    document.addEventListener("click", restoreFromSetupTab, true);
+
+    return () => {
+      document.removeEventListener("click", restoreFromSetupTab, true);
+    };
+  }, [role]);
+
+  useEffect(() => {
+    if (role !== "OWNER" || !dismissed || shortcutHidden) return;
+
+    const keepShortcutVisible = () => {
+      const current = shortcutPositionRef.current;
+      if (!current) return;
+
+      const next = clampShortcutPosition(current, shortcutRef.current);
+      if (next.x === current.x && next.y === current.y) return;
+
+      shortcutPositionRef.current = next;
+      setShortcutPosition(next);
+
+      try {
+        window.localStorage.setItem(
+          shortcutPositionStorageKey(role),
+          JSON.stringify(next),
+        );
+      } catch {
+        // Ignore storage errors.
+      }
+    };
+
+    keepShortcutVisible();
+    window.addEventListener("resize", keepShortcutVisible);
+
+    return () => {
+      window.removeEventListener("resize", keepShortcutVisible);
+    };
+  }, [dismissed, role, shortcutHidden]);
 
   useEffect(() => {
     if (!supportedRole || hasManualCollapsePreference) return;
@@ -257,6 +442,185 @@ export default function RoleSetupChecklist({
     }
   }
 
+  function dismissOwnerSetup() {
+    if (activeRole !== "OWNER") return;
+
+    setDismissed(true);
+    setShortcutHidden(false);
+
+    try {
+      window.localStorage.setItem(dismissedStorageKey(activeRole), "true");
+      window.localStorage.setItem(
+        shortcutHiddenStorageKey(activeRole),
+        "false",
+      );
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+
+  function permanentlyHideOwnerSetup() {
+    if (activeRole !== "OWNER") return;
+
+    setShortcutHidden(true);
+
+    try {
+      window.localStorage.setItem(
+        shortcutHiddenStorageKey(activeRole),
+        "true",
+      );
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+
+  function returnToOwnerSetup() {
+    if (activeRole !== "OWNER") return;
+
+    setDismissed(false);
+    setShortcutHidden(false);
+    setCollapsed(false);
+    setHasManualCollapsePreference(true);
+
+    try {
+      window.localStorage.setItem(dismissedStorageKey(activeRole), "false");
+      window.localStorage.setItem(
+        shortcutHiddenStorageKey(activeRole),
+        "false",
+      );
+      window.localStorage.setItem(collapsedStorageKey(activeRole), "false");
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+
+  function saveShortcutPosition(position: FloatingPosition) {
+    shortcutPositionRef.current = position;
+    setShortcutPosition(position);
+
+    try {
+      window.localStorage.setItem(
+        shortcutPositionStorageKey(activeRole),
+        JSON.stringify(position),
+      );
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+
+  function startShortcutDrag(
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) {
+    if (event.button !== 0) return;
+
+    const element = shortcutRef.current;
+    if (!element) return;
+
+    const rect = element.getBoundingClientRect();
+    const startingPosition = clampShortcutPosition(
+      { x: rect.left, y: rect.top },
+      element,
+    );
+
+    saveShortcutPosition(startingPosition);
+
+    shortcutDragRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      lastPosition: startingPosition,
+    };
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }
+
+  function moveShortcut(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = shortcutDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const next = clampShortcutPosition(
+      {
+        x: event.clientX - drag.offsetX,
+        y: event.clientY - drag.offsetY,
+      },
+      shortcutRef.current,
+    );
+
+    drag.lastPosition = next;
+    shortcutPositionRef.current = next;
+    setShortcutPosition(next);
+    event.preventDefault();
+  }
+
+  function finishShortcutDrag(
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) {
+    const drag = shortcutDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    saveShortcutPosition(drag.lastPosition);
+    shortcutDragRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  if (activeRole === "OWNER" && dismissed) {
+    if (shortcutHidden) return null;
+
+    return (
+      <aside
+        ref={shortcutRef}
+        className="role-checklist role-checklist-collapsed role-checklist-return"
+        aria-label="Return to pawn shop owner setup"
+        style={
+          shortcutPosition
+            ? {
+                left: `${shortcutPosition.x}px`,
+                top: `${shortcutPosition.y}px`,
+                right: "auto",
+                bottom: "auto",
+              }
+            : undefined
+        }
+      >
+        <div className="role-checklist-return-actions">
+          <button
+            type="button"
+            className="role-checklist-drag-handle"
+            aria-label="Move owner setup shortcut"
+            title="Drag to move"
+            onPointerDown={startShortcutDrag}
+            onPointerMove={moveShortcut}
+            onPointerUp={finishShortcutDrag}
+            onPointerCancel={finishShortcutDrag}
+          >
+            <span aria-hidden="true">⋮⋮</span>
+            Move
+          </button>
+
+          <button
+            type="button"
+            className="role-checklist-remove-button"
+            onClick={permanentlyHideOwnerSetup}
+          >
+            Remove from screen
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className="role-checklist-return-button"
+          onClick={returnToOwnerSetup}
+        >
+          Return to owner setup
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className={
@@ -280,14 +644,26 @@ export default function RoleSetupChecklist({
           </strong>
         </div>
 
-        <button
-          type="button"
-          className="role-checklist-collapse"
-          onClick={toggleCollapsed}
-          aria-expanded={!collapsed}
-        >
-          {collapsed ? "Open" : "Hide"}
-        </button>
+        <div className="role-checklist-header-actions">
+          <button
+            type="button"
+            className="role-checklist-collapse"
+            onClick={toggleCollapsed}
+            aria-expanded={!collapsed}
+          >
+            {collapsed ? "Open" : "Hide"}
+          </button>
+
+          {activeRole === "OWNER" ? (
+            <button
+              type="button"
+              className="role-checklist-close"
+              onClick={dismissOwnerSetup}
+            >
+              Close setup
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div
