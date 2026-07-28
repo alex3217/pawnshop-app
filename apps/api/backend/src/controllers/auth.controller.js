@@ -18,6 +18,9 @@ import {
 } from "../services/shopAccess.service.js";
 
 const PUBLIC_ALLOWED_ROLES = new Set(["CONSUMER", "OWNER"]);
+
+const CURRENT_TERMS_VERSION = "2026-07-28";
+const CURRENT_PRIVACY_VERSION = "2026-07-28";
 const PRIVILEGED_ALLOWED_ROLES = new Set([
   "CONSUMER",
   "OWNER",
@@ -42,6 +45,57 @@ function normalizeEmail(value = "") {
 
 function normalizeName(value = "") {
   return String(value).trim();
+}
+
+function resolveLegalConsent(input) {
+  const consent =
+    input && typeof input === "object"
+      ? input
+      : {};
+
+  if (consent.accepted !== true) {
+    throw Object.assign(
+      new Error(
+        "You must accept the Terms of Service and Privacy Policy.",
+      ),
+      {
+        statusCode: 400,
+        code: "LEGAL_CONSENT_REQUIRED",
+      },
+    );
+  }
+
+  const termsVersion = String(
+    consent.termsVersion || "",
+  ).trim();
+
+  const privacyVersion = String(
+    consent.privacyVersion || "",
+  ).trim();
+
+  if (
+    termsVersion !== CURRENT_TERMS_VERSION ||
+    privacyVersion !== CURRENT_PRIVACY_VERSION
+  ) {
+    throw Object.assign(
+      new Error(
+        "The legal policies have changed. Review and accept the current versions.",
+      ),
+      {
+        statusCode: 400,
+        code: "LEGAL_POLICY_VERSION_MISMATCH",
+        details: {
+          termsVersion: CURRENT_TERMS_VERSION,
+          privacyVersion: CURRENT_PRIVACY_VERSION,
+        },
+      },
+    );
+  }
+
+  return {
+    termsVersion,
+    privacyVersion,
+  };
 }
 
 function normalizeRole(value = "", fallback = "CONSUMER") {
@@ -182,6 +236,10 @@ export async function register(req, res) {
       return res.status(403).json({ error: roleCheck.error });
     }
 
+    const legalConsent = resolveLegalConsent(
+      rawBody.legalConsent,
+    );
+
     await ensureEmailAvailable(email);
 
     const hash = await bcrypt.hash(password, 12);
@@ -197,6 +255,14 @@ export async function register(req, res) {
           emailVerifiedAt: null,
         },
       });
+      await tx.legalConsent.create({
+        data: {
+          userId: createdUser.id,
+          termsVersion: legalConsent.termsVersion,
+          privacyVersion: legalConsent.privacyVersion,
+        },
+      });
+
       const actionToken = await replaceActiveAccountActionToken(tx, {
         userId: createdUser.id,
         purpose: ACCOUNT_ACTION_PURPOSE.EMAIL_VERIFICATION,

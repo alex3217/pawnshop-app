@@ -14,6 +14,12 @@ const TEST_JWT_SECRET =
 const TEST_DOMAIN =
   "@commerce.integration.pawnloop.test";
 
+const VALID_LEGAL_CONSENT = Object.freeze({
+  accepted: true,
+  termsVersion: "2026-07-28",
+  privacyVersion: "2026-07-28",
+});
+
 let app;
 let prisma;
 
@@ -38,6 +44,7 @@ async function registerActor(prefix, role) {
       email: email(prefix),
       password,
       role,
+      legalConsent: VALID_LEGAL_CONSENT,
     });
 
   assert.equal(

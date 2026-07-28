@@ -51,6 +51,7 @@ model User {
   customerSellReceiptCustomer   CustomerSellReceipt[]         @relation("CustomerSellReceiptCustomer")
   customerSellReceiptsCompleted CustomerSellReceipt[]         @relation("CustomerSellReceiptCompletedBy")
   accountActionTokens           AccountActionToken[]
+  legalConsents               LegalConsent[]
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -1240,4 +1241,16 @@ enum StaffStatus {
   ACTIVE
   INACTIVE
   ARCHIVED
+}
+
+model LegalConsent {
+  id             String   @id @default(cuid())
+  userId         String
+  termsVersion   String
+  privacyVersion String
+  acceptedAt     DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, termsVersion, privacyVersion])
+  @@index([userId, acceptedAt])
 }
