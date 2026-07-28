@@ -113,17 +113,47 @@ function getJwtSecret() {
   ).trim();
 }
 
-function safeUser(user) {
+function safeOwnerApplication(application) {
+  if (!application) {
+    return null;
+  }
+
   return {
+    id: application.id,
+    status: application.status,
+    submittedAt: application.submittedAt ?? null,
+    reviewedAt: application.reviewedAt ?? null,
+    decisionReason: application.decisionReason ?? null,
+    statusChangedAt: application.statusChangedAt ?? null,
+  };
+}
+
+function safeUser(user) {
+  const role = normalizeRole(user.role);
+
+  const result = {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: normalizeRole(user.role),
+    role,
     isActive: Boolean(user.isActive),
     emailVerifiedAt: user.emailVerifiedAt ?? null,
     createdAt: user.createdAt ?? null,
     updatedAt: user.updatedAt ?? null,
   };
+
+  if (
+    role === "OWNER" &&
+    Object.prototype.hasOwnProperty.call(
+      user,
+      "ownerApplication",
+    )
+  ) {
+    result.ownerApplication =
+      safeOwnerApplication(user.ownerApplication);
+  }
+
+  return result;
 }
 
 function issueToken(user) {
@@ -255,6 +285,17 @@ export async function register(req, res) {
           emailVerifiedAt: null,
         },
       });
+
+      if (roleCheck.role === "OWNER") {
+        await tx.ownerApplication.create({
+          data: {
+            ownerId: createdUser.id,
+            status: "PENDING",
+            businessEmail: createdUser.email,
+          },
+        });
+      }
+
       await tx.legalConsent.create({
         data: {
           userId: createdUser.id,
@@ -535,7 +576,16 @@ export async function me(req, res) {
     const authUser = requireAuthenticatedUser(req);
 
     const user = await prisma.user.findUnique({
-      where: { id: String(authUser.sub || authUser.id || authUser.userId) },
+      where: {
+        id: String(
+          authUser.sub ||
+            authUser.id ||
+            authUser.userId,
+        ),
+      },
+      include: {
+        ownerApplication: true,
+      },
     });
 
     if (!user || user.isActive === false) {
