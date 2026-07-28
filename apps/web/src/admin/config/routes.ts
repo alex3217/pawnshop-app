@@ -66,6 +66,13 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     group: "admin-core",
   }),
   route({
+    key: "owner-applications",
+    path: "/admin/owner-applications",
+    label: "Owner Applications",
+    permissions: ["admin:owners:read"],
+    group: "admin-core",
+  }),
+  route({
     key: "shops",
     path: "/admin/shops",
     label: "Shops",
