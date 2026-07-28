@@ -72,6 +72,15 @@ export const ADMIN_SIDEBAR_ITEMS: AdminSidebarItem[] = [
     sortOrder: 30,
   }),
   item({
+    key: "owner-applications",
+    label: "Owner Applications",
+    path: "/admin/owner-applications",
+    icon: "ClipboardCheck",
+    section: "core",
+    permissions: ["admin:owners:read"],
+    sortOrder: 35,
+  }),
+  item({
     key: "shops",
     label: "Shops",
     path: "/admin/shops",

@@ -53,6 +53,85 @@ export type AdminUserRow = {
   updatedAt?: string | null;
 };
 
+export type OwnerApplicationStatus =
+  | "PENDING"
+  | "IN_REVIEW"
+  | "INFORMATION_REQUESTED"
+  | "APPROVED"
+  | "REJECTED"
+  | "SUSPENDED";
+
+export type AdminOwnerApplicationUser = {
+  id: string;
+  name: string | null;
+  email: string;
+  role: AdminUserRole;
+  isActive?: boolean;
+  authVersion?: number;
+};
+
+export type AdminOwnerApplicationReviewer = {
+  id: string;
+  name: string | null;
+  email: string;
+  role: AdminUserRole;
+};
+
+export type AdminOwnerApplication = {
+  id: string;
+  ownerId: string;
+  status: OwnerApplicationStatus;
+  businessName: string | null;
+  businessType: string | null;
+  businessEmail: string | null;
+  businessPhone: string | null;
+  websiteUrl: string | null;
+  businessAddress: unknown | null;
+  licenseNumber: string | null;
+  licenseState: string | null;
+  applicationData: unknown | null;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewedById: string | null;
+  decisionReason: string | null;
+  adminNotes: string | null;
+  statusChangedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  owner: AdminOwnerApplicationUser | null;
+  reviewedBy: AdminOwnerApplicationReviewer | null;
+};
+
+export type OwnerApplicationListQuery = {
+  q?: string;
+  status?: OwnerApplicationStatus;
+  page?: number;
+  limit?: number;
+};
+
+export type OwnerApplicationListResponse = {
+  success: true;
+  rows: AdminOwnerApplication[];
+  pagination: PaginationMeta;
+};
+
+export type OwnerApplicationDetailResponse = {
+  success: true;
+  application: AdminOwnerApplication;
+};
+
+export type UpdateOwnerApplicationStatusInput = {
+  status: OwnerApplicationStatus;
+  decisionReason?: string;
+  adminNotes?: string;
+};
+
+export type UpdateOwnerApplicationStatusResponse = {
+  success: true;
+  application: AdminOwnerApplication;
+  requiresOwnerReauthentication: boolean;
+};
+
 export type AdminItemRow = {
   id: string;
   title: string;
@@ -791,6 +870,31 @@ export const adminApi = {
 
   request: adminRequest,
 
+  getOwnerApplications: (
+    query: OwnerApplicationListQuery = {},
+    signal?: AbortSignal
+  ) =>
+    adminRequest<OwnerApplicationListResponse>("/admin/owner-applications", {
+      query,
+      signal,
+    }),
+
+  getOwnerApplication: (id: string, signal?: AbortSignal) =>
+    adminRequest<OwnerApplicationDetailResponse>(
+      `/admin/owner-applications/${encodeURIComponent(id)}`,
+      { signal }
+    ),
+
+  updateOwnerApplicationStatus: (
+    id: string,
+    input: UpdateOwnerApplicationStatusInput,
+    signal?: AbortSignal
+  ) =>
+    patchJson<UpdateOwnerApplicationStatusResponse>(
+      `/admin/owner-applications/${encodeURIComponent(id)}/status`,
+      input,
+      signal
+    ),
 
   createAdminUser: (
     input: CreateAdminUserInput,
