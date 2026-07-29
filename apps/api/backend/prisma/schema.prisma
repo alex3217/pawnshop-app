@@ -8,60 +8,61 @@ datasource db {
 }
 
 model User {
-  id                            String                         @id @default(cuid())
-  name                          String
-  email                         String                         @unique
-  password                      String
-  role                          Role                           @default(CONSUMER)
-  isActive                      Boolean                        @default(true)
-  emailVerifiedAt               DateTime?
-  authVersion                   Int                            @default(0)
-  passwordChangedAt             DateTime?
-  createdAt                     DateTime                       @default(now())
-  updatedAt                     DateTime                       @updatedAt
-  Bid                           Bid[]
-  bidArchives                   BidArchive[]
-  buyerSubscription             BuyerSubscription?
-  inventoryImportJobs           InventoryImportJob[]           @relation("UserInventoryImportJobs")
-  inventoryIntegrations         InventoryIntegration[]         @relation("UserInventoryIntegrations")
-  buyerOffers                   Offer[]                        @relation("OfferBuyer")
-  ownerOffers                   Offer[]                        @relation("OfferOwner")
-  shops                         PawnShop[]
-  savedSearches                 SavedSearch[]                  @relation("UserSavedSearches")
-  wonSettlements                Settlement[]                   @relation("SettlementWinner")
-  sellerLedgerEntries           SellerBalanceLedger[]          @relation("SellerBalanceLedgerUser")
-  sellerPayouts                 SellerPayout[]                 @relation("SellerPayoutUser")
-  watchlistEntries              Watchlist[]                    @relation("UserWatchlist")
-  buyerItemSubmissions          BuyerItemSubmission[]          @relation("BuyerItemSubmissions")
-  buyerItemSubmissionOffers     BuyerItemSubmissionOffer[]     @relation("BuyerItemSubmissionOfferOwner")
-  updatedPlatformSettings       PlatformSetting[]              @relation("PlatformSettingUpdatedByUser")
-  staffMemberships              Staff[]                        @relation("StaffUser")
-  autoBids                      AutoBid[]
-  capturedItemIntakes           ItemIntake[]                   @relation("ItemIntakeCapturedBy")
-  customerItemIntakes           ItemIntake[]                   @relation("ItemIntakeCustomer")
-  marketplaceListings           MarketplaceListing[]           @relation("MarketplaceListingSeller")
-  marketplacePurchases          MarketplaceTransaction[]       @relation("MarketplaceTransactionBuyer")
-  marketplaceSales              MarketplaceTransaction[]       @relation("MarketplaceTransactionSeller")
-  customerSellFulfillments      CustomerSellFulfillment[]      @relation("CustomerSellFulfillmentCustomer")
-  customerSellAcceptedOwner     CustomerSellFulfillment[]      @relation("CustomerSellFulfillmentAcceptedOwner")
-  customerSellActions           CustomerSellFulfillment[]      @relation("CustomerSellFulfillmentActor")
-  customerSellPaymentReceipts   CustomerSellPayment[]          @relation("CustomerSellPaymentCustomer")
-  customerSellPaymentsRecorded  CustomerSellPayment[]          @relation("CustomerSellPaymentRecorder")
-  customerSellEvents            MarketplaceTransactionEvent[]  @relation("MarketplaceTransactionEventActor")
-  customerSellReceiptCustomer   CustomerSellReceipt[]          @relation("CustomerSellReceiptCustomer")
-  customerSellReceiptsCompleted CustomerSellReceipt[]          @relation("CustomerSellReceiptCompletedBy")
-  accountActionTokens           AccountActionToken[]
-  legalConsents                 LegalConsent[]
-  ownerApplication              OwnerApplication?              @relation("OwnerApplicationOwner")
-  reviewedOwnerApplications     OwnerApplication[]             @relation("OwnerApplicationReviewer")
-  ownerApplicationResubmissions OwnerApplicationResubmission[]
-  notifications                 Notification[]
-  stripeRefundsRequested        StripeRefund[]                 @relation("StripeRefundRequestedBy")
-  stripeRefundAuditEvents       StripeRefundAuditEvent[]       @relation("StripeRefundAuditActor")
-  stripeRefundsAsBuyer          StripeRefund[]                 @relation("StripeRefundBuyer")
-  stripeRefundsAsSeller         StripeRefund[]                 @relation("StripeRefundSeller")
-  stripeDisputesAsBuyer         StripeDispute[]                @relation("StripeDisputeBuyer")
-  stripeDisputesAsSeller        StripeDispute[]                @relation("StripeDisputeSeller")
+  id                              String                           @id @default(cuid())
+  name                            String
+  email                           String                           @unique
+  password                        String
+  role                            Role                             @default(CONSUMER)
+  isActive                        Boolean                          @default(true)
+  emailVerifiedAt                 DateTime?
+  authVersion                     Int                              @default(0)
+  passwordChangedAt               DateTime?
+  createdAt                       DateTime                         @default(now())
+  updatedAt                       DateTime                         @updatedAt
+  Bid                             Bid[]
+  bidArchives                     BidArchive[]
+  buyerSubscription               BuyerSubscription?
+  inventoryImportJobs             InventoryImportJob[]             @relation("UserInventoryImportJobs")
+  inventoryIntegrations           InventoryIntegration[]           @relation("UserInventoryIntegrations")
+  buyerOffers                     Offer[]                          @relation("OfferBuyer")
+  ownerOffers                     Offer[]                          @relation("OfferOwner")
+  shops                           PawnShop[]
+  savedSearches                   SavedSearch[]                    @relation("UserSavedSearches")
+  wonSettlements                  Settlement[]                     @relation("SettlementWinner")
+  sellerLedgerEntries             SellerBalanceLedger[]            @relation("SellerBalanceLedgerUser")
+  sellerPayouts                   SellerPayout[]                   @relation("SellerPayoutUser")
+  watchlistEntries                Watchlist[]                      @relation("UserWatchlist")
+  buyerItemSubmissions            BuyerItemSubmission[]            @relation("BuyerItemSubmissions")
+  buyerItemSubmissionOffers       BuyerItemSubmissionOffer[]       @relation("BuyerItemSubmissionOfferOwner")
+  updatedPlatformSettings         PlatformSetting[]                @relation("PlatformSettingUpdatedByUser")
+  staffMemberships                Staff[]                          @relation("StaffUser")
+  autoBids                        AutoBid[]
+  capturedItemIntakes             ItemIntake[]                     @relation("ItemIntakeCapturedBy")
+  customerItemIntakes             ItemIntake[]                     @relation("ItemIntakeCustomer")
+  marketplaceListings             MarketplaceListing[]             @relation("MarketplaceListingSeller")
+  marketplacePurchases            MarketplaceTransaction[]         @relation("MarketplaceTransactionBuyer")
+  marketplaceSales                MarketplaceTransaction[]         @relation("MarketplaceTransactionSeller")
+  customerSellFulfillments        CustomerSellFulfillment[]        @relation("CustomerSellFulfillmentCustomer")
+  customerSellAcceptedOwner       CustomerSellFulfillment[]        @relation("CustomerSellFulfillmentAcceptedOwner")
+  customerSellActions             CustomerSellFulfillment[]        @relation("CustomerSellFulfillmentActor")
+  customerSellPaymentReceipts     CustomerSellPayment[]            @relation("CustomerSellPaymentCustomer")
+  customerSellPaymentsRecorded    CustomerSellPayment[]            @relation("CustomerSellPaymentRecorder")
+  customerSellEvents              MarketplaceTransactionEvent[]    @relation("MarketplaceTransactionEventActor")
+  customerSellReceiptCustomer     CustomerSellReceipt[]            @relation("CustomerSellReceiptCustomer")
+  customerSellReceiptsCompleted   CustomerSellReceipt[]            @relation("CustomerSellReceiptCompletedBy")
+  accountActionTokens             AccountActionToken[]
+  legalConsents                   LegalConsent[]
+  ownerApplication                OwnerApplication?                @relation("OwnerApplicationOwner")
+  reviewedOwnerApplications       OwnerApplication[]               @relation("OwnerApplicationReviewer")
+  ownerApplicationResubmissions   OwnerApplicationResubmission[]
+  notifications                   Notification[]
+  stripeRefundsRequested          StripeRefund[]                   @relation("StripeRefundRequestedBy")
+  stripeRefundAuditEvents         StripeRefundAuditEvent[]         @relation("StripeRefundAuditActor")
+  stripeRefundsAsBuyer            StripeRefund[]                   @relation("StripeRefundBuyer")
+  stripeRefundsAsSeller           StripeRefund[]                   @relation("StripeRefundSeller")
+  stripeDisputesAsBuyer           StripeDispute[]                  @relation("StripeDisputeBuyer")
+  stripeDisputesAsSeller          StripeDispute[]                  @relation("StripeDisputeSeller")
+  stripeSubscriptionBillingEvents StripeSubscriptionBillingEvent[]
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -198,7 +199,7 @@ model BuyerSubscription {
 }
 
 model PawnShop {
-  id                                 String                     @id @default(cuid())
+  id                                 String                           @id @default(cuid())
   name                               String
   address                            String?
   city                               String?
@@ -210,52 +211,80 @@ model PawnShop {
   description                        String?
   hours                              String?
   ownerId                            String
-  isDeleted                          Boolean                    @default(false)
-  createdAt                          DateTime                   @default(now())
-  updatedAt                          DateTime                   @updatedAt
+  isDeleted                          Boolean                          @default(false)
+  createdAt                          DateTime                         @default(now())
+  updatedAt                          DateTime                         @updatedAt
   onboardingCompletedAt              DateTime?
-  cancelAtPeriodEnd                  Boolean                    @default(false)
+  cancelAtPeriodEnd                  Boolean                          @default(false)
   stripeCustomerId                   String?
-  stripeSubscriptionId               String?                    @unique
-  stripeConnectAccountId             String?                    @unique
-  stripeConnectDetailsSubmitted      Boolean                    @default(false)
-  stripeConnectChargesEnabled        Boolean                    @default(false)
-  stripeConnectPayoutsEnabled        Boolean                    @default(false)
+  stripeSubscriptionId               String?                          @unique
+  stripeConnectAccountId             String?                          @unique
+  stripeConnectDetailsSubmitted      Boolean                          @default(false)
+  stripeConnectChargesEnabled        Boolean                          @default(false)
+  stripeConnectPayoutsEnabled        Boolean                          @default(false)
   stripeConnectOnboardingCompletedAt DateTime?
   stripeConnectStatusUpdatedAt       DateTime?
   subscriptionCurrentPeriodEnd       DateTime?
-  subscriptionPlan                   String                     @default("FREE")
-  subscriptionStatus                 String                     @default("ACTIVE")
+  subscriptionPlan                   String                           @default("FREE")
+  subscriptionStatus                 String                           @default("ACTIVE")
   stripeCheckoutSessionId            String?
   stripeLatestInvoiceId              String?
   stripePriceId                      String?
   subscriptionBillingInterval        BillingInterval?
   subscriptionCanceledAt             DateTime?
   subscriptionStartedAt              DateTime?
+  stripeSubscriptionEventCreatedAt   DateTime?
+  stripeSubscriptionEventId          String?
+  stripeSubscriptionEventType        String?
   auctions                           Auction[]
-  inventoryImportJobs                InventoryImportJob[]       @relation("ShopInventoryImportJobs")
-  inventoryIntegrations              InventoryIntegration[]     @relation("ShopInventoryIntegrations")
+  inventoryImportJobs                InventoryImportJob[]             @relation("ShopInventoryImportJobs")
+  inventoryIntegrations              InventoryIntegration[]           @relation("ShopInventoryIntegrations")
   items                              Item[]
-  staffMembers                       Staff[]                    @relation("ShopStaffMembers")
-  owner                              User                       @relation(fields: [ownerId], references: [id])
+  staffMembers                       Staff[]                          @relation("ShopStaffMembers")
+  owner                              User                             @relation(fields: [ownerId], references: [id])
   inventorySyncJobs                  InventorySyncJob[]
-  buyerItemSubmissionOffers          BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOfferShop")
-  itemIntakes                        ItemIntake[]               @relation("ShopItemIntakes")
-  sellerLedgerEntries                SellerBalanceLedger[]      @relation("SellerBalanceLedgerShop")
-  sellerPayouts                      SellerPayout[]             @relation("SellerPayoutShop")
-  marketplaceListings                MarketplaceListing[]       @relation("MarketplaceListingShop")
-  marketplaceBuyerTransactions       MarketplaceTransaction[]   @relation("MarketplaceTransactionBuyerShop")
-  marketplaceSellerTransactions      MarketplaceTransaction[]   @relation("MarketplaceTransactionSellerShop")
+  buyerItemSubmissionOffers          BuyerItemSubmissionOffer[]       @relation("BuyerItemSubmissionOfferShop")
+  itemIntakes                        ItemIntake[]                     @relation("ShopItemIntakes")
+  sellerLedgerEntries                SellerBalanceLedger[]            @relation("SellerBalanceLedgerShop")
+  sellerPayouts                      SellerPayout[]                   @relation("SellerPayoutShop")
+  marketplaceListings                MarketplaceListing[]             @relation("MarketplaceListingShop")
+  marketplaceBuyerTransactions       MarketplaceTransaction[]         @relation("MarketplaceTransactionBuyerShop")
+  marketplaceSellerTransactions      MarketplaceTransaction[]         @relation("MarketplaceTransactionSellerShop")
   customerSellFulfillments           CustomerSellFulfillment[]
   customerSellPayments               CustomerSellPayment[]
   customerSellReceipts               CustomerSellReceipt[]
-  stripeRefunds                      StripeRefund[]             @relation("StripeRefundShop")
-  stripeDisputes                     StripeDispute[]            @relation("StripeDisputeShop")
+  stripeRefunds                      StripeRefund[]                   @relation("StripeRefundShop")
+  stripeDisputes                     StripeDispute[]                  @relation("StripeDisputeShop")
+  stripeSubscriptionBillingEvents    StripeSubscriptionBillingEvent[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
   @@index([subscriptionPlan, subscriptionStatus])
   @@index([subscriptionStatus, subscriptionCurrentPeriodEnd])
+}
+
+model StripeSubscriptionBillingEvent {
+  id                   String   @id @default(cuid())
+  stripeEventId        String   @unique
+  eventType            String
+  stripeEventCreatedAt DateTime
+  shopId               String
+  ownerUserId          String
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripeInvoiceId      String?
+  applied              Boolean  @default(false)
+  previousState        Json
+  resultingState       Json
+  payload              Json
+  createdAt            DateTime @default(now())
+  shop                 PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  owner                User     @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
+
+  @@index([shopId, stripeEventCreatedAt, id])
+  @@index([stripeSubscriptionId, stripeEventCreatedAt])
+  @@index([stripeInvoiceId])
+  @@index([ownerUserId, createdAt])
 }
 
 model Staff {
