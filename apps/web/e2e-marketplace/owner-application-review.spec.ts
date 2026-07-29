@@ -363,3 +363,201 @@ test("non-admin users cannot open the administrator application queue", async ({
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("heading", { name: "Owner Applications" })).toHaveCount(0);
 });
+
+test("owner application page explains every workflow status without exposing private review data", async ({ page }) => {
+  await storeSession(page, "OWNER");
+  let status:
+    | "PENDING"
+    | "IN_REVIEW"
+    | "INFORMATION_REQUESTED"
+    | "APPROVED"
+    | "REJECTED"
+    | "SUSPENDED" = "PENDING";
+
+  await page.route("**/api/**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/owner-applications/me") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          application: {
+            id: "application-1",
+            status,
+            businessName: "North Loop Pawn",
+            businessType: "PAWN_SHOP",
+            businessEmail: "owner@northloop.test",
+            businessPhone: "555-0100",
+            websiteUrl: "https://northloop.test",
+            businessAddress: {
+              line1: "1 Main St",
+              city: "Minneapolis",
+              state: "MN",
+              postalCode: "55401",
+              country: "US",
+            },
+            licenseNumber: "MN-123",
+            licenseState: "MN",
+            submittedAt: "2026-07-28T12:00:00.000Z",
+            reviewedAt: "2026-07-29T12:00:00.000Z",
+            decisionReason:
+              status === "INFORMATION_REQUESTED"
+                ? "Upload a current business license."
+                : status === "REJECTED" || status === "SUSPENDED"
+                  ? "Licensing requirements were not met."
+                  : null,
+            statusChangedAt: "2026-07-29T12:00:00.000Z",
+            updatedAt: "2026-07-29T12:00:00.000Z",
+            canEdit: status === "INFORMATION_REQUESTED",
+            canResubmit: status === "INFORMATION_REQUESTED",
+          },
+        }),
+      });
+    }
+    if (url.pathname === "/api/notifications") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, notifications: [] }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true }),
+    });
+  });
+
+  const expectations = [
+    ["PENDING", "Pending"],
+    ["IN_REVIEW", "In review"],
+    ["INFORMATION_REQUESTED", "Corrections required"],
+    ["APPROVED", "Approved"],
+    ["REJECTED", "Not approved"],
+    ["SUSPENDED", "Suspended"],
+  ] as const;
+
+  for (const [nextStatus, label] of expectations) {
+    status = nextStatus;
+    await page.goto("/owner/application");
+    await expect(page.getByText(label, { exact: true })).toBeVisible();
+    await expect(page.getByText("Submitted", { exact: true })).toBeVisible();
+    await expect(page.getByText("Latest review", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What happens next" })).toBeVisible();
+    await expect(page.getByText("Private fraud-screening note.")).toHaveCount(0);
+  }
+});
+
+test("owner saves requested corrections and resubmits with responsive success and retry states", async ({ page }) => {
+  await storeSession(page, "OWNER");
+  let currentStatus = "INFORMATION_REQUESTED";
+  let savedPayload: Record<string, unknown> | null = null;
+  let resubmitAttempts = 0;
+
+  const applicantApplication = () => ({
+    id: "application-1",
+    status: currentStatus,
+    businessName: "North Loop Pawn",
+    businessType: "PAWN_SHOP",
+    businessEmail: "owner@northloop.test",
+    businessPhone: "555-0100",
+    websiteUrl: "https://northloop.test",
+    businessAddress: {
+      line1: "1 Main St",
+      line2: "",
+      city: "Minneapolis",
+      state: "MN",
+      postalCode: "55401",
+      country: "US",
+    },
+    licenseNumber: "EXPIRED",
+    licenseState: "MN",
+    submittedAt: "2026-07-28T12:00:00.000Z",
+    reviewedAt: "2026-07-29T12:00:00.000Z",
+    decisionReason: "Enter the renewed license number.",
+    statusChangedAt: "2026-07-29T12:00:00.000Z",
+    updatedAt: "2026-07-29T12:00:00.000Z",
+    canEdit: currentStatus === "INFORMATION_REQUESTED",
+    canResubmit: currentStatus === "INFORMATION_REQUESTED",
+  });
+
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/notifications") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, notifications: [] }),
+      });
+    }
+    if (
+      url.pathname === "/api/owner-applications/me" &&
+      request.method() === "GET"
+    ) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, application: applicantApplication() }),
+      });
+    }
+    if (
+      url.pathname === "/api/owner-applications/me" &&
+      request.method() === "PATCH"
+    ) {
+      savedPayload = request.postDataJSON();
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          application: { ...applicantApplication(), ...savedPayload },
+        }),
+      });
+    }
+    if (url.pathname.endsWith("/resubmit")) {
+      resubmitAttempts += 1;
+      if (resubmitAttempts === 1) {
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Review service unavailable" }),
+        });
+      }
+      currentStatus = "IN_REVIEW";
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          application: applicantApplication(),
+        }),
+      });
+    }
+    return route.fulfill({ status: 200, body: "{}" });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/owner/application");
+  await expect(page.getByText("Enter the renewed license number.")).toBeVisible();
+  await page.getByLabel("License number").fill("MN-RENEWED-2026");
+  await page.getByRole("button", { name: "Save corrections" }).click();
+  await expect(page.getByText(/Corrections saved/)).toBeVisible();
+  expect(savedPayload).toMatchObject({
+    licenseNumber: "MN-RENEWED-2026",
+  });
+  expect(savedPayload).not.toHaveProperty("status");
+  expect(savedPayload).not.toHaveProperty("adminNotes");
+
+  await page.getByRole("button", { name: "Resubmit for review" }).click();
+  await expect(page.getByText("Review service unavailable")).toBeVisible();
+  await page.getByRole("button", { name: "Resubmit for review" }).click();
+  await expect(page.getByText("Your corrected application was resubmitted for review.")).toBeVisible();
+  await expect(page.getByText("In review", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resubmit for review" })).toHaveCount(0);
+  await expect(page.locator("body")).not.toHaveCSS("overflow-x", "scroll");
+
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});

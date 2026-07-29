@@ -77,6 +77,9 @@ export default function RequireApprovedOwner() {
         Shop onboarding and dashboard access become available after your
         owner application is approved.
       </p>
+      <Link className="btn btn-primary" to="/owner/application">
+        View application status
+      </Link>{" "}
       <Link className="btn btn-secondary" to="/for-pawn-shops">
         Review the owner program
       </Link>
