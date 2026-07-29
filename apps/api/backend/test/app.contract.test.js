@@ -342,6 +342,8 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
   const originalQueryRaw = prisma.$queryRaw;
   const originalFindFirst = prisma.pawnShop.findFirst;
   const originalUpdate = prisma.pawnShop.update;
+  const originalOwnerApplicationFindUnique =
+    prisma.ownerApplication.findUnique;
 
   const tokenFor = (id) => {
     const user = authenticatedUsers.get(id);
@@ -437,6 +439,14 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
       };
     };
 
+    prisma.ownerApplication.findUnique = async () => {
+      const error = new Error(
+        "The table `OwnerApplication` does not exist.",
+      );
+      error.code = "P2021";
+      throw error;
+    };
+
     await request(app)
       .put("/api/shops/owner-shop/onboarding/complete")
       .expect(401);
@@ -452,11 +462,12 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
       .expect(503);
 
     assert.deepEqual(unavailableResponse.body, {
-      success: false,
-      error:
-        "Shop onboarding completion is not available until the database migration is applied.",
+      error: "Service unavailable",
     });
 
+    prisma.ownerApplication.findUnique = async () => ({
+      status: "APPROVED",
+    });
     includeOnboardingColumn = true;
 
     const ownerResponse = await request(app)
@@ -528,6 +539,8 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
     prisma.$queryRaw = originalQueryRaw;
     prisma.pawnShop.findFirst = originalFindFirst;
     prisma.pawnShop.update = originalUpdate;
+    prisma.ownerApplication.findUnique =
+      originalOwnerApplicationFindUnique;
   }
 });
 

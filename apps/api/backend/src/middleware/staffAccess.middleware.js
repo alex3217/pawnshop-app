@@ -141,10 +141,16 @@ export function requireOwnerAdminOrStaffPermission(permission) {
       }
 
       if (isOwner(req)) {
-        const application = await prisma.ownerApplication.findUnique({
-          where: { ownerId: getUserId(req) },
-          select: { status: true },
-        });
+        let application;
+
+        try {
+          application = await prisma.ownerApplication.findUnique({
+            where: { ownerId: getUserId(req) },
+            select: { status: true },
+          });
+        } catch {
+          return res.status(503).json({ error: "Service unavailable" });
+        }
 
         if (application?.status !== "APPROVED") {
           return res.status(403).json({

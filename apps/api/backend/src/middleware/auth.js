@@ -207,10 +207,16 @@ export function requireRole(...roles) {
     }
 
     if (normalizeRole(req.user.role) === "OWNER") {
-      const application = await prisma.ownerApplication.findUnique({
-        where: { ownerId: req.user.sub },
-        select: { status: true },
-      });
+      let application;
+
+      try {
+        application = await prisma.ownerApplication.findUnique({
+          where: { ownerId: req.user.sub },
+          select: { status: true },
+        });
+      } catch {
+        return res.status(503).json({ error: "Service unavailable" });
+      }
 
       if (application?.status !== "APPROVED") {
         return res.status(403).json({
