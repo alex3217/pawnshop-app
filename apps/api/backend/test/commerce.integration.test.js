@@ -53,7 +53,7 @@ async function registerActor(prefix, role) {
     JSON.stringify(response.body),
   );
 
-  await prisma.user.update({
+  const user = await prisma.user.update({
     where: {
       email: email(prefix),
     },
@@ -61,6 +61,22 @@ async function registerActor(prefix, role) {
       emailVerifiedAt: new Date(),
     },
   });
+
+  if (role === "OWNER") {
+    await prisma.ownerApplication.upsert({
+      where: {
+        ownerId: user.id,
+      },
+      update: {
+        status: "APPROVED",
+      },
+      create: {
+        ownerId: user.id,
+        status: "APPROVED",
+        businessEmail: email(prefix),
+      },
+    });
+  }
 
   const login = await request(app)
     .post("/api/auth/login")

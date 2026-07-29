@@ -37,7 +37,7 @@ function tokenFor(user) {
 }
 
 async function createUser(prefix, role) {
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       name: `${prefix} ${role}`,
       email: testEmail(prefix),
@@ -47,6 +47,24 @@ async function createUser(prefix, role) {
       emailVerifiedAt: new Date(),
     },
   });
+
+  if (role === "OWNER") {
+    await prisma.ownerApplication.upsert({
+      where: {
+        ownerId: user.id,
+      },
+      update: {
+        status: "APPROVED",
+      },
+      create: {
+        ownerId: user.id,
+        status: "APPROVED",
+        businessEmail: user.email,
+      },
+    });
+  }
+
+  return user;
 }
 
 async function cleanup() {
