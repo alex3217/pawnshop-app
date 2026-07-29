@@ -37,6 +37,14 @@ test("normalizes pagination and payout status", () => {
   assert.equal(query.where.status, "PAID");
 });
 
+test("accepts transferred payout status", () => {
+  assert.equal(buildSellerPayoutHistoryQuery({
+    sellerUserId: "seller_1",
+    shopId: "shop_1",
+    status: "transferred",
+  }).where.status, "TRANSFERRED");
+});
+
 test("rejects unsupported payout status", () => {
   assert.throws(
     () =>
@@ -91,6 +99,11 @@ test("returns paginated payout history", async () => {
         return 4;
       },
     },
+    stripeConnectedAccountPayout: {
+      async findMany() {
+        return [{ id: "bank_payout_1", status: "paid" }];
+      },
+    },
   };
 
   const result = await getSellerPayoutHistory({
@@ -102,6 +115,7 @@ test("returns paginated payout history", async () => {
   });
 
   assert.equal(result.rows.length, 1);
+  assert.equal(result.bankPayouts.length, 1);
   assert.equal(result.pagination.page, 2);
   assert.equal(result.pagination.limit, 2);
   assert.equal(result.pagination.total, 4);

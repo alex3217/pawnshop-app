@@ -188,7 +188,7 @@ test("cancellation is idempotent and reverses the reservation", async () => {
   assert.equal(ledgerStatus, "REVERSED");
 });
 
-test("processing uses a Connect transfer and Stripe idempotency then marks paid", async () => {
+test("processing uses a Connect transfer and Stripe idempotency then marks transferred", async () => {
   await withConnectEnabled(async () => {
   const payout = {
     id: "payout_1", shopId: "shop_1", status: "PENDING", amountCents: 1200,
@@ -214,10 +214,36 @@ test("processing uses a Connect transfer and Stripe idempotency then marks paid"
       return { id: "tr_1" };
     } } },
   });
-  assert.equal(result.status, "PAID");
+  assert.equal(result.status, "TRANSFERRED");
   assert.equal(result.stripeTransferId, "tr_1");
+  assert.equal(result.providerPayoutId, undefined);
+  assert.equal(result.paidAt, undefined);
   assert.equal(stripeCall[0].destination, "acct_1");
   assert.equal(stripeCall[1].idempotencyKey, "seller-payout:payout_1");
+  });
+});
+
+test("processing an already transferred request does not create another transfer", async () => {
+  await withConnectEnabled(async () => {
+    const payout = {
+      id: "payout_1", shopId: "shop_1", status: "TRANSFERRED",
+      stripeTransferId: "tr_existing", shop: { stripeConnectAccountId: "acct_1" },
+    };
+    let calls = 0;
+    const client = {
+      sellerPayout: { findUnique: async () => payout },
+      $transaction: async (callback) => callback({
+        $queryRaw: async () => [],
+        sellerPayout: { findUnique: async () => payout },
+      }),
+    };
+    const result = await processPayoutRequest({
+      shopId: "shop_1", payoutId: "payout_1", reviewerId: "admin_1",
+      prismaClient: client,
+      stripe: { transfers: { create: async () => { calls += 1; } } },
+    });
+    assert.equal(result, payout);
+    assert.equal(calls, 0);
   });
 });
 

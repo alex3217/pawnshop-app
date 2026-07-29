@@ -56,6 +56,7 @@ export type OwnerFinancePayout = {
   status:
     | "PENDING"
     | "PROCESSING"
+    | "TRANSFERRED"
     | "PAID"
     | "FAILED"
     | "CANCELED";
@@ -63,6 +64,7 @@ export type OwnerFinancePayout = {
   currency: string;
   provider?: string | null;
   providerPayoutId?: string | null;
+  stripeTransferId?: string | null;
   failureCode?: string | null;
   failureMessage?: string | null;
   requestedAt: string;
@@ -118,12 +120,32 @@ export type FinancePayoutResponse = {
     ownerId: string;
   };
   rows: OwnerFinancePayout[];
+  bankPayouts: StripeConnectedBankPayout[];
   pagination: FinancePagination;
   filters: {
     status: string | null;
     from: string | null;
     to: string | null;
   };
+};
+
+export type StripeConnectedBankPayout = {
+  id: string;
+  stripePayoutId: string;
+  stripeAccountId: string;
+  shopId?: string | null;
+  amountCents: number;
+  currency: string;
+  status: string;
+  arrivalDate?: string | null;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  payoutMethod?: string | null;
+  payoutType?: string | null;
+  paidAt?: string | null;
+  failedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type StripeConnectState =

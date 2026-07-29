@@ -3,6 +3,7 @@ import { prisma } from "../../lib/prisma.js";
 const VALID_STATUSES = new Set([
   "PENDING",
   "PROCESSING",
+  "TRANSFERRED",
   "PAID",
   "FAILED",
   "CANCELED",
@@ -156,6 +157,7 @@ export async function getSellerPayoutHistory({
         currency: true,
         provider: true,
         providerPayoutId: true,
+        stripeTransferId: true,
         failureCode: true,
         failureMessage: true,
         requestedAt: true,
@@ -183,8 +185,15 @@ export async function getSellerPayoutHistory({
     }),
   ]);
 
+  const bankPayouts = await prismaClient.stripeConnectedAccountPayout.findMany({
+    where: { shopId: query.shopId },
+    orderBy: [{ arrivalDate: "desc" }, { createdAt: "desc" }],
+    take: 100,
+  });
+
   return {
     rows,
+    bankPayouts,
     pagination: {
       page: query.page,
       limit: query.limit,

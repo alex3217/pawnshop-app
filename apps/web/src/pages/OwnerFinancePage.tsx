@@ -22,6 +22,7 @@ import {
   type OwnerFinanceLedgerEntry,
   type OwnerFinancePayout,
   type OwnerFinanceShop,
+  type StripeConnectedBankPayout,
 } from "../services/ownerFinance";
 import "../styles/owner-finance-readability.css";
 
@@ -55,6 +56,7 @@ const PAYOUT_STATUSES = [
   "",
   "PENDING",
   "PROCESSING",
+  "TRANSFERRED",
   "PAID",
   "FAILED",
   "CANCELED",
@@ -91,6 +93,12 @@ function formatLabel(value: string) {
         part.charAt(0).toUpperCase() + part.slice(1),
     )
     .join(" ");
+}
+
+function formatPayoutStatus(value: string) {
+  if (value === "TRANSFERRED") return "Transferred to Stripe";
+  if (value === "PAID") return "Transferred to Stripe (legacy)";
+  return formatLabel(value);
 }
 
 function sanitizeFilename(value: string) {
@@ -161,6 +169,9 @@ export default function OwnerFinancePage() {
 
   const [payoutRows, setPayoutRows] = useState<
     OwnerFinancePayout[]
+  >([]);
+  const [bankPayoutRows, setBankPayoutRows] = useState<
+    StripeConnectedBankPayout[]
   >([]);
 
   const [ledgerPagination, setLedgerPagination] =
@@ -286,6 +297,7 @@ export default function OwnerFinancePage() {
       setLedgerRows(ledgerResponse.rows);
       setLedgerPagination(ledgerResponse.pagination);
       setPayoutRows(payoutResponse.rows);
+      setBankPayoutRows(payoutResponse.bankPayouts || []);
       setPayoutPagination(payoutResponse.pagination);
       setConnectStatus(connectResponse?.connect || null);
     } catch (loadError) {
@@ -542,7 +554,7 @@ export default function OwnerFinancePage() {
       `${shopName}-payout-history-${todayForFilename()}.csv`,
       payoutRows.map((payout) => ({
         Requested: formatDate(payout.requestedAt),
-        Status: formatLabel(payout.status),
+        Status: formatPayoutStatus(payout.status),
         Amount: formatMoney(
           payout.amountCents,
           payout.currency,
@@ -550,7 +562,7 @@ export default function OwnerFinancePage() {
         Currency: payout.currency,
         Provider: payout.provider || "",
         "Provider Reference":
-          payout.providerPayoutId || "",
+          payout.stripeTransferId || payout.providerPayoutId || "",
         "Failure Code": payout.failureCode || "",
         "Failure Message":
           payout.failureMessage || "",
@@ -1181,7 +1193,7 @@ export default function OwnerFinancePage() {
                         <span
                           className={`owner-finance-status owner-finance-status-${payout.status.toLowerCase()}`}
                         >
-                          {formatLabel(
+                          {formatPayoutStatus(
                             payout.status,
                           )}
                         </span>
@@ -1192,7 +1204,8 @@ export default function OwnerFinancePage() {
                       </td>
 
                       <td>
-                        {payout.providerPayoutId ||
+                        {payout.stripeTransferId ||
+                          payout.providerPayoutId ||
                           payout.failureCode ||
                           "—"}
                       </td>
@@ -1230,6 +1243,44 @@ export default function OwnerFinancePage() {
                     Processed seller payouts will
                     appear here.
                   </span>
+                </div>
+              ) : null}
+            </div>
+
+            <h3>Connected bank payouts</h3>
+            <p>
+              Bank payout status comes directly from Stripe. One bank payout can include
+              funds from multiple transfers.
+            </p>
+            <div className="owner-finance-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Arrival</th>
+                    <th>Status</th>
+                    <th>Reference</th>
+                    <th className="owner-finance-money-column">Amount</th>
+                    <th>Failure</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bankPayoutRows.map((payout) => (
+                    <tr key={payout.id}>
+                      <td>{formatDate(payout.arrivalDate || payout.createdAt)}</td>
+                      <td>{formatLabel(payout.status)}</td>
+                      <td>{payout.stripePayoutId}</td>
+                      <td className="owner-finance-money-column">
+                        {formatMoney(payout.amountCents, payout.currency)}
+                      </td>
+                      <td>{payout.failureMessage || payout.failureCode || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!loadingFinance && bankPayoutRows.length === 0 ? (
+                <div className="owner-finance-empty">
+                  <strong>No connected bank payouts yet</strong>
+                  <span>Stripe payout events will appear here.</span>
                 </div>
               ) : null}
             </div>

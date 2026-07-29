@@ -247,6 +247,7 @@ model PawnShop {
   itemIntakes                        ItemIntake[]                     @relation("ShopItemIntakes")
   sellerLedgerEntries                SellerBalanceLedger[]            @relation("SellerBalanceLedgerShop")
   sellerPayouts                      SellerPayout[]                   @relation("SellerPayoutShop")
+  stripeConnectedAccountPayouts      StripeConnectedAccountPayout[]
   marketplaceListings                MarketplaceListing[]             @relation("MarketplaceListingShop")
   marketplaceBuyerTransactions       MarketplaceTransaction[]         @relation("MarketplaceTransactionBuyerShop")
   marketplaceSellerTransactions      MarketplaceTransaction[]         @relation("MarketplaceTransactionSellerShop")
@@ -1362,6 +1363,7 @@ model StripeDisputeEvent {
 enum SellerPayoutStatus {
   PENDING
   PROCESSING
+  TRANSFERRED
   PAID
   FAILED
   CANCELED
@@ -1439,6 +1441,48 @@ model SellerPayout {
   @@index([status, requestedAt])
   @@index([requestedByUserId, requestedAt])
   @@index([createdAt])
+}
+
+model StripeConnectedAccountPayout {
+  id                       String    @id @default(cuid())
+  stripePayoutId           String    @unique
+  stripeAccountId          String
+  shopId                   String?
+  amountCents              Int
+  currency                 String
+  status                   String
+  arrivalDate              DateTime?
+  failureCode              String?
+  failureMessage           String?
+  payoutMethod             String?
+  payoutType               String?
+  stripeCreatedAt          DateTime?
+  lastStripeEventId        String
+  lastStripeEventCreatedAt DateTime
+  paidAt                   DateTime?
+  failedAt                 DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  shop   PawnShop?                           @relation(fields: [shopId], references: [id], onDelete: SetNull)
+  events StripeConnectedAccountPayoutEvent[]
+
+  @@index([stripeAccountId, status, arrivalDate])
+  @@index([shopId, createdAt])
+  @@index([status, arrivalDate])
+}
+
+model StripeConnectedAccountPayoutEvent {
+  id                   String   @id @default(cuid())
+  stripeEventId        String   @unique
+  stripePayoutRecordId String
+  eventType            String
+  stripeEventCreatedAt DateTime
+  createdAt            DateTime @default(now())
+
+  payout StripeConnectedAccountPayout @relation(fields: [stripePayoutRecordId], references: [id], onDelete: Restrict)
+
+  @@index([stripePayoutRecordId, stripeEventCreatedAt])
 }
 
 model PlatformSetting {
