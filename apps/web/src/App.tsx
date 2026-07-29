@@ -9,6 +9,7 @@ import {
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import RequireRole from "./components/RequireRole";
+import RequireApprovedOwner from "./components/RequireApprovedOwner";
 import RequireShopCapability from "./components/RequireShopCapability";
 import SiteLayout from "./components/SiteLayout";
 import type { Role } from "./services/auth";
@@ -37,7 +38,6 @@ type RouteConfig =
 
 const ADMIN_ROLES: Role[] = ["ADMIN", "SUPER_ADMIN"];
 const SUPER_ADMIN_ROLES: Role[] = ["SUPER_ADMIN"];
-const OWNER_ROLES: Role[] = ["OWNER", "ADMIN"];
 const CONSUMER_ROLES: Role[] = ["CONSUMER", "ADMIN"];
 const OFFER_ROLES: Role[] = ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"];
 const MARKETPLACE_TRANSACTION_ROLES: Role[] = ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"];
@@ -411,7 +411,14 @@ export default function App() {
         <Route element={<SiteLayout />}>
           {renderRouteGroup(publicRoutes, "public")}
           {renderRouteGroup(consumerRoutes, "consumer", CONSUMER_ROLES)}
-          {renderRouteGroup(ownerRoutes, "owner", OWNER_ROLES)}
+          <Route element={<RequireApprovedOwner />}>
+            {ownerRoutes.map((route, index) =>
+              renderRoute(
+                route,
+                `owner-${"path" in route ? route.path : index}`,
+              ),
+            )}
+          </Route>
 
           <Route
             element={

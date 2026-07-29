@@ -49,8 +49,9 @@ function tokenFor(user) {
 async function createUser(
   prefix,
   role = "CONSUMER",
+  { approvedOwner = false } = {},
 ) {
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       name: `${prefix} user`,
       email: testEmail(prefix),
@@ -62,6 +63,24 @@ async function createUser(
       isActive: true,
     },
   });
+
+  if (approvedOwner) {
+    await prisma.ownerApplication.upsert({
+      where: {
+        ownerId: user.id,
+      },
+      update: {
+        status: "APPROVED",
+      },
+      create: {
+        ownerId: user.id,
+        status: "APPROVED",
+        businessEmail: user.email,
+      },
+    });
+  }
+
+  return user;
 }
 
 async function createListing({
@@ -729,11 +748,13 @@ test(
     const seller = await createUser(
       "dealer-lifecycle-seller",
       "OWNER",
+      { approvedOwner: true },
     );
 
     const buyer = await createUser(
       "dealer-lifecycle-buyer",
       "OWNER",
+      { approvedOwner: true },
     );
 
     const sellerShop = await prisma.pawnShop.create({

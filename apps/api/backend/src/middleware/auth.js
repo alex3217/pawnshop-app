@@ -193,7 +193,7 @@ export function isSuperAdminRole(role) {
 export function requireRole(...roles) {
   const allowedRoles = roles.flat().map(normalizeRole).filter(Boolean);
 
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -204,6 +204,27 @@ export function requireRole(...roles) {
 
     if (!hasRole(req.user, ...allowedRoles)) {
       return res.status(403).json({ error: "Forbidden" });
+    }
+
+    if (normalizeRole(req.user.role) === "OWNER") {
+      let application;
+
+      try {
+        application = await prisma.ownerApplication.findUnique({
+          where: { ownerId: req.user.sub },
+          select: { status: true },
+        });
+      } catch {
+        return res.status(503).json({ error: "Service unavailable" });
+      }
+
+      if (application?.status !== "APPROVED") {
+        return res.status(403).json({
+          error: "Owner application approval is required",
+          code: "OWNER_APPLICATION_NOT_APPROVED",
+          ownerApplicationStatus: application?.status || null,
+        });
+      }
     }
 
     return next();

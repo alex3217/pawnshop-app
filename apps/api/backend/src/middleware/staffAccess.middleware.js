@@ -136,7 +136,30 @@ export function requireOwnerAdminOrStaffPermission(permission) {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      if (isAdmin(req) || isOwner(req)) {
+      if (isAdmin(req)) {
+        return next();
+      }
+
+      if (isOwner(req)) {
+        let application;
+
+        try {
+          application = await prisma.ownerApplication.findUnique({
+            where: { ownerId: getUserId(req) },
+            select: { status: true },
+          });
+        } catch {
+          return res.status(503).json({ error: "Service unavailable" });
+        }
+
+        if (application?.status !== "APPROVED") {
+          return res.status(403).json({
+            error: "Owner application approval is required",
+            code: "OWNER_APPLICATION_NOT_APPROVED",
+            ownerApplicationStatus: application?.status || null,
+          });
+        }
+
         return next();
       }
 

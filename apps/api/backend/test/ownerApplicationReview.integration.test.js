@@ -417,6 +417,24 @@ test(
       400,
     );
 
+    const missingInformationReason =
+      await request(app)
+        .patch(
+          statusPath(pending.application),
+        )
+        .set(
+          "Authorization",
+          authorization,
+        )
+        .send({
+          status: "INFORMATION_REQUESTED",
+        });
+
+    assert.equal(
+      missingInformationReason.status,
+      400,
+    );
+
     const missingSuspensionReason =
       await request(app)
         .patch(
@@ -487,6 +505,137 @@ test(
       reopenRejected.status,
       409,
     );
+  },
+);
+
+test(
+  "every supported owner application transition is accepted",
+  async () => {
+    const admin = await createUser({
+      prefix: "transition-admin",
+      role: "ADMIN",
+    });
+    const authorization =
+      authorizationFor(admin);
+    const transitions = [
+      ["PENDING", "IN_REVIEW"],
+      ["PENDING", "INFORMATION_REQUESTED"],
+      ["PENDING", "APPROVED"],
+      ["PENDING", "REJECTED"],
+      ["IN_REVIEW", "INFORMATION_REQUESTED"],
+      ["IN_REVIEW", "APPROVED"],
+      ["IN_REVIEW", "REJECTED"],
+      ["INFORMATION_REQUESTED", "IN_REVIEW"],
+      ["INFORMATION_REQUESTED", "APPROVED"],
+      ["INFORMATION_REQUESTED", "REJECTED"],
+      ["APPROVED", "SUSPENDED"],
+      ["SUSPENDED", "APPROVED"],
+    ];
+
+    for (const [index, [from, to]] of
+      transitions.entries()) {
+      const result =
+        await createOwnerApplication({
+          prefix: `transition-${index}`,
+          status: from,
+        });
+      const response = await request(app)
+        .patch(
+          "/api/admin/owner-applications/" +
+            result.application.id +
+            "/status",
+        )
+        .set(
+          "Authorization",
+          authorization,
+        )
+        .send({
+          status: to,
+          ...(to === "INFORMATION_REQUESTED" ||
+          to === "REJECTED" ||
+          to === "SUSPENDED"
+            ? {
+                decisionReason:
+                  `Required reason for ${to}.`,
+              }
+            : {}),
+          adminNotes:
+            `Latest review note for ${from} to ${to}.`,
+        });
+
+      assert.equal(
+        response.status,
+        200,
+        `${from} -> ${to}`,
+      );
+      assert.equal(
+        response.body.application.status,
+        to,
+      );
+      assert.equal(
+        response.body.application.reviewedById,
+        admin.id,
+      );
+      assert.equal(
+        response.body.application.adminNotes,
+        `Latest review note for ${from} to ${to}.`,
+      );
+      assert.ok(
+        response.body.application.reviewedAt,
+      );
+      assert.equal(
+        response.body.application.reviewedBy.email,
+        admin.email,
+      );
+    }
+  },
+);
+
+test(
+  "owner business routes require an approved application",
+  async () => {
+    const pending =
+      await createOwnerApplication({
+        prefix: "access-pending",
+      });
+    const suspended =
+      await createOwnerApplication({
+        prefix: "access-suspended",
+        status: "SUSPENDED",
+      });
+    const approved =
+      await createOwnerApplication({
+        prefix: "access-approved",
+        status: "APPROVED",
+      });
+
+    for (const result of [pending, suspended]) {
+      const response = await request(app)
+        .get("/api/shops/mine")
+        .set(
+          "Authorization",
+          authorizationFor(result.owner),
+        );
+
+      assert.equal(response.status, 403);
+      assert.equal(
+        response.body.code,
+        "OWNER_APPLICATION_NOT_APPROVED",
+      );
+      assert.equal(
+        response.body.ownerApplicationStatus,
+        result.application.status,
+      );
+    }
+
+    const allowed = await request(app)
+      .get("/api/shops/mine")
+      .set(
+        "Authorization",
+        authorizationFor(approved.owner),
+      );
+
+    assert.equal(allowed.status, 200);
   },
 );
 
