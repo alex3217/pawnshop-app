@@ -51,9 +51,9 @@ model User {
   customerSellReceiptCustomer   CustomerSellReceipt[]         @relation("CustomerSellReceiptCustomer")
   customerSellReceiptsCompleted CustomerSellReceipt[]         @relation("CustomerSellReceiptCompletedBy")
   accountActionTokens           AccountActionToken[]
-  legalConsents               LegalConsent[]
-  ownerApplication            OwnerApplication?  @relation("OwnerApplicationOwner")
-  reviewedOwnerApplications   OwnerApplication[] @relation("OwnerApplicationReviewer")
+  legalConsents                 LegalConsent[]
+  ownerApplication              OwnerApplication?             @relation("OwnerApplicationOwner")
+  reviewedOwnerApplications     OwnerApplication[]            @relation("OwnerApplicationReviewer")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -69,34 +69,53 @@ enum OwnerApplicationStatus {
 }
 
 model OwnerApplication {
-  id               String                 @id @default(cuid())
-  ownerId          String                 @unique
-  status           OwnerApplicationStatus @default(PENDING)
-  businessName     String?
-  businessType     String?
-  businessEmail    String?
-  businessPhone    String?
-  websiteUrl       String?
-  businessAddress  Json?
-  licenseNumber    String?
-  licenseState     String?
-  applicationData  Json?
-  submittedAt      DateTime               @default(now())
-  reviewedAt       DateTime?
-  reviewedById     String?
-  decisionReason   String?
-  adminNotes       String?
-  statusChangedAt  DateTime               @default(now())
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  id              String                 @id @default(cuid())
+  ownerId         String                 @unique
+  status          OwnerApplicationStatus @default(PENDING)
+  businessName    String?
+  businessType    String?
+  businessEmail   String?
+  businessPhone   String?
+  websiteUrl      String?
+  businessAddress Json?
+  licenseNumber   String?
+  licenseState    String?
+  applicationData Json?
+  submittedAt     DateTime               @default(now())
+  reviewedAt      DateTime?
+  reviewedById    String?
+  decisionReason  String?
+  adminNotes      String?
+  statusChangedAt DateTime               @default(now())
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
-  owner      User  @relation("OwnerApplicationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  reviewedBy User? @relation("OwnerApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  owner         User                            @relation("OwnerApplicationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  reviewedBy    User?                           @relation("OwnerApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewHistory OwnerApplicationReviewHistory[]
 
   @@index([status, createdAt])
   @@index([reviewedById])
 }
 
+model OwnerApplicationReviewHistory {
+  id                 String                 @id @default(cuid())
+  ownerApplicationId String
+  previousStatus     OwnerApplicationStatus
+  newStatus          OwnerApplicationStatus
+  decisionReason     String?
+  adminNotes         String?
+  reviewerId         String
+  reviewerName       String?
+  reviewerEmail      String?
+  reviewerRole       Role?
+  reviewedAt         DateTime               @default(now())
+
+  ownerApplication OwnerApplication @relation(fields: [ownerApplicationId], references: [id], onDelete: Cascade)
+
+  @@index([ownerApplicationId, reviewedAt, id])
+  @@index([reviewerId, reviewedAt])
+}
 
 model AccountActionToken {
   id          String                    @id @default(cuid())

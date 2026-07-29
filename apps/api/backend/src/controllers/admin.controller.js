@@ -844,6 +844,29 @@ function readPositiveInteger(value, fallback) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function readBoundedPositiveInteger(value, fallback, maximum) {
+  return Math.min(readPositiveInteger(value, fallback), maximum);
+}
+
+function serializeOwnerApplicationReviewHistory(entry) {
+  return {
+    id: entry.id,
+    ownerApplicationId: entry.ownerApplicationId,
+    previousStatus: entry.previousStatus,
+    newStatus: entry.newStatus,
+    decisionReason: entry.decisionReason,
+    adminNotes: entry.adminNotes,
+    reviewerId: entry.reviewerId,
+    reviewer: {
+      id: entry.reviewerId,
+      name: entry.reviewerName,
+      email: entry.reviewerEmail,
+      role: entry.reviewerRole,
+    },
+    reviewedAt: toIsoOrNull(entry.reviewedAt),
+  };
+}
+
 function serializeOwnerApplication(application) {
   if (!application) return null;
 
@@ -1037,6 +1060,60 @@ export async function getOwnerApplication(req, res) {
   }
 }
 
+export async function getOwnerApplicationReviewHistory(req, res) {
+  try {
+    const page = readBoundedPositiveInteger(req.query?.page, 1, 1_000_000);
+    const limit = readBoundedPositiveInteger(req.query?.limit, 20, 100);
+    const where = {
+      ownerApplicationId: req.params.id,
+    };
+
+    const application = await prisma.ownerApplication.findUnique({
+      where: { id: req.params.id },
+      select: { id: true },
+    });
+
+    if (!application) {
+      const error = new Error("Owner application not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const [total, entries] = await Promise.all([
+      prisma.ownerApplicationReviewHistory.count({ where }),
+      prisma.ownerApplicationReviewHistory.findMany({
+        where,
+        orderBy: [
+          { reviewedAt: "desc" },
+          { id: "desc" },
+        ],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return res.json({
+      success: true,
+      rows: entries.map(serializeOwnerApplicationReviewHistory),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Failed to load owner application review history.",
+    );
+  }
+}
+
 export async function updateOwnerApplicationStatus(req, res) {
   try {
     const nextStatus =
@@ -1128,9 +1205,28 @@ export async function updateOwnerApplicationStatus(req, res) {
 
     const application = await prisma.$transaction(
       async (transaction) => {
-        const updated =
-          await transaction.ownerApplication.update({
-            where: { id: existing.id },
+        const reviewer = await transaction.user.findUnique({
+          where: { id: reviewerId },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        });
+
+        if (!reviewer) {
+          const error = new Error("Unauthorized");
+          error.statusCode = 401;
+          throw error;
+        }
+
+        const updateResult =
+          await transaction.ownerApplication.updateMany({
+            where: {
+              id: existing.id,
+              status: existing.status,
+            },
             data: {
               status: nextStatus,
               reviewedAt: now,
@@ -1139,8 +1235,30 @@ export async function updateOwnerApplicationStatus(req, res) {
               statusChangedAt: now,
               ...(hasAdminNotes ? { adminNotes } : {}),
             },
-            include: OWNER_APPLICATION_INCLUDE,
           });
+
+        if (updateResult.count !== 1) {
+          const error = new Error(
+            "Owner application status changed during review. Refresh and try again.",
+          );
+          error.statusCode = 409;
+          throw error;
+        }
+
+        await transaction.ownerApplicationReviewHistory.create({
+          data: {
+            ownerApplicationId: existing.id,
+            previousStatus: existing.status,
+            newStatus: nextStatus,
+            decisionReason: decisionReason || null,
+            adminNotes,
+            reviewerId: reviewer.id,
+            reviewerName: reviewer.name,
+            reviewerEmail: reviewer.email,
+            reviewerRole: reviewer.role,
+            reviewedAt: now,
+          },
+        });
 
         if (invalidateOwnerTokens) {
           await transaction.user.update({
@@ -1153,7 +1271,10 @@ export async function updateOwnerApplicationStatus(req, res) {
           });
         }
 
-        return updated;
+        return transaction.ownerApplication.findUnique({
+          where: { id: existing.id },
+          include: OWNER_APPLICATION_INCLUDE,
+        });
       },
     );
 

@@ -345,6 +345,24 @@ test(
       invalidFilter.status,
       400,
     );
+
+    const deniedHistory = await request(app)
+      .get(
+        "/api/admin/owner-applications/" +
+          alpha.application.id +
+          "/history",
+      )
+      .set(
+        "Authorization",
+        authorizationFor(
+          await createUser({
+            prefix: "history-consumer",
+            role: "CONSUMER",
+          }),
+        ),
+      );
+
+    assert.equal(deniedHistory.status, 403);
   },
 );
 
@@ -504,6 +522,25 @@ test(
     assert.equal(
       reopenRejected.status,
       409,
+    );
+
+    const historyCount =
+      await prisma.ownerApplicationReviewHistory.count({
+        where: {
+          ownerApplicationId: {
+            in: [
+              pending.application.id,
+              approved.application.id,
+              rejected.application.id,
+            ],
+          },
+        },
+      });
+
+    assert.equal(
+      historyCount,
+      0,
+      "rejected review attempts must not create history",
     );
   },
 );
@@ -810,6 +847,82 @@ test(
     assert.equal(
       audit.metadata.ownerTokensInvalidated,
       true,
+    );
+
+    const storedHistory =
+      await prisma.ownerApplicationReviewHistory.findMany({
+        where: {
+          ownerApplicationId: result.application.id,
+        },
+        orderBy: {
+          reviewedAt: "asc",
+        },
+      });
+
+    assert.equal(storedHistory.length, 3);
+    assert.deepEqual(
+      storedHistory.map((entry) => [
+        entry.previousStatus,
+        entry.newStatus,
+      ]),
+      [
+        ["PENDING", "IN_REVIEW"],
+        ["IN_REVIEW", "INFORMATION_REQUESTED"],
+        ["INFORMATION_REQUESTED", "APPROVED"],
+      ],
+    );
+    assert.equal(
+      storedHistory[1].decisionReason,
+      "Upload a current business license.",
+    );
+    assert.equal(
+      storedHistory[1].adminNotes,
+      "Waiting for renewed documentation.",
+    );
+    assert.equal(storedHistory[1].reviewerId, admin.id);
+    assert.equal(storedHistory[1].reviewerName, admin.name);
+    assert.equal(storedHistory[1].reviewerEmail, admin.email);
+    assert.equal(storedHistory[1].reviewerRole, "ADMIN");
+
+    const historyResponse = await request(app)
+      .get(
+        "/api/admin/owner-applications/" +
+          result.application.id +
+          "/history?page=1&limit=2",
+      )
+      .set("Authorization", authorization);
+
+    assert.equal(historyResponse.status, 200);
+    assert.equal(historyResponse.body.rows.length, 2);
+    assert.equal(
+      historyResponse.body.rows[0].newStatus,
+      "APPROVED",
+    );
+    assert.equal(
+      historyResponse.body.rows[1].newStatus,
+      "INFORMATION_REQUESTED",
+    );
+    assert.equal(
+      historyResponse.body.rows[1].reviewer.id,
+      admin.id,
+    );
+    assert.equal(historyResponse.body.pagination.total, 3);
+    assert.equal(historyResponse.body.pagination.totalPages, 2);
+    assert.equal(historyResponse.body.pagination.hasNextPage, true);
+
+    const secondHistoryPage = await request(app)
+      .get(
+        "/api/admin/owner-applications/" +
+          result.application.id +
+          "/history?page=2&limit=2",
+      )
+      .set("Authorization", authorization);
+
+    assert.equal(secondHistoryPage.status, 200);
+    assert.equal(secondHistoryPage.body.rows.length, 1);
+    assert.equal(
+      secondHistoryPage.body.rows[0].previousStatus,
+      "PENDING",
     );
   },
 );

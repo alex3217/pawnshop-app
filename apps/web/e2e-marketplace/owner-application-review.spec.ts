@@ -48,6 +48,22 @@ async function storeSession(page: Page, role: "ADMIN" | "OWNER" | "CONSUMER") {
 test("admin queue supports search, filter, pagination, details, reasons, and review metadata", async ({ page }) => {
   await storeSession(page, "ADMIN");
   let current: Record<string, unknown> = { ...application };
+  let history = [{
+    id: "history-1",
+    ownerApplicationId: application.id,
+    previousStatus: "PENDING",
+    newStatus: "IN_REVIEW",
+    decisionReason: null,
+    adminNotes: "Initial review started.",
+    reviewerId: "admin-1",
+    reviewer: {
+      id: "admin-1",
+      name: "Ada Admin",
+      email: "admin@pawnloop.test",
+      role: "ADMIN",
+    },
+    reviewedAt: "2026-07-28T12:30:00.000Z",
+  }];
   let listRequest = "";
 
   await page.route("**/api/**", async (route) => {
@@ -79,6 +95,24 @@ test("admin queue supports search, filter, pagination, details, reasons, and rev
         body: JSON.stringify({ success: true, application: current }),
       });
     }
+    if (url.pathname === `/api/admin/owner-applications/${application.id}/history` && request.method() === "GET") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          rows: history,
+          pagination: {
+            page: 1,
+            limit: 10,
+            total: history.length,
+            totalPages: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        }),
+      });
+    }
     if (url.pathname.endsWith("/status") && request.method() === "PATCH") {
       const input = request.postDataJSON();
       current = {
@@ -93,6 +127,22 @@ test("admin queue supports search, filter, pagination, details, reasons, and rev
           role: "ADMIN",
         },
       };
+      history = [{
+        id: "history-2",
+        ownerApplicationId: application.id,
+        previousStatus: "PENDING",
+        newStatus: input.status,
+        decisionReason: input.decisionReason || null,
+        adminNotes: input.adminNotes || null,
+        reviewerId: "admin-1",
+        reviewer: {
+          id: "admin-1",
+          name: "Ada Admin",
+          email: "admin@pawnloop.test",
+          role: "ADMIN",
+        },
+        reviewedAt: "2026-07-28T13:00:00.000Z",
+      }, ...history];
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -124,6 +174,9 @@ test("admin queue supports search, filter, pagination, details, reasons, and rev
   await expect.poll(() => listRequest).toContain("page=2");
   await page.getByRole("button", { name: "Review" }).click();
   await expect(page.getByText("MN-123")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review history" })).toBeVisible();
+  await expect(page.getByText("PENDING → IN REVIEW")).toBeVisible();
+  await expect(page.getByText("Initial review started.")).toBeVisible();
 
   await page.getByLabel("New status").selectOption("INFORMATION_REQUESTED");
   await page.getByRole("button", { name: "Confirm status change" }).click();
@@ -134,6 +187,83 @@ test("admin queue supports search, filter, pagination, details, reasons, and rev
   await page.getByRole("button", { name: "Confirm status change" }).click();
   await expect(page.getByText("Ada Admin · admin@pawnloop.test")).toBeVisible();
   await expect(page.getByText("License review is incomplete.", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("PENDING → INFORMATION REQUESTED")).toBeVisible();
+  await expect(
+    page.getByLabel("Review history").getByText("Upload a current license.", { exact: true }),
+  ).toBeVisible();
+});
+
+test("review timeline exposes loading, empty, error, responsive, light, and dark states", async ({ page }) => {
+  await storeSession(page, "ADMIN");
+  let historyMode: "loading" | "empty" | "error" = "loading";
+  let releaseHistory: () => void = () => undefined;
+  const historyGate = new Promise<void>((resolve) => {
+    releaseHistory = resolve;
+  });
+
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/admin/owner-applications") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          rows: [application],
+          pagination: { page: 1, limit: 25, total: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        }),
+      });
+    }
+    if (url.pathname === `/api/admin/owner-applications/${application.id}`) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, application }),
+      });
+    }
+    if (url.pathname === `/api/admin/owner-applications/${application.id}/history`) {
+      if (historyMode === "loading") {
+        await historyGate;
+        historyMode = "empty";
+      }
+      if (historyMode === "error") {
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "History unavailable" }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          rows: [],
+          pagination: { page: 1, limit: 10, total: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+        }),
+      });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/admin/owner-applications");
+  await page.getByRole("button", { name: "Review" }).click();
+  await expect(page.getByText("Loading review history…")).toBeVisible();
+  releaseHistory();
+  await expect(page.getByText("No administrator review actions have been recorded yet.")).toBeVisible();
+  await expect(page.locator("body")).not.toHaveCSS("overflow-x", "scroll");
+
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.evaluate(() => document.documentElement.removeAttribute("data-theme"));
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", "dark");
+
+  historyMode = "error";
+  await page.getByRole("button", { name: "Refresh history" }).click();
+  await expect(page.getByText("History unavailable")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
 });
 
 test("admin queue exposes loading, empty, and error states", async ({ page }) => {

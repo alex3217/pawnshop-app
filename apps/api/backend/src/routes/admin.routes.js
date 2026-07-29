@@ -22,6 +22,7 @@ import {
   createAdminUser,
   listOwnerApplications,
   getOwnerApplication,
+  getOwnerApplicationReviewHistory,
   updateOwnerApplicationStatus,
 } from "../controllers/admin.controller.js";
 
@@ -170,6 +171,11 @@ router.get(
   validateIdParam("id", "Owner application id"),
   asyncRoute(getOwnerApplication),
 );
+router.get(
+  "/owner-applications/:id/history",
+  validateIdParam("id", "Owner application id"),
+  asyncRoute(getOwnerApplicationReviewHistory),
+);
 router.patch(
   "/owner-applications/:id/status",
   validateIdParam("id", "Owner application id"),
@@ -227,6 +233,8 @@ export const ADMIN_ROUTE_MAP = Object.freeze({
   unblockUser: "PATCH /api/admin/users/:id/unblock",
   ownerApplications: "GET /api/admin/owner-applications",
   ownerApplication: "GET /api/admin/owner-applications/:id",
+  ownerApplicationReviewHistory:
+    "GET /api/admin/owner-applications/:id/history",
   updateOwnerApplicationStatus:
     "PATCH /api/admin/owner-applications/:id/status",
   items: "GET /api/admin/items",
