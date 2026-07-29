@@ -26,6 +26,9 @@ import {
   syncStripeDisputeEvent,
   syncStripeRefundEvent,
 } from "../services/stripeRefundDispute.service.js";
+import {
+  syncStripeSubscriptionEvent,
+} from "../services/stripeSubscriptionWebhook.service.js";
 
 const PI_REUSABLE_STATUSES = new Set([
   "requires_payment_method",
@@ -587,33 +590,11 @@ export async function handleStripeWebhook(req, res) {
 
       case "customer.subscription.created":
       case "customer.subscription.updated":
-      case "customer.subscription.deleted": {
-        const subscription = event.data.object;
-        const stripeSubscriptionId = normalizeId(subscription?.id);
-        const shopIdFromMetadata = normalizeId(subscription?.metadata?.shopId);
-        const planFromMetadata = normalizePlanCode(subscription?.metadata?.planCode);
-        const patch = mapShopSubscriptionUpdateFromStripeSubscription(
-          subscription,
-          planFromMetadata
-        );
-
-        if (stripeSubscriptionId) {
-          const updated = await prisma.pawnShop.updateMany({
-            where: { stripeSubscriptionId },
-            data: patch,
-          });
-
-          if (updated.count > 0) {
-            break;
-          }
-        }
-
-        if (shopIdFromMetadata) {
-          await prisma.pawnShop.updateMany({
-            where: { id: shopIdFromMetadata },
-            data: patch,
-          });
-        }
+      case "customer.subscription.deleted":
+      case "invoice.paid":
+      case "invoice.payment_succeeded":
+      case "invoice.payment_failed": {
+        await syncStripeSubscriptionEvent({ event, prismaClient: prisma });
         break;
       }
 
