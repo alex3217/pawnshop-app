@@ -120,17 +120,16 @@ export async function createSettlementCreditLedgerEntry({
   const currency = String(settlement.currency || "USD")
     .trim()
     .toUpperCase();
+  const idempotencyKey = `settlement-credit:${safeSettlementId}`;
 
   const entry = await prismaClient.sellerBalanceLedger.upsert({
     where: {
-      settlementId_type: {
-        settlementId: safeSettlementId,
-        type: SETTLEMENT_CREDIT_TYPE,
-      },
+      idempotencyKey,
     },
     update: {},
     create: {
       settlementId: safeSettlementId,
+      idempotencyKey,
       sellerUserId: seller.sellerUserId,
       shopId: seller.shopId,
       type: SETTLEMENT_CREDIT_TYPE,

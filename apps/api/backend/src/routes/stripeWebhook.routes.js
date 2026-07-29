@@ -49,7 +49,7 @@ function ensureRawBody(req, res, next) {
 
 /**
  * Public
- * POST /api/stripe/webhook
+ * POST /webhooks/stripe and /api/webhooks/stripe
  *
  * Stripe requires the exact raw request body for signature verification.
  * This route must be mounted before any global express.json() middleware

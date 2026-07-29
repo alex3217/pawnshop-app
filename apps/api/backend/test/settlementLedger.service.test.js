@@ -78,10 +78,7 @@ test("creates an available auction settlement credit", async () => {
   const upsert = prismaClient.calls.upsert[0];
 
   assert.deepEqual(upsert.where, {
-    settlementId_type: {
-      settlementId: "settlement_1",
-      type: "SETTLEMENT_CREDIT",
-    },
+    idempotencyKey: "settlement-credit:settlement_1",
   });
 
   assert.equal(upsert.create.status, "AVAILABLE");
@@ -131,7 +128,7 @@ test("creates an available offer settlement credit", async () => {
   assert.equal(upsert.create.metadata.sourceId, "offer_1");
 });
 
-test("uses an idempotent settlement and type upsert key", async () => {
+test("uses an idempotent settlement credit key", async () => {
   const existingEntry = {
     id: "ledger_existing",
     settlementId: "settlement_1",
@@ -180,10 +177,7 @@ test("uses an idempotent settlement and type upsert key", async () => {
 
   for (const call of prismaClient.calls.upsert) {
     assert.deepEqual(call.where, {
-      settlementId_type: {
-        settlementId: "settlement_1",
-        type: "SETTLEMENT_CREDIT",
-      },
+      idempotencyKey: "settlement-credit:settlement_1",
     });
   }
 });

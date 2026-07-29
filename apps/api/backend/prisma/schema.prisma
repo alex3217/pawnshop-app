@@ -56,6 +56,12 @@ model User {
   reviewedOwnerApplications     OwnerApplication[]             @relation("OwnerApplicationReviewer")
   ownerApplicationResubmissions OwnerApplicationResubmission[]
   notifications                 Notification[]
+  stripeRefundsRequested        StripeRefund[]                 @relation("StripeRefundRequestedBy")
+  stripeRefundAuditEvents       StripeRefundAuditEvent[]       @relation("StripeRefundAuditActor")
+  stripeRefundsAsBuyer          StripeRefund[]                 @relation("StripeRefundBuyer")
+  stripeRefundsAsSeller         StripeRefund[]                 @relation("StripeRefundSeller")
+  stripeDisputesAsBuyer         StripeDispute[]                @relation("StripeDisputeBuyer")
+  stripeDisputesAsSeller        StripeDispute[]                @relation("StripeDisputeSeller")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -243,6 +249,8 @@ model PawnShop {
   customerSellFulfillments           CustomerSellFulfillment[]
   customerSellPayments               CustomerSellPayment[]
   customerSellReceipts               CustomerSellReceipt[]
+  stripeRefunds                      StripeRefund[]             @relation("StripeRefundShop")
+  stripeDisputes                     StripeDispute[]            @relation("StripeDisputeShop")
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -420,6 +428,8 @@ model Settlement {
   offer               Offer?                @relation(fields: [offerId], references: [id])
   winner              User                  @relation("SettlementWinner", fields: [winnerUserId], references: [id])
   sellerLedgerEntries SellerBalanceLedger[] @relation("SettlementSellerLedgerEntries")
+  stripeRefunds       StripeRefund[]
+  stripeDisputes      StripeDispute[]
 
   @@index([winnerUserId, status])
   @@index([status, createdAt])
@@ -875,6 +885,7 @@ enum SettlementStatus {
   FAILED
   CANCELED
   REFUNDED
+  DISPUTED
 }
 
 enum FulfillmentStatus {
@@ -1000,6 +1011,9 @@ model MarketplaceTransaction {
   customerSellPayment     CustomerSellPayment?
   customerSellReceipt     CustomerSellReceipt?
   events                  MarketplaceTransactionEvent[]
+  stripeRefunds           StripeRefund[]
+  stripeDisputes          StripeDispute[]
+  sellerLedgerEntries     SellerBalanceLedger[]
 
   @@index([listingId, status])
   @@index([buyerUserId, status, createdAt])
@@ -1176,6 +1190,146 @@ enum SellerLedgerEntryStatus {
   REVERSED
 }
 
+enum StripeRefundStatus {
+  REQUESTED
+  PENDING
+  REQUIRES_ACTION
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum StripeDisputeStatus {
+  WARNING_NEEDS_RESPONSE
+  WARNING_UNDER_REVIEW
+  WARNING_CLOSED
+  NEEDS_RESPONSE
+  UNDER_REVIEW
+  WON
+  LOST
+  PREVENTED
+  UNKNOWN
+}
+
+enum StripeRecoveryRequirement {
+  NONE
+  TRANSFER_REVERSAL_REQUIRED
+  PLATFORM_RECOVERY_REQUIRED
+}
+
+model StripeRefund {
+  id                       String                    @id @default(cuid())
+  stripeRefundId           String?                   @unique
+  idempotencyKey           String                    @unique
+  settlementId             String?
+  marketplaceTransactionId String?
+  paymentIntentId          String
+  chargeId                 String?
+  buyerUserId              String
+  sellerUserId             String
+  shopId                   String?
+  requestedByUserId        String
+  amountCents              Int
+  currency                 String                    @default("USD")
+  reason                   String
+  stripeReason             String?
+  status                   StripeRefundStatus        @default(REQUESTED)
+  failureCode              String?
+  failureMessage           String?
+  transferAlreadySent      Boolean                   @default(false)
+  recoveryRequirement      StripeRecoveryRequirement @default(NONE)
+  requestedAt              DateTime                  @default(now())
+  succeededAt              DateTime?
+  failedAt                 DateTime?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+
+  settlement             Settlement?              @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  marketplaceTransaction MarketplaceTransaction?  @relation(fields: [marketplaceTransactionId], references: [id], onDelete: Restrict)
+  buyer                  User                     @relation("StripeRefundBuyer", fields: [buyerUserId], references: [id], onDelete: Restrict)
+  seller                 User                     @relation("StripeRefundSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  shop                   PawnShop?                @relation("StripeRefundShop", fields: [shopId], references: [id], onDelete: SetNull)
+  requestedBy            User                     @relation("StripeRefundRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  ledgerEntry            SellerBalanceLedger?
+  auditEvents            StripeRefundAuditEvent[]
+
+  @@index([settlementId, status])
+  @@index([marketplaceTransactionId, status])
+  @@index([paymentIntentId])
+  @@index([chargeId])
+  @@index([buyerUserId, createdAt])
+  @@index([sellerUserId, createdAt])
+  @@index([shopId, createdAt])
+}
+
+model StripeRefundAuditEvent {
+  id            String   @id @default(cuid())
+  refundId      String
+  eventType     String
+  stripeEventId String?  @unique
+  actorUserId   String?
+  reason        String?
+  snapshot      Json
+  createdAt     DateTime @default(now())
+
+  refund StripeRefund @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  actor  User?        @relation("StripeRefundAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([refundId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model StripeDispute {
+  id                       String                    @id @default(cuid())
+  stripeDisputeId          String                    @unique
+  settlementId             String?
+  marketplaceTransactionId String?
+  paymentIntentId          String?
+  chargeId                 String
+  buyerUserId              String?
+  sellerUserId             String
+  shopId                   String?
+  amountCents              Int
+  currency                 String                    @default("USD")
+  reason                   String
+  status                   StripeDisputeStatus       @default(UNKNOWN)
+  fundsWithdrawn           Boolean                   @default(false)
+  fundsReinstated          Boolean                   @default(false)
+  transferAlreadySent      Boolean                   @default(false)
+  recoveryRequirement      StripeRecoveryRequirement @default(NONE)
+  evidenceDueAt            DateTime?
+  closedAt                 DateTime?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+
+  settlement             Settlement?             @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  marketplaceTransaction MarketplaceTransaction? @relation(fields: [marketplaceTransactionId], references: [id], onDelete: Restrict)
+  buyer                  User?                   @relation("StripeDisputeBuyer", fields: [buyerUserId], references: [id], onDelete: SetNull)
+  seller                 User                    @relation("StripeDisputeSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  shop                   PawnShop?               @relation("StripeDisputeShop", fields: [shopId], references: [id], onDelete: SetNull)
+  ledgerEntries          SellerBalanceLedger[]
+  events                 StripeDisputeEvent[]
+
+  @@index([settlementId, status])
+  @@index([marketplaceTransactionId, status])
+  @@index([paymentIntentId])
+  @@index([chargeId])
+  @@index([shopId, createdAt])
+}
+
+model StripeDisputeEvent {
+  id            String   @id @default(cuid())
+  disputeId     String
+  stripeEventId String   @unique
+  eventType     String
+  snapshot      Json
+  createdAt     DateTime @default(now())
+
+  dispute StripeDispute @relation(fields: [disputeId], references: [id], onDelete: Restrict)
+
+  @@index([disputeId, createdAt])
+}
+
 enum SellerPayoutStatus {
   PENDING
   PROCESSING
@@ -1185,31 +1339,39 @@ enum SellerPayoutStatus {
 }
 
 model SellerBalanceLedger {
-  id           String                  @id @default(cuid())
-  settlementId String?
-  payoutId     String?
-  sellerUserId String
-  shopId       String
-  type         SellerLedgerEntryType
-  status       SellerLedgerEntryStatus @default(PENDING)
-  amountCents  Int
-  currency     String                  @default("USD")
-  availableAt  DateTime?
-  description  String?
-  metadata     Json?
-  createdAt    DateTime                @default(now())
-  updatedAt    DateTime                @updatedAt
+  id                       String                  @id @default(cuid())
+  settlementId             String?
+  marketplaceTransactionId String?
+  payoutId                 String?
+  refundId                 String?                 @unique
+  disputeId                String?
+  idempotencyKey           String?                 @unique
+  sellerUserId             String
+  shopId                   String
+  type                     SellerLedgerEntryType
+  status                   SellerLedgerEntryStatus @default(PENDING)
+  amountCents              Int
+  currency                 String                  @default("USD")
+  availableAt              DateTime?
+  description              String?
+  metadata                 Json?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
 
-  settlement Settlement?   @relation("SettlementSellerLedgerEntries", fields: [settlementId], references: [id], onDelete: Restrict)
-  payout     SellerPayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
-  seller     User          @relation("SellerBalanceLedgerUser", fields: [sellerUserId], references: [id], onDelete: Restrict)
-  shop       PawnShop      @relation("SellerBalanceLedgerShop", fields: [shopId], references: [id], onDelete: Restrict)
+  settlement             Settlement?             @relation("SettlementSellerLedgerEntries", fields: [settlementId], references: [id], onDelete: Restrict)
+  marketplaceTransaction MarketplaceTransaction? @relation(fields: [marketplaceTransactionId], references: [id], onDelete: Restrict)
+  payout                 SellerPayout?           @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  refund                 StripeRefund?           @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  dispute                StripeDispute?          @relation(fields: [disputeId], references: [id], onDelete: Restrict)
+  seller                 User                    @relation("SellerBalanceLedgerUser", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  shop                   PawnShop                @relation("SellerBalanceLedgerShop", fields: [shopId], references: [id], onDelete: Restrict)
 
-  @@unique([settlementId, type])
   @@index([sellerUserId, status, createdAt])
   @@index([shopId, status, createdAt])
   @@index([payoutId])
   @@index([settlementId])
+  @@index([marketplaceTransactionId])
+  @@index([disputeId])
   @@index([type, status])
 }
 

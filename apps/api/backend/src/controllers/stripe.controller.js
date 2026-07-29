@@ -21,6 +21,11 @@ import {
   syncStripeConnectAccountUpdated,
 } from "../services/stripeConnect.service.js";
 import { syncPayoutTransferEvent } from "../services/payouts/payoutRequest.service.js";
+import {
+  requestStripeRefund,
+  syncStripeDisputeEvent,
+  syncStripeRefundEvent,
+} from "../services/stripeRefundDispute.service.js";
 
 const PI_REUSABLE_STATUSES = new Set([
   "requires_payment_method",
@@ -439,6 +444,28 @@ export async function createSettlementPaymentIntent(req, res) {
   }
 }
 
+export async function createStripeRefund(req, res) {
+  try {
+    const requesterId = getRequestUserId(req);
+    const result = await requestStripeRefund({
+      settlementId: normalizeId(req?.body?.settlementId) || undefined,
+      marketplaceTransactionId:
+        normalizeId(req?.body?.marketplaceTransactionId) || undefined,
+      amountCents: req?.body?.amountCents,
+      reason: req?.body?.reason,
+      requesterId,
+      requestKey: req.headers["idempotency-key"],
+    });
+    return res.status(result.created ? 201 : 200).json({
+      success: true,
+      created: result.created,
+      refund: result.refund,
+    });
+  } catch (err) {
+    return errorResponse(res, err, "Failed to create Stripe refund");
+  }
+}
+
 export async function handleStripeWebhook(req, res) {
   try {
     const stripe = getStripe();
@@ -459,6 +486,37 @@ export async function handleStripeWebhook(req, res) {
     );
 
     switch (event.type) {
+      case "refund.created":
+      case "refund.updated":
+      case "refund.failed": {
+        await syncStripeRefundEvent({
+          stripeRefund: event.data.object,
+          eventType: event.type,
+          stripeEventId: event.id,
+          prismaClient: prisma,
+        });
+        break;
+      }
+      case "charge.dispute.created":
+      case "charge.dispute.updated":
+      case "charge.dispute.funds_withdrawn":
+      case "charge.dispute.funds_reinstated":
+      case "charge.dispute.closed": {
+        const dispute = event.data.object;
+        if (!dispute.payment_intent && dispute.charge) {
+          const charge = await stripe.charges.retrieve(
+            typeof dispute.charge === "object" ? dispute.charge.id : dispute.charge,
+          );
+          dispute.payment_intent = charge?.payment_intent || null;
+        }
+        await syncStripeDisputeEvent({
+          dispute,
+          eventType: event.type,
+          stripeEventId: event.id,
+          prismaClient: prisma,
+        });
+        break;
+      }
       case "transfer.created":
       case "transfer.updated":
       case "transfer.reversed": {

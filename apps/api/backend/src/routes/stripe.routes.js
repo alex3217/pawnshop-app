@@ -3,12 +3,20 @@
 import { Router } from "express";
 import { authRequired, requireRole } from "../middleware/auth.js";
 import {
+  createStripeRefund,
   getStripeConfig,
   createSubscriptionCheckoutSession,
   createSettlementPaymentIntent,
 } from "../controllers/stripe.controller.js";
 
 const router = Router();
+
+router.post(
+  "/refunds",
+  authRequired,
+  requireRole("ADMIN", "SUPER_ADMIN"),
+  createStripeRefund,
+);
 
 const ALLOWED_PLAN_CODES = new Set(["FREE", "PRO", "PREMIUM", "ULTRA"]);
 const ALLOWED_BILLING_INTERVALS = new Set(["MONTH", "YEAR"]);
