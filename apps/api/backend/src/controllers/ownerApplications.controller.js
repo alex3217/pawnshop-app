@@ -247,4 +247,3 @@ export async function resubmitMyOwnerApplication(req, res) {
     return sendError(res, error, "Failed to resubmit owner application.");
   }
 }
-
