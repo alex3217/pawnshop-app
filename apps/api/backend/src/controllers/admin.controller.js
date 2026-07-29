@@ -1245,7 +1245,7 @@ export async function updateOwnerApplicationStatus(req, res) {
           throw error;
         }
 
-        await transaction.ownerApplicationReviewHistory.create({
+        const historyEntry = await transaction.ownerApplicationReviewHistory.create({
           data: {
             ownerApplicationId: existing.id,
             previousStatus: existing.status,
@@ -1259,6 +1259,49 @@ export async function updateOwnerApplicationStatus(req, res) {
             reviewedAt: now,
           },
         });
+
+        if (
+          new Set([
+            "INFORMATION_REQUESTED",
+            "APPROVED",
+            "REJECTED",
+            "SUSPENDED",
+          ]).has(nextStatus)
+        ) {
+          const notificationCopy = {
+            INFORMATION_REQUESTED: {
+              title: "Owner application needs information",
+              message:
+                decisionReason ||
+                "Please review the requested corrections and resubmit your application.",
+            },
+            APPROVED: {
+              title: "Owner application approved",
+              message: "Your owner application has been approved.",
+            },
+            REJECTED: {
+              title: "Owner application decision",
+              message: decisionReason || "Your owner application was not approved.",
+            },
+            SUSPENDED: {
+              title: "Owner access suspended",
+              message:
+                decisionReason ||
+                "Your approved-owner access has been suspended.",
+            },
+          }[nextStatus];
+
+          await transaction.notification.create({
+            data: {
+              userId: existing.ownerId,
+              type: `OWNER_APPLICATION_${nextStatus}`,
+              title: notificationCopy.title,
+              message: notificationCopy.message,
+              actionUrl: "/owner/application",
+              dedupeKey: `owner-application-status:${historyEntry.id}:${existing.ownerId}`,
+            },
+          });
+        }
 
         if (invalidateOwnerTokens) {
           await transaction.user.update({

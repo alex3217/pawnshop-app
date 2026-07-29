@@ -15,6 +15,7 @@ import {
 import ScrollToTopButton from "./ScrollToTopButton";
 import NavigationTour from "./onboarding/NavigationTour";
 import RoleSetupChecklist from "./onboarding/RoleSetupChecklist";
+import NotificationCenter from "./NotificationCenter";
 import "../styles/site-layout.css";
 
 type NavItem = {
@@ -76,6 +77,7 @@ const STAFF_AUCTION_ACTION_NAV: NavItem[] = [
 
 const OWNER_PRIMARY_NAV: NavItem[] = [
   { to: "/owner", label: "Owner Dashboard", end: true },
+  { to: "/owner/application", label: "Application Status" },
   { to: "/owner/onboarding", label: "Setup Wizard" },
   { to: "/owner/inventory", label: "Inventory" },
   { to: "/owner/item-intakes", label: "Intake Review" },
@@ -418,6 +420,7 @@ export default function SiteLayout() {
 
               {role ? (
                 <>
+                  <NotificationCenter />
                   <Link
                     to={dashboardHref}
                     className="site-primary-button"

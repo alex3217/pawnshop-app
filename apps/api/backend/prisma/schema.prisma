@@ -8,52 +8,54 @@ datasource db {
 }
 
 model User {
-  id                            String                        @id @default(cuid())
+  id                            String                         @id @default(cuid())
   name                          String
-  email                         String                        @unique
+  email                         String                         @unique
   password                      String
-  role                          Role                          @default(CONSUMER)
-  isActive                      Boolean                       @default(true)
+  role                          Role                           @default(CONSUMER)
+  isActive                      Boolean                        @default(true)
   emailVerifiedAt               DateTime?
-  authVersion                   Int                           @default(0)
+  authVersion                   Int                            @default(0)
   passwordChangedAt             DateTime?
-  createdAt                     DateTime                      @default(now())
-  updatedAt                     DateTime                      @updatedAt
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
   Bid                           Bid[]
   bidArchives                   BidArchive[]
   buyerSubscription             BuyerSubscription?
-  inventoryImportJobs           InventoryImportJob[]          @relation("UserInventoryImportJobs")
-  inventoryIntegrations         InventoryIntegration[]        @relation("UserInventoryIntegrations")
-  buyerOffers                   Offer[]                       @relation("OfferBuyer")
-  ownerOffers                   Offer[]                       @relation("OfferOwner")
+  inventoryImportJobs           InventoryImportJob[]           @relation("UserInventoryImportJobs")
+  inventoryIntegrations         InventoryIntegration[]         @relation("UserInventoryIntegrations")
+  buyerOffers                   Offer[]                        @relation("OfferBuyer")
+  ownerOffers                   Offer[]                        @relation("OfferOwner")
   shops                         PawnShop[]
-  savedSearches                 SavedSearch[]                 @relation("UserSavedSearches")
-  wonSettlements                Settlement[]                  @relation("SettlementWinner")
-  sellerLedgerEntries           SellerBalanceLedger[]         @relation("SellerBalanceLedgerUser")
-  sellerPayouts                 SellerPayout[]                @relation("SellerPayoutUser")
-  watchlistEntries              Watchlist[]                   @relation("UserWatchlist")
-  buyerItemSubmissions          BuyerItemSubmission[]         @relation("BuyerItemSubmissions")
-  buyerItemSubmissionOffers     BuyerItemSubmissionOffer[]    @relation("BuyerItemSubmissionOfferOwner")
-  updatedPlatformSettings       PlatformSetting[]             @relation("PlatformSettingUpdatedByUser")
-  staffMemberships              Staff[]                       @relation("StaffUser")
+  savedSearches                 SavedSearch[]                  @relation("UserSavedSearches")
+  wonSettlements                Settlement[]                   @relation("SettlementWinner")
+  sellerLedgerEntries           SellerBalanceLedger[]          @relation("SellerBalanceLedgerUser")
+  sellerPayouts                 SellerPayout[]                 @relation("SellerPayoutUser")
+  watchlistEntries              Watchlist[]                    @relation("UserWatchlist")
+  buyerItemSubmissions          BuyerItemSubmission[]          @relation("BuyerItemSubmissions")
+  buyerItemSubmissionOffers     BuyerItemSubmissionOffer[]     @relation("BuyerItemSubmissionOfferOwner")
+  updatedPlatformSettings       PlatformSetting[]              @relation("PlatformSettingUpdatedByUser")
+  staffMemberships              Staff[]                        @relation("StaffUser")
   autoBids                      AutoBid[]
-  capturedItemIntakes           ItemIntake[]                  @relation("ItemIntakeCapturedBy")
-  customerItemIntakes           ItemIntake[]                  @relation("ItemIntakeCustomer")
-  marketplaceListings           MarketplaceListing[]          @relation("MarketplaceListingSeller")
-  marketplacePurchases          MarketplaceTransaction[]      @relation("MarketplaceTransactionBuyer")
-  marketplaceSales              MarketplaceTransaction[]      @relation("MarketplaceTransactionSeller")
-  customerSellFulfillments      CustomerSellFulfillment[]     @relation("CustomerSellFulfillmentCustomer")
-  customerSellAcceptedOwner     CustomerSellFulfillment[]     @relation("CustomerSellFulfillmentAcceptedOwner")
-  customerSellActions           CustomerSellFulfillment[]     @relation("CustomerSellFulfillmentActor")
-  customerSellPaymentReceipts   CustomerSellPayment[]         @relation("CustomerSellPaymentCustomer")
-  customerSellPaymentsRecorded  CustomerSellPayment[]         @relation("CustomerSellPaymentRecorder")
-  customerSellEvents            MarketplaceTransactionEvent[] @relation("MarketplaceTransactionEventActor")
-  customerSellReceiptCustomer   CustomerSellReceipt[]         @relation("CustomerSellReceiptCustomer")
-  customerSellReceiptsCompleted CustomerSellReceipt[]         @relation("CustomerSellReceiptCompletedBy")
+  capturedItemIntakes           ItemIntake[]                   @relation("ItemIntakeCapturedBy")
+  customerItemIntakes           ItemIntake[]                   @relation("ItemIntakeCustomer")
+  marketplaceListings           MarketplaceListing[]           @relation("MarketplaceListingSeller")
+  marketplacePurchases          MarketplaceTransaction[]       @relation("MarketplaceTransactionBuyer")
+  marketplaceSales              MarketplaceTransaction[]       @relation("MarketplaceTransactionSeller")
+  customerSellFulfillments      CustomerSellFulfillment[]      @relation("CustomerSellFulfillmentCustomer")
+  customerSellAcceptedOwner     CustomerSellFulfillment[]      @relation("CustomerSellFulfillmentAcceptedOwner")
+  customerSellActions           CustomerSellFulfillment[]      @relation("CustomerSellFulfillmentActor")
+  customerSellPaymentReceipts   CustomerSellPayment[]          @relation("CustomerSellPaymentCustomer")
+  customerSellPaymentsRecorded  CustomerSellPayment[]          @relation("CustomerSellPaymentRecorder")
+  customerSellEvents            MarketplaceTransactionEvent[]  @relation("MarketplaceTransactionEventActor")
+  customerSellReceiptCustomer   CustomerSellReceipt[]          @relation("CustomerSellReceiptCustomer")
+  customerSellReceiptsCompleted CustomerSellReceipt[]          @relation("CustomerSellReceiptCompletedBy")
   accountActionTokens           AccountActionToken[]
   legalConsents                 LegalConsent[]
-  ownerApplication              OwnerApplication?             @relation("OwnerApplicationOwner")
-  reviewedOwnerApplications     OwnerApplication[]            @relation("OwnerApplicationReviewer")
+  ownerApplication              OwnerApplication?              @relation("OwnerApplicationOwner")
+  reviewedOwnerApplications     OwnerApplication[]             @relation("OwnerApplicationReviewer")
+  ownerApplicationResubmissions OwnerApplicationResubmission[]
+  notifications                 Notification[]
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -93,9 +95,41 @@ model OwnerApplication {
   owner         User                            @relation("OwnerApplicationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   reviewedBy    User?                           @relation("OwnerApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewHistory OwnerApplicationReviewHistory[]
+  resubmissions OwnerApplicationResubmission[]
 
   @@index([status, createdAt])
   @@index([reviewedById])
+}
+
+model OwnerApplicationResubmission {
+  id                 String                 @id @default(cuid())
+  ownerApplicationId String
+  ownerId            String
+  previousStatus     OwnerApplicationStatus
+  newStatus          OwnerApplicationStatus
+  submittedAt        DateTime               @default(now())
+
+  ownerApplication OwnerApplication @relation(fields: [ownerApplicationId], references: [id], onDelete: Cascade)
+  owner            User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerApplicationId, submittedAt, id])
+  @@index([ownerId, submittedAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  actionUrl String?
+  dedupeKey String    @unique
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
 }
 
 model OwnerApplicationReviewHistory {

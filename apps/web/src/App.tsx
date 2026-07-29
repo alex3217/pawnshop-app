@@ -176,6 +176,9 @@ const OwnerLocationsPage = lazyPage(() => import("./pages/OwnerLocationsPage"));
 const OwnerOnboardingPage = lazyPage(() =>
   import("./pages/OwnerOnboardingPage"),
 );
+const OwnerApplicationPage = lazyPage(() =>
+  import("./pages/OwnerApplicationPage"),
+);
 const OwnerStaffPage = lazyPage(() => import("./pages/OwnerStaffPage"));
 const OwnerSubscriptionPage = lazyPage(() =>
   import("./pages/OwnerSubscriptionPage"),
@@ -324,6 +327,10 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner/subscription", element: <OwnerSubscriptionPage /> },
 ];
 
+const ownerApplicantRoutes: RouteConfig[] = [
+  { path: "/owner/application", element: <OwnerApplicationPage /> },
+];
+
 const shopAuctionReadRoutes: RouteConfig[] = [
   {
     path: "/owner/auctions",
@@ -410,6 +417,7 @@ export default function App() {
       <Routes>
         <Route element={<SiteLayout />}>
           {renderRouteGroup(publicRoutes, "public")}
+          {renderRouteGroup(ownerApplicantRoutes, "owner-applicant", ["OWNER"])}
           {renderRouteGroup(consumerRoutes, "consumer", CONSUMER_ROLES)}
           <Route element={<RequireApprovedOwner />}>
             {ownerRoutes.map((route, index) =>

@@ -1122,3 +1122,379 @@ test(
     assert.equal(approve.status, 409);
   },
 );
+
+test(
+  "owner can read only the applicant-safe view and update only allowlisted fields when information is requested",
+  async () => {
+    const first = await createOwnerApplication({
+      prefix: "applicant-update-first",
+      status: "INFORMATION_REQUESTED",
+    });
+    const second = await createOwnerApplication({
+      prefix: "applicant-update-second",
+      status: "INFORMATION_REQUESTED",
+    });
+    await prisma.ownerApplication.update({
+      where: { id: first.application.id },
+      data: {
+        decisionReason: "Provide the current license number.",
+        adminNotes: "Private fraud-screening note.",
+      },
+    });
+
+    const view = await request(app)
+      .get("/api/owner-applications/me")
+      .set("Authorization", authorizationFor(first.owner));
+    assert.equal(view.status, 200);
+    assert.equal(view.body.application.id, first.application.id);
+    assert.equal(
+      view.body.application.decisionReason,
+      "Provide the current license number.",
+    );
+    assert.equal("adminNotes" in view.body.application, false);
+    assert.equal("reviewedById" in view.body.application, false);
+    assert.equal("reviewHistory" in view.body.application, false);
+
+    const malicious = await request(app)
+      .patch("/api/owner-applications/me")
+      .set("Authorization", authorizationFor(first.owner))
+      .send({
+        businessName: "Changed Name",
+        id: second.application.id,
+        ownerId: second.owner.id,
+        status: "APPROVED",
+        reviewedAt: new Date().toISOString(),
+        adminNotes: "erase",
+      });
+    assert.equal(malicious.status, 400);
+
+    const updated = await request(app)
+      .patch("/api/owner-applications/me")
+      .set("Authorization", authorizationFor(first.owner))
+      .send({
+        businessName: "Corrected Pawn",
+        businessEmail: "corrected@example.test",
+        licenseNumber: "LIC-2026-42",
+        licenseState: "IL",
+        businessAddress: {
+          line1: "123 Main Street",
+          city: "Springfield",
+          state: "IL",
+          postalCode: "62701",
+          country: "US",
+        },
+      });
+    assert.equal(updated.status, 200);
+    assert.equal(updated.body.application.businessName, "Corrected Pawn");
+
+    const untouched = await prisma.ownerApplication.findUnique({
+      where: { id: second.application.id },
+    });
+    assert.equal(
+      untouched.businessName,
+      "applicant-update-second Pawn Shop",
+    );
+    assert.equal(untouched.status, "INFORMATION_REQUESTED");
+  },
+);
+
+test(
+  "owner updates and resubmission reject invalid statuses and duplicate submissions",
+  async () => {
+    for (const status of [
+      "PENDING",
+      "IN_REVIEW",
+      "APPROVED",
+      "REJECTED",
+      "SUSPENDED",
+    ]) {
+      const result = await createOwnerApplication({
+        prefix: `applicant-invalid-${status.toLowerCase()}`,
+        status,
+      });
+      const update = await request(app)
+        .patch("/api/owner-applications/me")
+        .set("Authorization", authorizationFor(result.owner))
+        .send({ businessName: "Not allowed" });
+      assert.equal(update.status, 409, status);
+
+      const resubmission = await request(app)
+        .post("/api/owner-applications/me/resubmit")
+        .set("Authorization", authorizationFor(result.owner))
+        .send({});
+      assert.equal(resubmission.status, 409, status);
+    }
+
+    const requested = await createOwnerApplication({
+      prefix: "applicant-duplicate",
+      status: "INFORMATION_REQUESTED",
+    });
+    const first = await request(app)
+      .post("/api/owner-applications/me/resubmit")
+      .set("Authorization", authorizationFor(requested.owner))
+      .send({});
+    assert.equal(first.status, 200);
+    assert.equal(first.body.application.status, "IN_REVIEW");
+
+    const duplicate = await request(app)
+      .post("/api/owner-applications/me/resubmit")
+      .set("Authorization", authorizationFor(requested.owner))
+      .send({});
+    assert.equal(duplicate.status, 409);
+  },
+);
+
+test(
+  "resubmission atomically records applicant history, notifies active administrators, and does not grant owner access",
+  async () => {
+    const admin = await createUser({
+      prefix: "resubmit-admin",
+      role: "ADMIN",
+    });
+    const superAdmin = await createUser({
+      prefix: "resubmit-super-admin",
+      role: "SUPER_ADMIN",
+    });
+    const inactiveAdmin = await createUser({
+      prefix: "resubmit-inactive-admin",
+      role: "ADMIN",
+    });
+    await prisma.user.update({
+      where: { id: inactiveAdmin.id },
+      data: { isActive: false },
+    });
+    const result = await createOwnerApplication({
+      prefix: "resubmit-owner",
+      status: "INFORMATION_REQUESTED",
+      businessName: "Resubmit Pawn",
+    });
+
+    const response = await request(app)
+      .post("/api/owner-applications/me/resubmit")
+      .set("Authorization", authorizationFor(result.owner))
+      .send({});
+    assert.equal(response.status, 200);
+    assert.equal(response.body.application.status, "IN_REVIEW");
+
+    const events = await prisma.ownerApplicationResubmission.findMany({
+      where: { ownerApplicationId: result.application.id },
+    });
+    assert.equal(events.length, 1);
+    assert.equal(events[0].ownerId, result.owner.id);
+    assert.equal(events[0].previousStatus, "INFORMATION_REQUESTED");
+    assert.equal(events[0].newStatus, "IN_REVIEW");
+
+    const notifications = await prisma.notification.findMany({
+      where: {
+        userId: { in: [admin.id, superAdmin.id] },
+        type: "OWNER_APPLICATION_RESUBMITTED",
+      },
+    });
+    assert.equal(notifications.length, 2);
+    assert.equal(new Set(notifications.map((entry) => entry.dedupeKey)).size, 2);
+    assert.equal(
+      await prisma.notification.count({
+        where: {
+          userId: inactiveAdmin.id,
+          type: "OWNER_APPLICATION_RESUBMITTED",
+        },
+      }),
+      0,
+    );
+
+    const businessAccess = await request(app)
+      .get("/api/shops/mine")
+      .set("Authorization", authorizationFor(result.owner));
+    assert.equal(businessAccess.status, 403);
+    assert.equal(
+      businessAccess.body.ownerApplicationStatus,
+      "IN_REVIEW",
+    );
+  },
+);
+
+test(
+  "applicant receives exactly one safe notification for all four notifiable administrator decisions",
+  async () => {
+    const admin = await createUser({
+      prefix: "decision-notification-admin",
+      role: "ADMIN",
+    });
+    const reviewResult = await createOwnerApplication({
+      prefix: "decision-notification-review-owner",
+    });
+    const rejectedResult = await createOwnerApplication({
+      prefix: "decision-notification-rejected-owner",
+    });
+    const reviewPath =
+      `/api/admin/owner-applications/${reviewResult.application.id}/status`;
+    const rejectedPath =
+      `/api/admin/owner-applications/${rejectedResult.application.id}/status`;
+
+    for (const [status, reason, notes] of [
+      [
+        "INFORMATION_REQUESTED",
+        "Upload the renewed license.",
+        "PRIVATE_INFO_REQUEST_NOTE",
+      ],
+      [
+        "APPROVED",
+        null,
+        "PRIVATE_APPROVAL_NOTE",
+      ],
+      [
+        "SUSPENDED",
+        "The license expired.",
+        "PRIVATE_SUSPENSION_NOTE",
+      ],
+    ]) {
+      const response = await request(app)
+        .patch(reviewPath)
+        .set("Authorization", authorizationFor(admin))
+        .send({
+          status,
+          ...(reason ? { decisionReason: reason } : {}),
+          adminNotes: notes,
+        });
+      assert.equal(response.status, 200);
+
+      const duplicate = await request(app)
+        .patch(reviewPath)
+        .set("Authorization", authorizationFor(admin))
+        .send({
+          status,
+          ...(reason ? { decisionReason: reason } : {}),
+          adminNotes: notes,
+        });
+      assert.equal(duplicate.status, 409);
+    }
+
+    const rejected = await request(app)
+      .patch(rejectedPath)
+      .set("Authorization", authorizationFor(admin))
+      .send({
+        status: "REJECTED",
+        decisionReason: "License could not be verified.",
+        adminNotes: "PRIVATE_REJECTION_NOTE",
+      });
+    assert.equal(rejected.status, 200);
+
+    const duplicateRejection = await request(app)
+      .patch(rejectedPath)
+      .set("Authorization", authorizationFor(admin))
+      .send({
+        status: "REJECTED",
+        decisionReason: "License could not be verified.",
+      });
+    assert.equal(duplicateRejection.status, 409);
+
+    const notifications = await prisma.notification.findMany({
+      where: {
+        userId: {
+          in: [reviewResult.owner.id, rejectedResult.owner.id],
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    assert.equal(notifications.length, 4);
+    assert.deepEqual(
+      new Set(notifications.map((entry) => entry.type)),
+      new Set([
+        "OWNER_APPLICATION_INFORMATION_REQUESTED",
+        "OWNER_APPLICATION_APPROVED",
+        "OWNER_APPLICATION_REJECTED",
+        "OWNER_APPLICATION_SUSPENDED",
+      ]),
+    );
+    assert.deepEqual(
+      notifications.map((entry) => entry.actionUrl),
+      [
+        "/owner/application",
+        "/owner/application",
+        "/owner/application",
+        "/owner/application",
+      ],
+    );
+    assert.equal(new Set(notifications.map((entry) => entry.dedupeKey)).size, 4);
+
+    const serializedNotifications = JSON.stringify(notifications);
+    for (const privateValue of [
+      "PRIVATE_INFO_REQUEST_NOTE",
+      "PRIVATE_APPROVAL_NOTE",
+      "PRIVATE_SUSPENSION_NOTE",
+      "PRIVATE_REJECTION_NOTE",
+      admin.id,
+      admin.email,
+    ]) {
+      assert.equal(serializedNotifications.includes(privateValue), false);
+    }
+  },
+);
+
+test(
+  "notification reads and read receipts are scoped to the authenticated user",
+  async () => {
+    const first = await createOwnerApplication({
+      prefix: "notification-scope-first",
+    });
+    const second = await createOwnerApplication({
+      prefix: "notification-scope-second",
+    });
+    const firstNotification = await prisma.notification.create({
+      data: {
+        userId: first.owner.id,
+        type: "OWNER_APPLICATION_INFORMATION_REQUESTED",
+        title: "Owner application needs information",
+        message: "Review the requested corrections.",
+        actionUrl: "/owner/application",
+        dedupeKey: `notification-scope:${first.owner.id}`,
+      },
+    });
+    const secondNotification = await prisma.notification.create({
+      data: {
+        userId: second.owner.id,
+        type: "OWNER_APPLICATION_APPROVED",
+        title: "Owner application approved",
+        message: "Your owner application has been approved.",
+        actionUrl: "/owner/application",
+        dedupeKey: `notification-scope:${second.owner.id}`,
+      },
+    });
+
+    const firstList = await request(app)
+      .get("/api/notifications")
+      .set("Authorization", authorizationFor(first.owner));
+    assert.equal(firstList.status, 200);
+    assert.deepEqual(
+      firstList.body.notifications.map((entry) => entry.id),
+      [firstNotification.id],
+    );
+
+    const markOther = await request(app)
+      .patch(`/api/notifications/${secondNotification.id}/read`)
+      .set("Authorization", authorizationFor(first.owner))
+      .send({});
+    assert.equal(markOther.status, 404);
+    assert.equal(
+      (
+        await prisma.notification.findUnique({
+          where: { id: secondNotification.id },
+        })
+      ).readAt,
+      null,
+    );
+
+    const markOwn = await request(app)
+      .patch(`/api/notifications/${firstNotification.id}/read`)
+      .set("Authorization", authorizationFor(first.owner))
+      .send({});
+    assert.equal(markOwn.status, 200);
+    assert.ok(
+      (
+        await prisma.notification.findUnique({
+          where: { id: firstNotification.id },
+        })
+      ).readAt,
+    );
+  },
+);

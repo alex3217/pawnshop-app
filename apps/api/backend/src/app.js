@@ -34,6 +34,8 @@ import stripeRoutes from "./routes/stripe.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes.js";
+import ownerApplicationsRoutes from "./routes/ownerApplications.routes.js";
+import notificationsRoutes from "./routes/notifications.routes.js";
 import { prisma } from "./lib/prisma.js";
 
 const currentFile = fileURLToPath(import.meta.url);
@@ -373,6 +375,8 @@ export function createApp(options = {}) {
   );
 
   mountApi(app, "/auth", authRoutes);
+  mountApi(app, "/owner-applications", ownerApplicationsRoutes);
+  mountApi(app, "/notifications", notificationsRoutes);
   mountApi(app, "/shops", shopRoutes);
   mountApi(app, "/locations", locationsRoutes);
   mountApi(app, "/items", itemRoutes);
