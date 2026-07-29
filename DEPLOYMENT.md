@@ -96,6 +96,20 @@ Stripe events needed:
     customer.subscription.updated
     customer.subscription.deleted
 
+Connected-account bank payout reconciliation uses a separate webhook scope:
+
+    POST /api/webhooks/stripe/connect
+
+Configure that endpoint for events on connected accounts and set its signing
+secret as `STRIPE_CONNECT_WEBHOOK_SECRET`. Subscribe it to:
+
+    payout.created
+    payout.updated
+    payout.paid
+    payout.failed
+
+Do not reuse or expose either webhook signing secret.
+
 ## Current Verified Marketplace Payment Flow
 
     Owner creates item

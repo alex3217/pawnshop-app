@@ -21,6 +21,7 @@ import {
   syncStripeConnectAccountUpdated,
 } from "../services/stripeConnect.service.js";
 import { syncPayoutTransferEvent } from "../services/payouts/payoutRequest.service.js";
+import { syncStripeConnectedAccountPayoutEvent } from "../services/payouts/stripeConnectedAccountPayout.service.js";
 import {
   requestStripeRefund,
   syncStripeDisputeEvent,
@@ -696,5 +697,37 @@ export async function handleStripeWebhook(req, res) {
   } catch (err) {
     console.error("[stripe.webhook] error", err);
     return res.status(400).json({ error: err?.message || "Webhook failed" });
+  }
+}
+
+export async function handleStripeConnectWebhook(req, res) {
+  try {
+    const stripe = getStripe();
+    const signature = req.headers["stripe-signature"];
+    const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
+
+    if (!signature || !webhookSecret || webhookSecret.includes("REPLACE_ME")) {
+      return res.status(400).json({ error: "Stripe Connect webhook is not configured" });
+    }
+
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.from(req.body || "");
+    const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    const connectedPayoutTypes = new Set([
+      "payout.created",
+      "payout.updated",
+      "payout.paid",
+      "payout.failed",
+    ]);
+
+    if (connectedPayoutTypes.has(event.type)) {
+      await syncStripeConnectedAccountPayoutEvent({ event, prismaClient: prisma });
+    }
+
+    return res.json({ received: true });
+  } catch (err) {
+    console.error("[stripe.connect-webhook] error", err);
+    return res.status(400).json({ error: err?.message || "Connect webhook failed" });
   }
 }

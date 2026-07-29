@@ -230,7 +230,7 @@ export async function processPayoutRequest({
     if (!payout.shop.stripeConnectAccountId) {
       throw new PayoutRequestError("Stripe Connect setup is incomplete", 409, "CONNECT_INCOMPLETE");
     }
-    if (payout.status === "PAID") return payout;
+    if (["TRANSFERRED", "PAID"].includes(payout.status)) return payout;
     if (payout.status === "PROCESSING" && payout.stripeTransferId) return payout;
     if (payout.status === "PROCESSING") return payout;
     if (payout.status !== "PENDING") throw new PayoutRequestError("Payout cannot be processed", 409, "PAYOUT_NOT_PROCESSABLE");
@@ -240,7 +240,7 @@ export async function processPayoutRequest({
       include: { shop: { select: { stripeConnectAccountId: true } } },
     });
   });
-  if (claimed.status === "PAID" || claimed.stripeTransferId) return claimed;
+  if (["TRANSFERRED", "PAID"].includes(claimed.status) || claimed.stripeTransferId) return claimed;
 
   try {
     const transfer = await stripeClient.transfers.create({
@@ -252,8 +252,7 @@ export async function processPayoutRequest({
     return await prismaClient.sellerPayout.update({
       where: { id: claimed.id },
       data: {
-        status: "PAID", stripeTransferId: String(transfer.id),
-        providerPayoutId: String(transfer.id), paidAt: new Date(),
+        status: "TRANSFERRED", stripeTransferId: String(transfer.id),
         failureCode: null, failureMessage: null,
       },
     });

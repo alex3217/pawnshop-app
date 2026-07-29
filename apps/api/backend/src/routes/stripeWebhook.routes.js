@@ -1,7 +1,10 @@
 // File: apps/api/backend/src/routes/stripeWebhook.routes.js
 
 import { Router, raw } from "express";
-import { handleStripeWebhook } from "../controllers/stripe.controller.js";
+import {
+  handleStripeConnectWebhook,
+  handleStripeWebhook,
+} from "../controllers/stripe.controller.js";
 
 const router = Router();
 
@@ -55,9 +58,8 @@ function ensureRawBody(req, res, next) {
  * This route must be mounted before any global express.json() middleware
  * that would parse and mutate the body.
  */
-router.post(
-  "/",
-  raw({
+function stripeRawBody() {
+  return raw({
     type: (req) => {
       const contentType = req.headers["content-type"] || "";
       return typeof contentType === "string"
@@ -65,7 +67,20 @@ router.post(
         : false;
     },
     limit: process.env.STRIPE_WEBHOOK_BODY_LIMIT || "2mb",
-  }),
+  });
+}
+
+router.post(
+  "/connect",
+  stripeRawBody(),
+  requireStripeSignature,
+  ensureRawBody,
+  asyncRoute(handleStripeConnectWebhook)
+);
+
+router.post(
+  "/",
+  stripeRawBody(),
   requireStripeSignature,
   ensureRawBody,
   asyncRoute(handleStripeWebhook)
