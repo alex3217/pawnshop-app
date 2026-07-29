@@ -4,6 +4,7 @@ import App from "./App";
 import "./index.css";
 import "./styles/theme.css";
 import "./styles/readability-guard.css";
+import "./styles/owner-application-audit.css";
 
 
 const rootEl = document.getElementById("root");

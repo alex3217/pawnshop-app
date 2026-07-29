@@ -10,6 +10,7 @@ import AdminTableShell from "../components/AdminTableShell";
 import {
   adminApi,
   type AdminOwnerApplication,
+  type OwnerApplicationReviewHistoryEntry,
   type OwnerApplicationStatus,
   type PaginationMeta,
 } from "../services/adminApi";
@@ -39,6 +40,7 @@ const REASON_REQUIRED = new Set<OwnerApplicationStatus>([
 ]);
 
 const PAGE_LIMIT = 25;
+const HISTORY_PAGE_LIMIT = 10;
 
 function labelStatus(status: OwnerApplicationStatus) {
   return status.replaceAll("_", " ");
@@ -105,6 +107,10 @@ export default function AdminOwnerApplicationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<AdminOwnerApplication | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [history, setHistory] = useState<OwnerApplicationReviewHistoryEntry[]>([]);
+  const [historyPagination, setHistoryPagination] = useState<PaginationMeta | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [nextStatus, setNextStatus] = useState<OwnerApplicationStatus | "">("");
   const [decisionReason, setDecisionReason] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
@@ -151,8 +157,12 @@ export default function AdminOwnerApplicationsPage() {
   async function selectApplication(application: AdminOwnerApplication) {
     setSelected(application);
     setDetailLoading(true);
+    setHistory([]);
+    setHistoryPagination(null);
+    setHistoryError(null);
     setUpdateError(null);
     setNotice(null);
+    void loadHistory(application.id, 1);
     try {
       const response = await adminApi.getOwnerApplication(application.id);
       setSelected(response.application);
@@ -163,6 +173,27 @@ export default function AdminOwnerApplicationsPage() {
       setUpdateError(err instanceof Error ? err.message : "Failed to load application details.");
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function loadHistory(applicationId: string, historyPage: number) {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const response = await adminApi.getOwnerApplicationReviewHistory(
+        applicationId,
+        { page: historyPage, limit: HISTORY_PAGE_LIMIT },
+      );
+      setHistory(response.rows);
+      setHistoryPagination(response.pagination);
+    } catch (err) {
+      setHistory([]);
+      setHistoryPagination(null);
+      setHistoryError(
+        err instanceof Error ? err.message : "Failed to load review history."
+      );
+    } finally {
+      setHistoryLoading(false);
     }
   }
 
@@ -193,6 +224,7 @@ export default function AdminOwnerApplicationsPage() {
         adminNotes: adminNotes.trim(),
       });
       const refreshed = await adminApi.getOwnerApplication(selected.id);
+      await loadHistory(selected.id, 1);
       setSelected(refreshed.application);
       setAdminNotes(refreshed.application.adminNotes || "");
       setDecisionReason("");
@@ -329,6 +361,79 @@ export default function AdminOwnerApplicationsPage() {
                   <DetailItem label="Updated">{formatDate(selected.updatedAt)}</DetailItem>
                 </div></div>
               </div>
+
+              <section className="owner-application-audit list-card" style={{ marginTop: 16 }}
+                aria-labelledby="owner-application-audit-title">
+                <div className="toolbar">
+                  <div>
+                    <h3 id="owner-application-audit-title" style={{ margin: 0 }}>Review history</h3>
+                    <div className="muted">Newest administrator action first</div>
+                  </div>
+                  <button className="btn btn-secondary" type="button"
+                    disabled={historyLoading}
+                    onClick={() => void loadHistory(selected.id, historyPagination?.page || 1)}>
+                    {historyLoading ? "Loading…" : "Refresh history"}
+                  </button>
+                </div>
+
+                {historyLoading ? (
+                  <p className="owner-application-audit__state muted" role="status">
+                    Loading review history…
+                  </p>
+                ) : historyError ? (
+                  <div className="admin-notice danger owner-application-audit__state" role="alert">
+                    <div>{historyError}</div>
+                    <button className="btn btn-secondary" type="button"
+                      onClick={() => void loadHistory(selected.id, historyPagination?.page || 1)}>
+                      Try again
+                    </button>
+                  </div>
+                ) : history.length === 0 ? (
+                  <p className="owner-application-audit__state muted">
+                    No administrator review actions have been recorded yet.
+                  </p>
+                ) : (
+                  <>
+                    <ol className="owner-application-audit__timeline">
+                      {history.map((entry) => (
+                        <li className="owner-application-audit__entry" key={entry.id}>
+                          <div className="owner-application-audit__heading">
+                            <strong>{labelStatus(entry.previousStatus)} → {labelStatus(entry.newStatus)}</strong>
+                            <time dateTime={entry.reviewedAt || undefined}>{formatDate(entry.reviewedAt)}</time>
+                          </div>
+                          <div className="muted">
+                            {displayValue(entry.reviewer.name)} · {displayValue(entry.reviewer.email)}
+                          </div>
+                          <dl className="owner-application-audit__details">
+                            <div><dt>Decision reason</dt><dd>{displayValue(entry.decisionReason)}</dd></div>
+                            <div><dt>Administrator notes</dt><dd>{displayValue(entry.adminNotes)}</dd></div>
+                            <div><dt>Reviewer ID</dt><dd>{entry.reviewerId}</dd></div>
+                          </dl>
+                        </li>
+                      ))}
+                    </ol>
+                    {historyPagination ? (
+                      <div className="owner-application-audit__pagination">
+                        <span className="muted">
+                          Page {historyPagination.page} of {historyPagination.totalPages} · {historyPagination.total} actions
+                        </span>
+                        <div className="admin-action-row">
+                          <button className="btn btn-secondary" type="button"
+                            disabled={!historyPagination.hasPreviousPage || historyLoading}
+                            onClick={() => void loadHistory(selected.id, historyPagination.page - 1)}>
+                            Newer
+                          </button>
+                          <button className="btn btn-secondary" type="button"
+                            disabled={!historyPagination.hasNextPage || historyLoading}
+                            onClick={() => void loadHistory(selected.id, historyPagination.page + 1)}>
+                            Older
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </section>
 
               <div className="list-card" style={{ marginTop: 16 }}>
                 <h3>Update status</h3>

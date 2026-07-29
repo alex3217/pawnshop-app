@@ -120,6 +120,29 @@ export type OwnerApplicationDetailResponse = {
   application: AdminOwnerApplication;
 };
 
+export type OwnerApplicationReviewHistoryEntry = {
+  id: string;
+  ownerApplicationId: string;
+  previousStatus: OwnerApplicationStatus;
+  newStatus: OwnerApplicationStatus;
+  decisionReason: string | null;
+  adminNotes: string | null;
+  reviewerId: string;
+  reviewer: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    role: AdminUserRole | null;
+  };
+  reviewedAt: string | null;
+};
+
+export type OwnerApplicationReviewHistoryResponse = {
+  success: true;
+  rows: OwnerApplicationReviewHistoryEntry[];
+  pagination: PaginationMeta;
+};
+
 export type UpdateOwnerApplicationStatusInput = {
   status: OwnerApplicationStatus;
   decisionReason?: string;
@@ -883,6 +906,16 @@ export const adminApi = {
     adminRequest<OwnerApplicationDetailResponse>(
       `/admin/owner-applications/${encodeURIComponent(id)}`,
       { signal }
+    ),
+
+  getOwnerApplicationReviewHistory: (
+    id: string,
+    query: { page?: number; limit?: number } = {},
+    signal?: AbortSignal
+  ) =>
+    adminRequest<OwnerApplicationReviewHistoryResponse>(
+      `/admin/owner-applications/${encodeURIComponent(id)}/history`,
+      { query, signal }
     ),
 
   updateOwnerApplicationStatus: (
