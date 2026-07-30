@@ -1,0 +1,139 @@
+name: PawnLoop Staging Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Staging database operation
+        required: true
+        type: choice
+        default: status
+        options:
+          - status
+          - apply_migrations
+      confirmation:
+        description: Type APPLY_STAGING_MIGRATIONS when applying migrations
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pawnloop-staging-database
+  cancel-in-progress: false
+
+jobs:
+  staging-database:
+    name: Staging Database
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+
+    env:
+      APP_ENV: ${{ vars.APP_ENV }}
+      NODE_ENV: ${{ vars.NODE_ENV }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DATABASE_URL }}
+      EXPECTED_STAGING_ENDPOINT: ep-plain-grass-axg1z58i
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Verify staging target
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Refusing non-main execution."
+            exit 1
+          fi
+
+          if [ "${APP_ENV:-}" != "staging" ]; then
+            echo "APP_ENV must equal staging."
+            exit 1
+          fi
+
+          if [ "${NODE_ENV:-}" != "staging" ]; then
+            echo "NODE_ENV must equal staging."
+            exit 1
+          fi
+
+          node <<'NODE'
+          const value = process.env.DATABASE_URL || "";
+          const expected = process.env.EXPECTED_STAGING_ENDPOINT || "";
+
+          if (!value) {
+            console.error("Missing staging DATABASE_URL secret.");
+            process.exit(1);
+          }
+
+          let url;
+
+          try {
+            url = new URL(value);
+          } catch {
+            console.error("Staging DATABASE_URL is invalid.");
+            process.exit(1);
+          }
+
+          if (url.protocol !== "postgresql:" && url.protocol !== "postgres:") {
+            console.error("DATABASE_URL is not PostgreSQL.");
+            process.exit(1);
+          }
+
+          const approvedHost =
+            url.hostname === expected ||
+            url.hostname.startsWith(`${expected}.`);
+
+          if (!approvedHost) {
+            console.error("DATABASE_URL does not target the approved staging endpoint.");
+            process.exit(1);
+          }
+
+          console.log("Staging database target verified.");
+          NODE
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: npm
+          cache-dependency-path: apps/api/backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm --prefix apps/api/backend ci
+
+      - name: Validate Prisma schema
+        working-directory: apps/api/backend
+        run: |
+          npx --no-install prisma generate
+          npx --no-install prisma validate
+
+      - name: Inspect migration status
+        if: inputs.operation == 'status'
+        working-directory: apps/api/backend
+        run: npx --no-install prisma migrate status
+
+      - name: Verify migration confirmation
+        if: inputs.operation == 'apply_migrations'
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$CONFIRMATION" != "APPLY_STAGING_MIGRATIONS" ]; then
+            echo "Exact staging migration confirmation was not supplied."
+            exit 1
+          fi
+
+      - name: Apply staging migrations
+        if: inputs.operation == 'apply_migrations'
+        working-directory: apps/api/backend
+        run: npx --no-install prisma migrate deploy
+
+      - name: Verify migrations after application
+        if: inputs.operation == 'apply_migrations'
+        working-directory: apps/api/backend
+        run: npx --no-install prisma migrate status
