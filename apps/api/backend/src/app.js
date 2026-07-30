@@ -37,6 +37,11 @@ import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes
 import ownerApplicationsRoutes from "./routes/ownerApplications.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
 import { prisma } from "./lib/prisma.js";
+import {
+  loadAuthRateLimitConfig,
+  loadTrustProxyConfig,
+} from "./config/authRateLimit.js";
+import { createAuthRateLimiters } from "./middleware/authRateLimit.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -129,10 +134,6 @@ function createCorsOptions(allowedOrigins) {
   };
 }
 
-function shouldTrustProxy() {
-  return process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production";
-}
-
 function requestIdMiddleware(req, res, next) {
   const incomingId = String(req.headers["x-request-id"] || "").trim();
   const requestId = incomingId || crypto.randomUUID();
@@ -201,6 +202,14 @@ function createErrorResponse(err, req) {
 
 export function createApp(options = {}) {
   const app = express();
+  const trustProxyHops = loadTrustProxyConfig(process.env);
+  const authRateLimitConfig =
+    options.authRateLimitConfig || loadAuthRateLimitConfig(process.env);
+  const authRateLimiters = createAuthRateLimiters({
+    config: authRateLimitConfig,
+    store: options.authRateLimitStore,
+    now: options.now,
+  });
 
   const serviceName = process.env.APP_NAME || "pawnloop-api";
   const env = process.env.APP_ENV || process.env.NODE_ENV || "development";
@@ -237,8 +246,8 @@ export function createApp(options = {}) {
 
   app.disable("x-powered-by");
 
-  if (shouldTrustProxy()) {
-    app.set("trust proxy", 1);
+  if (trustProxyHops > 0) {
+    app.set("trust proxy", trustProxyHops);
   }
 
   app.use(requestIdMiddleware);
@@ -359,6 +368,8 @@ export function createApp(options = {}) {
   app.use("/webhooks/stripe", stripeWebhookRoutes);
   app.use("/api/webhooks/stripe", stripeWebhookRoutes);
 
+  app.use(authRateLimiters.beforeBody);
+
   app.use(
     express.json({
       limit: jsonLimit,
@@ -373,6 +384,8 @@ export function createApp(options = {}) {
       limit: urlencodedLimit,
     })
   );
+
+  app.use(authRateLimiters.afterBody);
 
   mountApi(app, "/auth", authRoutes);
   mountApi(app, "/owner-applications", ownerApplicationsRoutes);
