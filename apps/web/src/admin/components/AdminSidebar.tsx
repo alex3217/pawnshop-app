@@ -48,6 +48,11 @@ const SUPER_ADMIN_GROUPS: SidebarGroup[] = [
     groups: ["super-admin-marketplace"],
   },
   {
+    title: "Growth Center",
+    description: "Prospect discovery and qualification",
+    groups: ["super-admin-growth"],
+  },
+  {
     title: "Plans & Billing",
     description: "Plans, subscriptions, settlements, revenue",
     groups: ["super-admin-billing"],

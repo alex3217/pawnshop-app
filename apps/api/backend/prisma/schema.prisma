@@ -66,6 +66,10 @@ model User {
   betaInvitesIssued               BetaInvite[]                     @relation("BetaInviteIssuedBy")
   betaInvitesRevoked              BetaInvite[]                     @relation("BetaInviteRevokedBy")
   betaInviteRedemptions           BetaInviteRedemption[]
+  assignedPawnShopLeads           PawnShopLead[]                   @relation("PawnShopLeadAssignee")
+  pawnShopLeadActivities          PawnShopLeadActivity[]           @relation("PawnShopLeadActivityActor")
+  pawnShopLeadImports             PawnShopLeadImport[]             @relation("PawnShopLeadImportCreator")
+  pawnShopLeadSuppressions        PawnShopLeadSuppression[]        @relation("PawnShopLeadSuppressionCreator")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -258,6 +262,7 @@ model PawnShop {
   customerSellPayments               CustomerSellPayment[]
   customerSellReceipts               CustomerSellReceipt[]
   stripeRefunds                      StripeRefund[]                   @relation("StripeRefundShop")
+  claimedGrowthLeads                 PawnShopLead[]                   @relation("PawnShopLeadClaimedShop")
   stripeDisputes                     StripeDispute[]                  @relation("StripeDisputeShop")
   stripeSubscriptionBillingEvents    StripeSubscriptionBillingEvent[]
 
@@ -1623,4 +1628,243 @@ model BetaInviteRedemption {
   @@unique([inviteId, userId])
   @@index([inviteId, redeemedAt])
   @@index([userId])
+}
+
+enum PawnShopLeadBusinessStatus {
+  DISCOVERED
+  ACTIVE
+  INACTIVE
+  CLOSED
+}
+
+enum PawnShopLeadVerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum PawnShopLeadOutreachStatus {
+  NOT_CONTACTED
+  CONTACTED
+  INTERESTED
+  DEMO_SCHEDULED
+  APPLICATION_STARTED
+  ONBOARDING
+  LIVE
+  DECLINED
+  DO_NOT_CONTACT
+}
+
+enum PawnShopLeadContactType {
+  OWNER
+  MANAGER
+  BUSINESS
+  LICENSING
+  OTHER
+}
+
+enum PawnShopLeadActivityType {
+  NOTE
+  CALL
+  EMAIL
+  MEETING
+  STATUS_CHANGE
+  FOLLOW_UP
+  SUPPRESSION
+}
+
+enum PawnShopLeadActivityChannel {
+  PHONE
+  EMAIL
+  IN_PERSON
+  VIDEO
+  INTERNAL
+  OTHER
+}
+
+enum PawnShopLeadActivityDirection {
+  INBOUND
+  OUTBOUND
+  INTERNAL
+}
+
+enum PawnShopLeadImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PawnShopLeadSourceType {
+  MANUAL
+  IMPORT
+  GOVERNMENT_DATASET
+  PUBLIC_WEBSITE
+  REFERRAL
+  OTHER
+}
+
+enum PawnShopLeadCollectionMethod {
+  MANUAL_ENTRY
+  FILE_IMPORT
+  APPROVED_DATASET
+  PERMITTED_COLLECTION
+  OTHER
+}
+
+model PawnShopLead {
+  id                    String                         @id @default(cuid())
+  businessName          String
+  legalName             String?
+  addressLine1          String
+  addressLine2          String?
+  city                  String
+  state                 String
+  postalCode            String
+  country               String                         @default("US")
+  latitude              Float?
+  longitude             Float?
+  phone                 String?
+  publicEmail           String?
+  website               String?
+  facebookUrl           String?
+  instagramUrl          String?
+  linkedinUrl           String?
+  licenseNumber         String?
+  licenseAuthority      String?
+  licenseStatus         String?
+  licenseExpirationDate DateTime?
+  sourceType            PawnShopLeadSourceType
+  sourceName            String?
+  sourceUrl             String?
+  sourceRecordId        String?
+  businessStatus        PawnShopLeadBusinessStatus     @default(DISCOVERED)
+  verificationStatus    PawnShopLeadVerificationStatus @default(UNVERIFIED)
+  outreachStatus        PawnShopLeadOutreachStatus     @default(NOT_CONTACTED)
+  leadScore             Int                            @default(0)
+  assignedUserId        String?
+  claimedShopId         String?                        @unique
+  doNotContact          Boolean                        @default(false)
+  lastVerifiedAt        DateTime?
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
+
+  assignedUser User?                     @relation("PawnShopLeadAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  claimedShop  PawnShop?                 @relation("PawnShopLeadClaimedShop", fields: [claimedShopId], references: [id], onDelete: SetNull)
+  contacts     PawnShopLeadContact[]
+  activities   PawnShopLeadActivity[]
+  sources      PawnShopLeadSource[]
+  suppressions PawnShopLeadSuppression[]
+
+  @@index([businessName])
+  @@index([city, state])
+  @@index([verificationStatus, outreachStatus])
+  @@index([businessStatus, doNotContact])
+  @@index([assignedUserId])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model PawnShopLeadContact {
+  id                      String                         @id @default(cuid())
+  pawnShopLeadId          String
+  name                    String?
+  title                   String?
+  email                   String?
+  phone                   String?
+  contactType             PawnShopLeadContactType
+  isPublicBusinessContact Boolean                        @default(false)
+  verificationStatus      PawnShopLeadVerificationStatus @default(UNVERIFIED)
+  isPrimary               Boolean                        @default(false)
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+
+  pawnShopLead PawnShopLead @relation(fields: [pawnShopLeadId], references: [id], onDelete: Cascade)
+
+  @@index([pawnShopLeadId, isPrimary])
+}
+
+model PawnShopLeadActivity {
+  id             String                         @id @default(cuid())
+  pawnShopLeadId String
+  actorUserId    String?
+  activityType   PawnShopLeadActivityType
+  channel        PawnShopLeadActivityChannel?
+  direction      PawnShopLeadActivityDirection?
+  status         String?
+  subject        String?
+  notes          String?
+  occurredAt     DateTime                       @default(now())
+  nextFollowUpAt DateTime?
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+
+  pawnShopLead PawnShopLead @relation(fields: [pawnShopLeadId], references: [id], onDelete: Cascade)
+  actorUser    User?        @relation("PawnShopLeadActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([pawnShopLeadId, occurredAt])
+  @@index([nextFollowUpAt])
+}
+
+model PawnShopLeadSource {
+  id               String                       @id @default(cuid())
+  pawnShopLeadId   String
+  sourceType       PawnShopLeadSourceType
+  sourceName       String
+  sourceUrl        String?
+  sourceRecordId   String?
+  collectionMethod PawnShopLeadCollectionMethod
+  rawPayload       Json?
+  collectedAt      DateTime                     @default(now())
+  lastCheckedAt    DateTime?
+  termsReviewedAt  DateTime?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+
+  pawnShopLead PawnShopLead @relation(fields: [pawnShopLeadId], references: [id], onDelete: Cascade)
+
+  @@index([pawnShopLeadId, collectedAt])
+  @@index([sourceType, sourceRecordId])
+}
+
+model PawnShopLeadImport {
+  id              String                   @id @default(cuid())
+  fileName        String?
+  sourceName      String
+  sourceType      PawnShopLeadSourceType
+  status          PawnShopLeadImportStatus @default(PENDING)
+  recordsReceived Int                      @default(0)
+  recordsCreated  Int                      @default(0)
+  recordsUpdated  Int                      @default(0)
+  recordsRejected Int                      @default(0)
+  errors          Json?
+  startedAt       DateTime                 @default(now())
+  completedAt     DateTime?
+  createdByUserId String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  createdByUser User? @relation("PawnShopLeadImportCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, startedAt])
+}
+
+model PawnShopLeadSuppression {
+  id              String   @id @default(cuid())
+  pawnShopLeadId  String?
+  email           String?
+  phone           String?
+  reason          String
+  source          String
+  suppressedAt    DateTime @default(now())
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  pawnShopLead  PawnShopLead? @relation(fields: [pawnShopLeadId], references: [id], onDelete: SetNull)
+  createdByUser User?         @relation("PawnShopLeadSuppressionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([pawnShopLeadId])
+  @@index([email])
+  @@index([phone])
 }

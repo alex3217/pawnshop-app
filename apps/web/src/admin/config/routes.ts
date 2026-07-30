@@ -9,6 +9,7 @@ type AdminRouteGroup =
   | "admin-system"
   | "super-admin-core"
   | "super-admin-marketplace"
+  | "super-admin-growth"
   | "super-admin-billing"
   | "super-admin-governance";
 
@@ -201,6 +202,20 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     label: "Inventory Control",
     permissions: ["admin:inventory:read"],
     group: "super-admin-marketplace",
+  }),
+  route({
+    key: "superAdminGrowth",
+    path: "/super-admin/growth",
+    label: "Growth Center",
+    permissions: ["admin:shops:read"],
+    group: "super-admin-growth",
+  }),
+  route({
+    key: "superAdminGrowthLeads",
+    path: "/super-admin/growth/leads",
+    label: "Pawn Shop Directory",
+    permissions: ["admin:shops:read"],
+    group: "super-admin-growth",
   }),
 
   route({
