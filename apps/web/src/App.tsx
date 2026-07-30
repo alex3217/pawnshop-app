@@ -123,6 +123,15 @@ const SuperAdminBuyerPlansPage = lazyPage(() =>
 const SuperAdminBuyerSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminBuyerSubscriptionsPage"),
 );
+const GrowthCenterDashboardPage = lazyPage(() =>
+  import("./admin/pages/GrowthCenterDashboardPage"),
+);
+const GrowthLeadDirectoryPage = lazyPage(() =>
+  import("./admin/pages/GrowthLeadDirectoryPage"),
+);
+const GrowthLeadDetailPage = lazyPage(() =>
+  import("./admin/pages/GrowthLeadDetailPage"),
+);
 const AuctionDetailPage = lazyPage(() => import("./pages/AuctionDetailPage"));
 const AuctionsPage = lazyPage(() => import("./pages/AuctionsPage"));
 const BulkUploadPage = lazyPage(() => import("./pages/BulkUploadPage"));
@@ -384,6 +393,9 @@ const adminChildRoutes: RouteConfig[] = [
 const superAdminRoutes: RouteConfig[] = [
   { index: true, element: <SuperAdminOverviewPage /> },
   { path: "overview", element: <Navigate to="/super-admin" replace /> },
+  { path: "growth", element: <GrowthCenterDashboardPage /> },
+  { path: "growth/leads", element: <GrowthLeadDirectoryPage /> },
+  { path: "growth/leads/:leadId", element: <GrowthLeadDetailPage /> },
   { path: "users", element: <AdminUsersPage /> },
   { path: "shops", element: <AdminShopsPage /> },
   { path: "owners", element: <AdminOwnersPage /> },

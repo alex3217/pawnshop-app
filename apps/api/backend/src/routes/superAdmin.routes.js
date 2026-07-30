@@ -39,6 +39,20 @@ import {
   listBetaInvites,
   revokeBetaInvite,
 } from "../controllers/betaInvites.controller.js";
+import {
+  archiveGrowthLead,
+  convertGrowthLead,
+  createGrowthActivity,
+  createGrowthContact,
+  createGrowthLead,
+  getGrowthLead,
+  getGrowthSummary,
+  listGrowthActivities,
+  listGrowthLeads,
+  suppressGrowthLead,
+  updateGrowthContact,
+  updateGrowthLead,
+} from "../controllers/growthCenter.controller.js";
 
 const router = Router();
 
@@ -184,6 +198,9 @@ export const SUPER_ADMIN_ROUTE_MAP = Object.freeze({
   restoreIntegration: "PATCH /api/super-admin/integrations/:id/restore",
   platformSettings: "GET /api/super-admin/platform-settings",
   updatePlatformSettings: "PATCH /api/super-admin/platform-settings",
+  growthSummary: "GET /api/super-admin/growth/leads/summary",
+  growthLeads: "GET /api/super-admin/growth/leads",
+  growthLead: "GET /api/super-admin/growth/leads/:leadId",
 });
 
 function asyncRoute(handler) {
@@ -393,6 +410,66 @@ router.patch(
 );
 
 router.get("/revenue", asyncRoute(getSuperAdminRevenueSummary));
+
+router.get("/growth/leads/summary", asyncRoute(getGrowthSummary));
+router.get("/growth/leads", asyncRoute(listGrowthLeads));
+router.post(
+  "/growth/leads",
+  validateJsonObjectBody,
+  asyncRoute(createGrowthLead),
+);
+router.get(
+  "/growth/leads/:leadId",
+  validateIdParam("leadId", "Lead id"),
+  asyncRoute(getGrowthLead),
+);
+router.patch(
+  "/growth/leads/:leadId",
+  validateIdParam("leadId", "Lead id"),
+  validateJsonObjectBody,
+  asyncRoute(updateGrowthLead),
+);
+router.delete(
+  "/growth/leads/:leadId",
+  validateIdParam("leadId", "Lead id"),
+  asyncRoute(archiveGrowthLead),
+);
+router.post(
+  "/growth/leads/:leadId/contacts",
+  validateIdParam("leadId", "Lead id"),
+  validateJsonObjectBody,
+  asyncRoute(createGrowthContact),
+);
+router.patch(
+  "/growth/leads/:leadId/contacts/:contactId",
+  validateIdParam("leadId", "Lead id"),
+  validateIdParam("contactId", "Contact id"),
+  validateJsonObjectBody,
+  asyncRoute(updateGrowthContact),
+);
+router.post(
+  "/growth/leads/:leadId/activities",
+  validateIdParam("leadId", "Lead id"),
+  validateJsonObjectBody,
+  asyncRoute(createGrowthActivity),
+);
+router.get(
+  "/growth/leads/:leadId/activities",
+  validateIdParam("leadId", "Lead id"),
+  asyncRoute(listGrowthActivities),
+);
+router.post(
+  "/growth/leads/:leadId/suppress",
+  validateIdParam("leadId", "Lead id"),
+  validateJsonObjectBody,
+  asyncRoute(suppressGrowthLead),
+);
+router.post(
+  "/growth/leads/:leadId/convert",
+  validateIdParam("leadId", "Lead id"),
+  validateJsonObjectBody,
+  asyncRoute(convertGrowthLead),
+);
 
 
 router.get("/pricing-rules", asyncRoute(listSuperAdminPricingRules));
