@@ -33,6 +33,12 @@ import {
   createSuperAdminPricingRule,
   updateSuperAdminPricingRule,
 } from "../controllers/superAdmin.controller.js";
+import {
+  createBetaInvite,
+  getBetaInvite,
+  listBetaInvites,
+  revokeBetaInvite,
+} from "../controllers/betaInvites.controller.js";
 
 const router = Router();
 
@@ -326,6 +332,10 @@ router.get("/audit", asyncRoute(listSuperAdminAuditLogs));
 router.get("/overview", asyncRoute(getSuperAdminOverview));
 router.get("/system", asyncRoute(getSuperAdminSystemHealth));
 router.get("/users", asyncRoute(listSuperAdminUsers));
+router.post("/beta-invites", asyncRoute(createBetaInvite));
+router.get("/beta-invites", asyncRoute(listBetaInvites));
+router.get("/beta-invites/:id", asyncRoute(getBetaInvite));
+router.post("/beta-invites/:id/revoke", asyncRoute(revokeBetaInvite));
 
 router.patch(
   "/users/:id", auditSuperAdminGovernanceMutation,

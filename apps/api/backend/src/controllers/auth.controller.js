@@ -16,6 +16,10 @@ import {
 import {
   getMyShopAccess,
 } from "../services/shopAccess.service.js";
+import {
+  isInviteEnforcementEnabled,
+  redeemInviteInTransaction,
+} from "../services/betaInvite.service.js";
 
 const PUBLIC_ALLOWED_ROLES = new Set(["CONSUMER", "OWNER"]);
 
@@ -254,6 +258,9 @@ export async function register(req, res) {
     const name = normalizeName(rawBody.name);
     const email = normalizeEmail(rawBody.email);
     const password = String(rawBody.password || "");
+    const inviteToken = String(
+      rawBody.inviteToken || rawBody.inviteCode || "",
+    ).trim();
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: "Missing fields" });
@@ -270,6 +277,14 @@ export async function register(req, res) {
       rawBody.legalConsent,
     );
 
+    const inviteEnforced = isInviteEnforcementEnabled();
+    if (inviteEnforced && !inviteToken) {
+      throw Object.assign(new Error("An invitation is required"), {
+        statusCode: 403,
+        code: "INVITE_REQUIRED",
+      });
+    }
+
     await ensureEmailAvailable(email);
 
     const hash = await bcrypt.hash(password, 12);
@@ -285,6 +300,14 @@ export async function register(req, res) {
           emailVerifiedAt: null,
         },
       });
+
+      if (inviteEnforced) {
+        await redeemInviteInTransaction(tx, {
+          token: inviteToken,
+          user: createdUser,
+          role: roleCheck.role,
+        });
+      }
 
       if (roleCheck.role === "OWNER") {
         await tx.ownerApplication.create({
