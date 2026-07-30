@@ -1,6 +1,6 @@
 # PawnLoop Public Web V1 Scope Freeze
 
-Effective checkpoint: `35b8430d38e6ad165ecf994da521fbfed92e7bad`  
+Effective checkpoint: `35b8430d38e6ad165ecf994da521fbfed92e7bad`
 Applies to: invite-only web beta and subsequent general public web launch
 
 ## Features included in public web V1
@@ -106,4 +106,3 @@ Public launch is done only when:
 - All production external-configuration checks are independently verified immediately before launch.
 - Go/no-go, rollback authority, on-call schedule, support coverage, and the first 72-hour monitoring plan are approved.
 - No unresolved P0/P1 defect, security exception, legal exception, data-loss risk, or unexplained financial mismatch remains.
-

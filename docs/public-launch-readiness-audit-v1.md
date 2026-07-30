@@ -1,7 +1,7 @@
 # PawnLoop Public Launch Readiness Audit V1
 
-Audit date: 2026-07-29  
-Repository checkpoint: `35b8430d38e6ad165ecf994da521fbfed92e7bad`  
+Audit date: 2026-07-29
+Repository checkpoint: `35b8430d38e6ad165ecf994da521fbfed92e7bad`
 Decision: **not ready for invite-only beta or general public launch**
 
 ## Executive summary
@@ -220,4 +220,3 @@ Every P0 must be closed with dated evidence. A production launch additionally re
 ## Areas not verifiable from the repository
 
 PR review/check state; staging or production deployment state and health; applied database migrations; actual environment-variable values; database contents; DNS/TLS/CDN/WAF state; SMTP delivery and domain authentication; Stripe keys, products, prices, balances, webhooks, connected accounts, disputes, payouts, and live-mode settings; object storage; centralized logs/metrics/alerts; backup encryption/off-host retention/restore success; cloud IAM/network controls; support staffing; legal approval; accessibility assistive-technology results; real device/browser behavior; and production performance/capacity.
-
