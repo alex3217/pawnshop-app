@@ -24,6 +24,13 @@ Run before deployment:
 
 ## PM2 Processes
 
+Each environment currently defines exactly one API process. Authentication
+rate limiting is process-local and requires that single-instance topology.
+Before adding cluster workers, replicas, or multiple API hosts, implement and
+validate a shared rate-limit store. See
+`docs/auth-rate-limiting-v1.md` for protected endpoints, proxy assumptions,
+configuration, and failure behavior.
+
 ### Dev
 
     npm run pm2:dev
