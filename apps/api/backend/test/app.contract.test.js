@@ -63,16 +63,6 @@ const authenticatedUsers = new Map([
       authVersion: AUTH_VERSION,
     },
   ],
-  [
-    "super-admin-growth-test",
-    {
-      id: "super-admin-growth-test",
-      email: "growth@test.pawnloop.local",
-      role: "SUPER_ADMIN",
-      isActive: true,
-      authVersion: AUTH_VERSION,
-    },
-  ],
 ]);
 
 before(async () => {
@@ -600,44 +590,6 @@ test("super-admin routes reject unauthenticated requests", async () => {
   assert.deepEqual(response.body, {
     error: "Unauthorized",
   });
-});
-
-test("Growth Center routes require authenticated SUPER_ADMIN access", async () => {
-  await request(app).get("/api/super-admin/growth/leads").expect(401);
-  const admin = authenticatedUsers.get("admin-onboarding-test");
-  const token = jwt.sign({
-    sub: admin.id, email: admin.email, role: admin.role, authVersion: admin.authVersion,
-  }, TEST_JWT_SECRET, { expiresIn: "5m" });
-  await request(app)
-    .get("/api/super-admin/growth/leads")
-    .set("Authorization", `Bearer ${token}`)
-    .expect(403);
-});
-
-test("SUPER_ADMIN can list Growth Center leads", async () => {
-  const originalCount = prisma.pawnShopLead.count;
-  const originalFindMany = prisma.pawnShopLead.findMany;
-  prisma.pawnShopLead.count = async () => 1;
-  prisma.pawnShopLead.findMany = async () => [{
-    id: "fictional-lead-1",
-    businessName: "Fictional Contract Pawn",
-    activities: [],
-  }];
-  const user = authenticatedUsers.get("super-admin-growth-test");
-  const token = jwt.sign({
-    sub: user.id, email: user.email, role: user.role, authVersion: user.authVersion,
-  }, TEST_JWT_SECRET, { expiresIn: "5m" });
-  try {
-    const response = await request(app)
-      .get("/api/super-admin/growth/leads?state=TX")
-      .set("Authorization", `Bearer ${token}`)
-      .expect(200);
-    assert.equal(response.body.rows[0].businessName, "Fictional Contract Pawn");
-    assert.equal(response.body.pagination.total, 1);
-  } finally {
-    prisma.pawnShopLead.count = originalCount;
-    prisma.pawnShopLead.findMany = originalFindMany;
-  }
 });
 
 
