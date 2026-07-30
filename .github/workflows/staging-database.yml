@@ -36,7 +36,7 @@ jobs:
       NODE_ENV: ${{ vars.NODE_ENV }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DATABASE_URL }}
-      EXPECTED_STAGING_ENDPOINT: ep-plain-grass-axg1z58i
+      EXPECTED_STAGING_ENDPOINT: dpg-d9l2e2daeets73adle8g-a.oregon-postgres.render.com
 
     steps:
       - name: Check out main
