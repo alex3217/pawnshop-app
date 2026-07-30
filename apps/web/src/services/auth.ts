@@ -380,6 +380,7 @@ export async function register(
   password: string,
   role: Role,
   acceptedLegal: boolean,
+  inviteToken: string,
 ): Promise<RegistrationResponse> {
   if (role === "ADMIN" || role === "SUPER_ADMIN") {
     throw new Error("Public registration for privileged roles is not allowed.");
@@ -390,6 +391,7 @@ export async function register(
     email: email.trim().toLowerCase(),
     password,
     role,
+    inviteToken: inviteToken.trim(),
     legalConsent: {
       accepted: acceptedLegal,
       ...CURRENT_LEGAL_POLICY_VERSIONS,

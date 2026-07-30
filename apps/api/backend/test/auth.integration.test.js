@@ -85,6 +85,7 @@ before(async () => {
     JWT_SECRET: TEST_JWT_SECRET,
     AUCTION_SCHEDULER_ENABLED: "false",
     WEB_URL: "http://localhost:5173",
+    INVITE_ONLY_REGISTRATION_ENABLED: "false",
   });
   const rawDatabaseUrl = String(process.env.DATABASE_URL || "");
   assert.ok(rawDatabaseUrl, "DATABASE_URL is required");

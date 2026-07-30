@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { register } from "../services/auth";
 import type { Role } from "../services/auth";
 import "../styles/register-page.css";
@@ -16,12 +16,18 @@ function isPublicRole(value: string): value is PublicRole {
 
 export default function RegisterPage() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState<PublicRole>("CONSUMER");
+  const [inviteToken, setInviteToken] = useState("");
+  const [role, setRole] = useState<PublicRole>(
+    searchParams.get("role")?.toLowerCase() === "owner"
+      ? "OWNER"
+      : "CONSUMER",
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
@@ -62,6 +68,7 @@ export default function RegisterPage() {
     try {
       const trimmedName = name.trim();
       const trimmedEmail = email.trim().toLowerCase();
+      const trimmedInviteToken = inviteToken.trim();
 
       if (!trimmedName) {
         throw new Error("Name is required.");
@@ -118,6 +125,7 @@ export default function RegisterPage() {
         password,
         role,
         acceptedLegal,
+        trimmedInviteToken,
       );
 
       nav("/verification-pending", {
@@ -165,6 +173,29 @@ export default function RegisterPage() {
           </p>
 
           <form className="register-form" onSubmit={onSubmit}>
+            <div className="register-field">
+              <label
+                className="register-label"
+                htmlFor="register-invite-token"
+              >
+                Invitation code
+              </label>
+
+              <input
+                id="register-invite-token"
+                className="register-input"
+                value={inviteToken}
+                onChange={(event) => setInviteToken(event.target.value)}
+                placeholder="Enter your invitation code"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+              <small>
+                Use the private code supplied with your beta invitation.
+              </small>
+            </div>
+
             <div className="register-field">
               <label
                 className="register-label"
