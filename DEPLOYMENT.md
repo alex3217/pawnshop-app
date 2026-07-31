@@ -42,12 +42,92 @@ Dev backend:
 
 ### Staging
 
+Local staging-like PM2 process:
+
     npm run pm2:staging
     npm run check:deploy:staging
 
 Staging backend:
 
     http://127.0.0.1:6003/api/health
+
+The canonical deployed staging service is managed in the existing Render
+dashboard; this repository intentionally has no Render manifest. Configure its
+non-secret HTTPS API origin as `STAGING_API_URL` in the operator shell or CI
+environment. Do not put an invented or secret-bearing URL in this repository.
+
+Before deploying, create a permission-restricted temporary environment file from
+the actual Render settings and validate it only in a secure operator session.
+Never print, attach, or retain that file as evidence:
+
+    STAGING_ENV_FILE=/secure/path/staging.env npm run check:staging-readiness
+
+The deployed contract requires `APP_ENV=staging`, `NODE_ENV=staging`,
+`APP_NAME=pawnloop-api`, `TRUST_PROXY=1`, invite-only registration and auth rate
+limits enabled, test-mode Stripe credentials and all seller/buyer subscription
+Price IDs, both webhook signing secrets, SMTP sender/host configuration,
+explicitly disabled schedulers with explicit interval/batch settings, and HTTPS
+frontend/web/CORS origins. Origin values must use browser `Origin` format:
+scheme, hostname, and optional non-default port only, with no credentials, path,
+trailing slash, query, or fragment. Render supplies `PORT` dynamically; any valid
+TCP port passes deployed validation and `PAWN_PORT` is optional (but validated if
+present). For the legacy local PM2 contract only, use
+`STAGING_VALIDATION_MODE=local`; it permits HTTP/localhost and requires both
+`PORT=6003` and `PAWN_PORT=6003`.
+
+Render health check path:
+
+    /api/ready
+
+Liveness path:
+
+    /api/health
+
+After Render reports a successful deploy, run the read-only smoke check:
+
+    STAGING_API_URL=https://<canonical-render-api-origin> npm run check:staging-smoke
+
+`STAGING_API_URL` must be a credential-free HTTPS origin with no path, query, or
+fragment. A single trailing slash is accepted and normalized before requests.
+
+The smoke check calls only `GET /api/health` and `GET /api/ready`, uses bounded
+timeouts, and verifies HTTP 200, `pawnloop-api`/`staging` identity, database
+readiness, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, and the
+absence of `X-Powered-By`.
+
+### Staging deployment evidence and verification
+
+For every staging deployment, record in the launch evidence ticket:
+
+1. The Git commit SHA selected in Render and the Render deploy ID/time. The
+   public health payload does not currently expose a commit, so the Render deploy
+   record is the authoritative deployed-commit evidence.
+2. The readiness validation and synthetic test command names, timestamps, and
+   exit codes. Capture output only after reviewing it for secrets.
+3. The `staging-database` workflow `status` run URL showing `prisma migrate
+   status` succeeded against the approved staging database. Do not infer
+   migration state from API readiness and do not run migrations as part of a
+   smoke check.
+4. The post-deploy smoke command, timestamp, exit code, and Render health status.
+
+If verification fails, stop traffic promotion. In Render, redeploy the last
+known-good deploy/commit, retain the same staging environment settings, wait for
+`/api/ready` to return 200, then repeat the smoke check. Database migrations are
+forward-only: first determine whether the prior application is compatible with
+the applied schema. Do not restore or reverse a staging database without a
+separately reviewed recovery plan and backup evidence.
+
+Secret-redaction rules: never paste `.env` files, Render secret values, database
+URLs, JWT/auth/encryption secrets, SMTP credentials, Stripe keys, webhook
+secrets, invite tokens, or authorization headers into logs, tickets, screenshots,
+or chat. Record variable names and pass/fail state only. Redact URL userinfo and
+query strings, review screenshots before attachment, and delete temporary secret
+files through the approved secure process.
+
+The GitHub `staging` environment must set the non-secret
+`STAGING_DATABASE_HOST` variable to the exact Neon staging hostname and keep the
+separate Neon connection URL in the existing `DATABASE_URL` secret. The database
+workflow compares hostnames without printing credentials or the URL.
 
 ### Production
 

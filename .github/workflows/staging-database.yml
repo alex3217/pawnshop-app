@@ -36,7 +36,7 @@ jobs:
       NODE_ENV: ${{ vars.NODE_ENV }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DATABASE_URL }}
-      EXPECTED_STAGING_ENDPOINT: dpg-d9l2e2daeets73adle8g-a.oregon-postgres.render.com
+      EXPECTED_STAGING_ENDPOINT: ${{ vars.STAGING_DATABASE_HOST }}
 
     steps:
       - name: Check out main
@@ -68,6 +68,11 @@ jobs:
 
           if (!value) {
             console.error("Missing staging DATABASE_URL secret.");
+            process.exit(1);
+          }
+
+          if (!expected) {
+            console.error("Missing non-secret STAGING_DATABASE_HOST staging variable.");
             process.exit(1);
           }
 
