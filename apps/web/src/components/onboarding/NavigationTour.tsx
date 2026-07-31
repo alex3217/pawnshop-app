@@ -27,6 +27,10 @@ type PendingTour = {
   steps: Step[];
 };
 
+type NavigationAssistanceOpenDetail = {
+  returnFocusTarget?: HTMLElement | null;
+};
+
 const TOUR_VERSION = "v2";
 const DEFAULT_PREFERENCES: AssistancePreferences = {
   automaticPrompts: true,
@@ -93,6 +97,8 @@ export default function NavigationTour({ role }: NavigationTourProps) {
     floatingShortcutDismissed,
     setFloatingShortcutDismissed,
   ] = useState(false);
+  const [centerReturnFocusTarget, setCenterReturnFocusTarget] =
+    useState<HTMLElement | null>(null);
   const centerOpenRef = useRef(false);
   const pendingTourRef = useRef<PendingTour | null>(null);
   const launchFrameRef = useRef<number | null>(null);
@@ -112,8 +118,21 @@ export default function NavigationTour({ role }: NavigationTourProps) {
     centerOpenRef.current = false;
     setCenterOpen(false);
   }, []);
-  const openCenter = useCallback(() => {
+  const openCenter = useCallback((event?: Event) => {
     if (pendingTourRef.current) return;
+    const requestedReturnFocus =
+      event instanceof CustomEvent
+        ? (event.detail as NavigationAssistanceOpenDetail | null)
+            ?.returnFocusTarget
+        : null;
+    setCenterReturnFocusTarget(
+      requestedReturnFocus instanceof HTMLElement &&
+      requestedReturnFocus.isConnected
+        ? requestedReturnFocus
+        : document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null,
+    );
     if (launchFrameRef.current !== null) window.cancelAnimationFrame(launchFrameRef.current);
     launchFrameRef.current = null;
     setLaunchStatus("");
@@ -137,6 +156,7 @@ export default function NavigationTour({ role }: NavigationTourProps) {
     setPendingTour(null);
     setLaunchStatus("");
     setFloatingShortcutDismissed(false);
+    setCenterReturnFocusTarget(null);
   }, [role]);
 
   useEffect(() => {
@@ -283,7 +303,8 @@ export default function NavigationTour({ role }: NavigationTourProps) {
         {launchStatus}
       </p>
 
-      {preferences.floatingButtonVisible
+      {role !== "OWNER"
+      && preferences.floatingButtonVisible
       && !floatingShortcutDismissed
       && !centerOpen
       && !pendingTour ? (
@@ -291,7 +312,7 @@ export default function NavigationTour({ role }: NavigationTourProps) {
           <button
             type="button"
             className="navigation-tour-restart"
-            onClick={openCenter}
+            onClick={() => openCenter()}
             aria-label="Click Here for Setup and Instructions"
             title="Click Here for Setup and Instructions"
           >
@@ -323,6 +344,7 @@ export default function NavigationTour({ role }: NavigationTourProps) {
         isOpen={centerOpen}
         launchPending={pendingTour !== null}
         onClose={closeCenter}
+        returnFocusTarget={centerReturnFocusTarget}
         onResetCompleted={() => {
           savePreferences({ ...preferences, completedTopics: [] });
           setLaunchStatus("Completed instructions reset.");
@@ -345,6 +367,7 @@ export default function NavigationTour({ role }: NavigationTourProps) {
         }}
         onStartFullTour={() => queueTour(fullTourSteps(role), "full-tour", "Full Tour")}
         onStartTopic={startTopic}
+        showFloatingButtonPreference={role !== "OWNER"}
         tipsAutomatically={preferences.automaticPrompts}
         topics={topics}
       /> : null}

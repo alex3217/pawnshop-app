@@ -1,9 +1,9 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { Link } from "react-router-dom";
 import type { Role } from "../../services/auth";
@@ -20,38 +20,10 @@ type ChecklistItem = {
   href: string;
 };
 
-type FloatingPosition = {
-  x: number;
-  y: number;
-};
-
-type ShortcutDragState = {
-  pointerId: number;
-  offsetX: number;
-  offsetY: number;
-  lastPosition: FloatingPosition;
-};
-
 const CHECKLIST_VERSION = "v1";
 
 function checklistStorageKey(role: Role) {
   return `pawnloop-role-checklist-${role}-${CHECKLIST_VERSION}`;
-}
-
-function collapsedStorageKey(role: Role) {
-  return `pawnloop-role-checklist-collapsed-${role}-${CHECKLIST_VERSION}`;
-}
-
-function dismissedStorageKey(role: Role) {
-  return `pawnloop-role-checklist-dismissed-${role}-${CHECKLIST_VERSION}`;
-}
-
-function shortcutHiddenStorageKey(role: Role) {
-  return `pawnloop-role-checklist-shortcut-hidden-${role}-${CHECKLIST_VERSION}`;
-}
-
-function shortcutPositionStorageKey(role: Role) {
-  return `pawnloop-role-checklist-shortcut-position-${role}-${CHECKLIST_VERSION}`;
 }
 
 function getChecklistItems(role: Role): ChecklistItem[] {
@@ -150,10 +122,9 @@ function getChecklistItems(role: Role): ChecklistItem[] {
 
 function readCompleted(role: Role): string[] {
   try {
-    const raw = window.localStorage.getItem(checklistStorageKey(role));
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(
+      window.localStorage.getItem(checklistStorageKey(role)) || "[]",
+    );
     return Array.isArray(parsed)
       ? parsed.filter((value): value is string => typeof value === "string")
       : [];
@@ -162,543 +133,176 @@ function readCompleted(role: Role): string[] {
   }
 }
 
-function readCollapsed(role: Role) {
-  try {
-    return window.localStorage.getItem(collapsedStorageKey(role)) === "true";
-  } catch {
-    return false;
-  }
-}
-
-function readDismissed(role: Role) {
-  if (role !== "OWNER") return false;
-
-  try {
-    return window.localStorage.getItem(dismissedStorageKey(role)) === "true";
-  } catch {
-    return false;
-  }
-}
-
-function readShortcutHidden(role: Role) {
-  if (role !== "OWNER") return false;
-
-  try {
-    return (
-      window.localStorage.getItem(shortcutHiddenStorageKey(role)) === "true"
-    );
-  } catch {
-    return false;
-  }
-}
-
-function readShortcutPosition(role: Role): FloatingPosition | null {
-  if (role !== "OWNER") return null;
-
-  try {
-    const raw = window.localStorage.getItem(shortcutPositionStorageKey(role));
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw);
-
-    return Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)
-      ? { x: parsed.x, y: parsed.y }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function hasCollapsedPreference(role: Role) {
-  try {
-    return window.localStorage.getItem(collapsedStorageKey(role)) !== null;
-  } catch {
-    return false;
-  }
-}
-
-function clampShortcutPosition(
-  position: FloatingPosition,
-  element: HTMLElement | null,
-): FloatingPosition {
-  const margin = 12;
-  const width = element?.offsetWidth ?? 220;
-  const height = element?.offsetHeight ?? 48;
-  const headerBottom =
-    document.querySelector<HTMLElement>(".site-header")
-      ?.getBoundingClientRect().bottom ?? 0;
-  const minimumY = Math.max(margin, headerBottom + margin);
-
-  return {
-    x: Math.min(
-      Math.max(margin, position.x),
-      Math.max(margin, window.innerWidth - width - margin),
-    ),
-    y: Math.min(
-      Math.max(minimumY, position.y),
-      Math.max(minimumY, window.innerHeight - height - margin),
-    ),
-  };
-}
-
 export default function RoleSetupChecklist({
   role,
 }: RoleSetupChecklistProps) {
   const supportedRole = role === "OWNER" || role === "CONSUMER";
-
+  const activeRole = supportedRole ? role : null;
   const items = useMemo(
-    () => (supportedRole ? getChecklistItems(role) : []),
-    [role, supportedRole],
+    () => (activeRole ? getChecklistItems(activeRole) : []),
+    [activeRole],
   );
-
   const [completed, setCompleted] = useState<string[]>(() =>
-    supportedRole ? readCompleted(role) : [],
+    activeRole ? readCompleted(activeRole) : [],
   );
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
-  const [collapsed, setCollapsed] = useState(() =>
-    supportedRole ? readCollapsed(role) : false,
-  );
+  const closePanel = useCallback(() => {
+    setIsOpen(false);
+  }, []);
 
-  const [dismissed, setDismissed] = useState(() =>
-    supportedRole ? readDismissed(role) : false,
-  );
-
-  const [shortcutHidden, setShortcutHidden] = useState(() =>
-    supportedRole ? readShortcutHidden(role) : false,
-  );
-
-  const [shortcutPosition, setShortcutPosition] =
-    useState<FloatingPosition | null>(() =>
-      supportedRole ? readShortcutPosition(role) : null,
-    );
-
-  const shortcutRef = useRef<HTMLElement | null>(null);
-  const shortcutPositionRef = useRef<FloatingPosition | null>(
-    shortcutPosition,
-  );
-  const shortcutDragRef = useRef<ShortcutDragState | null>(null);
-
-  const [hasManualCollapsePreference, setHasManualCollapsePreference] =
-    useState(() =>
-      supportedRole ? hasCollapsedPreference(role) : false,
-    );
+  const closePanelAndRestoreFocus = useCallback(() => {
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  }, []);
 
   useEffect(() => {
-    if (!supportedRole) return;
-
-    setCompleted(readCompleted(role));
-    setCollapsed(readCollapsed(role));
-    setDismissed(readDismissed(role));
-    setShortcutHidden(readShortcutHidden(role));
-    setShortcutPosition(readShortcutPosition(role));
-    setHasManualCollapsePreference(hasCollapsedPreference(role));
-  }, [role, supportedRole]);
+    if (!activeRole) return;
+    setCompleted(readCompleted(activeRole));
+    setIsOpen(false);
+  }, [activeRole]);
 
   useEffect(() => {
-    shortcutPositionRef.current = shortcutPosition;
-  }, [shortcutPosition]);
+    if (!isOpen) return;
 
-  useEffect(() => {
-    if (role !== "OWNER") return;
+    closeRef.current?.focus();
+    const header = document.querySelector<HTMLElement>(".site-header");
 
-    const restoreFromSetupTab = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
+    const updateAvailableViewport = () => {
+      const headerBottom = Math.max(
+        0,
+        header?.getBoundingClientRect().bottom || 0,
+      );
+      containerRef.current?.style.setProperty(
+        "--role-setup-viewport-top",
+        `${headerBottom}px`,
+      );
+    };
+    const headerObserver =
+      header && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateAvailableViewport)
+        : null;
 
-      const anchor = target.closest<HTMLAnchorElement>("a[href]");
-      if (!anchor) return;
+    updateAvailableViewport();
+    if (header && headerObserver) {
+      headerObserver.observe(header);
+    }
+    window.addEventListener("resize", updateAvailableViewport);
 
-      const url = new URL(anchor.href, window.location.origin);
+    const closeOnOutside = (event: PointerEvent) => {
       if (
-        url.origin !== window.location.origin ||
-        url.pathname !== "/owner/onboarding"
+        event.target instanceof Node &&
+        !containerRef.current?.contains(event.target)
       ) {
-        return;
-      }
-
-      setDismissed(false);
-      setShortcutHidden(false);
-      setCollapsed(false);
-      setHasManualCollapsePreference(true);
-
-      try {
-        window.localStorage.setItem(dismissedStorageKey(role), "false");
-        window.localStorage.setItem(shortcutHiddenStorageKey(role), "false");
-        window.localStorage.setItem(collapsedStorageKey(role), "false");
-      } catch {
-        // Ignore storage errors.
+        closePanel();
       }
     };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closePanelAndRestoreFocus();
+    };
 
-    document.addEventListener("click", restoreFromSetupTab, true);
-
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.removeEventListener("click", restoreFromSetupTab, true);
+      headerObserver?.disconnect();
+      window.removeEventListener("resize", updateAvailableViewport);
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [role]);
+  }, [closePanel, closePanelAndRestoreFocus, isOpen]);
 
-  useEffect(() => {
-    if (role !== "OWNER" || !dismissed || shortcutHidden) return;
-
-    const keepShortcutVisible = () => {
-      const current = shortcutPositionRef.current;
-      if (!current) return;
-
-      const next = clampShortcutPosition(current, shortcutRef.current);
-      if (next.x === current.x && next.y === current.y) return;
-
-      shortcutPositionRef.current = next;
-      setShortcutPosition(next);
-
-      try {
-        window.localStorage.setItem(
-          shortcutPositionStorageKey(role),
-          JSON.stringify(next),
-        );
-      } catch {
-        // Ignore storage errors.
-      }
-    };
-
-    keepShortcutVisible();
-    window.addEventListener("resize", keepShortcutVisible);
-
-    return () => {
-      window.removeEventListener("resize", keepShortcutVisible);
-    };
-  }, [dismissed, role, shortcutHidden]);
-
-  useEffect(() => {
-    if (!supportedRole || hasManualCollapsePreference) return;
-
-    const mediaQuery = window.matchMedia("(max-width: 1100px)");
-
-    const syncResponsiveState = (event?: MediaQueryListEvent) => {
-      setCollapsed(event ? event.matches : mediaQuery.matches);
-    };
-
-    syncResponsiveState();
-    mediaQuery.addEventListener("change", syncResponsiveState);
-
-    return () => {
-      mediaQuery.removeEventListener("change", syncResponsiveState);
-    };
-  }, [hasManualCollapsePreference, supportedRole]);
-
-  if (!supportedRole) return null;
-
-  const activeRole = role as Extract<Role, "OWNER" | "CONSUMER">;
+  if (!activeRole) return null;
 
   const completedCount = items.filter((item) =>
     completed.includes(item.id),
   ).length;
-
-  const progress =
-    items.length > 0
-      ? Math.round((completedCount / items.length) * 100)
-      : 0;
+  const progress = items.length
+    ? Math.round((completedCount / items.length) * 100)
+    : 0;
 
   function toggleItem(itemId: string) {
     setCompleted((current) => {
       const next = current.includes(itemId)
         ? current.filter((id) => id !== itemId)
         : [...current, itemId];
-
       try {
         window.localStorage.setItem(
-          checklistStorageKey(activeRole),
+          checklistStorageKey(activeRole as Role),
           JSON.stringify(next),
         );
       } catch {
         // Checklist still works for the current session.
       }
-
-      return next;
-    });
-  }
-
-  function toggleCollapsed() {
-    setHasManualCollapsePreference(true);
-
-    setCollapsed((current) => {
-      const next = !current;
-
-      try {
-        window.localStorage.setItem(
-          collapsedStorageKey(activeRole),
-          String(next),
-        );
-      } catch {
-        // Ignore storage errors.
-      }
-
       return next;
     });
   }
 
   function resetChecklist() {
     setCompleted([]);
-
     try {
-      window.localStorage.removeItem(checklistStorageKey(activeRole));
+      window.localStorage.removeItem(checklistStorageKey(activeRole as Role));
     } catch {
       // Ignore storage errors.
     }
-  }
-
-  function dismissOwnerSetup() {
-    if (activeRole !== "OWNER") return;
-
-    setDismissed(true);
-    setShortcutHidden(false);
-
-    try {
-      window.localStorage.setItem(dismissedStorageKey(activeRole), "true");
-      window.localStorage.setItem(
-        shortcutHiddenStorageKey(activeRole),
-        "false",
-      );
-    } catch {
-      // Ignore storage errors.
-    }
-  }
-
-  function permanentlyHideOwnerSetup() {
-    if (activeRole !== "OWNER") return;
-
-    setShortcutHidden(true);
-
-    try {
-      window.localStorage.setItem(
-        shortcutHiddenStorageKey(activeRole),
-        "true",
-      );
-    } catch {
-      // Ignore storage errors.
-    }
-  }
-
-  function returnToOwnerSetup() {
-    if (activeRole !== "OWNER") return;
-
-    setDismissed(false);
-    setShortcutHidden(false);
-    setCollapsed(false);
-    setHasManualCollapsePreference(true);
-
-    try {
-      window.localStorage.setItem(dismissedStorageKey(activeRole), "false");
-      window.localStorage.setItem(
-        shortcutHiddenStorageKey(activeRole),
-        "false",
-      );
-      window.localStorage.setItem(collapsedStorageKey(activeRole), "false");
-    } catch {
-      // Ignore storage errors.
-    }
-  }
-
-  function saveShortcutPosition(position: FloatingPosition) {
-    shortcutPositionRef.current = position;
-    setShortcutPosition(position);
-
-    try {
-      window.localStorage.setItem(
-        shortcutPositionStorageKey(activeRole),
-        JSON.stringify(position),
-      );
-    } catch {
-      // Ignore storage errors.
-    }
-  }
-
-  function startShortcutDrag(
-    event: ReactPointerEvent<HTMLButtonElement>,
-  ) {
-    if (event.button !== 0) return;
-
-    const element = shortcutRef.current;
-    if (!element) return;
-
-    const rect = element.getBoundingClientRect();
-    const startingPosition = clampShortcutPosition(
-      { x: rect.left, y: rect.top },
-      element,
-    );
-
-    saveShortcutPosition(startingPosition);
-
-    shortcutDragRef.current = {
-      pointerId: event.pointerId,
-      offsetX: event.clientX - rect.left,
-      offsetY: event.clientY - rect.top,
-      lastPosition: startingPosition,
-    };
-
-    event.currentTarget.setPointerCapture(event.pointerId);
-    event.preventDefault();
-  }
-
-  function moveShortcut(event: ReactPointerEvent<HTMLButtonElement>) {
-    const drag = shortcutDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-
-    const next = clampShortcutPosition(
-      {
-        x: event.clientX - drag.offsetX,
-        y: event.clientY - drag.offsetY,
-      },
-      shortcutRef.current,
-    );
-
-    drag.lastPosition = next;
-    shortcutPositionRef.current = next;
-    setShortcutPosition(next);
-    event.preventDefault();
-  }
-
-  function finishShortcutDrag(
-    event: ReactPointerEvent<HTMLButtonElement>,
-  ) {
-    const drag = shortcutDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-
-    saveShortcutPosition(drag.lastPosition);
-    shortcutDragRef.current = null;
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }
-
-  if (activeRole === "OWNER" && dismissed) {
-    if (shortcutHidden) return null;
-
-    return (
-      <aside
-        ref={shortcutRef}
-        className="role-checklist role-checklist-collapsed role-checklist-return"
-        aria-label="Return to pawn shop owner setup"
-        style={
-          shortcutPosition
-            ? {
-                left: `${shortcutPosition.x}px`,
-                top: `${shortcutPosition.y}px`,
-                right: "auto",
-                bottom: "auto",
-              }
-            : undefined
-        }
-      >
-        <div className="role-checklist-return-actions">
-          <button
-            type="button"
-            className="role-checklist-drag-handle"
-            aria-label="Move owner setup shortcut"
-            title="Drag to move"
-            onPointerDown={startShortcutDrag}
-            onPointerMove={moveShortcut}
-            onPointerUp={finishShortcutDrag}
-            onPointerCancel={finishShortcutDrag}
-          >
-            <span aria-hidden="true">⋮⋮</span>
-          </button>
-
-          <button
-            type="button"
-            className="role-checklist-remove-button"
-            onClick={permanentlyHideOwnerSetup}
-            aria-label="Remove owner setup shortcut from screen"
-            title="Remove from screen"
-          >
-            <span aria-hidden="true">×</span>
-          </button>
-
-          <button
-            type="button"
-            className="role-checklist-return-button"
-            onClick={returnToOwnerSetup}
-            aria-label="Owner setup"
-          >
-            <span className="role-checklist-return-label">Owner setup</span>
-            <span
-              className="role-checklist-return-label-short"
-              aria-hidden="true"
-            >
-              Setup
-            </span>
-          </button>
-        </div>
-      </aside>
-    );
   }
 
   return (
-    <aside
+    <div
       className={
-        collapsed
-          ? "role-checklist role-checklist-collapsed"
-          : "role-checklist"
+        isOpen
+          ? "role-setup-control role-setup-control-open"
+          : "role-setup-control"
       }
-      aria-label={
-        role === "OWNER"
-          ? "Pawn shop owner setup checklist"
-          : "Buyer setup checklist"
-      }
+      ref={containerRef}
     >
-      <div className="role-checklist-header">
-        <div>
-          <span className="role-checklist-eyebrow">
-            {role === "OWNER" ? "Owner setup" : "Buyer setup"}
-          </span>
-          <strong>
-            {completedCount} of {items.length} complete
-          </strong>
-        </div>
-
-        <div className="role-checklist-header-actions">
-          <button
-            type="button"
-            className="role-checklist-collapse"
-            onClick={toggleCollapsed}
-            aria-expanded={!collapsed}
-          >
-            {collapsed ? "Open" : "Hide"}
-          </button>
-
-          {activeRole === "OWNER" ? (
+      {isOpen ? (
+        <aside
+          id="role-setup-panel"
+          className="role-checklist"
+          aria-label={
+            activeRole === "OWNER"
+              ? "Pawn shop owner setup checklist"
+              : "Buyer setup checklist"
+          }
+        >
+          <div className="role-checklist-header">
+            <div>
+              <span className="role-checklist-eyebrow">
+                {activeRole === "OWNER" ? "Owner setup" : "Buyer setup"}
+              </span>
+              <strong>
+                {completedCount} of {items.length} complete
+              </strong>
+            </div>
             <button
+              ref={closeRef}
               type="button"
               className="role-checklist-close"
-              onClick={dismissOwnerSetup}
+              onClick={closePanelAndRestoreFocus}
             >
               Close setup
             </button>
-          ) : null}
-        </div>
-      </div>
+          </div>
 
-      <div
-        className="role-checklist-progress"
-        aria-label={`${progress}% complete`}
-      >
-        <span style={{ width: `${progress}%` }} />
-      </div>
+          <div
+            className="role-checklist-progress"
+            aria-label={`${progress}% complete`}
+          >
+            <span style={{ width: `${progress}%` }} />
+          </div>
 
-      {!collapsed ? (
-        <>
           <div
             className="role-checklist-items"
             tabIndex={0}
-            aria-label={
-              activeRole === "OWNER"
-                ? "Owner setup checklist items"
-                : "Buyer setup checklist items"
-            }
+            aria-label={`${activeRole === "OWNER" ? "Owner" : "Buyer"} setup checklist items`}
           >
             {items.map((item) => {
               const isComplete = completed.includes(item.id);
-
               return (
                 <article
                   key={item.id}
@@ -720,9 +324,10 @@ export default function RoleSetupChecklist({
                   >
                     {isComplete ? "✓" : ""}
                   </button>
-
                   <div>
-                    <Link to={item.href}>{item.label}</Link>
+                    <Link to={item.href} onClick={closePanel}>
+                      {item.label}
+                    </Link>
                     <p>{item.description}</p>
                   </div>
                 </article>
@@ -732,13 +337,50 @@ export default function RoleSetupChecklist({
 
           <div className="role-checklist-footer">
             <span>{progress}% complete</span>
-
+            {activeRole === "OWNER" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  window.dispatchEvent(
+                    new CustomEvent(
+                      "pawnloop:open-navigation-assistance",
+                      {
+                        detail: {
+                          returnFocusTarget: triggerRef.current,
+                        },
+                      },
+                    ),
+                  );
+                }}
+              >
+                Navigation Assistance
+              </button>
+            ) : null}
             <button type="button" onClick={resetChecklist}>
               Reset
             </button>
           </div>
-        </>
+        </aside>
       ) : null}
-    </aside>
+
+      <button
+        ref={triggerRef}
+        type="button"
+        className="role-setup-trigger"
+        aria-expanded={isOpen}
+        aria-controls="role-setup-panel"
+        onClick={() => {
+          if (isOpen) {
+            closePanelAndRestoreFocus();
+            return;
+          }
+          setIsOpen(true);
+        }}
+      >
+        <span>{activeRole === "OWNER" ? "Owner setup" : "Buyer setup"}</span>
+        <strong>{completedCount}/{items.length}</strong>
+      </button>
+    </div>
   );
 }

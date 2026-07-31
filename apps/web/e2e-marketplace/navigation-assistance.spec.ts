@@ -18,7 +18,16 @@ const TOPICS = {
 
 async function prepare(page: Page, role: TestRole = null, completedTopics: string[] = []) {
   await page.route("**/api/**", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [], shops: [] }) });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [],
+        shops: [],
+        capabilities: {},
+        notifications: [],
+      }),
+    });
   });
   await page.addInitScript(({ selectedRole, completed }) => {
     if (selectedRole) {
@@ -75,15 +84,41 @@ test("guest launches full, route-specific, current-page, and every topic tour", 
   }
 });
 
-for (const role of ["CONSUMER", "OWNER"] as const) {
-  test(`${role} can launch every role topic as a fresh tour`, async ({ page }) => {
-    await prepare(page, role);
-    for (const topic of TOPICS[role]) {
-      await openCenter(page);
-      await expectLaunch(page, `Start ${topic} Instructions`, topic);
-    }
-  });
-}
+test("CONSUMER can launch every role topic as a fresh tour", async ({ page }) => {
+  await prepare(page, "CONSUMER");
+  for (const topic of TOPICS.CONSUMER) {
+    await openCenter(page);
+    await expectLaunch(page, `Start ${topic} Instructions`, topic);
+  }
+});
+
+test("OWNER retains every navigation assistance topic", async ({ page }) => {
+  await prepare(page, "OWNER");
+  const ownerSetup = page.getByRole("button", { name: /Owner setup/ });
+  await expect(ownerSetup).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Click Here for Setup and Instructions" }),
+  ).toHaveCount(0);
+  await ownerSetup.click();
+  await page
+    .getByLabel("Pawn shop owner setup checklist")
+    .getByRole("button", { name: "Navigation Assistance" })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Navigation Assistance" });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", {
+      name: /(?:Hide|Restore) Floating Help Button/,
+    }),
+  ).toHaveCount(0);
+  for (const topic of TOPICS.OWNER) {
+    await expect(
+      dialog.getByRole("button", {
+        name: `Start ${topic} Instructions`,
+      }),
+    ).toBeVisible();
+  }
+});
 
 test("preferences, floating recovery, reset, and defaults are observable", async ({ page }) => {
   await prepare(page, null, ["browse-marketplace"]);
