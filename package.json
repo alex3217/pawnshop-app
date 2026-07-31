@@ -22,6 +22,8 @@
     "db:restore:staging": "bash scripts/restore-db.sh apps/api/backend/.env.staging",
     "db:restore:prod": "bash scripts/restore-db.sh apps/api/backend/.env.production",
     "check:staging-readiness": "bash scripts/check-staging-readiness.sh",
+    "test:staging-readiness": "bash scripts/test-staging-readiness.sh",
+    "check:staging-smoke": "bash scripts/check-staging-smoke.sh",
     "check:prod-preflight": "bash scripts/check-prod-preflight.sh",
     "check:prod-smoke": "bash scripts/check-prod-smoke.sh",
     "check:launch": "npm run check:prod-preflight && npm run check:deploy:prod && npm run check:prod-smoke",

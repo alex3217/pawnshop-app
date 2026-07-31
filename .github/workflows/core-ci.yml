@@ -62,6 +62,9 @@ jobs:
       - name: Static safety checks
         run: npm run check:static-safety
 
+      - name: Staging deployment contract tests
+        run: npm run test:staging-readiness
+
       - name: Frontend route audit
         run: npm run check:frontend-routes
 
