@@ -24,6 +24,11 @@ type NavItem = {
   end?: boolean;
 };
 
+type FooterGroup = {
+  label: string;
+  links: NavItem[];
+};
+
 const COMPACT_PRIMARY_NAV_PATHS = new Set([
   "/marketplace/buy-now",
   "/buyer/item-locator",
@@ -380,6 +385,42 @@ export default function SiteLayout() {
     staffRoleLabel,
   ]);
 
+  const footerGroups = useMemo<FooterGroup[]>(() => {
+    const explorePaths = new Set(PUBLIC_NAV.map((item) => item.to));
+    const accountPaths = new Set([
+      ...BUYER_PRIMARY_NAV,
+      ...BUYER_SECONDARY_NAV,
+      ...GUEST_NAV,
+    ].map((item) => item.to));
+    const legalPaths = new Set(["/terms", "/privacy"]);
+
+    const groups: FooterGroup[] = [
+      {
+        label: "Explore",
+        links: footerLinks.filter((item) => explorePaths.has(item.to)),
+      },
+      {
+        label: "Account",
+        links: footerLinks.filter((item) => accountPaths.has(item.to)),
+      },
+      {
+        label: "Workspace",
+        links: footerLinks.filter(
+          (item) =>
+            !explorePaths.has(item.to) &&
+            !accountPaths.has(item.to) &&
+            !legalPaths.has(item.to),
+        ),
+      },
+      {
+        label: "Legal & help",
+        links: footerLinks.filter((item) => legalPaths.has(item.to)),
+      },
+    ];
+
+    return groups.filter((group) => group.links.length > 0);
+  }, [footerLinks]);
+
   function handleLogout() {
     setShopAccess(null);
     logout();
@@ -575,23 +616,34 @@ export default function SiteLayout() {
             </p>
           </div>
 
-          <div className="site-footer-links">
-            {footerLinks.map((item) => (
-              <Link key={item.to} to={item.to}>
-                {item.label}
-              </Link>
+          <div className="site-footer-links" aria-label="Footer navigation">
+            {footerGroups.map((group) => (
+              <nav
+                key={group.label}
+                className="site-footer-link-group"
+                aria-label={`${group.label} links`}
+              >
+                <h2>{group.label}</h2>
+                {group.links.map((item) => (
+                  <Link key={item.to} to={item.to}>
+                    {item.label}
+                  </Link>
+                ))}
+                {group.label === "Legal & help" ? (
+                  <button
+                    type="button"
+                    className="navigation-assistance-footer-control"
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new Event("pawnloop:open-navigation-assistance"),
+                      );
+                    }}
+                  >
+                    Navigation Assistance
+                  </button>
+                ) : null}
+              </nav>
             ))}
-            <button
-              type="button"
-              className="navigation-assistance-footer-control"
-              onClick={() => {
-                window.dispatchEvent(
-                  new Event("pawnloop:open-navigation-assistance"),
-                );
-              }}
-            >
-              Navigation Assistance
-            </button>
           </div>
         </div>
       </footer>

@@ -1,57 +1,69 @@
-.role-checklist {
+.role-setup-control {
+  --role-setup-viewport-top: 0px;
+  --role-setup-bottom-clearance:
+    calc(max(16px, env(safe-area-inset-bottom, 0px)) + 52px);
   position: fixed;
-  top: 120px;
-  right: 20px;
-  bottom: auto;
-  z-index: 8500;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: var(--role-setup-bottom-clearance);
+  z-index: 35;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: end;
+  gap: 10px;
+  min-height: 0;
+  max-width: calc(100vw - 24px);
+  pointer-events: none;
+}
+
+.role-setup-control-open {
+  top: calc(var(--role-setup-viewport-top) + 12px);
+}
+
+.role-setup-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 14px;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1d4ed8;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  pointer-events: auto;
+}
+
+.role-setup-trigger strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 38px;
+  min-height: 26px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #eff6ff;
+  font-size: 0.78rem;
+}
+
+.role-checklist {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  width: min(390px, calc(100vw - 32px));
-  height: min(760px, calc(100dvh - 140px));
-  max-height: calc(100dvh - 140px);
+  width: min(390px, calc(100vw - 24px));
+  height: min(650px, 100%);
+  min-height: 0;
+  max-height: 100%;
   box-sizing: border-box;
   overflow: hidden;
-  pointer-events: auto;
   padding: 16px;
   border: 1px solid rgba(37, 99, 235, 0.24);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.98);
   color: #172033;
-  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.24);
   backdrop-filter: blur(16px);
-}
-
-@media (min-width: 1401px) {
-  body:has(.mybids2-page):has(.role-checklist:not(.role-checklist-collapsed)) .site-main {
-    padding-right: calc(430px + env(safe-area-inset-right, 0px));
-  }
-
-  body:has(.mybids2-page):has(.role-checklist-collapsed) .site-main {
-    padding-right: calc(285px + env(safe-area-inset-right, 0px));
-  }
-
-  body:has(.mybids2-page) .role-checklist {
-    right: max(20px, env(safe-area-inset-right, 0px));
-  }
-}
-
-@media (max-width: 1400px) {
-  body:has(.mybids2-page) .role-checklist,
-  body:has(.mybids2-page) .role-checklist-collapsed {
-    position: relative;
-    inset: auto;
-    width: min(390px, calc(100% - 32px));
-    height: min(760px, calc(100dvh - 2rem));
-    max-height: calc(100dvh - 2rem);
-    margin: 20px max(16px, env(safe-area-inset-right, 0px))
-      calc(20px + env(safe-area-inset-bottom, 0px)) auto;
-  }
-}
-
-.role-checklist-collapsed {
-  width: 245px;
-  height: auto;
-  max-height: none;
+  pointer-events: auto;
 }
 
 .role-checklist-header {
@@ -74,7 +86,7 @@
   text-transform: uppercase;
 }
 
-.role-checklist-collapse,
+.role-checklist-close,
 .role-checklist-footer button {
   min-height: 36px;
   padding: 7px 11px;
@@ -107,17 +119,18 @@
   display: grid;
   gap: 10px;
   min-height: 0;
-  height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   overflow-y: scroll;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .role-checklist-item {
   display: grid;
-  grid-template-columns: 32px 1fr;
+  grid-template-columns: 32px minmax(0, 1fr);
   gap: 10px;
   padding: 12px;
   border: 1px solid rgba(148, 163, 184, 0.28);
@@ -174,10 +187,24 @@
   font-weight: 700;
 }
 
+.role-setup-trigger:focus-visible,
+.role-checklist :is(a, button, [tabindex]):focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
+:root[data-theme="dark"] .role-setup-trigger,
 :root[data-theme="dark"] .role-checklist {
   border-color: rgba(96, 165, 250, 0.3);
   background: rgba(15, 23, 42, 0.98);
   color: #e2e8f0;
+}
+
+:root[data-theme="dark"] .role-setup-trigger strong,
+:root[data-theme="dark"] .role-checklist-close,
+:root[data-theme="dark"] .role-checklist-footer button {
+  background: rgba(30, 64, 175, 0.3);
+  color: #bfdbfe;
 }
 
 :root[data-theme="dark"] .role-checklist-item {
@@ -195,267 +222,26 @@
   color: #cbd5e1;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
+  .role-setup-control {
+    --role-setup-bottom-clearance:
+      calc(max(12px, env(safe-area-inset-bottom, 0px)) + 52px);
+    right: max(12px, env(safe-area-inset-right, 0px));
+  }
+
+  .role-setup-control-open {
+    top: calc(var(--role-setup-viewport-top) + 8px);
+  }
+
   .role-checklist {
-    top: 96px;
-    right: 12px;
-    bottom: auto;
-    width: calc(100vw - 24px);
-    height: min(760px, calc(100dvh - 120px));
-    max-height: calc(100dvh - 120px);
-  }
-
-  body:has(.mybids2-page) .role-checklist {
-    inset: auto;
-    height: min(760px, calc(100dvh - 24px));
-    max-height: calc(100dvh - 24px);
-    margin-right: max(12px, env(safe-area-inset-right, 0px));
-  }
-
-  body:has(.mybids2-page) .role-checklist-collapsed {
-    height: auto;
-    max-height: none;
-  }
-
-  .role-checklist-collapsed {
-    width: 215px;
+    height: min(620px, 100%);
+    max-height: 100%;
+    padding: 14px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .role-checklist-progress span {
     transition: none;
-  }
-}
-
-@media (max-width: 1100px) and (min-width: 641px) {
-  .role-checklist {
-    right: 16px;
-  }
-
-  body:has(.mybids2-page) .role-checklist {
-    inset: auto;
-  }
-
-  .role-checklist-collapsed {
-    width: 245px;
-  }
-}
-
-
-/* OWNER SETUP CLOSE AND RETURN */
-.role-checklist-header-actions {
-  display: grid;
-  flex: 0 0 auto;
-  gap: 8px;
-  min-width: 104px;
-}
-
-.role-checklist-header-actions .role-checklist-collapse,
-.role-checklist-close,
-.role-checklist-return-button {
-  width: 100%;
-  min-height: 36px;
-  padding: 7px 11px;
-  border-radius: 10px;
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.role-checklist-close {
-  border: 1px solid rgba(194, 65, 12, 0.3);
-  background: #fff7ed;
-  color: #9a3412;
-}
-
-.role-checklist-close:hover {
-  border-color: rgba(194, 65, 12, 0.55);
-  background: #ffedd5;
-}
-
-.role-checklist-return {
-  padding: 10px;
-}
-
-.role-checklist-return-button {
-  border: 1px solid rgba(37, 99, 235, 0.3);
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.role-checklist-return-button:hover {
-  border-color: rgba(37, 99, 235, 0.55);
-  background: #dbeafe;
-}
-
-.role-checklist-close:focus-visible,
-.role-checklist-return-button:focus-visible {
-  outline: 3px solid rgba(37, 99, 235, 0.35);
-  outline-offset: 2px;
-}
-
-
-/* OWNER SETUP DRAGGABLE RETURN */
-.role-checklist-return {
-  display: grid;
-  width: min(245px, calc(100vw - 24px));
-  height: auto;
-  max-height: none;
-  gap: 8px;
-  overflow: visible;
-  user-select: none;
-}
-
-body:has(.mybids2-page) .role-checklist-return {
-  position: fixed;
-  margin: 0;
-}
-
-.role-checklist-return-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.role-checklist-drag-handle,
-.role-checklist-remove-button {
-  min-height: 32px;
-  padding: 5px 8px;
-  border-radius: 9px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.role-checklist-drag-handle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid rgba(37, 99, 235, 0.3);
-  background: #eff6ff;
-  color: #1d4ed8;
-  cursor: grab;
-  touch-action: none;
-}
-
-.role-checklist-drag-handle:active {
-  cursor: grabbing;
-}
-
-.role-checklist-remove-button {
-  border: 1px solid rgba(194, 65, 12, 0.32);
-  background: #fff7ed;
-  color: #9a3412;
-}
-
-.role-checklist-remove-button:hover {
-  background: #ffedd5;
-}
-
-.role-checklist-drag-handle:focus-visible,
-.role-checklist-remove-button:focus-visible {
-  outline: 3px solid rgba(37, 99, 235, 0.35);
-  outline-offset: 2px;
-}
-
-:root[data-theme="dark"] .role-checklist-drag-handle {
-  border-color: rgba(96, 165, 250, 0.45);
-  background: rgba(30, 64, 175, 0.3);
-  color: #bfdbfe;
-}
-
-:root[data-theme="dark"] .role-checklist-remove-button {
-  border-color: rgba(248, 113, 113, 0.45);
-  background: rgba(127, 29, 29, 0.32);
-  color: #fecaca;
-}
-
-:root[data-theme="dark"] .role-checklist-remove-button:hover {
-  background: rgba(153, 27, 27, 0.52);
-}
-
-/* Compact owner-setup return shortcut. */
-.role-checklist.role-checklist-return {
-  top: auto;
-  right: max(16px, env(safe-area-inset-right, 0px));
-  bottom: max(16px, env(safe-area-inset-bottom, 0px));
-  z-index: 35;
-  display: block;
-  width: min(220px, calc(100vw - 24px));
-  max-width: 220px;
-  height: 48px;
-  min-height: 48px;
-  padding: 4px;
-  border-radius: 14px;
-  overflow: hidden;
-}
-
-.role-checklist-return .role-checklist-return-actions {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 36px;
-  gap: 4px;
-  height: 40px;
-}
-
-.role-checklist-return .role-checklist-drag-handle,
-.role-checklist-return .role-checklist-remove-button,
-.role-checklist-return .role-checklist-return-button {
-  width: auto;
-  min-width: 0;
-  min-height: 40px;
-  height: 40px;
-  padding: 0;
-  border-radius: 10px;
-}
-
-.role-checklist-return .role-checklist-drag-handle,
-.role-checklist-return .role-checklist-remove-button {
-  justify-content: center;
-  font-size: 1rem;
-}
-
-.role-checklist-return .role-checklist-return-button {
-  grid-column: 2;
-  grid-row: 1;
-  padding: 0 10px;
-  white-space: nowrap;
-}
-
-.role-checklist-return .role-checklist-remove-button {
-  grid-column: 3;
-  grid-row: 1;
-}
-
-.role-checklist-return-label-short {
-  display: none;
-}
-
-.role-checklist-return
-  :is(
-    .role-checklist-drag-handle,
-    .role-checklist-remove-button,
-    .role-checklist-return-button
-  ):focus-visible {
-  outline: 3px solid #60a5fa;
-  outline-offset: -1px;
-}
-
-@media (max-width: 480px) {
-  .role-checklist.role-checklist-return {
-    right: max(12px, env(safe-area-inset-right, 0px));
-    bottom: max(12px, env(safe-area-inset-bottom, 0px));
-    width: 184px;
-    max-width: calc(100vw - 24px);
-  }
-
-  .role-checklist-return-label {
-    display: none;
-  }
-
-  .role-checklist-return-label-short {
-    display: inline;
   }
 }

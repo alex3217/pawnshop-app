@@ -8,12 +8,14 @@ type NavigationAssistanceCenterProps = {
   isOpen: boolean;
   launchPending: boolean;
   onClose: () => void;
+  returnFocusTarget: HTMLElement | null;
   onResetCompleted: () => void;
   onRestoreDefaults: () => void;
   onSetFloatingButtonVisible: (visible: boolean) => void;
   onSetTipsAutomatically: (enabled: boolean) => void;
   onStartFullTour: () => void;
   onStartTopic: (topic: AssistanceTopic) => void;
+  showFloatingButtonPreference: boolean;
   tipsAutomatically: boolean;
   topics: AssistanceTopic[];
 };
@@ -25,12 +27,14 @@ export default function NavigationAssistanceCenter({
   isOpen,
   launchPending,
   onClose,
+  returnFocusTarget,
   onResetCompleted,
   onRestoreDefaults,
   onSetFloatingButtonVisible,
   onSetTipsAutomatically,
   onStartFullTour,
   onStartTopic,
+  showFloatingButtonPreference,
   tipsAutomatically,
   topics,
 }: NavigationAssistanceCenterProps) {
@@ -40,7 +44,12 @@ export default function NavigationAssistanceCenter({
   useEffect(() => {
     if (!isOpen) return;
 
-    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previouslyFocused =
+      returnFocusTarget?.isConnected === true
+        ? returnFocusTarget
+        : document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
     const dialog = dialogRef.current;
     closeButtonRef.current?.focus();
 
@@ -77,15 +86,20 @@ export default function NavigationAssistanceCenter({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.classList.remove("navigation-assistance-open");
-      previouslyFocused?.focus();
+      if (previouslyFocused?.isConnected) {
+        previouslyFocused.focus();
+      }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, returnFocusTarget]);
 
   if (!isOpen) return null;
 
   return (
     <div className="navigation-assistance-backdrop" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
+      if (event.target === event.currentTarget) {
+        event.preventDefault();
+        onClose();
+      }
     }}>
       <div
         ref={dialogRef}
@@ -155,11 +169,13 @@ export default function NavigationAssistanceCenter({
           </label>
           <div className="navigation-assistance-setting-actions">
             <button type="button" onClick={() => onSetTipsAutomatically(false)}>Stop Automatic Prompts</button>
-            {floatingButtonVisible ? (
-              <button type="button" onClick={() => onSetFloatingButtonVisible(false)}>Hide Floating Help Button</button>
-            ) : (
-              <button type="button" onClick={() => onSetFloatingButtonVisible(true)}>Restore Floating Help Button</button>
-            )}
+            {showFloatingButtonPreference ? (
+              floatingButtonVisible ? (
+                <button type="button" onClick={() => onSetFloatingButtonVisible(false)}>Hide Floating Help Button</button>
+              ) : (
+                <button type="button" onClick={() => onSetFloatingButtonVisible(true)}>Restore Floating Help Button</button>
+              )
+            ) : null}
             <button type="button" onClick={onResetCompleted}>Reset Completed Instructions</button>
             <button type="button" onClick={onRestoreDefaults}>Restore All Help Defaults</button>
           </div>
