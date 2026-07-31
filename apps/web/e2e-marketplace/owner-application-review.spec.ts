@@ -406,7 +406,9 @@ test("owner application page explains every workflow status without exposing pri
                 ? "Upload a current business license."
                 : status === "REJECTED" || status === "SUSPENDED"
                   ? "Licensing requirements were not met."
-                  : null,
+                  : status === "APPROVED"
+                    ? "Existing owner approved during owner-application migration"
+                    : null,
             statusChangedAt: "2026-07-29T12:00:00.000Z",
             updatedAt: "2026-07-29T12:00:00.000Z",
             canEdit: status === "INFORMATION_REQUESTED",
@@ -441,12 +443,246 @@ test("owner application page explains every workflow status without exposing pri
   for (const [nextStatus, label] of expectations) {
     status = nextStatus;
     await page.goto("/owner/application");
-    await expect(page.getByText(label, { exact: true })).toBeVisible();
+    await expect(page.locator(".owner-application__status")).toHaveText(label);
     await expect(page.getByText("Submitted", { exact: true })).toBeVisible();
-    await expect(page.getByText("Latest review", { exact: true })).toBeVisible();
+    await expect(
+      page.getByLabel("Application timeline").getByText(
+        nextStatus === "APPROVED" ? "Approved" : "Latest review",
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: "What happens next" })).toBeVisible();
     await expect(page.getByText("Private fraud-screening note.")).toHaveCount(0);
+
+    if (nextStatus === "APPROVED") {
+      await expect(page.getByRole("heading", { name: "Application approved" })).toBeVisible();
+      await expect(page.getByText(
+        "Your PawnLoop owner account has been approved. You can now complete your shop setup and prepare your storefront.",
+      )).toBeVisible();
+      await expect(page.getByText("Complete your shop profile")).toBeVisible();
+      await expect(page.getByText("Add location and business information")).toBeVisible();
+      await expect(page.getByText("Connect payments")).toBeVisible();
+      await expect(page.getByText("Add your first inventory item")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Continue Shop Setup" }))
+        .toHaveAttribute("href", "/owner/onboarding");
+      await expect(page.getByRole("link", {
+        name: "Open Owner Dashboard",
+        exact: true,
+      }))
+        .toHaveAttribute("href", "/owner");
+      await expect(page.getByText(
+        "Existing owner approved during owner-application migration",
+      )).toHaveCount(0);
+    }
+
+    if (nextStatus === "INFORMATION_REQUESTED") {
+      await expect(page.getByText("Upload a current business license.")).toBeVisible();
+    }
+
+    if (nextStatus === "REJECTED" || nextStatus === "SUSPENDED") {
+      await expect(page.getByText("Licensing requirements were not met.")).toBeVisible();
+    }
   }
+});
+
+test("owner application header and setup shortcut stay usable across responsive themes", async ({ page }) => {
+  test.setTimeout(60_000);
+  await storeSession(page, "OWNER");
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "pawnloop-role-checklist-dismissed-OWNER-v1",
+      "true",
+    );
+    localStorage.setItem(
+      "pawnloop-role-checklist-shortcut-hidden-OWNER-v1",
+      "false",
+    );
+    localStorage.setItem(
+      "pawnloop-navigation-assistance-OWNER-v2",
+      JSON.stringify({
+        automaticPrompts: false,
+        completedTopics: ["full-tour"],
+        dismissedGuidance: true,
+        floatingButtonVisible: false,
+      }),
+    );
+  });
+
+  await page.route("**/api/**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/owner-applications/me") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          application: {
+            ...application,
+            status: "APPROVED",
+            canEdit: false,
+            canResubmit: false,
+            decisionReason:
+              "Existing owner approved during owner-application migration",
+          },
+        }),
+      });
+    }
+    if (url.pathname === "/api/notifications") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, notifications: [] }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, shops: [], data: [] }),
+    });
+  });
+
+  const viewports = [
+    { width: 1440, height: 1000 },
+    { width: 1024, height: 900 },
+    { width: 768, height: 900 },
+    { width: 390, height: 844 },
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto("/owner/application");
+
+    const logo = page.getByRole("link", { name: "PawnLoop home" });
+    const themeToggle = page.getByRole("button", {
+      name: /Switch to (light|dark) mode/,
+    });
+    const dashboard = page.getByRole("link", {
+      name: "Dashboard",
+      exact: true,
+    });
+    const logout = page.getByRole("button", { name: "Logout" });
+    const shortcut = page.getByLabel("Return to pawn shop owner setup");
+    const continueSetup = page.getByRole("link", {
+      name: "Continue Shop Setup",
+    });
+    const openDashboard = page.getByRole("link", {
+      name: "Open Owner Dashboard",
+      exact: true,
+    });
+
+    await expect(logo).toBeVisible();
+    await expect(themeToggle).toBeVisible();
+    await expect(dashboard).toBeVisible();
+    await expect(logout).toBeVisible();
+    await expect(shortcut).toBeVisible();
+    await expect(continueSetup).toBeVisible();
+    await expect(openDashboard).toBeVisible();
+    await expect(shortcut).toHaveCSS("height", "48px");
+
+    const layout = await page.evaluate(() => {
+      const rect = (selector: string) =>
+        document.querySelector<HTMLElement>(selector)
+          ?.getBoundingClientRect();
+      const intersects = (a?: DOMRect, b?: DOMRect) =>
+        Boolean(
+          a &&
+            b &&
+            a.left < b.right &&
+            a.right > b.left &&
+            a.top < b.bottom &&
+            a.bottom > b.top,
+        );
+
+      const logoRect = rect(".site-brand");
+      const actionsRect = rect(".site-top-actions");
+      const shortcutRect = rect(".role-checklist-return");
+      const continueRect = rect(
+        '.owner-application__actions a[href="/owner/onboarding"]',
+      );
+      const dashboardRect = rect(
+        '.owner-application__actions a[href="/owner"]',
+      );
+
+      return {
+        hasHorizontalOverflow:
+          document.documentElement.scrollWidth > window.innerWidth,
+        overflowingElements: Array.from(
+          document.querySelectorAll<HTMLElement>("body *"),
+        )
+          .filter((element) => element.getBoundingClientRect().right > window.innerWidth + 1)
+          .sort(
+            (a, b) =>
+              b.getBoundingClientRect().right - a.getBoundingClientRect().right,
+          )
+          .slice(0, 8)
+          .map((element) => {
+            const box = element.getBoundingClientRect();
+            return `${element.className || element.tagName}:${Math.round(box.left)}-${Math.round(box.right)}`;
+          }),
+        logoActionsOverlap: intersects(logoRect, actionsRect),
+        shortcutContinueOverlap: intersects(shortcutRect, continueRect),
+        shortcutDashboardOverlap: intersects(shortcutRect, dashboardRect),
+        shortcutWithinViewport: Boolean(
+          shortcutRect &&
+            shortcutRect.left >= 0 &&
+            shortcutRect.top >= 0 &&
+            shortcutRect.right <= window.innerWidth &&
+            shortcutRect.bottom <= window.innerHeight,
+        ),
+      };
+    });
+
+    expect(layout.hasHorizontalOverflow, layout.overflowingElements.join(", "))
+      .toBe(false);
+    expect(layout.logoActionsOverlap).toBe(false);
+    expect(layout.shortcutContinueOverlap).toBe(false);
+    expect(layout.shortcutDashboardOverlap).toBe(false);
+    expect(layout.shortcutWithinViewport).toBe(true);
+
+    const moreMenu = page.locator(".site-primary-more-menu");
+    if (viewport.width <= 1200) {
+      await expect(moreMenu).toBeVisible();
+      await moreMenu.locator("summary").click();
+      await expect(
+        moreMenu.getByRole("link", { name: "Item Locator" }),
+      ).toBeVisible();
+      await moreMenu.locator("summary").click();
+    } else {
+      await expect(moreMenu).toBeHidden();
+    }
+
+    await themeToggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expect(shortcut).toBeVisible();
+    await themeToggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  }
+
+  const shortcut = page.getByLabel("Return to pawn shop owner setup");
+  const shortcutBox = await shortcut.boundingBox();
+  expect(shortcutBox).not.toBeNull();
+  if (shortcutBox) {
+    const headerBox = await page.locator(".site-header").boundingBox();
+    const headerBottom = headerBox ? headerBox.y + headerBox.height : 0;
+    await page.getByRole("button", {
+      name: "Move owner setup shortcut",
+      exact: true,
+    }).hover();
+    await page.mouse.down();
+    await page.mouse.move(40, headerBottom + 30);
+    await page.mouse.up();
+    const movedBox = await shortcut.boundingBox();
+    expect(movedBox).not.toBeNull();
+    expect(movedBox?.y).toBeGreaterThanOrEqual(headerBottom + 11);
+  }
+
+  await page.getByRole("button", {
+    name: "Owner setup",
+    exact: true,
+  }).click();
+  await expect(
+    page.getByLabel("Pawn shop owner setup checklist"),
+  ).toBeVisible();
 });
 
 test("owner saves requested corrections and resubmits with responsive success and retry states", async ({ page }) => {

@@ -24,6 +24,14 @@ type NavItem = {
   end?: boolean;
 };
 
+const COMPACT_PRIMARY_NAV_PATHS = new Set([
+  "/marketplace/buy-now",
+  "/buyer/item-locator",
+  "/buyer/sell-item",
+  "/shops",
+  "/auctions",
+]);
+
 const PUBLIC_NAV: NavItem[] = [
   {
     to: "/for-pawn-shops",
@@ -293,6 +301,7 @@ export default function SiteLayout() {
 
   const {
     primaryLinks,
+    compactPrimaryLinks,
     workspaceLinks,
     footerLinks,
     dashboardHref,
@@ -343,6 +352,9 @@ export default function SiteLayout() {
 
     return {
       primaryLinks: primary,
+      compactPrimaryLinks: primary.filter((item) =>
+        COMPACT_PRIMARY_NAV_PATHS.has(item.to),
+      ),
       workspaceLinks: workspace,
       footerLinks: footer,
       dashboardHref:
@@ -461,12 +473,46 @@ export default function SiteLayout() {
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) =>
-                  isActive ? "site-nav-link active" : "site-nav-link"
+                  [
+                    "site-nav-link",
+                    COMPACT_PRIMARY_NAV_PATHS.has(item.to)
+                      ? "site-nav-link--compact"
+                      : "",
+                    isActive ? "active" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
                 }
               >
                 {item.label}
               </NavLink>
             ))}
+
+            {compactPrimaryLinks.length > 0 ? (
+              <details className="site-primary-more-menu">
+                <summary className="site-primary-more-trigger">
+                  <span>More</span>
+                  <span aria-hidden="true">⌄</span>
+                </summary>
+
+                <div className="site-primary-more-panel">
+                  {compactPrimaryLinks.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) =>
+                        isActive
+                          ? "site-workspace-menu-link active"
+                          : "site-workspace-menu-link"
+                      }
+                    >
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </details>
+            ) : null}
           </nav>
 
           {workspaceLinks.length > 0 ? (
