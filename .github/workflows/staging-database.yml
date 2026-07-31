@@ -36,7 +36,7 @@ jobs:
       NODE_ENV: ${{ vars.NODE_ENV }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DATABASE_URL }}
-      EXPECTED_STAGING_ENDPOINT: ${{ vars.STAGING_DATABASE_HOST }}
+      STAGING_DATABASE_HOST: ${{ vars.STAGING_DATABASE_HOST }}
 
     steps:
       - name: Check out main
@@ -64,7 +64,7 @@ jobs:
 
           node <<'NODE'
           const value = process.env.DATABASE_URL || "";
-          const expected = process.env.EXPECTED_STAGING_ENDPOINT || "";
+          const expected = process.env.STAGING_DATABASE_HOST || "";
 
           if (!value) {
             console.error("Missing staging DATABASE_URL secret.");
@@ -73,6 +73,20 @@ jobs:
 
           if (!expected) {
             console.error("Missing non-secret STAGING_DATABASE_HOST staging variable.");
+            process.exit(1);
+          }
+
+          const hostnamePattern = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/i;
+          const normalizedExpected = expected.toLowerCase();
+          const localExpected =
+            normalizedExpected === "localhost" ||
+            normalizedExpected.endsWith(".localhost") ||
+            /^127(?:\.|$)/.test(normalizedExpected) ||
+            normalizedExpected === "::1" ||
+            normalizedExpected === "[::1]";
+
+          if (!hostnamePattern.test(expected) || localExpected) {
+            console.error("STAGING_DATABASE_HOST must be a non-local hostname-only value.");
             process.exit(1);
           }
 
@@ -91,8 +105,8 @@ jobs:
           }
 
           const approvedHost =
-            url.hostname === expected ||
-            url.hostname.startsWith(`${expected}.`);
+            Boolean(url.hostname) &&
+            url.hostname.toLowerCase() === normalizedExpected;
 
           if (!approvedHost) {
             console.error("DATABASE_URL does not target the approved staging endpoint.");

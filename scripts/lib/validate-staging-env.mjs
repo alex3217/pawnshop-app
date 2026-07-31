@@ -26,9 +26,31 @@ const value = (name) => String(env[name] || "").trim();
 const fail = (name, rule) => errors.push(`${name}: ${rule}`);
 const placeholder = /(?:replace(?:[_ -]?me)?|change(?:[_ -]?me)?|placeholder|example|your[_ -]|todo|dummy|secret[_ -]?here)/i;
 
+function isLocalHostname(hostname) {
+  const normalized = hostname.toLowerCase();
+  return normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    /^127(?:\.|$)/.test(normalized) ||
+    normalized === "::1" ||
+    normalized === "[::1]";
+}
+
 for (const name of required) {
   if (!value(name)) fail(name, "is required");
   else if (placeholder.test(value(name))) fail(name, "contains a placeholder");
+}
+
+let approvedStagingDatabaseHost = "";
+if (mode === "deployed") {
+  const name = "STAGING_DATABASE_HOST";
+  const host = value(name);
+  const hostnamePattern = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/i;
+
+  if (!host) fail(name, "is required in deployed mode");
+  else if (placeholder.test(host)) fail(name, "contains a placeholder");
+  else if (!hostnamePattern.test(host)) fail(name, "must be a hostname only without scheme, credentials, port, path, query, or fragment");
+  else if (isLocalHostname(host)) fail(name, "must not target localhost or loopback");
+  else approvedStagingDatabaseHost = host.toLowerCase();
 }
 
 if (value("APP_ENV") && value("APP_ENV") !== "staging") fail("APP_ENV", "must equal staging");
@@ -79,14 +101,17 @@ function url(name, { list = false, database = false } = {}) {
   for (const raw of (list ? value(name).split(",") : [value(name)]).map((part) => part.trim()).filter(Boolean)) {
     try {
       const parsed = new URL(raw);
-      const localHostname =
-        parsed.hostname === "localhost" ||
-        parsed.hostname.endsWith(".localhost") ||
-        /^127\./.test(parsed.hostname) ||
-        parsed.hostname === "[::1]";
+      const localHostname = isLocalHostname(parsed.hostname);
       if (database) {
         if (!["postgres:", "postgresql:"].includes(parsed.protocol)) fail(name, "must be a PostgreSQL URL");
+        if (!parsed.hostname) fail(name, "must include a hostname");
         if (mode === "deployed" && localHostname) fail(name, "must not target localhost in deployed mode");
+        if (
+          mode === "deployed" &&
+          parsed.hostname &&
+          approvedStagingDatabaseHost &&
+          parsed.hostname.toLowerCase() !== approvedStagingDatabaseHost
+        ) fail(name, "hostname must exactly match STAGING_DATABASE_HOST");
       } else {
         if (!["http:", "https:"].includes(parsed.protocol)) fail(name, "must use HTTP or HTTPS");
         if (mode === "deployed" && parsed.protocol !== "https:") fail(name, "must use HTTPS in deployed mode");

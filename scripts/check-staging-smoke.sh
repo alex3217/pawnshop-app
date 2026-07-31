@@ -2,8 +2,8 @@
 set -euo pipefail
 
 API_URL="${STAGING_API_URL:-}"
-EXPECTED_SERVICE="${STAGING_EXPECTED_SERVICE:-pawnloop-api}"
-EXPECTED_ENV="${STAGING_EXPECTED_ENV:-staging}"
+EXPECTED_SERVICE="pawnloop-api"
+EXPECTED_ENV="staging"
 
 if [ -z "$API_URL" ]; then
   echo "STAGING_API_URL is required (for example, the canonical Render API origin)." >&2

@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 FIXTURE="$TMP_DIR/staging.env"
+FAKE_BIN="$TMP_DIR/fake-bin"
 
 use_fixture() { cp "$ROOT/scripts/test/fixtures/$1" "$FIXTURE"; }
 set_value() { sed -i.bak "s|^$1=.*|$1=$2|" "$FIXTURE"; rm "$FIXTURE.bak"; }
@@ -38,8 +39,84 @@ expect_smoke_url_fail() {
   fi
 }
 
+mkdir -p "$FAKE_BIN"
+cat >"$FAKE_BIN/curl" <<'FAKE_CURL'
+#!/usr/bin/env bash
+set -euo pipefail
+headers=""
+body=""
+method=""
+url=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dump-header) headers="$2"; shift 2 ;;
+    --output) body="$2"; shift 2 ;;
+    --request) method="$2"; shift 2 ;;
+    --connect-timeout|--max-time|--max-redirs|--write-out) shift 2 ;;
+    --silent|--show-error) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+
+if [ "$method" != "GET" ]; then
+  echo "Synthetic smoke fixture received a non-GET request." >&2
+  exit 1
+fi
+case "$url" in
+  https://api.staging.invalid/api/health|https://api.staging.invalid/api/ready) ;;
+  *) echo "Synthetic smoke fixture received an unexpected URL." >&2; exit 1 ;;
+esac
+
+printf 'HTTP/1.1 200 OK\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\r\n' >"$headers"
+printf '{"ok":true,"success":true,"service":"%s","env":"%s","ready":true,"dependencies":{"database":"ok"}}\n' \
+  "${FAKE_SMOKE_SERVICE:-pawnloop-api}" "${FAKE_SMOKE_ENV:-staging}" >"$body"
+printf '200'
+FAKE_CURL
+chmod 755 "$FAKE_BIN/curl"
+
+expect_smoke_response_pass() {
+  local label="$1"
+  if ! PATH="$FAKE_BIN:$PATH" STAGING_API_URL="https://api.staging.invalid" \
+    STAGING_EXPECTED_SERVICE="another-service" STAGING_EXPECTED_ENV="production" \
+    bash "$ROOT/scripts/check-staging-smoke.sh" >/dev/null; then
+    echo "FAIL: expected synthetic smoke response to pass: $label" >&2; exit 1
+  fi
+}
+
+expect_smoke_response_fail() {
+  local label="$1"
+  if PATH="$FAKE_BIN:$PATH" STAGING_API_URL="https://api.staging.invalid" \
+    STAGING_EXPECTED_SERVICE="another-service" STAGING_EXPECTED_ENV="production" \
+    FAKE_SMOKE_SERVICE="another-service" FAKE_SMOKE_ENV="production" \
+    bash "$ROOT/scripts/check-staging-smoke.sh" >/dev/null 2>&1; then
+    echo "FAIL: expected synthetic smoke response to fail: $label" >&2; exit 1
+  fi
+}
+
 use_fixture staging-valid.env; expect_pass "valid deployed fixture"
 use_fixture staging-local-valid.env; expect_pass "fully local fixture" local
+
+use_fixture staging-valid.env; unset_value STAGING_DATABASE_HOST; expect_fail "missing deployed STAGING_DATABASE_HOST"
+use_fixture staging-valid.env; set_value DATABASE_URL postgresql:///pawnloop_staging; expect_fail "DATABASE_URL without hostname"
+use_fixture staging-valid.env; set_value STAGING_DATABASE_HOST placeholder.invalid; expect_fail "placeholder staging database host"
+invalid_staging_hosts=(
+  'https://staging-db.invalid'
+  'user:pass@staging-db.invalid'
+  'staging-db.invalid:5432'
+  'staging-db.invalid/path'
+  'staging-db.invalid?query=1'
+  '"staging-db.invalid#fragment"'
+  'localhost'
+  'db.localhost'
+  '127.0.0.1'
+  '127.0.0.2'
+  '::1'
+)
+for bad in "${invalid_staging_hosts[@]}"; do
+  use_fixture staging-valid.env; set_value STAGING_DATABASE_HOST "$bad"; expect_fail "invalid staging database host: $bad"
+done
+use_fixture staging-valid.env; set_value STAGING_DATABASE_HOST other-staging-db.invalid; expect_fail "database hostname mismatch"
+use_fixture staging-valid.env; set_value STAGING_DATABASE_HOST STAGING-DB.INVALID; expect_pass "case-insensitive database hostname match"
 
 use_fixture staging-local-valid.env; unset_value PAWN_PORT; expect_fail "missing local PAWN_PORT" local
 use_fixture staging-local-valid.env; set_value PAWN_PORT 6004; expect_fail "incorrect local PAWN_PORT" local
@@ -130,5 +207,7 @@ expect_smoke_url_fail "https://api.staging.invalid/path" "path-bearing URL"
 expect_smoke_url_fail "https://api.staging.invalid?query=1" "query-bearing URL"
 expect_smoke_url_fail "https://api.staging.invalid#fragment" "fragment-bearing URL"
 expect_smoke_url_fail "https://api.staging.invalid:65536" "invalid port"
+expect_smoke_response_pass "ambient identity overrides are ignored"
+expect_smoke_response_fail "non-staging identity cannot be approved by ambient overrides"
 
-echo "Staging readiness fixture tests passed (${#required[@]} required settings, expanded mode/origin/port/format coverage)."
+echo "Staging readiness fixture tests passed (${#required[@]} common required settings plus the deployed database-host contract and fixed smoke identity)."

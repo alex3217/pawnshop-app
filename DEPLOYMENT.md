@@ -67,7 +67,10 @@ The deployed contract requires `APP_ENV=staging`, `NODE_ENV=staging`,
 limits enabled, test-mode Stripe credentials and all seller/buyer subscription
 Price IDs, both webhook signing secrets, SMTP sender/host configuration,
 explicitly disabled schedulers with explicit interval/batch settings, and HTTPS
-frontend/web/CORS origins. Origin values must use browser `Origin` format:
+frontend/web/CORS origins. It also requires the non-secret
+`STAGING_DATABASE_HOST` value to be the exact hostname from `DATABASE_URL`;
+schemes, credentials, ports, paths, queries, fragments, placeholders, localhost,
+and loopback hosts are rejected. Origin values must use browser `Origin` format:
 scheme, hostname, and optional non-default port only, with no credentials, path,
 trailing slash, query, or fragment. Render supplies `PORT` dynamically; any valid
 TCP port passes deployed validation and `PAWN_PORT` is optional (but validated if
@@ -91,7 +94,8 @@ After Render reports a successful deploy, run the read-only smoke check:
 fragment. A single trailing slash is accepted and normalized before requests.
 
 The smoke check calls only `GET /api/health` and `GET /api/ready`, uses bounded
-timeouts, and verifies HTTP 200, `pawnloop-api`/`staging` identity, database
+timeouts, and verifies HTTP 200, the fixed non-overridable
+`pawnloop-api`/`staging` identity, database
 readiness, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, and the
 absence of `X-Powered-By`.
 
