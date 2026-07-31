@@ -222,8 +222,12 @@ function clampShortcutPosition(
   element: HTMLElement | null,
 ): FloatingPosition {
   const margin = 12;
-  const width = element?.offsetWidth ?? 245;
-  const height = element?.offsetHeight ?? 110;
+  const width = element?.offsetWidth ?? 220;
+  const height = element?.offsetHeight ?? 48;
+  const headerBottom =
+    document.querySelector<HTMLElement>(".site-header")
+      ?.getBoundingClientRect().bottom ?? 0;
+  const minimumY = Math.max(margin, headerBottom + margin);
 
   return {
     x: Math.min(
@@ -231,8 +235,8 @@ function clampShortcutPosition(
       Math.max(margin, window.innerWidth - width - margin),
     ),
     y: Math.min(
-      Math.max(margin, position.y),
-      Math.max(margin, window.innerHeight - height - margin),
+      Math.max(minimumY, position.y),
+      Math.max(minimumY, window.innerHeight - height - margin),
     ),
   };
 }
@@ -598,25 +602,33 @@ export default function RoleSetupChecklist({
             onPointerCancel={finishShortcutDrag}
           >
             <span aria-hidden="true">⋮⋮</span>
-            Move
           </button>
 
           <button
             type="button"
             className="role-checklist-remove-button"
             onClick={permanentlyHideOwnerSetup}
+            aria-label="Remove owner setup shortcut from screen"
+            title="Remove from screen"
           >
-            Remove from screen
+            <span aria-hidden="true">×</span>
+          </button>
+
+          <button
+            type="button"
+            className="role-checklist-return-button"
+            onClick={returnToOwnerSetup}
+            aria-label="Owner setup"
+          >
+            <span className="role-checklist-return-label">Owner setup</span>
+            <span
+              className="role-checklist-return-label-short"
+              aria-hidden="true"
+            >
+              Setup
+            </span>
           </button>
         </div>
-
-        <button
-          type="button"
-          className="role-checklist-return-button"
-          onClick={returnToOwnerSetup}
-        >
-          Return to owner setup
-        </button>
       </aside>
     );
   }

@@ -376,3 +376,86 @@ body:has(.mybids2-page) .role-checklist-return {
 :root[data-theme="dark"] .role-checklist-remove-button:hover {
   background: rgba(153, 27, 27, 0.52);
 }
+
+/* Compact owner-setup return shortcut. */
+.role-checklist.role-checklist-return {
+  top: auto;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 35;
+  display: block;
+  width: min(220px, calc(100vw - 24px));
+  max-width: 220px;
+  height: 48px;
+  min-height: 48px;
+  padding: 4px;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.role-checklist-return .role-checklist-return-actions {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 4px;
+  height: 40px;
+}
+
+.role-checklist-return .role-checklist-drag-handle,
+.role-checklist-return .role-checklist-remove-button,
+.role-checklist-return .role-checklist-return-button {
+  width: auto;
+  min-width: 0;
+  min-height: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.role-checklist-return .role-checklist-drag-handle,
+.role-checklist-return .role-checklist-remove-button {
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.role-checklist-return .role-checklist-return-button {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.role-checklist-return .role-checklist-remove-button {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.role-checklist-return-label-short {
+  display: none;
+}
+
+.role-checklist-return
+  :is(
+    .role-checklist-drag-handle,
+    .role-checklist-remove-button,
+    .role-checklist-return-button
+  ):focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: -1px;
+}
+
+@media (max-width: 480px) {
+  .role-checklist.role-checklist-return {
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    width: 184px;
+    max-width: calc(100vw - 24px);
+  }
+
+  .role-checklist-return-label {
+    display: none;
+  }
+
+  .role-checklist-return-label-short {
+    display: inline;
+  }
+}
