@@ -4,9 +4,14 @@
   right: 20px;
   bottom: auto;
   z-index: 8500;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   width: min(390px, calc(100vw - 32px));
-  max-height: min(620px, calc(100vh - 180px));
-  overflow: auto;
+  height: min(760px, calc(100dvh - 140px));
+  max-height: calc(100dvh - 140px);
+  box-sizing: border-box;
+  overflow: hidden;
+  pointer-events: auto;
   padding: 16px;
   border: 1px solid rgba(37, 99, 235, 0.24);
   border-radius: 20px;
@@ -36,7 +41,8 @@
     position: relative;
     inset: auto;
     width: min(390px, calc(100% - 32px));
-    max-height: none;
+    height: min(760px, calc(100dvh - 2rem));
+    max-height: calc(100dvh - 2rem);
     margin: 20px max(16px, env(safe-area-inset-right, 0px))
       calc(20px + env(safe-area-inset-bottom, 0px)) auto;
   }
@@ -44,6 +50,7 @@
 
 .role-checklist-collapsed {
   width: 245px;
+  height: auto;
   max-height: none;
 }
 
@@ -99,6 +106,13 @@
 .role-checklist-items {
   display: grid;
   gap: 10px;
+  min-height: 0;
+  height: 100%;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .role-checklist-item {
@@ -187,13 +201,20 @@
     right: 12px;
     bottom: auto;
     width: calc(100vw - 24px);
-    max-height: calc(100vh - 120px);
+    height: min(760px, calc(100dvh - 120px));
+    max-height: calc(100dvh - 120px);
   }
 
   body:has(.mybids2-page) .role-checklist {
     inset: auto;
-    max-height: none;
+    height: min(760px, calc(100dvh - 24px));
+    max-height: calc(100dvh - 24px);
     margin-right: max(12px, env(safe-area-inset-right, 0px));
+  }
+
+  body:has(.mybids2-page) .role-checklist-collapsed {
+    height: auto;
+    max-height: none;
   }
 
   .role-checklist-collapsed {
@@ -279,6 +300,7 @@
 .role-checklist-return {
   display: grid;
   width: min(245px, calc(100vw - 24px));
+  height: auto;
   max-height: none;
   gap: 8px;
   overflow: visible;

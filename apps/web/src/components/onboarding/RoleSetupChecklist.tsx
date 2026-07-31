@@ -675,7 +675,15 @@ export default function RoleSetupChecklist({
 
       {!collapsed ? (
         <>
-          <div className="role-checklist-items">
+          <div
+            className="role-checklist-items"
+            tabIndex={0}
+            aria-label={
+              activeRole === "OWNER"
+                ? "Owner setup checklist items"
+                : "Buyer setup checklist items"
+            }
+          >
             {items.map((item) => {
               const isComplete = completed.includes(item.id);
 
