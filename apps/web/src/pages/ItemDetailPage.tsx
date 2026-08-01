@@ -8,9 +8,11 @@ import {
 import {
   getItemById,
   getItemPriceComparison,
+  getMarketplaceIntelligence,
   type Item,
   type ItemPriceComparisonReason,
   type ItemPriceComparisonResponse,
+  type MarketplaceIntelligence,
 } from "../services/items";
 import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import { addToWatchlist } from "../services/watchlist";
@@ -209,6 +211,9 @@ export default function ItemDetailPage() {
   const [comparisonLoading, setComparisonLoading] = useState(true);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [comparisonReloadKey, setComparisonReloadKey] = useState(0);
+  const [marketIntelligence, setMarketIntelligence] = useState<MarketplaceIntelligence | null>(null);
+  const [intelligenceLoading, setIntelligenceLoading] = useState(true);
+  const [intelligenceError, setIntelligenceError] = useState<string | null>(null);
   const [comparisonView, setComparisonView] =
     useState<PriceComparisonView>("cards");
   const [
@@ -307,6 +312,14 @@ export default function ItemDetailPage() {
       controller.abort();
     };
   }, [id, comparisonReloadKey]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    if (!id) { setIntelligenceLoading(false); return () => controller.abort(); }
+    setIntelligenceLoading(true); setIntelligenceError(null);
+    getMarketplaceIntelligence(id, controller.signal).then(setMarketIntelligence).catch((cause) => { if (!controller.signal.aborted) setIntelligenceError(cause instanceof Error ? cause.message : "Marketplace Intelligence could not load."); }).finally(() => { if (!controller.signal.aborted) setIntelligenceLoading(false); });
+    return () => controller.abort();
+  }, [id]);
 
 
   useEffect(() => {
@@ -637,6 +650,19 @@ export default function ItemDetailPage() {
       </section>
 
       <section className="item-detail-content-grid">
+
+        <section className="item-detail-price-intelligence-card" aria-live="polite">
+          <div className="item-detail-section-title"><span>Marketplace Intelligence</span><h2>Observed marketplace context</h2><p>Deterministic comparisons from active public listings and completed PawnLoop transactions.</p></div>
+          {intelligenceLoading ? <div className="item-detail-price-state"><strong>Loading Marketplace Intelligence…</strong></div> : null}
+          {intelligenceError ? <div role="alert" className="item-detail-price-state item-detail-price-error"><strong>Marketplace Intelligence unavailable</strong><span>{intelligenceError}</span></div> : null}
+          {marketIntelligence ? <div>
+            <div className="item-detail-price-metrics"><div><span>Active comparables</span><strong>{marketIntelligence.comparableActiveListings}</strong></div><div><span>Completed sales</span><strong>{marketIntelligence.completedSales.sampleSize}</strong></div><div><span>Confidence</span><strong>{marketIntelligence.completedSales.confidence.level}</strong></div><div><span>Demand</span><strong>{marketIntelligence.demand.label.replaceAll("_", " ")}</strong></div></div>
+            {marketIntelligence.completedSales.available ? <p>Completed-sale median: {formatPrice((marketIntelligence.completedSales.medianSalePriceCents ?? 0) / 100)} · Position: {marketIntelligence.pricePosition.replaceAll("_", " ").toLowerCase()}</p> : <p><strong>Insufficient completed-sale data.</strong> At least three comparable completed sales are required.</p>}
+            <p><strong>Price history unavailable:</strong> {marketIntelligence.priceHistory.reason}</p>
+            <h3>Similar listings</h3>{marketIntelligence.similarListings.length ? <div className="item-detail-next-grid">{marketIntelligence.similarListings.slice(0, 6).map((listing) => <Link key={listing.id} to={listing.itemId ? `/items/${encodeURIComponent(listing.itemId)}` : "/marketplace"}>{listing.title} · {formatPrice(listing.priceCents / 100)}</Link>)}</div> : <p>No eligible similar active listings are available.</p>}
+            <p><small>{marketIntelligence.disclaimer} Limitations: {marketIntelligence.limitations.join(" ")}</small></p>
+          </div> : null}
+        </section>
 
         <section
           className="item-detail-price-intelligence-card"

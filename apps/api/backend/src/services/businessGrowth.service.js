@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { getSellerEntitlementsForShop } from "./sellerPlan.service.js";
+import { getOwnerMarketplaceIntelligence } from "./marketplaceIntelligence.service.js";
 
 export const SHOP_HEALTH_CALCULATION_VERSION = "shop-health-v1.0";
 const DAY_MS = 86_400_000;
@@ -146,6 +147,7 @@ export async function getBusinessGrowthOverview(shopId, now = new Date()) {
     { id: "stripe", reason: healthInput.stripeReady ? "Stripe Connect is ready." : "Stripe Connect onboarding is incomplete.", action: "Complete payment onboarding", route: "/owner/finance", priority: "HIGH", complete: healthInput.stripeReady },
     { id: "capacity", reason: planUsage.usage.activeListings.nearLimit ? "Active inventory is at least 80% of the plan limit." : "Listing capacity is available.", action: "Review seller plan", route: "/owner/subscription", priority: "LOW", complete: !planUsage.usage.activeListings.nearLimit, supportingMetric: planUsage.usage.activeListings.used },
   ];
+  const marketplaceIntelligence = await getOwnerMarketplaceIntelligence(shopId, planUsage.featureLevels.businessGrowthLevel, now);
   return {
     generatedAt: now.toISOString(), shop: { id: shop.id, name: shop.name }, planUsage,
     overview: { activeListings: activeItems.length, soldInventory: soldItems.length, inventoryAddedRecently: shop.items.filter((item) => item.createdAt >= recentDate).length, orders: shop.marketplaceSellerTransactions.length, completedSales: completedTransactions.length, pendingOffers, auctions, inquiries, activeQrCampaigns: activeCampaigns.length, qrScans: shop.marketingCampaigns.reduce((sum, campaign) => sum + campaign._count.scans, 0) },
@@ -153,7 +155,7 @@ export async function getBusinessGrowthOverview(shopId, now = new Date()) {
     inventoryInsights: { activeListings: activeItems.length, soldListings: soldItems.length, staleListings, withoutPhotos, onePhoto, shortDescriptions, missingCategory: activeItems.filter((item) => !item.category).length, missingCondition: activeItems.filter((item) => !item.condition).length, recentlyAdded: shop.items.filter((item) => item.createdAt >= recentDate).length },
     customerInsights: { aggregateOnly: true, inquiries, pendingOffers, uniqueCompletedBuyers: new Set(completedTransactions.map((transaction) => transaction.buyerUserId)).size, qrOriginatedVisits: shop.marketingCampaigns.reduce((sum, campaign) => sum + campaign._count.scans, 0), reviews: { available: false, reason: "No authoritative review model is implemented." } },
     revenueSummary: { source: "COMPLETED_MARKETPLACE_TRANSACTIONS", currency: "USD", completedSales: completedTransactions.length, grossSalesCents: Math.round(completedTransactions.reduce((sum, transaction) => sum + asNumber(transaction.subtotal), 0) * 100), platformFeesCents: Math.round(completedTransactions.reduce((sum, transaction) => sum + asNumber(transaction.platformFee), 0) * 100), note: "Settlement and payout balances remain available in the existing Finance Center and are not added here to avoid double counting." },
-    opportunities, businessCoach: { mode: "RULE_BASED", calculationVersion: "business-coach-v1.0", recommendations: opportunities.filter((opportunity) => !opportunity.complete).map(({ reason, action, route, priority, supportingMetric }) => ({ statement: reason, action, route, priority, supportingMetric })) },
+    opportunities, marketplaceIntelligence, businessCoach: { mode: "RULE_BASED", calculationVersion: "business-coach-v1.0", recommendations: opportunities.filter((opportunity) => !opportunity.complete).map(({ reason, action, route, priority, supportingMetric }) => ({ statement: reason, action, route, priority, supportingMetric })) },
     unavailable: ["reviews", "followers", "generalPageViews", "conversionAttribution", "benchmarking", "persistentGoals"],
   };
 }

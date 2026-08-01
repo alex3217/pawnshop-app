@@ -583,13 +583,16 @@ test("admin routes reject unauthenticated requests", async () => {
 });
 
 test("super-admin routes reject unauthenticated requests", async () => {
-  const response = await request(app)
-    .get("/api/super-admin/overview")
-    .expect(401);
+  for (const path of ["/api/super-admin/overview", "/api/super-admin/marketplace-intelligence"]) {
+    const response = await request(app).get(path).expect(401);
+    assert.deepEqual(response.body, { error: "Unauthorized" });
+  }
+});
 
-  assert.deepEqual(response.body, {
-    error: "Unauthorized",
-  });
+test("Marketplace Intelligence denies a consumer at the server authorization boundary", async () => {
+  const token = jwt.sign({ sub: "consumer-core-test", role: "CONSUMER", authVersion: AUTH_VERSION }, TEST_JWT_SECRET);
+  const response = await request(app).get("/api/super-admin/marketplace-intelligence").set("Authorization", `Bearer ${token}`).expect(403);
+  assert.deepEqual(response.body, { error: "Forbidden" });
 });
 
 

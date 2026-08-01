@@ -13,6 +13,7 @@ export type BusinessGrowth = {
   opportunities: GrowthOpportunity[];
   businessCoach: { mode: string; calculationVersion: string; recommendations: Array<{ statement: string; action: string; route: string; priority: string }> };
   planUsage: { displayName: string; sellerPlan: string; status: string; usage: Record<string, MetricUsage>; commission: { commissionBps: number }; featureLevels: Record<string, unknown>; implementation: { implemented: string[]; planned: string[] } };
+  marketplaceIntelligence: { version: string; aggregateOnly: boolean; access: { level: string; planLimited: boolean; limitation: string | null }; inventory: Record<string, number | null>; sales: Record<string, number | null>; categoryPerformance: Array<Record<string, unknown>>; fastMovingCategories: string[]; slowMovingCategories: string[]; inventoryOpportunities: Array<{ category: string; reason: string; confidence: string; suggestedAction: string; route: string }>; limitations: string[] };
 };
 
 export async function getBusinessGrowth(shopId: string, signal?: AbortSignal) {

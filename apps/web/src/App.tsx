@@ -127,6 +127,7 @@ const SuperAdminSellerPlansPage = lazyPage(() =>
   import("./admin/pages/SuperAdminSellerPlansPage"),
 );
 const SuperAdminPlatformSuccessPage = lazyPage(() => import("./admin/pages/SuperAdminPlatformSuccessPage"));
+const SuperAdminMarketplaceIntelligencePage = lazyPage(() => import("./admin/pages/SuperAdminMarketplaceIntelligencePage"));
 const SuperAdminMarketingAdministrationPage = lazyPage(() => import("./admin/pages/SuperAdminMarketingAdministrationPage"));
 const SuperAdminBuyerSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminBuyerSubscriptionsPage"),
@@ -412,6 +413,7 @@ const superAdminRoutes: RouteConfig[] = [
   { path: "overview", element: <Navigate to="/super-admin" replace /> },
   { path: "growth", element: <GrowthCenterDashboardPage /> },
   { path: "platform-success", element: <SuperAdminPlatformSuccessPage /> },
+  { path: "marketplace-intelligence", element: <SuperAdminMarketplaceIntelligencePage /> },
   { path: "marketing-administration", element: <SuperAdminMarketingAdministrationPage /> },
   { path: "growth/leads", element: <GrowthLeadDirectoryPage /> },
   { path: "growth/leads/:leadId", element: <GrowthLeadDetailPage /> },

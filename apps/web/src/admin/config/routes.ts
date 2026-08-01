@@ -218,6 +218,13 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     group: "super-admin-growth",
   }),
   route({
+    key: "superAdminMarketplaceIntelligence",
+    path: "/super-admin/marketplace-intelligence",
+    label: "Marketplace Intelligence",
+    permissions: ["admin:overview:read"],
+    group: "super-admin-marketplace",
+  }),
+  route({
     key: "superAdminGrowthLeads",
     path: "/super-admin/growth/leads",
     label: "Pawn Shop Directory",
