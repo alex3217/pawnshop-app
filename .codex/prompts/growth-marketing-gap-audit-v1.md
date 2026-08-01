@@ -171,3 +171,227 @@ Do not attempt every advanced Plus and Ultra feature in one change.
 Mark unimplemented advanced tools accurately in the roadmap.
 
 Do not change live Stripe pricing or production configuration.
+
+BUYER EXPERIENCE AND PLAN ENTITLEMENT SCOPE
+
+Read the complete section:
+
+"Buyer Experience Platform and Buyer Plan Entitlements"
+
+inside:
+
+docs/product/pawnloop-growth-marketing-gap-audit-v1.md
+
+Before modifying buyer behavior, audit all current buyer functionality.
+
+At minimum inspect:
+
+1. Buyer routes and navigation
+2. Buyer Dashboard and Buyer Workspace
+3. Marketplace search and filters
+4. Watchlist
+5. Saved searches
+6. Favorite shops
+7. Offers
+8. Auctions and bidding
+9. Orders and fulfillment
+10. Messages
+11. Reviews
+12. Buyer item submissions
+13. Sell and pawn workflows
+14. Price comparison
+15. Alerts and notifications
+16. Buyer subscriptions
+17. Buyer plan configuration
+18. Super Admin buyer-plan controls
+19. Stripe buyer subscription products and prices
+20. Buyer plan webhook processing
+21. Referral functionality
+22. Loyalty or credits
+23. AI buyer functionality
+24. Collection or wish-list functionality
+25. Existing role and authorization architecture
+
+Add a buyer requirement matrix to:
+
+docs/implementation/growth-marketing-existing-state-audit.md
+
+The matrix must include:
+
+- Requirement
+- Existing implementation
+- Relevant files
+- Complete
+- Partial
+- Missing
+- Defect or risk
+- Recommended action
+- Recommended plan entitlement
+
+Do not duplicate existing features.
+
+BUYER PHASE 1 PRIORITIES
+
+Implement only safely missing Phase 1 foundations:
+
+1. Centralized buyer entitlement configuration
+2. Safe plan display-name compatibility
+3. Backend buyer entitlement enforcement
+4. Buyer subscription usage API
+5. Buyer subscription usage UI
+6. Buyer navigation cleanup
+7. Buyer Workspace foundation
+8. Buyer Success Center foundation
+9. Wish Lists foundation only if no suitable system exists
+10. Follow Shop completion only if incomplete
+11. Smart alert completion only if incomplete
+12. Plan-aware saved-search limits
+13. Plan-aware wish-list limits
+14. Plan-aware comparison limits where applicable
+15. Clear upgrade messages
+16. Tests for Free, Pro, Plus, and Ultra entitlements
+17. Tests proving Free users retain core commerce
+18. Tests proving frontend gating is not the only enforcement
+19. Tests for cross-user data isolation
+20. Documentation of all deferred Phase 2–4 capabilities
+
+PLAN SAFETY
+
+Audit existing internal buyer plan codes before changing names.
+
+Do not:
+
+- Delete existing plan records
+- Rename stored plan codes without compatibility handling
+- Change live Stripe product IDs
+- Change live Stripe price IDs
+- Change production prices
+- Cancel subscriptions
+- Downgrade existing buyers
+- break webhook processing
+- create a second buyer-plan system
+- implement scattered frontend-only checks
+- block core purchasing for Free users
+
+Prefer a display-name mapping if an internal code is already established.
+
+CENTRAL ENTITLEMENTS
+
+Use or extend one central backend source of truth.
+
+The design should support:
+
+- Saved-search limit
+- Wish-list limit
+- Favorites limit
+- Comparison limit
+- Alert level
+- Notification priority
+- AI access and monthly usage
+- Price history
+- Advanced search
+- Workspace access
+- Workspace customization
+- Collection Manager
+- Collection-item limit
+- Market intelligence
+- Concierge access
+- Loyalty
+- Referral rewards
+- Early inventory alerts
+- Exclusive deal level
+- Support level
+
+Do not implement every advanced feature merely because an entitlement
+key exists.
+
+The entitlement architecture may describe future capabilities while
+accurately marking them unavailable until implemented.
+
+BUYER WORKSPACE
+
+Reuse existing buyer dashboard/workspace pages where present.
+
+Do not create another dashboard if an existing Buyer Workspace can be
+extended.
+
+Phase 1 should provide a coherent foundation containing relevant
+existing widgets and clean loading, empty, error, populated, and
+unauthorized states.
+
+BUYER SUCCESS CENTER
+
+Create or extend a guided buyer-success experience covering existing,
+real actions only.
+
+Potential Phase 1 actions:
+
+- Complete profile
+- Verify account
+- Follow shop
+- Save search
+- Create wish list
+- Enable alert
+- Add address
+- Add payment method
+- Complete first eligible purchase
+- Leave eligible review
+
+Do not display completion for unsupported actions.
+
+VALIDATION
+
+Add or update tests for:
+
+- Free core marketplace access
+- Free saved-search limits
+- Pro saved-search access
+- Plus collection entitlement
+- Ultra concierge entitlement representation
+- Buyer entitlement API
+- Buyer usage API
+- Cross-user isolation
+- Wish-list ownership
+- Upgrade messaging
+- Existing subscription compatibility
+- Existing checkout and offer behavior
+- Existing auctions and order tracking
+
+Run:
+
+- Prisma format, validate, and generate if schema changes
+- Targeted backend tests
+- Core backend tests
+- Frontend TypeScript build
+- Frontend production build
+- Frontend lint
+- git diff --check
+
+Do not commit or push.
+
+Update:
+
+docs/implementation/growth-marketing-phase1-summary.md
+docs/implementation/growth-marketing-phase1-test-report.md
+
+Also create:
+
+docs/implementation/buyer-experience-plan-audit.md
+docs/implementation/buyer-experience-phase1-summary.md
+docs/implementation/buyer-experience-phase1-test-report.md
+
+At completion, report:
+
+1. Existing buyer features reused
+2. Existing buyer plan structure
+3. Compatibility decisions
+4. Files changed
+5. Models and migrations
+6. API changes
+7. Frontend pages and routes
+8. Entitlement behavior
+9. Tests and exact outcomes
+10. Deferred Buyer Phase 2–4 work
+11. Risks
+12. Git status
+13. Suggested commit message
