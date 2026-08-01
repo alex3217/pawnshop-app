@@ -25,6 +25,9 @@ import {
   getShopFinanceConnectStatus,
 } from "../controllers/shopFinanceConnect.controller.js";
 import shopMarketingRoutes from "./shopMarketing.routes.js";
+import marketingAssetsRoutes from "./marketingAssets.routes.js";
+import shopFollowRoutes from "./shopFollow.routes.js";
+import customerEngagementRoutes from "./customerEngagement.routes.js";
 import { getShopBusinessGrowth, getShopPlanUsage } from "../controllers/businessGrowth.controller.js";
 import { requireShopPermission, shopIdFromParam } from "../middleware/shopAccess.js";
 
@@ -37,6 +40,9 @@ router.get("/", listShops);
 // Owner/Admin read routes must be before /:id.
 router.get("/mine", authRequired, requireRole("OWNER", "ADMIN"), myShops);
 router.use("/:shopId/marketing/campaigns", shopMarketingRoutes);
+router.use("/:shopId/marketing/assets", marketingAssetsRoutes);
+router.use("/:shopId/customer-engagement", customerEngagementRoutes);
+router.use("/:shopId/follow", shopFollowRoutes);
 router.get("/:shopId/business-growth", authRequired, requireShopPermission("growth:read", { resolveShopId: shopIdFromParam("shopId") }), getShopBusinessGrowth);
 router.get("/:shopId/plan-usage", authRequired, requireShopPermission("growth:read", { resolveShopId: shopIdFromParam("shopId") }), getShopPlanUsage);
 

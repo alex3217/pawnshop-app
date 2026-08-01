@@ -10,6 +10,7 @@ import {
   type MarketingDestinationType,
   type ShopMarketingCampaign,
 } from "../services/shopMarketing";
+import { downloadMarketingAsset, getCustomerGrowth, getMarketingTemplates, getShopReferrals, type CustomerGrowth, type MarketingTemplate } from "../services/customerEngagement";
 
 const DESTINATIONS: Array<[MarketingDestinationType, string]> = [
   ["STOREFRONT", "Shop storefront"], ["INVENTORY", "Inventory"],
@@ -33,11 +34,18 @@ export default function OwnerMarketingCenterPage() {
   const [destination, setDestination] = useState<MarketingDestinationType>("STOREFRONT");
   const [resourceId, setResourceId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [templates, setTemplates] = useState<MarketingTemplate[]>([]);
+  const [growth, setGrowth] = useState<CustomerGrowth | null>(null);
+  const [referrals, setReferrals] = useState<{ code: string; link: string; events: Record<string, number>; rewards: { available: false; issued: number } } | null>(null);
+  const [productItemId, setProductItemId] = useState("");
 
   const loadCampaigns = useCallback(async (selectedShopId: string, signal?: AbortSignal) => {
-    const result = await listMarketingCampaigns(selectedShopId, signal);
+    const [result, templateResult, growthResult, referralResult] = await Promise.all([
+      listMarketingCampaigns(selectedShopId, signal), getMarketingTemplates(selectedShopId), getCustomerGrowth(selectedShopId), getShopReferrals(selectedShopId),
+    ]);
     setCampaigns(result.campaigns);
     setShopSlug(result.shop.slug);
+    setTemplates(templateResult.templates); setGrowth(growthResult.growth); setReferrals(referralResult.referrals);
   }, []);
 
   useEffect(() => {
@@ -109,6 +117,9 @@ export default function OwnerMarketingCenterPage() {
           <select value={shopId} onChange={(event) => void selectShop(event.target.value)}>{shops.map((shop) => <option value={shop.id} key={shop.id}>{shop.name}</option>)}</select>
         </label>
         <section className="list-card"><h2>Permanent shop QR</h2><p>Your default QR opens <Link to={`/shops/${shopSlug}`}>/shops/{shopSlug}</Link> directly. The short link remains stable if the storefront destination evolves.</p></section>
+        <section className="list-card" style={{ marginTop: 16 }}><h2>Printable Materials</h2><p>Code-owned, print-ready PDFs use active internal campaigns so every QR opens this shop or the selected public item.</p><label>Public item ID for product display card<input value={productItemId} onChange={(event) => setProductItemId(event.target.value)} /></label><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginTop: 12 }}>{templates.map((template) => <article key={template.type}><strong>{template.name}</strong><p>{template.size.replaceAll("_", " ")} · {template.minimumPlan === "PREMIUM" ? "Plus" : template.minimumPlan}+</p><button type="button" disabled={!template.available || (template.type === "PRODUCT_DISPLAY_CARD" && !productItemId.trim())} onClick={() => void downloadMarketingAsset(shopId, template.type, template.type === "PRODUCT_DISPLAY_CARD" ? productItemId.trim() : undefined).catch((cause) => setError(cause instanceof Error ? cause.message : "Unable to download PDF."))}>{template.available ? "Download PDF" : "Plan limited"}</button></article>)}</div></section>
+        <section className="list-card" style={{ marginTop: 16 }}><h2>Customer Growth</h2>{growth ? <><div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}><strong>{growth.followers} followers</strong><span>{growth.newFollowers} new</span><span>{growth.qrScans} QR scans</span><span>{growth.messages} messages</span><span>{growth.offers} offers</span></div><p>Alert opt-ins: {growth.alertPreferences.newArrivals} new arrivals · {growth.alertPreferences.deals} deals · {growth.alertPreferences.auctions} auctions · {growth.alertPreferences.general} announcements</p><ul>{growth.recommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}</ul><small>Aggregate only. Buyer contact data is never included.</small></> : <p>No aggregate growth data is available.</p>}</section>
+        <section className="list-card" style={{ marginTop: 16 }}><h2>Referrals</h2>{referrals ? <><p>Stable internal link: <a href={referrals.link}>{referrals.link}</a></p><p>{Object.values(referrals.events).reduce((total, value) => total + value, 0)} attributed events. Rewards are unavailable in V1 and none are issued.</p></> : <p>No referral foundation is available.</p>}</section>
         <section className="list-card" style={{ marginTop: 16 }}><h2>Create campaign</h2>
           <form onSubmit={create} style={{ display: "grid", gap: 10, maxWidth: 620 }}>
             <label>Campaign name<input value={name} onChange={(event) => setName(event.target.value)} maxLength={160} required /></label>

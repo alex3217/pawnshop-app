@@ -59,6 +59,7 @@ import {
   updateGrowthLead,
 } from "../controllers/growthCenter.controller.js";
 import { getSuperAdminPlatformSuccess } from "../controllers/platformSuccess.controller.js";
+import { listMarketingAdministration, patchMarketingCampaignStatus } from "../controllers/marketingAdministration.controller.js";
 
 const router = Router();
 
@@ -355,6 +356,8 @@ router.get(
 router.get("/audit", asyncRoute(listSuperAdminAuditLogs));
 router.get("/overview", asyncRoute(getSuperAdminOverview));
 router.get("/platform-success", asyncRoute(getSuperAdminPlatformSuccess));
+router.get("/marketing-administration", asyncRoute(listMarketingAdministration));
+router.patch("/marketing-campaigns/:campaignId/status", validateJsonObjectBody, asyncRoute(patchMarketingCampaignStatus));
 router.get("/system", asyncRoute(getSuperAdminSystemHealth));
 router.get("/users", asyncRoute(listSuperAdminUsers));
 router.post("/beta-invites", asyncRoute(createBetaInvite));

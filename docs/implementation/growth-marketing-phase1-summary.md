@@ -86,6 +86,10 @@ Phase 4: explicit opt-in retention automation and unsubscribe management, follow
 
 Suggested commit message: `feat: add growth marketing phase 1 foundation`
 
+## Marketing Assets & Customer Engagement V1 successor
+
+The printable kit, explicit shop follows/preferences, aggregate Customer Growth, attribution-only shop referrals, and Super Admin marketing administration described as later work above are now implemented in the separate V1 foundation documented by `marketing-assets-customer-engagement-audit.md`, `marketing-assets-customer-engagement-summary.md`, and `marketing-assets-customer-engagement-test-report.md`. Automatic lifecycle-wide alert fan-out, email/SMS marketing, rewards, arbitrary templates, and external publishing remain deferred.
+
 ## Buyer Phase 1 extension
 
 The buyer architecture audit and Phase 1 implementation are documented in `buyer-experience-plan-audit.md` and `buyer-experience-phase1-summary.md`. This extension reuses the existing buyer dashboard, watchlist, saved searches, subscription model, plan catalog, Stripe mappings, and commerce flows; it adds centralized buyer entitlements, usage reporting, backend limits, navigation cleanup, Buyer Workspace, and Buyer Success Center without schema or Stripe changes.

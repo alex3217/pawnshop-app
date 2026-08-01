@@ -83,12 +83,22 @@ test("staff read access is shop-scoped", async () => {
 test("specific item campaigns require an available item owned by the selected shop", async () => {
   const originals = {
     shop: prisma.pawnShop.findFirst,
+    planShop: prisma.pawnShop.findUnique,
     item: prisma.item.findFirst,
+    itemCount: prisma.item.count,
     create: prisma.shopMarketingCampaign.create,
+    campaignFind: prisma.shopMarketingCampaign.findFirst,
+    campaignCount: prisma.shopMarketingCampaign.count,
+    transaction: prisma.$transaction,
   };
   prisma.pawnShop.findFirst = async () => ({ id: "shop-1", name: "Loop Pawn", slug: "loop-pawn", ownerId: "owner-1", subscriptionStatus: "ACTIVE" });
   prisma.item.findFirst = async ({ where }) => where.id === "item-1" && where.pawnShopId === "shop-1" ? { id: "item-1" } : null;
+  prisma.pawnShop.findUnique = async () => ({ id: "shop-1", name: "Loop Pawn", ownerId: "owner-1", isDeleted: false, subscriptionPlan: "PRO", subscriptionStatus: "ACTIVE", subscriptionCurrentPeriodEnd: null, cancelAtPeriodEnd: false, stripeCustomerId: null, stripeSubscriptionId: null });
+  prisma.item.count = async () => 1;
+  prisma.shopMarketingCampaign.count = async () => 0;
+  prisma.$transaction = async (operations) => Promise.all(operations);
   prisma.shopMarketingCampaign.create = async ({ data }) => ({ id: "campaign-1", createdAt: new Date(), updatedAt: new Date(), ...data });
+  prisma.shopMarketingCampaign.findFirst = async ({ where }) => where.isDefault ? { id: "default-1", shopId: "shop-1", isDefault: true } : null;
   try {
     const valid = response();
     await createShopMarketingCampaign(ownerRequest("shop-1", { name: "Featured", destinationType: "ITEM", resourceId: "item-1" }), valid);
@@ -98,8 +108,13 @@ test("specific item campaigns require an available item owned by the selected sh
     assert.equal(otherShopItem.statusCode, 400);
   } finally {
     prisma.pawnShop.findFirst = originals.shop;
+    prisma.pawnShop.findUnique = originals.planShop;
     prisma.item.findFirst = originals.item;
+    prisma.item.count = originals.itemCount;
     prisma.shopMarketingCampaign.create = originals.create;
+    prisma.shopMarketingCampaign.findFirst = originals.campaignFind;
+    prisma.shopMarketingCampaign.count = originals.campaignCount;
+    prisma.$transaction = originals.transaction;
   }
 });
 

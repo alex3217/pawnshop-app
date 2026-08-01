@@ -141,6 +141,7 @@ const SUPER_ADMIN_PRIMARY_NAV: NavItem[] = [
 
 const SUPER_ADMIN_SECONDARY_NAV: NavItem[] = [
   { to: "/super-admin/platform-success", label: "Platform Success" },
+  { to: "/super-admin/marketing-administration", label: "Marketing Administration" },
   { to: "/super-admin/growth", label: "Growth Center" },
   { to: "/super-admin/plans/seller", label: "Seller Plans" },
   { to: "/super-admin/seller-subscriptions", label: "Seller Subscriptions" },

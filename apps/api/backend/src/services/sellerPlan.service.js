@@ -362,6 +362,49 @@ export async function assertCanCreateQrCampaignForShop(shopId, requestedSlots = 
   return assertQrCampaignCapacity(entitlements, activeCampaignCount, requestedSlots);
 }
 
+const MARKETING_TEMPLATE_MINIMUM_PLAN = Object.freeze({
+  STOREFRONT_POSTER: "FREE",
+  WINDOW_24_7_POSTER: "PREMIUM",
+  COUNTER_SIGN: "FREE",
+  RECEIPT_INSERT: "PREMIUM",
+  PRODUCT_DISPLAY_CARD: "PRO",
+  NEW_ARRIVALS_FLYER: "PRO",
+  AUCTION_FLYER: "PRO",
+  SELL_OR_PAWN_FLYER: "PRO",
+  REVIEW_REQUEST_CARD: "PREMIUM",
+  REFERRAL_CARD: "PRO",
+});
+
+const MARKETING_PLAN_RANK = Object.freeze({ FREE: 0, PRO: 1, PREMIUM: 2, ULTRA: 3 });
+
+export function getMarketingTemplateAccess(entitlements, templateType) {
+  const normalized = String(templateType || "").trim().toUpperCase();
+  const minimumPlan = MARKETING_TEMPLATE_MINIMUM_PLAN[normalized];
+  if (!minimumPlan) return { known: false, allowed: false, minimumPlan: null };
+  const effectivePlan = String(entitlements?.subscription?.effectivePlan || "FREE").toUpperCase();
+  return {
+    known: true,
+    allowed: (MARKETING_PLAN_RANK[effectivePlan] ?? 0) >= MARKETING_PLAN_RANK[minimumPlan],
+    minimumPlan,
+    effectivePlan,
+  };
+}
+
+export async function assertMarketingTemplateAccessForShop(shopId, templateType) {
+  const entitlements = await getSellerEntitlementsForShop(shopId);
+  const access = getMarketingTemplateAccess(entitlements, templateType);
+  if (!access.known) throw createPlanError("Unknown marketing template.", "MARKETING_TEMPLATE_NOT_FOUND", 404);
+  if (!access.allowed) throw createPlanError(
+    `${access.minimumPlan === "PREMIUM" ? "Plus" : access.minimumPlan} is required for this printable template.`,
+    "MARKETING_TEMPLATE_PLAN_RESTRICTED",
+    403,
+    access,
+  );
+  return { entitlements, access };
+}
+
+export const marketingTemplateMinimumPlans = MARKETING_TEMPLATE_MINIMUM_PLAN;
+
 export async function assertCanAddStaffForShop(shopId) {
   const [entitlements, used] = await Promise.all([
     getSellerEntitlementsForShop(shopId),

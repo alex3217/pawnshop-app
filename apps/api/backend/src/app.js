@@ -36,13 +36,16 @@ import aiRoutes from "./routes/ai.routes.js";
 import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes.js";
 import ownerApplicationsRoutes from "./routes/ownerApplications.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
+import followedShopsRoutes from "./routes/followedShops.routes.js";
 import { redirectMarketingCampaign } from "./controllers/shopMarketing.controller.js";
+import { convertReferral, redirectReferral } from "./controllers/customerEngagement.controller.js";
 import { prisma } from "./lib/prisma.js";
 import {
   loadAuthRateLimitConfig,
   loadTrustProxyConfig,
 } from "./config/authRateLimit.js";
 import { createAuthRateLimiters } from "./middleware/authRateLimit.js";
+import { authRequired } from "./middleware/auth.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -377,6 +380,9 @@ export function createApp(options = {}) {
 
   app.use(authRateLimiters.beforeBody);
 
+  app.get("/ref/:code", redirectReferral);
+  app.get("/api/ref/:code", redirectReferral);
+
   app.use(
     express.json({
       limit: jsonLimit,
@@ -397,6 +403,7 @@ export function createApp(options = {}) {
   mountApi(app, "/auth", authRoutes);
   mountApi(app, "/owner-applications", ownerApplicationsRoutes);
   mountApi(app, "/notifications", notificationsRoutes);
+  mountApi(app, "/followed-shops", followedShopsRoutes);
   mountApi(app, "/shops", shopRoutes);
   mountApi(app, "/locations", locationsRoutes);
   mountApi(app, "/items", itemRoutes);
@@ -422,6 +429,7 @@ export function createApp(options = {}) {
   app.use("/api", sellerPlansRoutes);
   app.use("/api", platformSettingsPublicRoutes);
   app.use("/api", buyerPlansRoutes);
+  app.post("/api/ref/:code/convert", authRequired, convertReferral);
 
   app.use((req, res) => {
     return res.status(404).json({

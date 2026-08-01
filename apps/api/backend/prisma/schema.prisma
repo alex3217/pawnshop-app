@@ -79,6 +79,9 @@ model User {
   pawnShopLeadImports             PawnShopLeadImport[]             @relation("PawnShopLeadImportCreator")
   pawnShopLeadSuppressions        PawnShopLeadSuppression[]        @relation("PawnShopLeadSuppressionCreator")
   paymentMethodConsents           PaymentMethodConsent[]
+  shopFollows                     ShopFollow[]                     @relation("BuyerShopFollows")
+  referralCodes                   ReferralCode[]                   @relation("UserReferralCodes")
+  referralAttributions            ReferralAttribution[]            @relation("AttributedReferralUser")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -308,6 +311,8 @@ model PawnShop {
   stripeDisputes                     StripeDispute[]                  @relation("StripeDisputeShop")
   stripeSubscriptionBillingEvents    StripeSubscriptionBillingEvent[]
   marketingCampaigns                 ShopMarketingCampaign[]
+  followers                          ShopFollow[]
+  referralCodes                      ReferralCode[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -362,6 +367,63 @@ model ShopMarketingCampaignScan {
   campaign ShopMarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@index([campaignId, occurredAt])
+}
+
+model ShopFollow {
+  id                       String    @id @default(cuid())
+  userId                   String
+  shopId                   String
+  status                   String    @default("FOLLOWING")
+  newArrivalNotifications  Boolean   @default(false)
+  dealNotifications        Boolean   @default(false)
+  auctionNotifications     Boolean   @default(false)
+  generalShopNotifications Boolean   @default(false)
+  pausedAt                 DateTime?
+  unsubscribedAt           DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  user User     @relation("BuyerShopFollows", fields: [userId], references: [id], onDelete: Cascade)
+  shop PawnShop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shopId])
+  @@index([shopId, status])
+  @@index([userId, status, updatedAt])
+}
+
+model ReferralCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  type        String
+  ownerUserId String?
+  shopId      String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ownerUser    User?                 @relation("UserReferralCodes", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  shop         PawnShop?             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  attributions ReferralAttribution[]
+
+  @@unique([ownerUserId, type])
+  @@unique([shopId, type])
+  @@index([type, isActive])
+}
+
+model ReferralAttribution {
+  id               String   @id @default(cuid())
+  referralCodeId   String
+  attributedUserId String?
+  eventType        String
+  eventKey         String   @unique
+  metadata         Json?
+  occurredAt       DateTime @default(now())
+
+  referralCode   ReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+  attributedUser User?        @relation("AttributedReferralUser", fields: [attributedUserId], references: [id], onDelete: SetNull)
+
+  @@index([referralCodeId, eventType, occurredAt])
+  @@index([attributedUserId, occurredAt])
 }
 
 model StripeSubscriptionBillingEvent {
