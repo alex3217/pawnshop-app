@@ -122,16 +122,29 @@ function assertTransactionMayBePaid({
     );
   }
 
-  const isListingOriginCustomerSale =
-    transaction.type ===
-      "CUSTOMER_SELL_TO_SHOP" &&
-    Boolean(normalizeId(transaction.listingId));
+  if (
+    transaction.type === "CUSTOMER_SELL_TO_SHOP" ||
+    transaction.listing?.listingType === "CUSTOMER_TO_SHOP"
+  ) {
+    throw httpError(
+      "Customer sell and pawn intake cannot create a retail buyer charge",
+      409,
+      "CUSTOMER_INTAKE_ONLINE_PAYMENT_DISABLED",
+    );
+  }
+
+  if (transaction.listing?.listingType === "CUSTOMER_TO_CUSTOMER") {
+    throw httpError(
+      "Community Marketplace is disabled pending verification, fraud, policy, and legal approval",
+      403,
+      "COMMUNITY_MARKETPLACE_DISABLED",
+    );
+  }
 
   if (
     !SUPPORTED_PAYMENT_TRANSACTION_TYPES.has(
       transaction.type,
-    ) &&
-    !isListingOriginCustomerSale
+    )
   ) {
     throw httpError(
       "Marketplace transaction type is not supported by this payment workflow",
@@ -262,6 +275,7 @@ async function loadPaymentTransaction({
           status: true,
           sellerUserId: true,
           sellerShopId: true,
+          listingType: true,
         },
       },
       sellerShop: {

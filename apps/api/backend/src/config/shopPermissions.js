@@ -34,6 +34,12 @@ export const SHOP_PERMISSION_CODES = Object.freeze([
   "marketing:write",
   "growth:read",
   "analytics:read",
+  "dealer-marketplace:read",
+  "dealer-marketplace:buy",
+  "dealer-marketplace:sell",
+  "dealer-marketplace:approve",
+  "dealer-marketplace:finance",
+  "dealer-marketplace:dispute",
 ]);
 
 export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
@@ -56,6 +62,12 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "marketing:write",
       "growth:read",
       "analytics:read",
+      "dealer-marketplace:read",
+      "dealer-marketplace:buy",
+      "dealer-marketplace:sell",
+      "dealer-marketplace:approve",
+      "dealer-marketplace:finance",
+      "dealer-marketplace:dispute",
     ]),
     SHOP_MANAGER: Object.freeze([
       "inventory:read",
@@ -74,6 +86,11 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "marketing:write",
       "growth:read",
       "analytics:read",
+      "dealer-marketplace:read",
+      "dealer-marketplace:buy",
+      "dealer-marketplace:sell",
+      "dealer-marketplace:approve",
+      "dealer-marketplace:dispute",
     ]),
     SHOP_STAFF: Object.freeze([
       "inventory:read",
@@ -116,6 +133,8 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "settlements:read",
       "offers:read",
       "customer-sell:read",
+      "dealer-marketplace:read",
+      "dealer-marketplace:finance",
     ]),
   });
 

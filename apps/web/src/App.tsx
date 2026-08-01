@@ -156,6 +156,7 @@ const VerifyEmailPage = lazyPage(() => import("./pages/VerifyEmailPage"));
 const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazyPage(() => import("./pages/ResetPasswordPage"));
 const MarketplacePage = lazyPage(() => import("./pages/MarketplacePage"));
+const DealerMarketplacePage = lazyPage(() => import("./pages/DealerMarketplacePage"));
 const MarketplaceBuyNowPage = lazyPage(() =>
   import("./pages/MarketplaceBuyNowPage"),
 );
@@ -338,6 +339,7 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner", element: <OwnerDashboardPage /> },
   { path: "/owner/dashboard", element: <Navigate to="/owner" replace /> },
   { path: "/owner/finance", element: <OwnerFinancePage /> },
+  { path: "/owner/dealer-marketplace", element: <DealerMarketplacePage /> },
   { path: "/owner/onboarding", element: <OwnerOnboardingPage /> },
   { path: "/owner/shops/new", element: <CreateShopPage /> },
   { path: "/owner/items/new", element: <CreateItemPage /> },
