@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 
 import { AuthRequestError, login, persistAuth } from "../services/auth";
+import PasswordInput from "../components/PasswordInput";
 import "../styles/login-page.css";
 
 function safeNextPath(
@@ -153,7 +154,7 @@ export default function LoginPage() {
                 Password
               </label>
 
-              <input
+              <PasswordInput
                 id="login-password"
                 className="login-input"
                 value={password}
@@ -161,9 +162,9 @@ export default function LoginPage() {
                   setPassword(event.target.value)
                 }
                 placeholder="Enter your password"
-                type="password"
                 autoComplete="current-password"
                 required
+                visibilityLabel="password"
               />
             </div>
 
