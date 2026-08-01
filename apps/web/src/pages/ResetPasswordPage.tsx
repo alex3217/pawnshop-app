@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { resetPassword } from "../services/auth";
+import PasswordInput from "../components/PasswordInput";
 import "../styles/login-page.css";
 
 export default function ResetPasswordPage() {
@@ -31,9 +32,9 @@ export default function ResetPasswordPage() {
       <div className="login-card"><h2 className="login-card-title">New password</h2>
         <form className="login-form" onSubmit={submit}>
           <label className="login-label" htmlFor="reset-password">New password</label>
-          <input id="reset-password" className="login-input" type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={password} onChange={(event) => setPassword(event.target.value)} />
+          <PasswordInput id="reset-password" className="login-input" autoComplete="new-password" minLength={12} maxLength={128} required value={password} onChange={(event) => setPassword(event.target.value)} visibilityLabel="new password" />
           <label className="login-label" htmlFor="reset-confirm">Confirm password</label>
-          <input id="reset-confirm" className="login-input" type="password" autoComplete="new-password" minLength={12} maxLength={128} required value={confirm} onChange={(event) => setConfirm(event.target.value)} />
+          <PasswordInput id="reset-confirm" className="login-input" autoComplete="new-password" minLength={12} maxLength={128} required value={confirm} onChange={(event) => setConfirm(event.target.value)} visibilityLabel="password confirmation" />
           <button className="login-submit" disabled={loading || Boolean(message)}>{loading ? "Updating…" : "Update password"}</button>
           {message ? <div className="login-success" role="status">{message} <Link className="login-link" to="/login">Sign in</Link></div> : null}
           {error ? <div className="login-error" role="alert">{error}</div> : null}
