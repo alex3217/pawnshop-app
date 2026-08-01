@@ -6,6 +6,7 @@ import {
   getCurrentUser,
   type AuthUser,
 } from "../services/auth";
+import "../styles/require-approved-owner.css";
 
 function statusLabel(status: string) {
   return status.replaceAll("_", " ").toLowerCase();
@@ -50,7 +51,7 @@ export default function RequireApprovedOwner() {
 
   if (error) {
     return (
-      <section className="page-card" role="alert">
+      <section className="page-card owner-approval-gate" role="alert">
         <h1>We could not verify your owner access</h1>
         <p>{error}</p>
         <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
@@ -70,19 +71,22 @@ export default function RequireApprovedOwner() {
   }
 
   return (
-    <section className="page-card">
+    <section className="page-card owner-approval-gate">
+      <p className="owner-approval-gate__eyebrow">Owner verification</p>
       <h1>Owner application {application ? statusLabel(application.status) : "required"}</h1>
       {application?.decisionReason ? <p>{application.decisionReason}</p> : null}
       <p>
         Shop onboarding and dashboard access become available after your
         owner application is approved.
       </p>
-      <Link className="btn btn-primary" to="/owner/application">
-        View application status
-      </Link>{" "}
-      <Link className="btn btn-secondary" to="/for-pawn-shops">
-        Review the owner program
-      </Link>
+      <div className="owner-approval-gate__actions">
+        <Link className="btn btn-primary" to="/owner/application">
+          View application status
+        </Link>
+        <Link className="btn btn-secondary" to="/for-pawn-shops">
+          Review the owner program
+        </Link>
+      </div>
     </section>
   );
 }
