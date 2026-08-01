@@ -8,6 +8,7 @@ import {
   createSubscriptionCheckoutSession,
   createSettlementPaymentIntent,
 } from "../controllers/stripe.controller.js";
+import { createBillingPortalSession, createPaymentMethodSetupSession, listPaymentMethods, removePaymentMethod, setDefaultPaymentMethod } from "../controllers/paymentMethods.controller.js";
 
 const router = Router();
 
@@ -196,6 +197,12 @@ function normalizeSettlementPaymentIntentBody(req, res, next) {
  * Returns publishable-key-safe config needed by the frontend.
  */
 router.get("/config", authRequired, asyncRoute(getStripeConfig));
+
+router.get("/payment-methods", authRequired, requireRole("CONSUMER", "OWNER"), asyncRoute(listPaymentMethods));
+router.post("/payment-methods/setup-session", authRequired, requireRole("CONSUMER", "OWNER"), validateObjectBody, asyncRoute(createPaymentMethodSetupSession));
+router.post("/payment-methods/:id/default", authRequired, requireRole("CONSUMER", "OWNER"), validateIdParam("id"), validateObjectBody, asyncRoute(setDefaultPaymentMethod));
+router.delete("/payment-methods/:id", authRequired, requireRole("CONSUMER", "OWNER"), validateIdParam("id"), asyncRoute(removePaymentMethod));
+router.post("/billing-portal", authRequired, requireRole("CONSUMER", "OWNER"), validateObjectBody, asyncRoute(createBillingPortalSession));
 
 /**
  * Owner/Admin

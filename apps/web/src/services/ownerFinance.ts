@@ -164,6 +164,9 @@ export type OwnerFinanceConnectStatus = {
   payoutsEnabled: boolean;
   onboardingCompletedAt: string | null;
   statusUpdatedAt: string | null;
+  requirements: { currentlyDue: string[]; eventuallyDue: string[]; pastDue: string[]; disabledReason: string | null };
+  payoutSchedule: { interval: string | null; delayDays: number | null } | null;
+  externalAccount: { type: string; bankName: string | null; brand: string | null; last4: string | null; status: string | null } | null;
 };
 
 export type FinanceConnectStatusResponse = {

@@ -541,6 +541,26 @@ export async function handleStripeWebhook(req, res) {
 
       case "checkout.session.completed": {
         const session = event.data.object;
+        if (session?.mode === "setup" && session?.setup_intent) {
+          const setupIntent = await stripe.setupIntents.retrieve(String(session.setup_intent));
+          const customerId = session?.customer ? String(session.customer) : null;
+          const consentId = normalizeId(session?.metadata?.paymentMethodConsentId);
+          const pending = consentId ? await prisma.paymentMethodConsent.findUnique({ where: { id: consentId } }) : null;
+          const setupCustomerId = setupIntent?.customer ? String(setupIntent.customer) : null;
+          const expectedShopId = normalizeId(session?.metadata?.pawnShopId);
+          const expectedUserId = normalizeId(session?.metadata?.pawnloopUserId);
+          if (!pending || pending.stripeCustomerId !== customerId || setupCustomerId !== customerId || pending.userId !== expectedUserId || normalizeId(pending.shopId) !== expectedShopId || (pending.stripeCheckoutSessionId && pending.stripeCheckoutSessionId !== String(session.id))) throw new Error("Stripe setup consent ownership verification failed");
+          if (pending.status !== "PENDING") {
+            if (pending.stripeCheckoutSessionId === String(session.id) && pending.stripeSetupIntentId === String(setupIntent.id)) break;
+            throw new Error("Stripe setup consent was already finalized by a different event");
+          }
+          if (setupIntent.payment_method) {
+            const method = await stripe.paymentMethods.retrieve(String(setupIntent.payment_method));
+            if (String(method?.customer || "") !== customerId) throw new Error("Stripe setup payment method ownership verification failed");
+          }
+          await prisma.paymentMethodConsent.updateMany({ where: { id: pending.id, status: "PENDING" }, data: { stripeCheckoutSessionId: String(session.id), stripeSetupIntentId: String(setupIntent.id), stripeMandateId: setupIntent.mandate ? String(setupIntent.mandate) : null, paymentMethodId: setupIntent.payment_method ? String(setupIntent.payment_method) : null, status: setupIntent.status === "succeeded" ? "ACTIVE" : "FAILED" } });
+          break;
+        }
         const shopId = normalizeId(session?.metadata?.shopId);
         const planCode = normalizePlanCode(session?.metadata?.planCode);
         const stripeCustomerId = session?.customer ? String(session.customer) : null;

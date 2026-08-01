@@ -14,8 +14,9 @@ function httpError(message, statusCode, code) {
   return error;
 }
 
-export function isStripeConnectEnabled(value = process.env.STRIPE_CONNECT_ENABLED) {
-  return CONNECT_TRUE_VALUES.has(clean(value).toLowerCase());
+export function isStripeConnectEnabled(value) {
+  const configured = arguments.length === 0 ? process.env.STRIPE_CONNECT_ENABLED : value;
+  return CONNECT_TRUE_VALUES.has(clean(configured).toLowerCase());
 }
 
 export function normalizeStripeConnectAccount(account) {
@@ -23,6 +24,21 @@ export function normalizeStripeConnectAccount(account) {
     detailsSubmitted: Boolean(account?.details_submitted),
     chargesEnabled: Boolean(account?.charges_enabled),
     payoutsEnabled: Boolean(account?.payouts_enabled),
+  };
+}
+
+export function normalizeStripeConnectSafeDetails(account) {
+  const candidate = account?.external_accounts?.data?.[0];
+  const external = candidate && typeof candidate === "object" ? candidate : null;
+  return {
+    requirements: {
+      currentlyDue: Array.isArray(account?.requirements?.currently_due) ? account.requirements.currently_due.map(String) : [],
+      eventuallyDue: Array.isArray(account?.requirements?.eventually_due) ? account.requirements.eventually_due.map(String) : [],
+      pastDue: Array.isArray(account?.requirements?.past_due) ? account.requirements.past_due.map(String) : [],
+      disabledReason: clean(account?.requirements?.disabled_reason) || null,
+    },
+    payoutSchedule: account?.settings?.payouts?.schedule ? { interval: clean(account.settings.payouts.schedule.interval) || null, delayDays: account.settings.payouts.schedule.delay_days ?? null } : null,
+    externalAccount: external ? { type: clean(external.object).toUpperCase(), bankName: clean(external.bank_name) || null, brand: clean(external.brand) || null, last4: clean(external.last4) || null, status: clean(external.status).toUpperCase() || null } : null,
   };
 }
 
@@ -54,6 +70,9 @@ export function buildStripeConnectStatus(shop, enabled = isStripeConnectEnabled(
       shop?.stripeConnectStatusUpdatedAt instanceof Date
         ? shop.stripeConnectStatusUpdatedAt.toISOString()
         : shop?.stripeConnectStatusUpdatedAt || null,
+    requirements: shop?.safeConnectDetails?.requirements || { currentlyDue: [], eventuallyDue: [], pastDue: [], disabledReason: null },
+    payoutSchedule: shop?.safeConnectDetails?.payoutSchedule || null,
+    externalAccount: shop?.safeConnectDetails?.externalAccount || null,
   };
 }
 
@@ -153,11 +172,12 @@ export async function refreshStripeConnectStatus({
   if (!shop.stripeConnectAccountId) return shop;
   const stripe = stripeClient || getStripe();
   const account = await stripe.accounts.retrieve(shop.stripeConnectAccountId);
-  return syncStripeConnectAccountStatus({
+  const updated = await syncStripeConnectAccountStatus({
     shop,
     account,
     prismaClient,
   });
+  return { ...updated, safeConnectDetails: normalizeStripeConnectSafeDetails(account) };
 }
 
 export async function ensureStripeConnectAccount({
@@ -174,7 +194,7 @@ export async function ensureStripeConnectAccount({
       account,
       prismaClient,
     });
-    return { shop: updatedShop, created: false };
+    return { shop: { ...updatedShop, safeConnectDetails: normalizeStripeConnectSafeDetails(account) }, created: false };
   }
 
   const account = await stripe.accounts.create(
@@ -200,7 +220,7 @@ export async function ensureStripeConnectAccount({
     prismaClient,
   });
 
-  return { shop: updatedShop, created: true };
+  return { shop: { ...updatedShop, safeConnectDetails: normalizeStripeConnectSafeDetails(account) }, created: true };
 }
 
 export async function createStripeConnectOnboardingLink({

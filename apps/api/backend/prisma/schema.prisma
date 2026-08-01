@@ -19,6 +19,14 @@ model User {
   passwordChangedAt               DateTime?
   createdAt                       DateTime                         @default(now())
   updatedAt                       DateTime                         @updatedAt
+  stripeCustomerId                String?                          @unique
+  billingMethodPresent            Boolean                          @default(false)
+  billingMethodBrand              String?
+  billingMethodLast4              String?
+  billingMethodExpMonth           Int?
+  billingMethodExpYear            Int?
+  billingMethodStatus             String                           @default("NOT_CONFIGURED")
+  billingMethodSyncedAt           DateTime?
   Bid                             Bid[]
   bidArchives                     BidArchive[]
   buyerSubscription               BuyerSubscription?
@@ -70,9 +78,35 @@ model User {
   pawnShopLeadActivities          PawnShopLeadActivity[]           @relation("PawnShopLeadActivityActor")
   pawnShopLeadImports             PawnShopLeadImport[]             @relation("PawnShopLeadImportCreator")
   pawnShopLeadSuppressions        PawnShopLeadSuppression[]        @relation("PawnShopLeadSuppressionCreator")
+  paymentMethodConsents           PaymentMethodConsent[]
 
   @@index([role, isActive])
   @@index([createdAt])
+}
+
+model PaymentMethodConsent {
+  id                String   @id @default(cuid())
+  idempotencyKey    String   @unique
+  userId            String
+  shopId            String?
+  stripeCustomerId  String
+  stripeCheckoutSessionId String? @unique
+  stripeSetupIntentId String? @unique
+  stripeMandateId   String?
+  paymentMethodId   String?
+  termsVersion      String
+  consentText       String
+  consentedAt       DateTime
+  ipAddress         String?
+  userAgent         String?
+  status            String   @default("PENDING")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([shopId, createdAt])
+  @@index([stripeCustomerId, status])
 }
 
 enum OwnerApplicationStatus {
@@ -224,6 +258,13 @@ model PawnShop {
   onboardingCompletedAt              DateTime?
   cancelAtPeriodEnd                  Boolean                          @default(false)
   stripeCustomerId                   String?
+  billingMethodPresent               Boolean                          @default(false)
+  billingMethodBrand                 String?
+  billingMethodLast4                 String?
+  billingMethodExpMonth              Int?
+  billingMethodExpYear               Int?
+  billingMethodStatus                String                           @default("NOT_CONFIGURED")
+  billingMethodSyncedAt              DateTime?
   stripeSubscriptionId               String?                          @unique
   stripeConnectAccountId             String?                          @unique
   stripeConnectDetailsSubmitted      Boolean                          @default(false)

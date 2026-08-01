@@ -20,6 +20,8 @@ import {
   reassignSuperAdminShopOwner,
   updateSuperAdminShop,
   getSuperAdminSellerPlans,
+  previewSuperAdminSellerPlanImpact,
+  updateSuperAdminSellerPlan,
   getSuperAdminBuyerPlans,
   listSuperAdminBuyerSubscriptions,
   updateSuperAdminBuyerSubscription,
@@ -29,6 +31,9 @@ import {
   getSuperAdminRevenueSummary,
   getSuperAdminPlatformSettings,
   updateSuperAdminPlatformSettings,
+  listPlatformConfigurations,
+  createPlatformConfiguration,
+  updatePlatformConfiguration,
   listSuperAdminPricingRules,
   createSuperAdminPricingRule,
   updateSuperAdminPricingRule,
@@ -377,6 +382,8 @@ router.patch(
 );
 
 router.get("/plans/seller", asyncRoute(getSuperAdminSellerPlans));
+router.post("/plans/seller/:code/impact", validateJsonObjectBody, asyncRoute(previewSuperAdminSellerPlanImpact));
+router.patch("/plans/seller/:code", validateJsonObjectBody, asyncRoute(updateSuperAdminSellerPlan));
 router.get("/plans/buyer", asyncRoute(getSuperAdminBuyerPlans));
 
 router.get(
@@ -493,6 +500,22 @@ router.patch(
   "/platform-settings",
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminPlatformSettings)
+);
+
+router.get(
+  "/platform-settings/configurations/:area",
+  asyncRoute(listPlatformConfigurations),
+);
+router.post(
+  "/platform-settings/configurations/:area",
+  validateJsonObjectBody,
+  asyncRoute(createPlatformConfiguration),
+);
+router.patch(
+  "/platform-settings/configurations/:area/:id",
+  validateIdParam("id", "Configuration id"),
+  validateJsonObjectBody,
+  asyncRoute(updatePlatformConfiguration),
 );
 
 export default router;
