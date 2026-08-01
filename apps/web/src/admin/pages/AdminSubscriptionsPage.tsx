@@ -7,7 +7,8 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { adminApi, type AdminShopRow } from "../services/adminApi";
+import { Link, useLocation } from "react-router-dom";
+import { adminApi, type AdminShopRow, type SellerPlanSummary } from "../services/adminApi";
 import "../../styles/admin-subscriptions-readability.css";
 
 type AdminSubscriptionRecord = {
@@ -20,6 +21,14 @@ type AdminSubscriptionRecord = {
   currentPeriodEnd: string | null;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+  ownerEmail: string;
+  updatedAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  billingMethodPresent: boolean;
+  billingMethodStatus: string;
+  billingMethodLabel: string;
+  connectState: string;
+  connectPayoutsEnabled: boolean;
 };
 
 function formatDate(value: string | null) {
@@ -27,6 +36,10 @@ function formatDate(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString();
+}
+
+function money(cents: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
 }
 
 function normalizePlan(value: string | null | undefined) {
@@ -46,12 +59,20 @@ function normalizeSubscription(
     id: String(shop.id || `subscription-${index}`),
     shopName: String(shop.name || `Shop ${index + 1}`),
     ownerName: String(shop.ownerName || shop.ownerEmail || "Unknown owner"),
+    ownerEmail: String(shop.ownerEmail || ""),
     plan: normalizePlan(shop.subscriptionPlan),
     status: normalizeStatus(shop.subscriptionStatus),
-    interval: "MONTHLY",
+    interval: String(shop.subscriptionBillingInterval || "MONTHLY").toUpperCase(),
     currentPeriodEnd: shop.subscriptionCurrentPeriodEnd || null,
     stripeCustomerId: shop.stripeCustomerId || null,
     stripeSubscriptionId: shop.stripeSubscriptionId || null,
+    updatedAt: shop.updatedAt || null,
+    cancelAtPeriodEnd: Boolean(shop.cancelAtPeriodEnd),
+    billingMethodPresent: Boolean(shop.billingMethodPresent),
+    billingMethodStatus: String(shop.billingMethodStatus || "NOT_CONFIGURED"),
+    billingMethodLabel: shop.billingMethodPresent ? `${shop.billingMethodBrand || "METHOD"} •••• ${shop.billingMethodLast4 || "----"}` : "Missing",
+    connectState: String(shop.connectState || "NOT_STARTED"),
+    connectPayoutsEnabled: Boolean(shop.connectPayoutsEnabled),
   };
 }
 
@@ -64,21 +85,30 @@ function sortSubscriptions(items: AdminSubscriptionRecord[]) {
 }
 
 async function fetchAdminSubscriptions(
+  superAdmin: boolean,
   signal?: AbortSignal,
 ): Promise<AdminSubscriptionRecord[]> {
-  const shops = await adminApi.getShops(signal);
+  const shops = superAdmin
+    ? (await adminApi.getSuperAdminShopsPaged({ limit: 250 }, signal)).rows
+    : await adminApi.getShops(signal);
   return sortSubscriptions(shops.map(normalizeSubscription));
 }
 
 export default function AdminSubscriptionsPage() {
+  const superAdmin = useLocation().pathname.startsWith("/super-admin");
   const [subscriptions, setSubscriptions] = useState<AdminSubscriptionRecord[]>(
     [],
   );
+  const [sellerPlans, setSellerPlans] = useState<SellerPlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [planFilter, setPlanFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [query, setQuery] = useState("");
+  const [intervalFilter, setIntervalFilter] = useState("ALL");
+  const [stripeFilter, setStripeFilter] = useState("ALL");
+  const [connectFilter, setConnectFilter] = useState("ALL");
 
   const load = useCallback(
     async (
@@ -91,8 +121,9 @@ export default function AdminSubscriptionsPage() {
       setError("");
 
       try {
-        const data = await fetchAdminSubscriptions(signal);
+        const [data, planRows] = await Promise.all([fetchAdminSubscriptions(superAdmin, signal), superAdmin ? adminApi.getSellerPlans(signal) : Promise.resolve([])]);
         setSubscriptions(data);
+        setSellerPlans(planRows);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(
@@ -103,7 +134,7 @@ export default function AdminSubscriptionsPage() {
         else setLoading(false);
       }
     },
-    [],
+    [superAdmin],
   );
 
   useEffect(() => {
@@ -116,9 +147,14 @@ export default function AdminSubscriptionsPage() {
     return subscriptions.filter((item) => {
       const planOk = planFilter === "ALL" || item.plan === planFilter;
       const statusOk = statusFilter === "ALL" || item.status === statusFilter;
-      return planOk && statusOk;
+      const intervalOk = intervalFilter === "ALL" || item.interval === intervalFilter;
+      const stripeOk = stripeFilter === "ALL" || (stripeFilter === "READY" && item.billingMethodPresent && item.billingMethodStatus === "READY") || (stripeFilter === "MISSING" && !item.billingMethodPresent) || (stripeFilter === "EXPIRED" && item.billingMethodStatus === "EXPIRED") || (stripeFilter === "SYNC_FAILED" && item.billingMethodStatus === "SYNC_FAILED");
+      const connectOk = connectFilter === "ALL" || (connectFilter === "INCOMPLETE" && ["NOT_STARTED", "SETUP_INCOMPLETE", "RESTRICTED"].includes(item.connectState)) || (connectFilter === "PAYOUTS_DISABLED" && !item.connectPayoutsEnabled) || item.connectState === connectFilter;
+      const q = query.trim().toLowerCase();
+      const searchOk = !q || [item.id, item.shopName, item.ownerName, item.ownerEmail, item.stripeCustomerId, item.stripeSubscriptionId].join(" ").toLowerCase().includes(q);
+      return planOk && statusOk && intervalOk && stripeOk && connectOk && searchOk;
     });
-  }, [planFilter, statusFilter, subscriptions]);
+  }, [connectFilter, intervalFilter, planFilter, query, statusFilter, stripeFilter, subscriptions]);
 
   const summary = useMemo(() => {
     const byPlan = subscriptions.reduce<Record<string, number>>((acc, item) => {
@@ -126,14 +162,23 @@ export default function AdminSubscriptionsPage() {
       return acc;
     }, {});
 
+    const planByCode = new Map(sellerPlans.map((plan) => [plan.code, plan]));
+    const mrrCents = subscriptions.filter((item) => ["ACTIVE", "TRIALING"].includes(item.status)).reduce((sum, item) => { const plan = planByCode.get(item.plan); return sum + (item.interval === "YEARLY" || item.interval === "YEAR" ? Math.round(Number(plan?.yearlyPriceCents || 0) / 12) : Number(plan?.monthlyPriceCents || 0)); }, 0);
     return {
       total: subscriptions.length,
       active: subscriptions.filter((item) => item.status === "ACTIVE").length,
       free: byPlan.FREE || 0,
       paid: subscriptions.filter((item) => item.plan !== "FREE").length,
       pastDue: subscriptions.filter((item) => item.status === "PAST_DUE").length,
+      trialing: subscriptions.filter((item) => item.status === "TRIALING").length,
+      paused: subscriptions.filter((item) => item.status === "PAUSED").length,
+      canceling: subscriptions.filter((item) => item.cancelAtPeriodEnd).length,
+      canceled: subscriptions.filter((item) => item.status === "CANCELED").length,
+      incomplete: subscriptions.filter((item) => item.status.startsWith("INCOMPLETE")).length,
+      stripeFailures: subscriptions.filter((item) => item.plan !== "FREE" && !item.stripeSubscriptionId).length,
+      mrrCents,
     };
-  }, [subscriptions]);
+  }, [sellerPlans, subscriptions]);
 
   const availablePlans = useMemo(
     () => ["ALL", ...Array.from(new Set(subscriptions.map((item) => item.plan)))],
@@ -152,14 +197,16 @@ export default function AdminSubscriptionsPage() {
     <div className="admin-subscriptions-readability" style={styles.page}>
       <div style={styles.hero}>
         <div>
-          <div style={styles.eyebrow}>Admin</div>
-          <h1 style={styles.title}>Subscriptions</h1>
+          <div style={styles.eyebrow}>{superAdmin ? "Plans & Billing · Seller" : "Admin"}</div>
+          <h1 style={styles.title}>{superAdmin ? "Seller Subscriptions" : "Subscriptions"}</h1>
           <p style={styles.subtitle}>
             Monitor seller plan coverage, billing status, Stripe references, and
             renewal timing.
           </p>
         </div>
 
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {superAdmin ? <><Link className="btn btn-secondary" to="/super-admin/plans/seller">Seller Plan Control</Link><Link className="btn btn-secondary" to="/super-admin/revenue">Revenue</Link><Link className="btn btn-secondary" to="/super-admin/audit?q=SELLER_PLAN">Billing audit</Link></> : null}
         <button
           type="button"
           onClick={() => void load("refresh")}
@@ -170,7 +217,7 @@ export default function AdminSubscriptionsPage() {
           }}
         >
           {refreshing ? "Refreshing..." : "Refresh"}
-        </button>
+        </button></div>
       </div>
 
       <div style={styles.statsGrid}>
@@ -178,6 +225,7 @@ export default function AdminSubscriptionsPage() {
           <div style={styles.statLabel}>Total subscriptions</div>
           <div style={styles.statValue}>{summary.total}</div>
         </div>
+        {superAdmin ? <><div style={styles.statCard}><div style={styles.statLabel}>Trialing / canceling</div><div style={styles.statValue}>{summary.trialing} / {summary.canceling}</div></div><div style={styles.statCard}><div style={styles.statLabel}>Paused / canceled</div><div style={styles.statValue}>{summary.paused} / {summary.canceled}</div></div><div style={styles.statCard}><div style={styles.statLabel}>Incomplete / sync failures</div><div style={styles.statValue}>{summary.incomplete} / {summary.stripeFailures}</div></div><div style={styles.statCard}><div style={styles.statLabel}>Seller MRR / ARR</div><div style={styles.statValue}>{money(summary.mrrCents)} / {money(summary.mrrCents * 12)}</div></div></> : null}
 
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Active</div>
@@ -201,6 +249,7 @@ export default function AdminSubscriptionsPage() {
       </div>
 
       <div style={styles.filterCard}>
+        <label style={styles.filterLabel}>Search<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Shop, owner, email, subscription, or Stripe customer" style={styles.select} /></label>
         <label style={styles.filterLabel}>
           Plan
           <select
@@ -215,6 +264,7 @@ export default function AdminSubscriptionsPage() {
             ))}
           </select>
         </label>
+        {superAdmin ? <><label style={styles.filterLabel}>Interval<select value={intervalFilter} onChange={(event) => setIntervalFilter(event.target.value)} style={styles.select}><option>ALL</option><option>MONTHLY</option><option>YEARLY</option></select></label><label style={styles.filterLabel}>Billing method<select value={stripeFilter} onChange={(event) => setStripeFilter(event.target.value)} style={styles.select}><option>ALL</option><option>READY</option><option>MISSING</option><option>EXPIRED</option><option>SYNC_FAILED</option></select></label><label style={styles.filterLabel}>Connect status<select value={connectFilter} onChange={(event) => setConnectFilter(event.target.value)} style={styles.select}><option>ALL</option><option>INCOMPLETE</option><option>PAYOUTS_DISABLED</option><option>PAYOUTS_ENABLED</option></select></label></> : null}
 
         <label style={styles.filterLabel}>
           Status
@@ -262,6 +312,7 @@ export default function AdminSubscriptionsPage() {
 
                 <div style={styles.statusPill}>{subscription.status}</div>
               </div>
+              {superAdmin ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}><details><summary className="btn btn-secondary">Open details</summary><div className="mt-2 rounded-xl border p-3 text-sm">{subscription.ownerName} ({subscription.ownerEmail}) · {subscription.plan} · {subscription.status}<br />Stripe subscription: {subscription.stripeSubscriptionId || "Not linked"}<br />Stripe customer: {subscription.stripeCustomerId || "Not linked"}</div></details><Link className="btn btn-secondary" to={`/super-admin/shops?q=${encodeURIComponent(subscription.shopName)}`}>View shop and owner</Link><Link className="btn btn-secondary" to={`/super-admin/shops?q=${encodeURIComponent(subscription.shopName)}`}>Manage subscription</Link><Link className="btn btn-secondary" to={`/super-admin/audit?q=${encodeURIComponent(subscription.id)}`}>Audit history</Link></div> : null}
 
               <div style={styles.detailGrid}>
                 <div>
@@ -289,6 +340,7 @@ export default function AdminSubscriptionsPage() {
                     {subscription.stripeSubscriptionId || "—"}
                   </div>
                 </div>
+                {superAdmin ? <><div><div style={styles.detailLabel}>Billing method</div><div style={styles.detailValue}>{subscription.billingMethodLabel} · {subscription.billingMethodStatus}</div></div><div><div style={styles.detailLabel}>Connect payouts</div><div style={styles.detailValue}>{subscription.connectState} · {subscription.connectPayoutsEnabled ? "Enabled" : "Disabled"}</div></div></> : null}
               </div>
             </article>
           ))}

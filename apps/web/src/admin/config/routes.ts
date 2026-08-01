@@ -234,6 +234,13 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     group: "super-admin-billing",
   }),
   route({
+    key: "superAdminSellerSubscriptions",
+    path: "/super-admin/seller-subscriptions",
+    label: "Seller Subscriptions",
+    permissions: ["admin:subscriptions:read"],
+    group: "super-admin-billing",
+  }),
+  route({
     key: "superAdminBuyerPlans",
     path: "/super-admin/plans/buyer",
     label: "Buyer Plan Control",

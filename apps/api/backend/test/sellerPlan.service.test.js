@@ -55,8 +55,8 @@ test("expired seller trial falls back to the FREE plan", () => {
     entitlements.limits.listingLimitSource,
     "PLAN",
   );
-  assert.equal(entitlements.limits.maxActiveListings, 20);
-  assert.equal(entitlements.limits.standardMaxActiveListings, 20);
+  assert.equal(entitlements.limits.maxActiveListings, 25);
+  assert.equal(entitlements.limits.standardMaxActiveListings, 25);
   assert.equal(entitlements.limits.trialMaxActiveListings, 50);
 });
 

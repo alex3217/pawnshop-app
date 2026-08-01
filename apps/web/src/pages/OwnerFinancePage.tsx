@@ -476,7 +476,7 @@ export default function OwnerFinancePage() {
           title: "Set up payouts",
           message:
             "Connect your shop with Stripe to begin payout verification.",
-          action: "Set up payouts",
+          action: "Complete Setup",
           tone: "neutral",
         };
       case "SETUP_INCOMPLETE":
@@ -484,7 +484,7 @@ export default function OwnerFinancePage() {
           title: "Payout setup is incomplete",
           message:
             "Stripe still needs information before it can review your payout account.",
-          action: "Continue Stripe setup",
+          action: "Resume Setup",
           tone: "warning",
         };
       case "RESTRICTED":
@@ -492,7 +492,7 @@ export default function OwnerFinancePage() {
           title: "Payout account under review",
           message:
             "Your information was submitted, but Stripe has not enabled payouts yet.",
-          action: "Continue Stripe setup",
+          action: "Update Payout Account",
           tone: "warning",
         };
       case "PAYOUTS_ENABLED":
@@ -500,7 +500,7 @@ export default function OwnerFinancePage() {
           title: "Payouts enabled",
           message:
             "Stripe has verified this shop and enabled payouts.",
-          action: null,
+          action: "Update Payout Account",
           tone: "success",
         };
       default:
@@ -693,6 +693,7 @@ export default function OwnerFinancePage() {
               {formatDate(connectStatus.statusUpdatedAt)}
             </small>
           ) : null}
+          {connectStatus ? <div className="mt-3 grid gap-1 text-sm"><span>Verification: {connectStatus.detailsSubmitted ? "Submitted" : "Incomplete"}</span><span>Charges: {connectStatus.chargesEnabled ? "Enabled" : "Disabled"} · Payouts: {connectStatus.payoutsEnabled ? "Enabled" : "Disabled"}</span><span>Requirements due: {connectStatus.requirements?.currentlyDue?.length || 0}{connectStatus.requirements?.disabledReason ? ` · ${connectStatus.requirements.disabledReason}` : ""}</span><span>Payout schedule: {connectStatus.payoutSchedule?.interval || "Available after Stripe verification"}</span><span>External account: {connectStatus.externalAccount ? `${connectStatus.externalAccount.bankName || connectStatus.externalAccount.brand || connectStatus.externalAccount.type} •••• ${connectStatus.externalAccount.last4}` : "Collected securely by Stripe during onboarding"}</span></div> : null}
           {connectError ? (
             <span
               className="owner-finance-connect-error"
@@ -720,6 +721,7 @@ export default function OwnerFinancePage() {
           </button>
         ) : null}
       </section>
+      {selectedShopId ? <section className="owner-finance-connect-panel"><div><p className="owner-finance-eyebrow">Seller billing method</p><h2>Charges and subscriptions</h2><p>Billing methods are stored by Stripe and remain separate from this Connect payout account.</p></div><Link className="owner-finance-primary-button" to={`/account/payment-methods?shopId=${encodeURIComponent(selectedShopId)}`}>Manage billing method</Link></section> : null}
 
       <section
         className="owner-finance-balance-grid"

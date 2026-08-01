@@ -21,7 +21,7 @@ export default function AdminPageShell({
           style={{ alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}
         >
           <div>
-            <div className="section-title">{title}</div>
+            <h1 className="section-title">{title}</h1>
             {subtitle ? <div className="section-subtitle">{subtitle}</div> : null}
           </div>
 

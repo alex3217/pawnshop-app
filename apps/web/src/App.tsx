@@ -120,6 +120,9 @@ const SuperAdminPricingPage = lazyPage(() => import("./admin/pages/SuperAdminPri
 const SuperAdminBuyerPlansPage = lazyPage(() =>
   import("./admin/pages/SuperAdminBuyerPlansPage"),
 );
+const SuperAdminSellerPlansPage = lazyPage(() =>
+  import("./admin/pages/SuperAdminSellerPlansPage"),
+);
 const SuperAdminBuyerSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminBuyerSubscriptionsPage"),
 );
@@ -192,6 +195,7 @@ const OwnerStaffPage = lazyPage(() => import("./pages/OwnerStaffPage"));
 const OwnerSubscriptionPage = lazyPage(() =>
   import("./pages/OwnerSubscriptionPage"),
 );
+const PaymentMethodsPage = lazyPage(() => import("./pages/PaymentMethodsPage"));
 const RegisterPage = lazyPage(() => import("./pages/RegisterPage"));
 const SavedSearchesPage = lazyPage(() => import("./pages/SavedSearchesPage"));
 const ScanConsolePage = lazyPage(() => import("./pages/ScanConsolePage"));
@@ -317,6 +321,7 @@ const marketplaceTransactionRoutes: RouteConfig[] = [
 const offerRoutes: RouteConfig[] = [
   { path: "/offers", element: <OffersPage /> },
 ];
+const paymentMethodRoutes: RouteConfig[] = [{ path: "/account/payment-methods", element: <PaymentMethodsPage /> }];
 
 const ownerRoutes: RouteConfig[] = [
   { path: "/owner", element: <OwnerDashboardPage /> },
@@ -404,12 +409,13 @@ const superAdminRoutes: RouteConfig[] = [
   { path: "inventory", element: <AdminItemsPage /> },
   { path: "integrations", element: <SuperAdminIntegrationsPage /> },
   { path: "items", element: <Navigate to="/super-admin/inventory" replace /> },
-  { path: "plans/seller", element: <AdminSubscriptionsPage /> },
+  { path: "plans/seller", element: <SuperAdminSellerPlansPage /> },
+  { path: "seller-subscriptions", element: <AdminSubscriptionsPage /> },
   { path: "plans/buyer", element: <SuperAdminBuyerPlansPage /> },
   { path: "buyer-subscriptions", element: <SuperAdminBuyerSubscriptionsPage /> },
   {
     path: "subscriptions",
-    element: <Navigate to="/super-admin/buyer-subscriptions" replace />,
+    element: <Navigate to="/super-admin/seller-subscriptions" replace />,
   },
   { path: "settlements", element: <SuperAdminSettlementsPage /> },
   { path: "pricing", element: <SuperAdminPricingPage /> },
@@ -476,6 +482,7 @@ export default function App() {
             MARKETPLACE_TRANSACTION_ROLES,
           )}
           {renderRouteGroup(offerRoutes, "offers", OFFER_ROLES)}
+          {renderRouteGroup(paymentMethodRoutes, "payment-methods", ["CONSUMER", "OWNER"])}
         </Route>
 
         <Route element={<RequireRole allowed={ADMIN_ROLES} />}>

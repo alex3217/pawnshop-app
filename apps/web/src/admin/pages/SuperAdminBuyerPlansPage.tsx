@@ -120,7 +120,7 @@ export default function SuperAdminBuyerPlansPage() {
       subtitle="Review buyer pricing, plan entitlements, subscriber distribution, and subscription revenue readiness."
       actions={
         <div className="admin-action-row">
-          <Link className="btn btn-secondary" to="/super-admin/pricing">
+          <Link className="btn btn-secondary" to="/super-admin/pricing?q=buyer_plan">
             Pricing Control
           </Link>
           <Link
@@ -156,7 +156,7 @@ export default function SuperAdminBuyerPlansPage() {
           </div>
 
           <div className="super-admin-control-actions">
-            <Link className="btn btn-primary" to="/super-admin/pricing">
+            <Link className="btn btn-primary" to="/super-admin/pricing?q=buyer_plan">
               Manage Pricing Rules
             </Link>
           </div>
@@ -208,7 +208,7 @@ export default function SuperAdminBuyerPlansPage() {
             Review the pricing catalog and configure FREE, PLUS, PREMIUM, and
             ULTRA plans before enabling buyer checkout.
           </p>
-          <Link className="btn btn-primary" to="/super-admin/pricing">
+          <Link className="btn btn-primary" to="/super-admin/pricing?q=buyer_plan">
             Open Pricing Control
           </Link>
         </div>
@@ -306,7 +306,7 @@ export default function SuperAdminBuyerPlansPage() {
                 </div>
 
                 <div className="buyer-plan-card__actions">
-                  <Link className="btn btn-primary" to="/super-admin/pricing">
+                  <Link className="btn btn-primary" to={`/super-admin/pricing?q=buyer_plan_${plan.code.toLowerCase()}`}>
                     Edit Pricing
                   </Link>
                   <Link

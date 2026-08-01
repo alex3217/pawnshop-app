@@ -2,6 +2,11 @@
 
 import { prisma } from "../lib/prisma.js";
 import {
+  configurationPrefix,
+  parseConfigurationValue,
+  validatePlatformConfiguration,
+} from "../services/platformConfiguration.service.js";
+import {
   BUYER_PLAN_CODES,
   getBuyerPlanCatalog,
   getSellerPlanCatalog,
@@ -263,10 +268,21 @@ function mapShopRow(shop) {
     isDeleted: Boolean(shop.isDeleted),
     subscriptionPlan: normalizeUpper(shop.subscriptionPlan, "FREE"),
     subscriptionStatus: normalizeUpper(shop.subscriptionStatus, "UNKNOWN"),
+    subscriptionBillingInterval: normalizeUpper(shop.subscriptionBillingInterval, "MONTHLY"),
     subscriptionCurrentPeriodEnd: toIsoOrNull(shop.subscriptionCurrentPeriodEnd),
     cancelAtPeriodEnd: Boolean(shop.cancelAtPeriodEnd),
     stripeCustomerId: shop.stripeCustomerId || null,
     stripeSubscriptionId: shop.stripeSubscriptionId || null,
+    billingMethodPresent: Boolean(shop.billingMethodPresent),
+    billingMethodBrand: shop.billingMethodBrand || null,
+    billingMethodLast4: shop.billingMethodLast4 || null,
+    billingMethodExpMonth: shop.billingMethodExpMonth || null,
+    billingMethodExpYear: shop.billingMethodExpYear || null,
+    billingMethodStatus: shop.billingMethodStatus || "NOT_CONFIGURED",
+    billingMethodSyncedAt: toIsoOrNull(shop.billingMethodSyncedAt),
+    connectState: !shop.stripeConnectAccountId ? "NOT_STARTED" : shop.stripeConnectPayoutsEnabled ? "PAYOUTS_ENABLED" : shop.stripeConnectDetailsSubmitted ? "RESTRICTED" : "SETUP_INCOMPLETE",
+    connectChargesEnabled: Boolean(shop.stripeConnectChargesEnabled),
+    connectPayoutsEnabled: Boolean(shop.stripeConnectPayoutsEnabled),
     createdAt: toIsoOrNull(shop.createdAt),
     updatedAt: toIsoOrNull(shop.updatedAt),
   };
@@ -1418,6 +1434,9 @@ export async function updateSuperAdminShop(req, res) {
 
     if (!body) throw badRequest("Request body must be a JSON object.");
 
+    const billingOverrideRequested = ["subscriptionPlan", "subscriptionStatus", "subscriptionCurrentPeriodEnd", "cancelAtPeriodEnd"].some((key) => body[key] !== undefined);
+    if (billingOverrideRequested && !normalizeString(body.reason)) throw badRequest("A reason is required for billing overrides.");
+
     const update = {};
 
     if (body.isDeleted !== undefined) {
@@ -1478,16 +1497,115 @@ export async function updateSuperAdminShop(req, res) {
 export async function getSuperAdminSellerPlans(req, res) {
   try {
     assertSuperAdmin(req);
-
+    const [catalog, shops, rules] = await Promise.all([
+      mapSellerPlanCatalog(),
+      prisma.pawnShop.findMany({ where: { isDeleted: false }, select: { subscriptionPlan: true, subscriptionStatus: true, subscriptionBillingInterval: true } }),
+      prisma.platformPricingRule.findMany({ where: { category: "SUBSCRIPTIONS", appliesTo: "SELLER" }, orderBy: { updatedAt: "desc" } }),
+    ]);
+    const plans = catalog.map((plan) => {
+      const assigned = shops.filter((shop) => normalizeUpper(shop.subscriptionPlan, "FREE") === plan.code);
+      const planRules = rules.filter((rule) => rule.key.startsWith(`seller_plan_${plan.code.toLowerCase()}_`));
+      const latest = planRules[0] || null;
+      const monthlyRule = planRules.find((rule) => rule.key.endsWith("_monthly"));
+      const yearlyRule = planRules.find((rule) => rule.key.endsWith("_yearly"));
+      const limitsRule = planRules.find((rule) => rule.key.endsWith("_limits"));
+      const active = assigned.filter((shop) => ["ACTIVE", "TRIALING"].includes(normalizeUpper(shop.subscriptionStatus)));
+      const mrrCents = active.reduce((sum, shop) => sum + (normalizeUpper(shop.subscriptionBillingInterval) === "YEAR" ? Math.round(Number(plan.yearlyPriceCents || 0) / 12) : Number(plan.monthlyPriceCents || 0)), 0);
+      return {
+        ...plan,
+        stripeProductId: limitsRule?.metadata?.stripeProductId || null,
+        trialEligible: limitsRule?.metadata?.trialEligible ?? true,
+        trialDays: Number(limitsRule?.metadata?.trialDays ?? 60),
+        supportLevel: limitsRule?.metadata?.supportLevel || (plan.code === "ULTRA" ? "DEDICATED" : "STANDARD"),
+        status: limitsRule?.status || "ACTIVE",
+        subscribedShops: assigned.length,
+        mrrCents,
+        updatedAt: latest?.updatedAt?.toISOString?.() || null,
+        updatedByUserId: latest?.updatedByUserId || null,
+        version: latest?.updatedAt?.toISOString?.() || "CONFIG",
+        stripeSyncStatus: plan.isFree ? "NOT_REQUIRED" : monthlyRule?.stripePriceId && yearlyRule?.stripePriceId ? "CONFIGURED" : "MISSING_REFERENCES",
+      };
+    });
     return res.json({
       success: true,
-      plans: await mapSellerPlanCatalog(),
-      source: "CONFIG",
-      mutableInApp: false,
+      plans,
+      source: "CONFIG_WITH_DATABASE_OVERRIDES",
+      mutableInApp: true,
+      lastSynchronizedAt: new Date().toISOString(),
     });
   } catch (error) {
     return sendError(res, error);
   }
+}
+
+function sellerPlanInteger(value, label, nullable = false) {
+  if (nullable && (value === null || value === "")) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw badRequest(`${label} must be a non-negative integer.`);
+  return parsed;
+}
+
+function validateStripeReference(value, prefix, label) {
+  const normalized = normalizeString(value);
+  if (normalized && !new RegExp(`^${prefix}_[A-Za-z0-9]+$`).test(normalized)) throw badRequest(`${label} must be a valid ${prefix}_ reference.`);
+  return normalized || null;
+}
+
+export async function previewSuperAdminSellerPlanImpact(req, res) {
+  try {
+    assertSuperAdmin(req);
+    const code = getSellerPlanCodes().includes(normalizeUpper(req.params?.code)) ? normalizeUpper(req.params.code) : null;
+    if (!code) throw badRequest("Unsupported seller plan.");
+    const catalog = await mapSellerPlanCatalog();
+    const current = catalog.find((plan) => plan.code === code);
+    const shops = await prisma.pawnShop.findMany({ where: { isDeleted: false, subscriptionPlan: code }, select: { id: true, subscriptionStatus: true, subscriptionBillingInterval: true } });
+    const nextMonthly = sellerPlanInteger(req.body?.monthlyPriceCents ?? current.monthlyPriceCents, "Monthly price");
+    const nextYearly = sellerPlanInteger(req.body?.yearlyPriceCents ?? current.yearlyPriceCents, "Yearly price");
+    const currentMrrCents = shops.filter((shop) => ["ACTIVE", "TRIALING"].includes(normalizeUpper(shop.subscriptionStatus))).reduce((sum, shop) => sum + (normalizeUpper(shop.subscriptionBillingInterval) === "YEAR" ? Math.round(current.yearlyPriceCents / 12) : current.monthlyPriceCents), 0);
+    const projectedMrrCents = shops.filter((shop) => ["ACTIVE", "TRIALING"].includes(normalizeUpper(shop.subscriptionStatus))).reduce((sum, shop) => sum + (normalizeUpper(shop.subscriptionBillingInterval) === "YEAR" ? Math.round(nextYearly / 12) : nextMonthly), 0);
+    return res.json({ success: true, impact: { affectedShops: shops.length, affectedSubscriptions: shops.filter((shop) => shop.subscriptionStatus !== "CANCELED").length, currentMrrCents, projectedMrrCents, mrrDeltaCents: projectedMrrCents - currentMrrCents, requiresGrandfathering: shops.length > 0 } });
+  } catch (error) { return sendError(res, error); }
+}
+
+export async function updateSuperAdminSellerPlan(req, res) {
+  try {
+    assertSuperAdmin(req);
+    const code = getSellerPlanCodes().includes(normalizeUpper(req.params?.code)) ? normalizeUpper(req.params.code) : null;
+    if (!code) throw badRequest("Unsupported seller plan.");
+    const body = req.body || {};
+    const catalog = await mapSellerPlanCatalog();
+    const current = catalog.find((plan) => plan.code === code);
+    const assignedShops = await prisma.pawnShop.count({ where: { isDeleted: false, subscriptionPlan: code } });
+    const status = normalizeUpper(body.status, "ACTIVE");
+    if (!["DRAFT", "ACTIVE", "DISABLED", "ARCHIVED"].includes(status)) throw badRequest("Plan status is invalid.");
+    if (["DISABLED", "ARCHIVED"].includes(status) && assignedShops > 0 && body.grandfatherExisting !== true && !body.scheduledMigrationAt) throw badRequest("Assigned plans require grandfathering or a scheduled migration before deactivation.");
+    if (body.scheduledMigrationAt && Number.isNaN(new Date(body.scheduledMigrationAt).getTime())) throw badRequest("Scheduled migration date is invalid.");
+    const monthlyPriceCents = sellerPlanInteger(body.monthlyPriceCents ?? current.monthlyPriceCents, "Monthly price");
+    const yearlyPriceCents = sellerPlanInteger(body.yearlyPriceCents ?? current.yearlyPriceCents, "Yearly price");
+    const maxActiveListings = sellerPlanInteger(body.maxActiveListings ?? current.maxActiveListings, "Active-listing limit", true);
+    const trialMaxActiveListings = sellerPlanInteger(body.trialMaxActiveListings ?? current.trialMaxActiveListings, "Trial listing limit", true);
+    const commissionBps = sellerPlanInteger(body.commissionBps ?? current.commissionBps, "Commission basis points");
+    if (commissionBps > 10000) throw badRequest("Commission basis points cannot exceed 10000.");
+    const trialDays = sellerPlanInteger(body.trialDays ?? 60, "Trial duration");
+    const stripeProductId = validateStripeReference(body.stripeProductId, "prod", "Stripe product ID");
+    const stripeMonthlyPriceId = validateStripeReference(body.stripeMonthlyPriceId, "price", "Monthly Stripe price ID");
+    const stripeYearlyPriceId = validateStripeReference(body.stripeYearlyPriceId, "price", "Yearly Stripe price ID");
+    const prefix = `seller_plan_${code.toLowerCase()}`;
+    const existingRules = await prisma.platformPricingRule.findMany({ where: { key: { startsWith: `${prefix}_` } }, orderBy: { updatedAt: "desc" } });
+    const currentVersion = existingRules[0]?.updatedAt?.toISOString?.() || "CONFIG";
+    if (normalizeString(body.expectedVersion) !== currentVersion) throw createHttpError("This plan changed since it was loaded. Refresh and try again.", 409);
+    const actorId = req.user?.sub || req.user?.id || null;
+    const metadata = { label: normalizeString(body.label, current.label), description: normalizeString(body.description), maxActiveListings, trialMaxActiveListings, maxLocations: sellerPlanInteger(body.maxLocations ?? current.maxLocations, "Location limit", true), maxStaffUsers: sellerPlanInteger(body.maxStaffUsers ?? current.maxStaffUsers, "Staff-seat limit", true), canCreateAuctions: Boolean(body.canCreateAuctions), canFeatureListings: Boolean(body.canFeatureListings), analyticsLevel: normalizeString(body.analyticsLevel, current.analyticsLevel), supportLevel: normalizeString(body.supportLevel, "STANDARD"), trialEligible: body.trialEligible !== false, trialDays, features: Array.isArray(body.features) ? body.features.map(String) : current.features, stripeProductId, grandfatherExisting: body.grandfatherExisting === true, scheduledMigrationAt: body.scheduledMigrationAt || null };
+    await prisma.$transaction(async (tx) => {
+      const base = { category: "SUBSCRIPTIONS", appliesTo: "SELLER", currency: "USD", status, updatedByUserId: actorId };
+      await tx.platformPricingRule.upsert({ where: { key: `${prefix}_monthly` }, update: { ...base, label: `${metadata.label} monthly`, feeType: "FIXED_CENTS", amountCents: monthlyPriceCents, stripePriceId: stripeMonthlyPriceId }, create: { ...base, key: `${prefix}_monthly`, label: `${metadata.label} monthly`, feeType: "FIXED_CENTS", amountCents: monthlyPriceCents, stripePriceId: stripeMonthlyPriceId, createdByUserId: actorId } });
+      await tx.platformPricingRule.upsert({ where: { key: `${prefix}_yearly` }, update: { ...base, label: `${metadata.label} yearly`, feeType: "FIXED_CENTS", amountCents: yearlyPriceCents, stripePriceId: stripeYearlyPriceId }, create: { ...base, key: `${prefix}_yearly`, label: `${metadata.label} yearly`, feeType: "FIXED_CENTS", amountCents: yearlyPriceCents, stripePriceId: stripeYearlyPriceId, createdByUserId: actorId } });
+      await tx.platformPricingRule.upsert({ where: { key: `${prefix}_commission_bps` }, update: { ...base, label: `${metadata.label} commission`, feeType: "PERCENT_BPS", percentBps: commissionBps }, create: { ...base, key: `${prefix}_commission_bps`, label: `${metadata.label} commission`, feeType: "PERCENT_BPS", percentBps: commissionBps, createdByUserId: actorId } });
+      await tx.platformPricingRule.upsert({ where: { key: `${prefix}_limits` }, update: { ...base, label: `${metadata.label} limits`, feeType: "FIXED_CENTS", amountCents: 0, metadata }, create: { ...base, key: `${prefix}_limits`, label: `${metadata.label} limits`, feeType: "FIXED_CENTS", amountCents: 0, metadata, createdByUserId: actorId } });
+      await tx.superAdminAuditLog.create({ data: platformConfigurationAuditData(req, "UPDATE_SELLER_PLAN", "seller-plans", code, { code, assignedShops, monthlyPriceCents, yearlyPriceCents, commissionBps, status, grandfatherExisting: metadata.grandfatherExisting, scheduledMigrationAt: metadata.scheduledMigrationAt }) });
+    });
+    return getSuperAdminSellerPlans(req, res);
+  } catch (error) { return sendError(res, error); }
 }
 
 export async function getSuperAdminBuyerPlans(req, res) {
@@ -1892,23 +2010,116 @@ export async function updateSuperAdminPlatformSettings(req, res) {
       req?.user?.sub || req?.user?.id || req?.user?.userId
     );
 
-    const updated = await prisma.platformSetting.upsert({
-      where: { key },
-      update: {
-        value,
-        updatedByUserId: updatedByUserId || null,
-      },
-      create: {
-        key,
-        value,
-        updatedByUserId: updatedByUserId || null,
-      },
+    const expectedUpdatedAt = normalizeString(body.expectedUpdatedAt);
+    const updated = await prisma.$transaction(async (tx) => {
+      const existing = await tx.platformSetting.findUnique({ where: { key } });
+      let saved;
+      if (existing) {
+        const changed = await tx.platformSetting.updateMany({
+          where: { key, updatedAt: expectedUpdatedAt ? new Date(expectedUpdatedAt) : existing.updatedAt },
+          data: { value, updatedByUserId: updatedByUserId || null },
+        });
+        if (changed.count !== 1) throw createHttpError("This setting changed since it was loaded. Refresh and try again.", 409);
+        saved = await tx.platformSetting.findUnique({ where: { key } });
+      } else {
+        saved = await tx.platformSetting.create({ data: { key, value, updatedByUserId: updatedByUserId || null } });
+      }
+      await tx.superAdminAuditLog.create({ data: platformConfigurationAuditData(req, existing ? "UPDATE_PLATFORM_SETTING" : "CREATE_PLATFORM_SETTING", "settings", saved.id, { key }) });
+      return saved;
     });
 
     return res.json({
       success: true,
       setting: updated,
     });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+function platformConfigurationAuditData(req, action, area, targetId, metadata) {
+  return {
+    actorId: req.user?.sub || req.user?.id || null,
+    actorEmail: req.user?.email || null,
+    actorRole: req.user?.role || null,
+    action,
+    method: req.method,
+    path: req.originalUrl || req.path,
+    routeKey: `super-admin.platform-settings.${area}`,
+    targetType: "PLATFORM_SETTING",
+    targetId,
+    statusCode: 200,
+    success: true,
+    requestId: req.id || req.requestId || null,
+    ipAddress: req.ip || null,
+    userAgent: req.get?.("user-agent") || null,
+    metadata,
+  };
+}
+
+export async function listPlatformConfigurations(req, res) {
+  try {
+    assertSuperAdmin(req);
+    const area = String(req.params?.area || "");
+    const prefix = configurationPrefix(area);
+    const rows = await prisma.platformSetting.findMany({
+      where: { key: { startsWith: prefix } },
+      orderBy: { createdAt: "asc" },
+    });
+    return res.json({ success: true, rows: rows.map(parseConfigurationValue).filter(Boolean) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function createPlatformConfiguration(req, res) {
+  try {
+    assertSuperAdmin(req);
+    const area = String(req.params?.area || "");
+    const prefix = configurationPrefix(area);
+    const configuration = validatePlatformConfiguration(area, req.body);
+    const storageKey = `${prefix}${configuration.key}`;
+    const actorId = req.user?.sub || req.user?.id || null;
+    const row = await prisma.$transaction(async (tx) => {
+      const created = await tx.platformSetting.create({ data: { key: storageKey, value: JSON.stringify(configuration), updatedByUserId: actorId } });
+      await tx.superAdminAuditLog.create({ data: platformConfigurationAuditData(req, "CREATE_PLATFORM_CONFIGURATION", area, created.id, { key: configuration.key, area }) });
+      return created;
+    });
+    return res.status(201).json({ success: true, row: parseConfigurationValue(row) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function updatePlatformConfiguration(req, res) {
+  try {
+    assertSuperAdmin(req);
+    const area = String(req.params?.area || "");
+    const prefix = configurationPrefix(area);
+    const id = normalizeString(req.params?.id);
+    const expectedUpdatedAt = normalizeString(req.body?.expectedUpdatedAt);
+    if (!expectedUpdatedAt) throw badRequest("expectedUpdatedAt is required to prevent concurrent overwrites.");
+    const actorId = req.user?.sub || req.user?.id || null;
+    const row = await prisma.$transaction(async (tx) => {
+      const existingRow = await tx.platformSetting.findFirst({ where: { id, key: { startsWith: prefix } } });
+      if (!existingRow) throw notFound("Platform configuration not found.");
+      const existing = parseConfigurationValue(existingRow);
+      const configuration = validatePlatformConfiguration(area, req.body, existing);
+      const nextStorageKey = `${prefix}${configuration.key}`;
+      const updated = await tx.platformSetting.updateMany({
+        where: { id, updatedAt: new Date(expectedUpdatedAt) },
+        data: { key: nextStorageKey, value: JSON.stringify(configuration), updatedByUserId: actorId },
+      });
+      if (updated.count !== 1) {
+        const conflict = new Error("This configuration changed since it was loaded. Refresh and try again.");
+        conflict.status = 409;
+        throw conflict;
+      }
+      const saved = await tx.platformSetting.findUnique({ where: { id } });
+      await tx.superAdminAuditLog.create({ data: platformConfigurationAuditData(req, "UPDATE_PLATFORM_CONFIGURATION", area, id, { key: configuration.key, area, enabled: configuration.enabled, archived: configuration.archived }) });
+      return saved;
+    });
+    return res.json({ success: true, row: parseConfigurationValue(row) });
   } catch (error) {
     return sendError(res, error);
   }
@@ -2000,6 +2211,24 @@ function buildPricingRuleData(body, actorId, existing = null) {
     throw badRequest("percentBps is required for percentage fee rules.");
   }
 
+  if (feeType === "HYBRID" && (amountCents === null || percentBps === null)) {
+    throw badRequest("amountCents and percentBps are required for hybrid fee rules.");
+  }
+  if (amountCents !== null && amountCents < 0) throw badRequest("amountCents cannot be negative.");
+  if (percentBps !== null && (percentBps < 0 || percentBps > 10000)) throw badRequest("percentBps must be between 0 and 10000.");
+
+  const minCents = normalizePricingRuleInt(body.minCents !== undefined ? body.minCents : existing?.minCents);
+  const maxCents = normalizePricingRuleInt(body.maxCents !== undefined ? body.maxCents : existing?.maxCents);
+  if (minCents !== null && minCents < 0) throw badRequest("minCents cannot be negative.");
+  if (maxCents !== null && maxCents < 0) throw badRequest("maxCents cannot be negative.");
+  if (minCents !== null && maxCents !== null && minCents > maxCents) throw badRequest("Minimum fee cannot exceed maximum fee.");
+
+  const effectiveStartAt = body.effectiveStartAt !== undefined ? normalizePricingRuleDate(body.effectiveStartAt) : existing?.effectiveStartAt || null;
+  const effectiveEndAt = body.effectiveEndAt !== undefined ? normalizePricingRuleDate(body.effectiveEndAt) : existing?.effectiveEndAt || null;
+  if (body.effectiveStartAt && !effectiveStartAt) throw badRequest("Effective start date is invalid.");
+  if (body.effectiveEndAt && !effectiveEndAt) throw badRequest("Effective end date is invalid.");
+  if (effectiveStartAt && effectiveEndAt && effectiveStartAt >= effectiveEndAt) throw badRequest("Effective end must be after effective start.");
+
   return {
     key,
     label,
@@ -2012,32 +2241,46 @@ function buildPricingRuleData(body, actorId, existing = null) {
     feeType,
     amountCents,
     percentBps,
-    minCents: normalizePricingRuleInt(
-      body.minCents !== undefined ? body.minCents : existing?.minCents,
-    ),
-    maxCents: normalizePricingRuleInt(
-      body.maxCents !== undefined ? body.maxCents : existing?.maxCents,
-    ),
+    minCents,
+    maxCents,
     currency: normalizeUpper(body.currency, existing?.currency || "USD"),
     status,
     stripePriceId:
       body.stripePriceId !== undefined
         ? normalizePricingRuleText(body.stripePriceId) || null
         : existing?.stripePriceId || null,
-    effectiveStartAt:
-      body.effectiveStartAt !== undefined
-        ? normalizePricingRuleDate(body.effectiveStartAt)
-        : existing?.effectiveStartAt || null,
-    effectiveEndAt:
-      body.effectiveEndAt !== undefined
-        ? normalizePricingRuleDate(body.effectiveEndAt)
-        : existing?.effectiveEndAt || null,
+    effectiveStartAt,
+    effectiveEndAt,
     metadata:
       body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
         ? body.metadata
         : existing?.metadata || null,
     updatedByUserId: actorId || null,
   };
+}
+
+async function assertNoActivePricingRuleOverlap(data, excludeId = null) {
+  if (data.status !== "ACTIVE") return;
+  const candidates = await prisma.platformPricingRule.findMany({
+    where: {
+      id: excludeId ? { not: excludeId } : undefined,
+      category: data.category,
+      appliesTo: data.appliesTo,
+      status: "ACTIVE",
+    },
+  });
+  const plan = String(data.metadata?.sellerPlan || "ALL").toUpperCase();
+  const priority = Number(data.metadata?.priority || 0);
+  const start = data.effectiveStartAt?.getTime() ?? Number.NEGATIVE_INFINITY;
+  const end = data.effectiveEndAt?.getTime() ?? Number.POSITIVE_INFINITY;
+  const overlaps = candidates.some((candidate) => {
+    const candidatePlan = String(candidate.metadata?.sellerPlan || "ALL").toUpperCase();
+    const candidatePriority = Number(candidate.metadata?.priority || 0);
+    const candidateStart = candidate.effectiveStartAt?.getTime() ?? Number.NEGATIVE_INFINITY;
+    const candidateEnd = candidate.effectiveEndAt?.getTime() ?? Number.POSITIVE_INFINITY;
+    return candidatePlan === plan && candidatePriority === priority && start < candidateEnd && candidateStart < end;
+  });
+  if (overlaps) throw badRequest("An active rule with the same scope, seller plan, priority, and overlapping effective dates already exists.");
 }
 
 async function writePricingRuleAudit(req, action, targetId, metadata = {}) {
@@ -2090,6 +2333,7 @@ export async function createSuperAdminPricingRule(req, res) {
     assertSuperAdmin(req);
 
     const data = buildPricingRuleData(req.body || {}, req.user?.id, null);
+    await assertNoActivePricingRuleOverlap(data);
 
     const row = await prisma.platformPricingRule.create({
       data: {
@@ -2126,11 +2370,15 @@ export async function updateSuperAdminPricingRule(req, res) {
     if (!existing) throw notFound("Pricing rule not found.");
 
     const data = buildPricingRuleData(req.body || {}, req.user?.id, existing);
-
-    const row = await prisma.platformPricingRule.update({
-      where: { id },
-      data,
-    });
+    await assertNoActivePricingRuleOverlap(data, id);
+    const expectedUpdatedAt = normalizeString(req.body?.expectedUpdatedAt);
+    if (!expectedUpdatedAt) throw badRequest("expectedUpdatedAt is required to prevent concurrent overwrites.");
+    const changed = await prisma.platformPricingRule.updateMany({ where: { id, updatedAt: new Date(expectedUpdatedAt) }, data });
+    if (changed.count !== 1) {
+      const conflict = createHttpError("This pricing rule changed since it was loaded. Refresh and try again.", 409);
+      throw conflict;
+    }
+    const row = await prisma.platformPricingRule.findUnique({ where: { id } });
 
     await writePricingRuleAudit(req, "UPDATE_PLATFORM_PRICING_RULE", row.id, {
       key: row.key,

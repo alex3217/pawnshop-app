@@ -184,10 +184,21 @@ export type AdminShopRow = {
   ownerEmail?: string | null;
   subscriptionPlan?: string | null;
   subscriptionStatus?: string | null;
+  subscriptionBillingInterval?: string | null;
   subscriptionCurrentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
+  billingMethodPresent?: boolean;
+  billingMethodBrand?: string | null;
+  billingMethodLast4?: string | null;
+  billingMethodExpMonth?: number | null;
+  billingMethodExpYear?: number | null;
+  billingMethodStatus?: string | null;
+  billingMethodSyncedAt?: string | null;
+  connectState?: string | null;
+  connectChargesEnabled?: boolean;
+  connectPayoutsEnabled?: boolean;
   createdAt?: string | null;
   updatedAt?: string | null;
   isDeleted?: boolean;
@@ -324,6 +335,7 @@ export type SavePlatformPricingRuleInput = {
   effectiveStartAt?: string | null;
   effectiveEndAt?: string | null;
   metadata?: Record<string, unknown> | null;
+  expectedUpdatedAt?: string | null;
 };
 
 export type SellerPlanSummary = {
@@ -344,7 +356,23 @@ export type SellerPlanSummary = {
   yearlyPriceCents?: number;
   annualSavingsCents?: number;
   features?: string[];
+  trialMaxActiveListings?: number | null;
+  stripeProductId?: string | null;
+  stripeMonthlyPriceId?: string | null;
+  stripeYearlyPriceId?: string | null;
+  trialEligible?: boolean;
+  trialDays?: number;
+  supportLevel?: string;
+  status?: string;
+  subscribedShops?: number;
+  mrrCents?: number;
+  updatedAt?: string | null;
+  updatedByUserId?: string | null;
+  version?: string;
+  stripeSyncStatus?: string;
 };
+
+export type SellerPlanImpact = { affectedShops: number; affectedSubscriptions: number; currentMrrCents: number; projectedMrrCents: number; mrrDeltaCents: number; requiresGrandfathering: boolean };
 
 export type BuyerPlanSummary = {
   code: string;
@@ -659,6 +687,19 @@ export type PlatformSettingRow = {
   updatedByUserId?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+};
+
+export type PlatformConfigurationRow = {
+  id: string;
+  key: string;
+  displayName: string;
+  description: string;
+  enabled: boolean;
+  archived: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
 };
 
 type PagedListResponse<T> =
@@ -1242,6 +1283,12 @@ export const adminApi = {
     return normalizeList(payload);
   },
 
+  previewSellerPlanImpact: (code: string, input: Record<string, unknown>, signal?: AbortSignal) =>
+    postJson<{ success: boolean; impact: SellerPlanImpact }>(`/super-admin/plans/seller/${encodeURIComponent(code)}/impact`, input, signal),
+
+  updateSellerPlan: (code: string, input: Record<string, unknown>, signal?: AbortSignal) =>
+    patchJson<{ success: boolean; plans: SellerPlanSummary[] }>(`/super-admin/plans/seller/${encodeURIComponent(code)}`, input, signal),
+
   getBuyerPlans: async (signal?: AbortSignal): Promise<BuyerPlanSummary[]> => {
     const payload = await adminRequest<PagedListResponse<BuyerPlanSummary>>(
       "/super-admin/plans/buyer",
@@ -1353,7 +1400,7 @@ export const adminApi = {
   },
 
   updatePlatformSetting: (
-    input: { key: string; value: unknown },
+    input: { key: string; value: unknown; expectedUpdatedAt?: string | null },
     signal?: AbortSignal
   ) =>
     patchJson<{ success: boolean; setting: PlatformSettingRow }>(
@@ -1361,6 +1408,38 @@ export const adminApi = {
       input,
       signal
     ),
+
+  getPlatformConfigurations: async (
+    area: "feature-flags" | "listing-rules" | "auction-rules",
+    signal?: AbortSignal,
+  ): Promise<PlatformConfigurationRow[]> => {
+    const payload = await adminRequest<{ rows?: PlatformConfigurationRow[] }>(
+      `/super-admin/platform-settings/configurations/${area}`,
+      { signal },
+    );
+    return Array.isArray(payload.rows) ? payload.rows : [];
+  },
+
+  createPlatformConfiguration: (
+    area: "feature-flags" | "listing-rules" | "auction-rules",
+    input: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) => postJson<{ success: boolean; row: PlatformConfigurationRow }>(
+    `/super-admin/platform-settings/configurations/${area}`,
+    input,
+    signal,
+  ),
+
+  updatePlatformConfiguration: (
+    area: "feature-flags" | "listing-rules" | "auction-rules",
+    id: string,
+    input: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) => patchJson<{ success: boolean; row: PlatformConfigurationRow }>(
+    `/super-admin/platform-settings/configurations/${area}/${encodeURIComponent(id)}`,
+    input,
+    signal,
+  ),
 
   getOverview: async (signal?: AbortSignal): Promise<AdminOverviewData> => {
     const [users, items, shops, auctions, offers] = await Promise.all([

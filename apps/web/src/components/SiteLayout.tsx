@@ -70,6 +70,7 @@ const BUYER_PRIMARY_NAV: NavItem[] = [
 ];
 
 const BUYER_SECONDARY_NAV: NavItem[] = [
+  { to: "/account/payment-methods", label: "Payment Methods" },
   { to: "/watchlist", label: "Watchlist" },
   { to: "/saved-searches", label: "Saved Searches" },
 ];
@@ -142,6 +143,7 @@ const SUPER_ADMIN_PRIMARY_NAV: NavItem[] = [
 
 const SUPER_ADMIN_SECONDARY_NAV: NavItem[] = [
   { to: "/super-admin/plans/seller", label: "Seller Plans" },
+  { to: "/super-admin/seller-subscriptions", label: "Seller Subscriptions" },
   { to: "/super-admin/plans/buyer", label: "Buyer Plans" },
   { to: "/super-admin/buyer-subscriptions", label: "Buyer Subscriptions" },
   { to: "/super-admin/revenue", label: "Platform Revenue" },

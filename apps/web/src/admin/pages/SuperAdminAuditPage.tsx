@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../services/apiClient";
 import "../../styles/super-admin-audit-readability.css";
 
@@ -89,10 +89,11 @@ function Badge({
 
 export default function SuperAdminAuditPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [rows, setRows] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => searchParams.get("q") || "");
   const [success, setSuccess] = useState("");
   const [selected, setSelected] = useState<AuditLog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -209,7 +210,7 @@ export default function SuperAdminAuditPage() {
           <Link to="/super-admin/platform-settings" className="btn btn-secondary" style={styles.linkButton}>
             Platform Settings
           </Link>
-          <Link to="/super-admin/roles" className="btn btn-secondary" style={styles.linkButton}>
+          <Link to="/super-admin/users" className="btn btn-secondary" style={styles.linkButton}>
             Roles & Access
           </Link>
         </div>

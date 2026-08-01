@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   adminApi,
   type PlatformPricingRuleRow,
@@ -107,11 +107,12 @@ function normalizeForm(rule: PlatformPricingRuleRow): PricingForm {
 }
 
 export default function SuperAdminPricingPage() {
+  const [searchParams] = useSearchParams();
   const [rules, setRules] = useState<PlatformPricingRuleRow[]>([]);
   const [form, setForm] = useState<PricingForm>(defaultForm);
   const [metadataText, setMetadataText] = useState("{}");
   const [editingId, setEditingId] = useState("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("q") || "");
   const [areaFilter, setAreaFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
@@ -244,7 +245,10 @@ export default function SuperAdminPricingPage() {
       };
 
       const response = editingId
-        ? await adminApi.updateSuperAdminPricingRule(editingId, payload)
+        ? await adminApi.updateSuperAdminPricingRule(editingId, {
+            ...payload,
+            expectedUpdatedAt: rules.find((rule) => rule.id === editingId)?.updatedAt,
+          })
         : await adminApi.createSuperAdminPricingRule(payload);
 
       setRules((current) => {
@@ -270,7 +274,10 @@ export default function SuperAdminPricingPage() {
     setNotice("");
 
     try {
-      const response = await adminApi.updateSuperAdminPricingRule(rule.id, { status });
+      const response = await adminApi.updateSuperAdminPricingRule(rule.id, {
+        status,
+        expectedUpdatedAt: rule.updatedAt,
+      });
       setRules((current) =>
         current.map((item) => (item.id === rule.id ? response.pricingRule : item)),
       );
