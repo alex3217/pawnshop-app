@@ -91,6 +91,7 @@ before(async () => {
     AUCTION_SCHEDULER_ENABLED: "false",
     WEB_URL: "http://localhost:5173",
     INVITE_ONLY_REGISTRATION_ENABLED: "false",
+    EMAIL_PROVIDER: "resend",
   });
   const rawDatabaseUrl = String(process.env.DATABASE_URL || "");
   assert.ok(rawDatabaseUrl, "DATABASE_URL is required");
@@ -102,11 +103,13 @@ before(async () => {
   const appModule = await import("../src/app.js");
   const prismaModule = await import("../src/lib/prisma.js");
   const emailModule = await import("../src/services/transactionalEmail.service.js");
-  emailModule.setTransactionalEmailTransportForTests({
-    async sendMail(message) {
-      if (emailDeliveryError) throw emailDeliveryError;
-      sentEmail.push(message);
-      return { messageId: "test-message" };
+  emailModule.setTransactionalEmailResendClientForTests({
+    emails: {
+      async send(message) {
+        if (emailDeliveryError) throw emailDeliveryError;
+        sentEmail.push(message);
+        return { data: { id: "test-message" }, error: null };
+      },
     },
   });
   app = appModule.createApp();
@@ -158,9 +161,9 @@ test("registration creates an unverified account without a login token", async (
   assert.equal(await bcrypt.compare("ConsumerSecure123!", stored.password), true);
 });
 
-test("registration preserves the account and returns a structured result when SMTP times out", async () => {
-  const userEmail = email("smtp-timeout");
-  emailDeliveryError = Object.assign(new Error("SMTP connection timed out"), {
+test("registration preserves the account and returns a structured result when email delivery fails", async () => {
+  const userEmail = email("delivery-failure");
+  emailDeliveryError = Object.assign(new Error("Email delivery failed"), {
     code: "ETIMEDOUT",
   });
 
@@ -298,9 +301,9 @@ test("resending verification invalidates the previous token", async () => {
   assert.equal((await request(app).post("/api/auth/verify-email").send({ token: newToken })).status, 200);
 });
 
-test("resend verification keeps the privacy-safe response when SMTP fails", async () => {
+test("resend verification keeps the privacy-safe response when delivery fails", async () => {
   await registerUser({ userEmail: email("resend-failure") });
-  emailDeliveryError = Object.assign(new Error("SMTP socket timed out"), {
+  emailDeliveryError = Object.assign(new Error("Email delivery failed"), {
     code: "ETIMEDOUT",
   });
 
