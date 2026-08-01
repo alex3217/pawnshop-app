@@ -7,6 +7,7 @@ import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
+import { rejectSensitiveFinancialFields } from "./middleware/rejectSensitiveFinancialFields.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import shopRoutes from "./routes/shops.routes.js";
@@ -399,6 +400,7 @@ export function createApp(options = {}) {
   );
 
   app.use(authRateLimiters.afterBody);
+  app.use(rejectSensitiveFinancialFields);
 
   mountApi(app, "/auth", authRoutes);
   mountApi(app, "/owner-applications", ownerApplicationsRoutes);
