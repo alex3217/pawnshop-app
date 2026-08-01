@@ -2,6 +2,7 @@ import { api } from "./apiClient";
 
 export type Shop = {
   id: string;
+  slug?: string | null;
   name: string;
   address?: string | null;
   city?: string | null;

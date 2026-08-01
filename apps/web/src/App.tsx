@@ -178,6 +178,7 @@ const OwnerAuctionsPage = lazyPage(() => import("./pages/OwnerAuctionsPage"));
 const OwnerDashboardPage = lazyPage(() => import("./pages/OwnerDashboardPage"));
 const OwnerFinancePage = lazyPage(() => import("./pages/OwnerFinancePage"));
 const OwnerInventoryPage = lazyPage(() => import("./pages/OwnerInventoryPage"));
+const OwnerMarketingCenterPage = lazyPage(() => import("./pages/OwnerMarketingCenterPage"));
 const OwnerItemIntakesPage = lazyPage(() =>
   import("./pages/OwnerItemIntakesPage"),
 );
@@ -334,6 +335,7 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner/inventory", element: <OwnerInventoryPage /> },
   { path: "/owner/item-intakes", element: <OwnerItemIntakesPage /> },
   { path: "/owner/integrations", element: <OwnerIntegrationsPage /> },
+  { path: "/owner/marketing", element: <OwnerMarketingCenterPage /> },
   { path: "/owner/locations", element: <OwnerLocationsPage /> },
   { path: "/owner/staff", element: <OwnerStaffPage /> },
   { path: "/owner/scan-console", element: <ScanConsolePage /> },

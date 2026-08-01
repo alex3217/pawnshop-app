@@ -93,6 +93,8 @@ const STAFF_PERMISSIONS: StaffPermission[] = [
   "staff:read",
   "staff:write",
   "settlements:read",
+  "marketing:read",
+  "marketing:write",
 ];
 
 const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, StaffPermission[]> = {
@@ -108,6 +110,8 @@ const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, StaffPermission[]> = {
     "staff:read",
     "staff:write",
     "settlements:read",
+    "marketing:read",
+    "marketing:write",
   ],
   SHOP_MANAGER: [
     "inventory:read",
@@ -120,9 +124,11 @@ const DEFAULT_PERMISSIONS_BY_ROLE: Record<string, StaffPermission[]> = {
     "locations:write",
     "staff:read",
     "settlements:read",
+    "marketing:read",
+    "marketing:write",
   ],
-  SHOP_STAFF: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
-  SHOP_VIEWER: ["inventory:read", "auctions:read", "offers:read", "locations:read"],
+  SHOP_STAFF: ["inventory:read", "auctions:read", "offers:read", "locations:read", "marketing:read"],
+  SHOP_VIEWER: ["inventory:read", "auctions:read", "offers:read", "locations:read", "marketing:read"],
   INVENTORY_MANAGER: ["inventory:read", "inventory:write", "locations:read"],
   AUCTION_MANAGER: ["inventory:read", "auctions:read", "auctions:write"],
   SALES_ASSOCIATE: ["inventory:read", "offers:read", "offers:write"],

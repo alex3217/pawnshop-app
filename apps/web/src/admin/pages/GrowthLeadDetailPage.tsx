@@ -12,6 +12,7 @@ export default function GrowthLeadDetailPage() {
   const [lead, setLead] = useState<PawnShopLead | null>(null);
   const [error, setError] = useState("");
   const [activity, setActivity] = useState("");
+  const [activityType, setActivityType] = useState("NOTE");
   const [followUp, setFollowUp] = useState("");
   const [saving, setSaving] = useState(false);
   const load = useCallback(
@@ -27,7 +28,7 @@ export default function GrowthLeadDetailPage() {
     if (!activity.trim()) return;
     setSaving(true); setError("");
     try {
-      await growthCenterApi.addActivity(leadId, { activityType: "NOTE", channel: "INTERNAL", direction: "INTERNAL", notes: activity.trim(), nextFollowUpAt: followUp ? new Date(followUp).toISOString() : null });
+      await growthCenterApi.addActivity(leadId, { activityType, channel: activityType === "MEETING" ? "IN_PERSON" : activityType === "CALL" ? "PHONE" : activityType === "EMAIL" ? "EMAIL" : "INTERNAL", direction: activityType === "NOTE" || activityType === "FOLLOW_UP" ? "INTERNAL" : "OUTBOUND", notes: activity.trim(), nextFollowUpAt: followUp ? new Date(followUp).toISOString() : null });
       setActivity(""); setFollowUp(""); await load();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to add activity."); }
     finally { setSaving(false); }
@@ -59,7 +60,7 @@ export default function GrowthLeadDetailPage() {
       </section>
       <section className="list-card" style={{ marginTop: 14 }}><h2>Contacts</h2>{lead.contacts?.length ? lead.contacts.map((contact) => <div key={contact.id}><strong>{contact.name || contact.contactType}</strong> · {value(contact.title)} · {value(contact.email)} · {value(contact.phone)} {contact.isPrimary ? "· Primary" : ""}</div>) : <p className="muted">No contacts recorded.</p>}</section>
       <section className="list-card" style={{ marginTop: 14 }}><h2>Activity timeline</h2>
-        <form onSubmit={addActivity} style={{ display: "grid", gap: 8, marginBottom: 14 }}><label>Internal activity note<textarea aria-label="Internal activity note" value={activity} onChange={(event) => setActivity(event.target.value)} required /></label><label>Next follow-up<input aria-label="Next follow-up" type="datetime-local" value={followUp} onChange={(event) => setFollowUp(event.target.value)} /></label><button className="button" disabled={saving}>{saving ? "Saving…" : "Add activity"}</button></form>
+        <form onSubmit={addActivity} style={{ display: "grid", gap: 8, marginBottom: 14 }}><label>Activity type<select value={activityType} onChange={(event) => setActivityType(event.target.value)}>{["NOTE", "CALL", "EMAIL", "MEETING", "FOLLOW_UP"].map((type) => <option key={type}>{type.replaceAll("_", " ")}</option>)}</select></label><label>Activity notes<textarea aria-label="Activity notes" value={activity} onChange={(event) => setActivity(event.target.value)} required /></label><label>Next follow-up<input aria-label="Next follow-up" type="datetime-local" value={followUp} onChange={(event) => setFollowUp(event.target.value)} /></label><button className="button" disabled={saving}>{saving ? "Saving…" : "Add activity"}</button></form>
         {lead.activities?.length ? lead.activities.map((item) => <article key={item.id} style={{ borderTop: "1px solid rgba(255,255,255,.1)", padding: "10px 0" }}><strong>{item.activityType}</strong> · {when(item.occurredAt)}<div>{value(item.subject || item.notes)}</div>{item.nextFollowUpAt ? <div className="muted">Follow up: {when(item.nextFollowUpAt)}</div> : null}</article>) : <p className="muted">No activity recorded.</p>}
       </section>
       <section className="list-card" style={{ marginTop: 14 }}><h2>Source provenance</h2>{lead.sources?.length ? lead.sources.map((source) => <div key={source.id}><strong>{source.sourceName}</strong> · {source.sourceType} · collected {when(source.collectedAt)}{source.sourceUrl ? <> · <a href={source.sourceUrl} target="_blank" rel="noreferrer">Source</a></> : null}</div>) : <p className="muted">{lead.sourceName || lead.sourceType}</p>}</section>

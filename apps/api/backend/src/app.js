@@ -36,6 +36,7 @@ import aiRoutes from "./routes/ai.routes.js";
 import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes.js";
 import ownerApplicationsRoutes from "./routes/ownerApplications.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
+import { redirectMarketingCampaign } from "./controllers/shopMarketing.controller.js";
 import { prisma } from "./lib/prisma.js";
 import {
   loadAuthRateLimitConfig,
@@ -286,6 +287,10 @@ export function createApp(options = {}) {
         return next();
       }
 
+      if (req.path.startsWith("/r/")) {
+        return next();
+      }
+
       if (isFrontendAssetRequest(req)) {
         return express.static(webDistDirectory, {
           index: false,
@@ -361,6 +366,8 @@ export function createApp(options = {}) {
   app.get("/api/health", noStore, healthHandler);
   app.get("/ready", noStore, readinessHandler);
   app.get("/api/ready", noStore, readinessHandler);
+  app.get("/r/:shortCode", redirectMarketingCampaign);
+  app.get("/api/r/:shortCode", redirectMarketingCampaign);
 
   /**
    * Stripe webhook must stay before express.json().

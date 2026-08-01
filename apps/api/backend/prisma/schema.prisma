@@ -85,24 +85,24 @@ model User {
 }
 
 model PaymentMethodConsent {
-  id                String   @id @default(cuid())
-  idempotencyKey    String   @unique
-  userId            String
-  shopId            String?
-  stripeCustomerId  String
-  stripeCheckoutSessionId String? @unique
-  stripeSetupIntentId String? @unique
-  stripeMandateId   String?
-  paymentMethodId   String?
-  termsVersion      String
-  consentText       String
-  consentedAt       DateTime
-  ipAddress         String?
-  userAgent         String?
-  status            String   @default("PENDING")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                      String   @id @default(cuid())
+  idempotencyKey          String   @unique
+  userId                  String
+  shopId                  String?
+  stripeCustomerId        String
+  stripeCheckoutSessionId String?  @unique
+  stripeSetupIntentId     String?  @unique
+  stripeMandateId         String?
+  paymentMethodId         String?
+  termsVersion            String
+  consentText             String
+  consentedAt             DateTime
+  ipAddress               String?
+  userAgent               String?
+  status                  String   @default("PENDING")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([shopId, createdAt])
@@ -242,6 +242,7 @@ model BuyerSubscription {
 model PawnShop {
   id                                 String                           @id @default(cuid())
   name                               String
+  slug                               String?                          @unique
   address                            String?
   city                               String?
   state                              String?
@@ -306,11 +307,61 @@ model PawnShop {
   claimedGrowthLeads                 PawnShopLead[]                   @relation("PawnShopLeadClaimedShop")
   stripeDisputes                     StripeDispute[]                  @relation("StripeDisputeShop")
   stripeSubscriptionBillingEvents    StripeSubscriptionBillingEvent[]
+  marketingCampaigns                 ShopMarketingCampaign[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
   @@index([subscriptionPlan, subscriptionStatus])
   @@index([subscriptionStatus, subscriptionCurrentPeriodEnd])
+}
+
+enum ShopMarketingDestinationType {
+  STOREFRONT
+  INVENTORY
+  NEW_ARRIVALS
+  AUCTIONS
+  DEALS
+  ITEM
+  CATEGORY
+  SELL_ITEM
+  PAWN_INQUIRY
+  FOLLOW_SHOP
+  REVIEW_REQUEST
+  CUSTOMER_REGISTRATION
+  BUYER_REFERRAL
+  PAWNSHOP_REFERRAL
+}
+
+model ShopMarketingCampaign {
+  id              String                       @id @default(cuid())
+  shopId          String
+  name            String
+  shortCode       String                       @unique
+  destinationType ShopMarketingDestinationType @default(STOREFRONT)
+  resourceId      String?
+  placementLabel  String?
+  isActive        Boolean                      @default(true)
+  isDefault       Boolean                      @default(false)
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+
+  shop  PawnShop                    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  scans ShopMarketingCampaignScan[]
+
+  @@index([shopId, isActive])
+  @@index([shopId, createdAt])
+}
+
+model ShopMarketingCampaignScan {
+  id             String   @id @default(cuid())
+  campaignId     String
+  occurredAt     DateTime @default(now())
+  referrerHost   String?
+  userAgentClass String?
+
+  campaign ShopMarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, occurredAt])
 }
 
 model StripeSubscriptionBillingEvent {

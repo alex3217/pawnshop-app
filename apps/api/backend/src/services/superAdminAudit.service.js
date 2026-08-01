@@ -81,6 +81,7 @@ function inferTargetType(path = "") {
   if (normalized.includes("/plans/seller")) return "SELLER_PLAN";
   if (normalized.includes("/plans/buyer")) return "BUYER_PLAN";
   if (normalized.includes("/platform-settings")) return "PLATFORM_SETTING";
+  if (normalized.includes("/growth/leads")) return "GROWTH_LEAD";
   if (normalized.includes("/audit")) return "AUDIT_LOG";
 
   return "SUPER_ADMIN_RESOURCE";

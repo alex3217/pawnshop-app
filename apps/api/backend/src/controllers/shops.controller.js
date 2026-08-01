@@ -18,6 +18,7 @@ import { prisma } from "../lib/prisma.js";
 const PAWNSHOP_SAFE_FIELDS = [
   "id",
   "name",
+  "slug",
   "address",
   "city",
   "state",
@@ -149,7 +150,7 @@ export async function getShopById(req, res) {
     }
 
     const [where, select] = await Promise.all([
-      buildPawnShopWhere({ id }),
+      buildPawnShopWhere({ OR: [{ id }, { slug: id }] }),
       buildPawnShopSelect(),
     ]);
 
@@ -323,8 +324,8 @@ export async function getShopItems(req, res) {
     const id = req.params.id;
     const shopSelect = await buildPawnShopSelect();
 
-    const shop = await prisma.pawnShop.findUnique({
-      where: { id },
+    const shop = await prisma.pawnShop.findFirst({
+      where: await buildPawnShopWhere({ OR: [{ id }, { slug: id }] }),
       select: shopSelect,
     });
 
@@ -334,7 +335,7 @@ export async function getShopItems(req, res) {
 
     const items = await prisma.item.findMany({
       where: {
-        pawnShopId: id,
+        pawnShopId: shop.id,
         isDeleted: false,
         status: "AVAILABLE",
       },

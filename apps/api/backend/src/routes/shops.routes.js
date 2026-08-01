@@ -24,6 +24,7 @@ import {
   createShopFinanceConnectOnboardingLink,
   getShopFinanceConnectStatus,
 } from "../controllers/shopFinanceConnect.controller.js";
+import shopMarketingRoutes from "./shopMarketing.routes.js";
 
 const router = Router();
 const FINANCE_ROLES = ["OWNER", "ADMIN", "SUPER_ADMIN"];
@@ -33,6 +34,7 @@ router.get("/", listShops);
 
 // Owner/Admin read routes must be before /:id.
 router.get("/mine", authRequired, requireRole("OWNER", "ADMIN"), myShops);
+router.use("/:shopId/marketing/campaigns", shopMarketingRoutes);
 
 // Owner/Admin finance routes must be before /:id.
 router.get(
