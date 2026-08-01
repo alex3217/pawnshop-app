@@ -334,12 +334,33 @@ export async function register(req, res) {
       return { user: createdUser, rawToken: actionToken.rawToken };
     });
 
-    await sendVerificationEmail({ to: user.email, name: user.name, token: rawToken });
+    let emailDelivery = "SENT";
+    try {
+      await sendVerificationEmail({
+        to: user.email,
+        name: user.name,
+        token: rawToken,
+      });
+    } catch (error) {
+      emailDelivery = "FAILED";
+      console.error("[auth.register] verification email delivery failed", {
+        name: error?.name || "Error",
+        code: error?.code || null,
+      });
+    }
 
     return res.status(201).json({
       success: true,
       user: safeUser(user),
       nextStep: "VERIFY_EMAIL",
+      emailDelivery,
+      ...(emailDelivery === "FAILED"
+        ? {
+            code: "VERIFICATION_EMAIL_DELIVERY_FAILED",
+            message:
+              "Your account was created, but we could not send the verification email. Please request another verification email.",
+          }
+        : {}),
     });
   } catch (error) {
     console.error("[auth.register] failed", {

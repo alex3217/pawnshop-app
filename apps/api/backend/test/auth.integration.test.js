@@ -12,8 +12,13 @@ const VALID_LEGAL_CONSENT = Object.freeze({
   termsVersion: "2026-07-28",
   privacyVersion: "2026-07-28",
 });
+const GENERIC_VERIFICATION_RESPONSE_FOR_TEST = Object.freeze({
+  success: true,
+  message: "If the account is eligible, a verification email will be sent.",
+});
 
 const sentEmail = [];
+let emailDeliveryError = null;
 let app;
 let prisma;
 let databaseVerified = false;
@@ -99,6 +104,7 @@ before(async () => {
   const emailModule = await import("../src/services/transactionalEmail.service.js");
   emailModule.setTransactionalEmailTransportForTests({
     async sendMail(message) {
+      if (emailDeliveryError) throw emailDeliveryError;
       sentEmail.push(message);
       return { messageId: "test-message" };
     },
@@ -120,6 +126,7 @@ beforeEach(async () => {
     "Database isolation must be verified before cleanup",
   );
   sentEmail.length = 0;
+  emailDeliveryError = null;
   await prisma.user.deleteMany({ where: { email: { endsWith: TEST_DOMAIN } } });
 });
 
@@ -141,6 +148,7 @@ test("registration creates an unverified account without a login token", async (
   });
   assert.equal(response.status, 201);
   assert.equal(response.body.nextStep, "VERIFY_EMAIL");
+  assert.equal(response.body.emailDelivery, "SENT");
   assert.equal("token" in response.body, false);
   assert.equal(response.body.user.email, email("consumer"));
   assert.equal(response.body.user.role, "CONSUMER");
@@ -148,6 +156,31 @@ test("registration creates an unverified account without a login token", async (
   const stored = await prisma.user.findUnique({ where: { email: email("consumer") } });
   assert.equal(stored.emailVerifiedAt, null);
   assert.equal(await bcrypt.compare("ConsumerSecure123!", stored.password), true);
+});
+
+test("registration preserves the account and returns a structured result when SMTP times out", async () => {
+  const userEmail = email("smtp-timeout");
+  emailDeliveryError = Object.assign(new Error("SMTP connection timed out"), {
+    code: "ETIMEDOUT",
+  });
+
+  const response = await registerUser({ userEmail });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.success, true);
+  assert.equal(response.body.nextStep, "VERIFY_EMAIL");
+  assert.equal(response.body.emailDelivery, "FAILED");
+  assert.equal(response.body.code, "VERIFICATION_EMAIL_DELIVERY_FAILED");
+  assert.equal(
+    response.body.message,
+    "Your account was created, but we could not send the verification email. Please request another verification email.",
+  );
+  assert.equal("token" in response.body, false);
+  assert.equal(sentEmail.length, 0);
+
+  const stored = await prisma.user.findUnique({ where: { email: userEmail } });
+  assert.ok(stored);
+  assert.equal(stored.emailVerifiedAt, null);
 });
 
 test("registration records auditable legal consent", async () => {
@@ -263,6 +296,20 @@ test("resending verification invalidates the previous token", async () => {
   assert.notEqual(newToken, oldToken);
   assert.equal((await request(app).post("/api/auth/verify-email").send({ token: oldToken })).status, 400);
   assert.equal((await request(app).post("/api/auth/verify-email").send({ token: newToken })).status, 200);
+});
+
+test("resend verification keeps the privacy-safe response when SMTP fails", async () => {
+  await registerUser({ userEmail: email("resend-failure") });
+  emailDeliveryError = Object.assign(new Error("SMTP socket timed out"), {
+    code: "ETIMEDOUT",
+  });
+
+  const response = await request(app)
+    .post("/api/auth/resend-verification")
+    .send({ email: email("resend-failure") });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, GENERIC_VERIFICATION_RESPONSE_FOR_TEST);
 });
 
 test("resend response is generic for unknown emails", async () => {
@@ -432,11 +479,20 @@ test("registration preserves centralized password policy and public role restric
   assert.equal(admin.status, 403);
 });
 
-test("duplicate registration uses a nonspecific error", async () => {
+test("duplicate unverified registration uses a nonspecific error", async () => {
   await registerUser({ userEmail: email("duplicate") });
   const duplicate = await registerUser({ userEmail: email("duplicate") });
   assert.equal(duplicate.status, 409);
   assert.deepEqual(duplicate.body, { error: "Unable to create account with those details" });
+});
+
+test("duplicate verified registration uses the same nonspecific error", async () => {
+  await registerAndVerify({ userEmail: email("duplicate-verified") });
+  const duplicate = await registerUser({ userEmail: email("duplicate-verified") });
+  assert.equal(duplicate.status, 409);
+  assert.deepEqual(duplicate.body, {
+    error: "Unable to create account with those details",
+  });
 });
 
 test("verified users with an incorrect password cannot log in", async () => {

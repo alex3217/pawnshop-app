@@ -35,6 +35,9 @@ export type AuthResponse = {
 export type RegistrationResponse = {
   user: AuthUser;
   nextStep: "VERIFY_EMAIL";
+  emailDelivery: "SENT" | "FAILED";
+  code?: "VERIFICATION_EMAIL_DELIVERY_FAILED";
+  message?: string;
 };
 
 export class AuthRequestError extends Error {
@@ -398,10 +401,22 @@ export async function register(
     },
   });
   const user = normalizeUser(data.user);
-  if (!user || data.nextStep !== "VERIFY_EMAIL") {
+  if (
+    !user ||
+    data.nextStep !== "VERIFY_EMAIL" ||
+    (data.emailDelivery !== "SENT" && data.emailDelivery !== "FAILED")
+  ) {
     throw new Error("Invalid registration response from server.");
   }
-  return { user, nextStep: "VERIFY_EMAIL" };
+  return {
+    user,
+    nextStep: "VERIFY_EMAIL",
+    emailDelivery: data.emailDelivery,
+    ...(data.code === "VERIFICATION_EMAIL_DELIVERY_FAILED"
+      ? { code: data.code }
+      : {}),
+    ...(typeof data.message === "string" ? { message: data.message } : {}),
+  };
 }
 
 async function postAuthAction(

@@ -3,6 +3,17 @@ import nodemailer from "nodemailer";
 let configuredTransport = null;
 let localTransport = null;
 
+const MAX_SMTP_TIMEOUT_MS = 60_000;
+
+export function parseSmtpTimeout(value, fallback) {
+  const raw = String(value ?? "").trim();
+  if (!/^\d+$/.test(raw)) return fallback;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0
+    ? Math.min(parsed, MAX_SMTP_TIMEOUT_MS)
+    : fallback;
+}
+
 function frontendUrl(path, token) {
   const base = String(
     process.env.WEB_URL || process.env.FRONTEND_URL || "http://localhost:5173",
@@ -23,6 +34,18 @@ function getTransport() {
       host,
       port: Number.isInteger(port) && port > 0 ? port : 587,
       secure: String(process.env.SMTP_SECURE || "").toLowerCase() === "true",
+      connectionTimeout: parseSmtpTimeout(
+        process.env.SMTP_CONNECTION_TIMEOUT_MS,
+        8_000,
+      ),
+      greetingTimeout: parseSmtpTimeout(
+        process.env.SMTP_GREETING_TIMEOUT_MS,
+        8_000,
+      ),
+      socketTimeout: parseSmtpTimeout(
+        process.env.SMTP_SOCKET_TIMEOUT_MS,
+        10_000,
+      ),
       ...(user ? { auth: { user, pass } } : {}),
     });
     return localTransport;
