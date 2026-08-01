@@ -1,6 +1,19 @@
 /* File: apps/web/src/index.css */
 
 :root {
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #475569;
+  --surface: #ffffff;
+  --surface-elevated: #f8fafc;
+  --border: #cbd5e1;
+  --focus: #2563eb;
+  --success: #166534;
+  --warning: #92400e;
+  --error: #b91c1c;
+  --info: #1d4ed8;
+  --disabled-text: #475569;
+  --disabled-surface: #e2e8f0;
   color-scheme: dark;
 
   --bg: #0b1020;
@@ -434,7 +447,7 @@ small {
 
 .btn-primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-strong));
-  color: #08111f;
+  color: #ffffff;
 }
 
 .btn-secondary {
@@ -465,8 +478,21 @@ small {
 }
 
 .error-text {
-  color: var(--danger);
+  color: #b91c1c;
   font-weight: 700;
+}
+
+:root[data-theme="dark"] .error-text {
+  color: #fda4af;
+}
+
+.section-eyebrow {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+:root[data-theme="dark"] .section-eyebrow {
+  color: #5eead4;
 }
 
 .success-text {

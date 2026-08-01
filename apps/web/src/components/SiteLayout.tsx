@@ -135,6 +135,7 @@ const ADMIN_SECONDARY_NAV: NavItem[] = [
 
 const SUPER_ADMIN_PRIMARY_NAV: NavItem[] = [
   { to: "/super-admin", label: "Platform Overview", end: true },
+  { to: "/super-admin/launch-readiness", label: "Launch War Room" },
   { to: "/super-admin/users", label: "Platform Users" },
   { to: "/super-admin/shops", label: "Platform Shops" },
 ];

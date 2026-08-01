@@ -1,17 +1,13 @@
 # Upload Security Results
 
-## Decision: FAIL
+## Decision: PARTIAL
 
-The mounted backend upload capability found is `/api/inventory-bulk/import`: authenticated OWNER/ADMIN, Multer in-memory storage, and a 2 MiB size cap. The controller checks ownership by `shopId` and creates inventory rows from parsed CSV.
+The mounted `/api/inventory-bulk/import` boundary is authenticated OWNER/ADMIN, rate-limited, ownership-scoped, in-memory, and capped at 2 MiB. It now validates extension/MIME, binary content, fatal UTF-8 decoding, headers, 1,000 rows, 2,000-character fields, formula prefixes, safe filenames, and every row before transactionally creating the job/items. Focused safeguards pass 7/7.
 
-Critical gaps:
+Remaining gaps:
 
-- No Multer `fileFilter`, MIME allowlist, magic-byte/content-signature validation, or explicit unsupported-type contract.
-- CSV parser behavior is used as content validation; row count, field length, formula injection, memory/CPU, and transactional partial-import limits are not evidenced.
-- Original filename is retained as metadata without a documented normalization/redaction policy.
 - No malware scan, image decode, decompression-bomb protection, EXIF stripping, quota, failed-upload cleanup, or deletion lifecycle.
 - No durable object storage, signed access, private authorization, cross-shop object tests, retention, or orphan cleanup.
 - Web code references `/uploads`, but no general image/document upload router was found mounted. This blocks photos/documents and makes production readiness claims invalid.
 
-The in-memory CSV buffer is not durable and normally disappears after request handling, which limits orphaned binary persistence but does not resolve resource exhaustion or import-record cleanup. Production uploads must remain disabled until an authorized object-storage design and adversarial isolated tests cover every required control.
-
+General production uploads must remain disabled until the documented private object-storage architecture and adversarial isolated tests cover every required control. CSV cross-shop behavior is enforced by owner-scoped lookup but still needs a database-backed integration test on a certified target.

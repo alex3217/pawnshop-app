@@ -1,53 +1,17 @@
-const raw = String(process.env.DATABASE_URL || "").trim();
+import { classifyDatabaseTarget } from "../../../../scripts/lib/database-target-safety.mjs";
 
-if (!raw) {
-  console.error("❌ DATABASE_URL is required for integration tests");
-  process.exit(1);
-}
+const result = classifyDatabaseTarget(process.env.DATABASE_URL, process.env);
 
-let parsed;
-
-try {
-  parsed = new URL(raw);
-} catch {
-  console.error("❌ DATABASE_URL is not a valid URL");
-  process.exit(1);
-}
-
-const databaseName = decodeURIComponent(
-  parsed.pathname.replace(/^\/+/, ""),
-);
-
-const errors = [];
-
-if (process.env.NODE_ENV !== "test") {
-  errors.push(`NODE_ENV must be test, received ${process.env.NODE_ENV}`);
-}
-
-if (process.env.APP_ENV !== "test") {
-  errors.push(`APP_ENV must be test, received ${process.env.APP_ENV}`);
-}
-
-if (databaseName !== "pawnshop_test") {
-  errors.push(
-    `Database must be pawnshop_test, received ${databaseName || "(empty)"}`,
-  );
-}
-
-if (errors.length > 0) {
+if (!result.safe) {
   console.error("❌ Refusing to run database integration tests");
-  for (const error of errors) {
+  console.error(`Classification: ${result.classification}`);
+  if (result.target) console.error("Target:", result.target);
+  for (const error of result.errors) {
     console.error(`- ${error}`);
   }
   process.exit(1);
 }
 
-console.log({
-  host: parsed.hostname,
-  port: parsed.port || "5432",
-  database: databaseName,
-  nodeEnv: process.env.NODE_ENV,
-  appEnv: process.env.APP_ENV,
-});
+console.log({ classification: result.classification, ...result.target });
 
 console.log("✅ Test database safety guard passed");

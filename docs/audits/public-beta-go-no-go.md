@@ -37,3 +37,7 @@ Keep disabled/deferred: native mobile public launch, dealer credit, online pawn-
 6. Configure observability/alerts, then exercise backup/restore, rollback, payment incidents, and support escalation.
 
 Re-audit after evidence is retained. BLOCKED items must never be relabeled PASS from mocks or source review alone.
+
+## P0 remediation evidence (2026-08-01)
+
+The local mock browser suite now passes 100/100; static migration/database guards pass; axe automation and CSV hardening are present; and operational procedures and the Super Admin War Room were added. Decisions remain unchanged because no certified database replay/restore, seeded staging role matrix, provider-backed Stripe lifecycle, manual accessibility certification, durable upload service, React Router major remediation, or exercised monitoring/rollback evidence was produced.

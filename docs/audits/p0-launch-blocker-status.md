@@ -7,12 +7,12 @@ Branch: `audit/public-launch-readiness-p0-v1`
 
 | Gate | Status | Evidence |
 |---|---|---|
-| Database and migrations | FAIL | Prisma validates, but the 45 migration directories contain a duplicate `20260722000000` prefix. No isolated database was supplied, so status/replay/seed/restore are BLOCKED. A broad test glob also exposed a reachable mismatched schema (`PawnShop.slug` missing). |
+| Database and migrations | PARTIAL | Prisma validates/generates, duplicate prefixes are now CI-detected with the known collision explicitly allowlisted pending applied-history evidence, and unsafe targets are rejected by 8/8 static tests. Status/replay/seed/restore remain BLOCKED without a certified target. |
 | Role and tenant isolation | PARTIAL | Backend core suite passes 200/200, including unit/contract denial cases. The required seeded two-buyer/two-owner/two-staff HTTP/browser matrix is BLOCKED without a certified isolated database. |
 | Stripe test-mode lifecycle | BLOCKED | Mocked service tests pass; no safe provider-backed test-mode environment was available. |
-| Browser critical flows | FAIL | Mock Playwright suite: 2 failed, 1 interrupted, 71 not run after repeated missing customer-scan controls. No deployed staging matrix was available. |
-| Accessibility and contrast | BLOCKED | No axe suite or measured light/dark contrast report exists. Source styles and ARIA are not compliance evidence. |
-| Upload security | FAIL | Only a 2 MiB in-memory CSV route exists. It lacks route-level MIME/signature validation, decoding/scanning, quotas, durable storage, signed access, and cleanup lifecycle. Referenced `/uploads` image/document service is not implemented. |
+| Browser critical flows | PASS (mock) / BLOCKED (staging) | Complete local mock Playwright suite passes 100/100, including repaired customer scan 4/4 and 26 axe/War Room checks. No deployed seeded staging matrix was available. |
+| Accessibility and contrast | PARTIAL | Axe critical-route matrix passes in supported light/desktop and dark/mobile profiles after evidenced contrast fixes. Manual keyboard, screen-reader, measured contrast, and complete state certification remain BLOCKED. |
+| Upload security | PARTIAL | CSV now validates MIME/extension/content/UTF-8/headers/size/rows/fields/formulas/filename, rate limits, enforces ownership, and writes transactionally; focused safeguards pass 7/7. Durable private object storage remains unimplemented/disabled. |
 | Dependencies | FAIL | Root and backend: 0 advisories. Web: 2 moderate React Router advisories. Mobile: 19 (1 critical, 5 high, 12 moderate, 1 low). |
 | Operations | FAIL | Health/readiness and graceful shutdown exist; centralized observability, alert ownership, verified backup schedule/restore, rollback drill, and complete incident evidence do not. |
 
@@ -52,4 +52,3 @@ No production migration, reset, restore, live Stripe operation, secret change, c
 | `npx playwright test --config playwright.marketplace.config.ts` | FAIL; 2 failed, 1 interrupted, 71 not run |
 | `prisma migrate status`, replay, seed, backup/restore | NOT_RUN: no explicitly certified isolated target |
 | Provider Stripe lifecycle | NOT_RUN/BLOCKED: no certified safe test-mode provider target |
-

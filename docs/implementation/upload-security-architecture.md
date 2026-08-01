@@ -1,0 +1,5 @@
+# Upload Security Architecture
+
+CSV inventory import remains the only mounted upload boundary. It is authenticated, OWNER/ADMIN-limited, rate-limited, in-memory, capped at 2 MiB/1,000 rows/2,000 characters per field, and validates `.csv`, MIME, binary/NUL content, UTF-8, headers, formulas, safe filenames, ownership, and all rows before a transaction writes anything.
+
+General images/documents remain disabled. Production design requires private object-storage buckets; short-lived signed upload/download URLs; tenant-scoped object keys; extension, declared MIME, magic-byte, full decode, dimension and decompression limits; image resize and EXIF removal; malware quarantine/scanning; per-user/shop quotas; authorization on every access; retention and legal-hold policy; failed/multipart cleanup; orphan reconciliation; deletion lifecycle; immutable audit events; encryption and key rotation; and alerting. The API should issue narrowly scoped upload intents and finalize only scanned objects. No public `/uploads` filesystem is assumed.
