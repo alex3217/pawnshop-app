@@ -6,9 +6,19 @@ import "../styles/login-page.css";
 
 export default function VerificationPendingPage() {
   const location = useLocation();
-  const state = location.state as { email?: string; role?: string } | null;
+  const state = location.state as {
+    email?: string;
+    role?: string;
+    emailDelivery?: "SENT" | "FAILED";
+    message?: string;
+  } | null;
   const [email, setEmail] = useState(state?.email || "");
-  const [message, setMessage] = useState("Check your inbox for a verification link.");
+  const [message, setMessage] = useState(
+    state?.emailDelivery === "FAILED"
+      ? state.message ||
+          "Your account was created, but we could not send the verification email. Please request another verification email."
+      : "Check your inbox for a verification link.",
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 

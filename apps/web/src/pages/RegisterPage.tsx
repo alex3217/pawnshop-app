@@ -120,7 +120,7 @@ export default function RegisterPage() {
         throw new Error("Password must not contain your complete email address.");
       }
 
-      await register(
+      const result = await register(
         trimmedName,
         trimmedEmail,
         password,
@@ -131,7 +131,12 @@ export default function RegisterPage() {
 
       nav("/verification-pending", {
         replace: true,
-        state: { email: trimmedEmail, role },
+        state: {
+          email: trimmedEmail,
+          role,
+          emailDelivery: result.emailDelivery,
+          message: result.message,
+        },
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed");
