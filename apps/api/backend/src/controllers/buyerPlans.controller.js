@@ -3,6 +3,7 @@ import {
   BUYER_PLAN_CODES,
   getBuyerPlanCatalog,
 } from "../services/platformPricingCatalog.service.js";
+import { getBuyerEntitlementsForUser } from "../services/buyerEntitlements.service.js";
 
 const BUYER_SUBSCRIPTION_STATUSES = [
   "UNKNOWN",
@@ -144,11 +145,31 @@ export async function getMyBuyerSubscription(req, res) {
   }
 }
 
+export async function getMyBuyerPlanUsage(req, res) {
+  try {
+    const userId = req?.user?.sub;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const entitlements = await getBuyerEntitlementsForUser(userId);
+    return res.json({ success: true, ...entitlements });
+  } catch (error) {
+    return sendError(res, error, "Failed to load buyer plan usage");
+  }
+}
+
 export async function upsertMyBuyerSubscription(req, res) {
   try {
     const userId = req?.user?.sub;
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    if (req?.user?.role === "CONSUMER") {
+      throw forbidden(
+        "Buyer plan changes require a verified billing or administrator workflow.",
+      );
     }
 
     await requireBuyerSubscriptionModel();

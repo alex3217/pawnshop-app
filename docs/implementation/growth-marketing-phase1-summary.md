@@ -85,3 +85,7 @@ Phase 4: explicit opt-in retention automation and unsubscribe management, follow
 - QR assets use the request host for the stable short URL. Confirm proxy host/protocol forwarding in each deployment environment.
 
 Suggested commit message: `feat: add growth marketing phase 1 foundation`
+
+## Buyer Phase 1 extension
+
+The buyer architecture audit and Phase 1 implementation are documented in `buyer-experience-plan-audit.md` and `buyer-experience-phase1-summary.md`. This extension reuses the existing buyer dashboard, watchlist, saved searches, subscription model, plan catalog, Stripe mappings, and commerce flows; it adds centralized buyer entitlements, usage reporting, backend limits, navigation cleanup, Buyer Workspace, and Buyer Success Center without schema or Stripe changes.

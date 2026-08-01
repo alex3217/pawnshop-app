@@ -48,3 +48,7 @@ The public shop experience currently uses `/shops/:id` and the public API uses `
 ## Phase 1 decision
 
 Reuse all six Growth Center models and its routes/pages. Make only bounded improvements to activity/follow-up UI, navigation, audit classification, and authorization tests. Add the missing owner marketing foundation as shop-owned campaign and privacy-conscious scan records, a nullable unique shop slug, constrained internal destinations, stable public redirects, QR assets, owner pages, and isolation/security tests. No existing migration will be edited and no database will be applied or reset.
+
+## Buyer audit extension
+
+The complete buyer requirement matrix and compatibility audit are maintained in `docs/implementation/buyer-experience-plan-audit.md`. The existing buyer dashboard, watchlist, saved searches, buyer item submissions, offers, auctions, marketplace transactions, subscription model, plan catalog, pricing-rule overlay, Stripe mappings, lifecycle processing, and Super Admin controls will be reused. Internal buyer codes and Stripe identifiers remain unchanged; display-name compatibility and centralized enforcement are the safely missing Phase 1 work.

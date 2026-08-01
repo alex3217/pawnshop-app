@@ -8,6 +8,7 @@ import {
   upsertMyBuyerSubscription,
   cancelMyBuyerSubscription,
   adminListBuyerSubscriptions,
+  getMyBuyerPlanUsage,
 } from "../controllers/buyerPlans.controller.js";
 
 const router = Router();
@@ -147,6 +148,13 @@ router.get(
   asyncRoute(getMyBuyerSubscription),
 );
 
+router.get(
+  "/buyer-plans/mine/usage",
+  authRequired,
+  requireRole(...BUYER_ROLES),
+  asyncRoute(getMyBuyerPlanUsage),
+);
+
 /**
  * Buyer/Admin
  * PUT /api/buyer-plans/mine
@@ -204,6 +212,7 @@ router.get(
 export const BUYER_PLAN_ROUTE_MAP = Object.freeze({
   listPlans: "GET /api/buyer-plans",
   mine: "GET /api/buyer-plans/mine",
+  usage: "GET /api/buyer-plans/mine/usage",
   updatePut: "PUT /api/buyer-plans/mine",
   updatePatch: "PATCH /api/buyer-plans/mine",
   cancel: "DELETE /api/buyer-plans/mine",

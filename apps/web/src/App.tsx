@@ -20,6 +20,9 @@ import TermsPage from "./pages/TermsPage";
 import BuyerDashboardPage from "./pages/BuyerDashboardPage";
 
 import BuyerItemLocatorPage from "./pages/BuyerItemLocatorPage";
+import BuyerWorkspacePage from "./pages/BuyerWorkspacePage";
+import BuyerSuccessCenterPage from "./pages/BuyerSuccessCenterPage";
+import BuyerSubscriptionPage from "./pages/BuyerSubscriptionPage";
 
 import BuyerSellItemPage from "./pages/BuyerSellItemPage";
 import OwnerRegistrationPage from "./pages/OwnerRegistrationPage";
@@ -259,7 +262,6 @@ function renderRouteGroup(
 const publicRoutes: RouteConfig[] = [
   { index: true, element: <HomePage /> },
   { path: "/buyer", element: <Navigate to="/buyer/dashboard" replace /> },
-  { path: "/buyer/dashboard", element: <BuyerDashboardPage /> },
   { path: "/buyer/item-locator", element: <BuyerItemLocatorPage /> },
   { path: "/buyer/sell-item", element: <BuyerSellItemPage /> },
   { path: "/terms", element: <TermsPage /> },
@@ -285,6 +287,10 @@ const publicRoutes: RouteConfig[] = [
 ];
 
 const consumerRoutes: RouteConfig[] = [
+  { path: "/buyer/dashboard", element: <BuyerDashboardPage /> },
+  { path: "/buyer/workspace", element: <BuyerWorkspacePage /> },
+  { path: "/buyer/success", element: <BuyerSuccessCenterPage /> },
+  { path: "/buyer/subscription", element: <BuyerSubscriptionPage /> },
   { path: "/my-bids", element: <MyBidsPage /> },
   { path: "/bids", element: <Navigate to="/my-bids" replace /> },
   { path: "/my-wins", element: <MyWinsPage /> },

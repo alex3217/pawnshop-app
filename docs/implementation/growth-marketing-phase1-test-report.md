@@ -29,3 +29,7 @@ No migration was applied and no database was reset.
 - `npm run lint` in `apps/web`: passed with no findings.
 
 Final formatting, targeted tests, frontend checks, `git diff --check`, and status are recorded in the completion response after the final validation run.
+
+## Buyer Phase 1 extension
+
+Buyer-specific coverage and exact outcomes are documented in `buyer-experience-phase1-test-report.md`. No buyer schema migration was created or applied.

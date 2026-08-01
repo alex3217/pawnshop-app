@@ -52,24 +52,20 @@ const PUBLIC_NAV: NavItem[] = [
 ];
 
 const BUYER_PRIMARY_NAV: NavItem[] = [
+  { to: "/buyer/dashboard", label: "Buyer Dashboard" },
+  { to: "/buyer/workspace", label: "Buyer Workspace" },
   { to: "/my-bids", label: "My Bids" },
   { to: "/my-wins", label: "My Wins" },
   {
     to: "/marketplace/purchases",
     label: "My Purchases",
   },
-  {
-    to: "/marketplace/listings/mine",
-    label: "My Listings",
-  },
-  {
-    to: "/marketplace/listings/new",
-    label: "Create Listing",
-  },
   { to: "/offers", label: "Offers" },
 ];
 
 const BUYER_SECONDARY_NAV: NavItem[] = [
+  { to: "/buyer/success", label: "Buyer Success Center" },
+  { to: "/buyer/subscription", label: "Buyer Subscription" },
   { to: "/account/payment-methods", label: "Payment Methods" },
   { to: "/watchlist", label: "Watchlist" },
   { to: "/saved-searches", label: "Saved Searches" },
