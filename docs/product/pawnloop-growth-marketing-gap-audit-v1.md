@@ -287,3 +287,369 @@ A QR visitor must not need to search for the shop again.
 - No secrets are committed.
 - No unrelated refactoring is performed.
 - Exact validation results are documented.
+
+---
+
+# Owner Marketing Center, Business Growth, and Seller Plan Entitlements
+
+## Owner Navigation
+
+PawnLoop must provide two separate owner sections.
+
+### Marketing Center
+
+Marketing Center helps owners attract customers, send customers directly
+to their specific PawnLoop storefront and products, create marketing
+materials, measure results, and retain customers.
+
+Recommended navigation:
+
+- Overview
+- QR Codes
+- Campaigns
+- Printable Materials
+- Social Media
+- Customer Growth
+- Referrals
+- Marketing Analytics
+- Digital Displays
+- AI Marketing Studio
+
+### Business Growth
+
+Business Growth helps owners improve their business operations,
+inventory decisions, customer retention, revenue, and profitability.
+
+Recommended navigation:
+
+- Growth Overview
+- Shop Health Score
+- AI Business Coach
+- Revenue Analytics
+- Inventory Insights
+- Customer Insights
+- Local Demand
+- Anonymous Benchmarking
+- Goals
+- Growth Opportunities
+
+Marketing Center and Business Growth must remain distinct concepts.
+
+## Seller Plan Naming
+
+Target customer-facing plan names:
+
+- Free
+- Pro
+- Plus
+- Ultra
+
+The current application may use PREMIUM as an internal plan code.
+
+Before renaming any internal enum, database value, Stripe product,
+Stripe price, subscription record, configuration key, API response,
+test fixture, or analytics dimension, audit all references.
+
+Safe compatibility approach:
+
+- Preserve PREMIUM internally where required.
+- Display the customer-facing plan name as Plus.
+- Perform an internal code rename only through a separately reviewed
+  compatibility migration.
+
+Do not break existing subscriptions or Stripe webhook processing.
+
+## Free Plan
+
+Target price:
+
+- $0 per month
+
+Recommended entitlements:
+
+- 25 active listings
+- One location
+- One owner or staff account
+- Public shop storefront
+- Basic shop profile
+- Fixed-price listings
+- Basic offers
+- Local pickup
+- Standard messaging
+- Basic orders
+- Basic reviews
+- Permanent shop QR code
+- Shop-specific storefront destination
+- PNG and SVG QR download
+- Front-door sign
+- Counter sign
+- Copyable storefront link
+- Basic scan count
+- Buyer referral link
+- Pawnshop referral link
+- Basic owner dashboard
+- Basic listing views
+- Basic sales totals
+- Basic Shop Health Score
+- Limited growth recommendations
+- No auctions
+- No featured listings
+- No advanced analytics
+- No automated campaigns
+- No AI Marketing Studio
+- No multi-location management
+- Target commission: 12 percent
+
+## Pro Plan
+
+Target price:
+
+- $49 per month
+
+Recommended entitlements:
+
+- 100 active listings
+- One location
+- Three staff accounts
+- Fixed-price listings
+- Offers
+- Auctions
+- Featured listings
+- Pickup and shipping
+- Inventory tools
+- Customer messaging
+- Basic staff permissions
+- All Free marketing features
+- Ten active QR campaigns
+- Product QR codes
+- Category QR codes
+- Auction QR codes
+- New-arrivals QR code
+- Sell-or-pawn QR code
+- Short links
+- Basic campaign analytics
+- Additional printable templates
+- Social copy templates
+- Customer follow tools
+- New-arrival alerts
+- Referral attribution
+- Shop Health Score
+- Revenue trends
+- Inventory performance
+- Listing-quality recommendations
+- Customer engagement metrics
+- Basic local-demand insights
+- Monthly growth report
+- Target commission: 9 percent
+
+## Plus Plan
+
+Target price:
+
+- $149 per month
+
+Recommended entitlements:
+
+- Unlimited active listings
+- Five locations
+- Fifteen staff accounts
+- Advanced staff permissions
+- Auctions
+- Featured inventory
+- Multi-location inventory
+- Inventory transfers
+- Advanced fulfillment
+- Advanced shop profile
+- Customer relationship-management foundation
+- All Pro marketing features
+- Unlimited QR campaigns
+- Dynamic QR destinations
+- Full printable marketing kit
+- Custom campaign branding
+- Social campaign builder
+- Marketing calendar
+- Advanced campaign analytics
+- Conversion tracking
+- Referral dashboards
+- Customer segmentation
+- Email campaign drafts
+- SMS campaign drafts
+- TV display mode
+- Window display mode
+- Promote This Item
+- AI-generated marketing copy
+- AI flyer and caption assistance
+- Multi-location campaigns
+- Advanced revenue analytics
+- Inventory turnover
+- Category profitability
+- Customer retention analytics
+- Repeat-customer analytics
+- Local-demand heat maps
+- Anonymous benchmarking
+- AI Business Coach
+- Inventory recommendations
+- Pricing recommendations
+- Monthly goals
+- Growth opportunities
+- Location comparison
+- Priority support
+- Guided onboarding
+- Marketing setup assistance
+- Target commission: 6 percent
+
+## Ultra Plan
+
+Target price:
+
+- $299 per month
+
+Recommended entitlements:
+
+- Unlimited listings
+- Unlimited locations
+- Unlimited staff
+- Enterprise permissions
+- Corporate and location-level roles
+- Central inventory management
+- Cross-location inventory transfers
+- Enterprise reporting
+- Custom approval workflows
+- Bulk listing and management tools
+- API and integration foundation
+- Advanced audit history
+- All Plus marketing features
+- Corporate campaign management
+- Selected-location and all-location campaigns
+- Location-specific branding
+- Advanced conversion and revenue attribution
+- Custom print templates
+- Scheduled digital displays
+- Advanced referral programs
+- AI campaign recommendations
+- Automated campaign suggestions
+- Advanced customer segments
+- Campaign comparison
+- Future NFC support
+- Executive business-intelligence dashboard
+- Enterprise Shop Health reporting
+- Cross-location benchmarking
+- Location profitability
+- Staff performance analytics
+- Advanced demand forecasting
+- Inventory allocation recommendations
+- Enterprise AI Business Coach
+- Exportable executive reports
+- Custom KPI tracking
+- Priority enterprise support
+- Dedicated onboarding assistance
+- Business review sessions
+- Early access to selected features
+- Target commission: 4 percent
+
+## Central Entitlement Architecture
+
+Plan behavior must be controlled through centralized entitlements rather
+than scattered string comparisons.
+
+The implementation should support configuration concepts such as:
+
+- Maximum active listings
+- Maximum locations
+- Maximum staff
+- Auction access
+- Featured-listing access
+- QR campaign limit
+- Dynamic QR access
+- Printable template level
+- Marketing analytics level
+- Business analytics level
+- AI Marketing Studio access
+- AI Business Coach access
+- Digital-display access
+- Multi-location campaign access
+- Referral analytics access
+- Benchmarking access
+- API access
+- Support level
+- Commission basis points
+
+The backend must remain the source of truth.
+
+Frontend plan gating is for user experience only and must not replace
+backend enforcement.
+
+## Owner Plan Usage
+
+The owner subscription page should show current usage and limits:
+
+- Active listings
+- Locations
+- Staff
+- Active QR campaigns
+- AI generations where applicable
+- Digital displays where applicable
+- Current commission rate
+
+When a limit is reached, display a value-based upgrade explanation rather
+than a generic access-denied message.
+
+## Automatic Marketing Setup
+
+When a shop becomes approved or live, prepare the foundation for
+automatically creating:
+
+- Shop storefront URL
+- Permanent shop QR code
+- Front-door sign
+- Counter sign
+- Receipt insert
+- Social announcement draft
+- Email-signature link
+- Buyer referral link
+- Pawnshop referral link
+
+Automatic creation must be idempotent and must not create duplicate
+campaigns or referral identities.
+
+## Marketing Setup Checklist
+
+Provide a checklist with actions such as:
+
+- Publish storefront
+- Add shop logo
+- Verify shop hours
+- Create permanent QR code
+- Download front-door sign
+- Download counter sign
+- Add QR code to receipts
+- Create first campaign
+- Invite customers to follow the shop
+
+## Implementation Safety
+
+Before making changes, audit:
+
+- Existing seller plan codes
+- Seller-plan configuration
+- Prisma enums and stored values
+- Stripe products and prices
+- Subscription webhooks
+- Seller subscription APIs
+- Super Admin plan management
+- Owner subscription pages
+- Tests and fixtures
+- Commission calculations
+- Listing limits
+- Location limits
+- Staff limits
+
+Do not:
+
+- Cancel existing subscriptions
+- silently replace Stripe price identifiers
+- downgrade customers
+- delete PREMIUM records
+- change live prices without configuration
+- depend only on frontend gating
+- create duplicate plan systems

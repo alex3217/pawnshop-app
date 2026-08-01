@@ -114,3 +114,60 @@ At completion report:
 13. Suggested commit message
 
 Do not commit or push.
+
+ADDITIONAL REQUIRED AUDIT AND IMPLEMENTATION SCOPE
+
+Read the newly added section:
+
+"Owner Marketing Center, Business Growth, and Seller Plan Entitlements"
+
+in:
+
+docs/product/pawnloop-growth-marketing-gap-audit-v1.md
+
+Audit the current seller-plan implementation before changing plan names,
+prices, limits, commissions, Stripe identifiers, or subscription behavior.
+
+Determine:
+
+1. Current internal plan codes
+2. Current customer-facing plan names
+3. Current Stripe product and price mapping
+4. Current listing, location, and staff limits
+5. Current commission rates
+6. Current feature gates
+7. Current Super Admin seller-plan controls
+8. Current Owner subscription and usage displays
+9. Current subscription webhook dependencies
+10. Risks of renaming PREMIUM to PLUS
+
+Use the safest compatibility approach.
+
+Prefer preserving PREMIUM as an internal billing code and displaying Plus
+to customers unless a complete internal rename is proven safe and covered
+by migration, compatibility handling, and tests.
+
+Add the following to the existing-state audit matrix:
+
+- Marketing Center owner navigation
+- Business Growth owner navigation
+- Seller plan display names
+- Central entitlement architecture
+- Free entitlements
+- Pro entitlements
+- Plus entitlements
+- Ultra entitlements
+- Backend feature enforcement
+- Owner plan-usage reporting
+- Upgrade prompts
+- Automatic marketing setup
+- Marketing setup checklist
+- Stripe backward compatibility
+- Existing subscriber protection
+
+Phase 1 should establish safe architecture and navigation.
+
+Do not attempt every advanced Plus and Ultra feature in one change.
+Mark unimplemented advanced tools accurately in the roadmap.
+
+Do not change live Stripe pricing or production configuration.
