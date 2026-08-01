@@ -1,4 +1,4 @@
-ALTER TABLE "User" ADD COLUMN "stripeCustomerId" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "stripeCustomerId" TEXT;
 ALTER TABLE "User" ADD COLUMN "billingMethodPresent" BOOLEAN NOT NULL DEFAULT false,
 ADD COLUMN "billingMethodBrand" TEXT,
 ADD COLUMN "billingMethodLast4" TEXT,
