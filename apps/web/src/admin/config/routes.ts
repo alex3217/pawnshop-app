@@ -211,6 +211,13 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     group: "super-admin-growth",
   }),
   route({
+    key: "superAdminPlatformSuccess",
+    path: "/super-admin/platform-success",
+    label: "Platform Success",
+    permissions: ["admin:overview:read"],
+    group: "super-admin-growth",
+  }),
+  route({
     key: "superAdminGrowthLeads",
     path: "/super-admin/growth/leads",
     label: "Pawn Shop Directory",

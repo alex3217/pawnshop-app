@@ -25,6 +25,7 @@ export type AdminNavKey =
   | "superAdminShops"
   | "superAdminInventory"
   | "superAdminGrowth"
+  | "superAdminPlatformSuccess"
   | "superAdminGrowthLeads"
   | "superAdminSellerPlans"
   | "superAdminBuyerPlans"

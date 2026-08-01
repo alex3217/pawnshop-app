@@ -58,6 +58,7 @@ import {
   updateGrowthContact,
   updateGrowthLead,
 } from "../controllers/growthCenter.controller.js";
+import { getSuperAdminPlatformSuccess } from "../controllers/platformSuccess.controller.js";
 
 const router = Router();
 
@@ -206,6 +207,7 @@ export const SUPER_ADMIN_ROUTE_MAP = Object.freeze({
   growthSummary: "GET /api/super-admin/growth/leads/summary",
   growthLeads: "GET /api/super-admin/growth/leads",
   growthLead: "GET /api/super-admin/growth/leads/:leadId",
+  platformSuccess: "GET /api/super-admin/platform-success",
 });
 
 function asyncRoute(handler) {
@@ -352,6 +354,7 @@ router.get(
 
 router.get("/audit", asyncRoute(listSuperAdminAuditLogs));
 router.get("/overview", asyncRoute(getSuperAdminOverview));
+router.get("/platform-success", asyncRoute(getSuperAdminPlatformSuccess));
 router.get("/system", asyncRoute(getSuperAdminSystemHealth));
 router.get("/users", asyncRoute(listSuperAdminUsers));
 router.post("/beta-invites", asyncRoute(createBetaInvite));

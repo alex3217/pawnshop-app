@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { assertCanAddLocationForOwner } from "../services/sellerPlan.service.js";
 
 /**
  * Why this controller is defensive:
@@ -203,6 +204,7 @@ export async function createShop(req, res) {
 
     const data = pickShopWriteData(req.body, userId);
     assertShopName(data);
+    await assertCanAddLocationForOwner(userId);
 
     const select = await buildPawnShopSelect();
 

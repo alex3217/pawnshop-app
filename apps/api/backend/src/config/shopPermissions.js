@@ -32,6 +32,8 @@ export const SHOP_PERMISSION_CODES = Object.freeze([
   "customer-sell:write",
   "marketing:read",
   "marketing:write",
+  "growth:read",
+  "analytics:read",
 ]);
 
 export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
@@ -52,6 +54,8 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "customer-sell:write",
       "marketing:read",
       "marketing:write",
+      "growth:read",
+      "analytics:read",
     ]),
     SHOP_MANAGER: Object.freeze([
       "inventory:read",
@@ -68,6 +72,8 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "customer-sell:write",
       "marketing:read",
       "marketing:write",
+      "growth:read",
+      "analytics:read",
     ]),
     SHOP_STAFF: Object.freeze([
       "inventory:read",
@@ -76,6 +82,7 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "locations:read",
       "customer-sell:read",
       "marketing:read",
+      "growth:read",
     ]),
     SHOP_VIEWER: Object.freeze([
       "inventory:read",
@@ -84,6 +91,7 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "locations:read",
       "customer-sell:read",
       "marketing:read",
+      "growth:read",
     ]),
     INVENTORY_MANAGER: Object.freeze([
       "inventory:read",

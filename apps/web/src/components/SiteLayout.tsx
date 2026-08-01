@@ -93,6 +93,7 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
   { to: "/owner/item-intakes", label: "Intake Review" },
   { to: "/owner/integrations", label: "Integrations" },
   { to: "/owner/marketing", label: "Marketing Center" },
+  { to: "/owner/business-growth", label: "Business Growth" },
   {
     to: "/marketplace/sales",
     label: "Marketplace Sales",
@@ -139,6 +140,7 @@ const SUPER_ADMIN_PRIMARY_NAV: NavItem[] = [
 ];
 
 const SUPER_ADMIN_SECONDARY_NAV: NavItem[] = [
+  { to: "/super-admin/platform-success", label: "Platform Success" },
   { to: "/super-admin/growth", label: "Growth Center" },
   { to: "/super-admin/plans/seller", label: "Seller Plans" },
   { to: "/super-admin/seller-subscriptions", label: "Seller Subscriptions" },

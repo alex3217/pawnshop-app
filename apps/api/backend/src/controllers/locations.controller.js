@@ -1,6 +1,7 @@
 // File: apps/api/backend/src/controllers/locations.controller.js
 
 import { prisma } from "../lib/prisma.js";
+import { assertCanAddLocationForOwner } from "../services/sellerPlan.service.js";
 
 const LOCATION_SAFE_FIELDS = [
   "id",
@@ -263,6 +264,7 @@ export async function createLocation(req, res) {
 
     const data = pickLocationWriteData(req.body, userId);
     assertLocationName(data);
+    await assertCanAddLocationForOwner(userId);
 
     const select = await buildPawnShopSelect();
 

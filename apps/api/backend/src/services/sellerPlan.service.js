@@ -212,6 +212,33 @@ function buildEntitlements(
           appliedListingLimit
         );
 
+  const planCapabilities = {
+    FREE: {
+      qrCampaignLimit: 1, marketingLevel: "basic", businessGrowthLevel: "basic",
+      businessCoachLevel: "limited", shopHealthEnabled: true, digitalDisplaysEnabled: false,
+      multiLocationCampaignsEnabled: false, referralAnalyticsEnabled: false,
+      benchmarkingEnabled: false, apiAccessEnabled: false, supportLevel: "standard",
+    },
+    PRO: {
+      qrCampaignLimit: 10, marketingLevel: "basic", businessGrowthLevel: "standard",
+      businessCoachLevel: "rules", shopHealthEnabled: true, digitalDisplaysEnabled: false,
+      multiLocationCampaignsEnabled: false, referralAnalyticsEnabled: false,
+      benchmarkingEnabled: false, apiAccessEnabled: false, supportLevel: "standard",
+    },
+    PREMIUM: {
+      qrCampaignLimit: null, marketingLevel: "advanced", businessGrowthLevel: "advanced",
+      businessCoachLevel: "rules", shopHealthEnabled: true, digitalDisplaysEnabled: true,
+      multiLocationCampaignsEnabled: true, referralAnalyticsEnabled: true,
+      benchmarkingEnabled: true, apiAccessEnabled: false, supportLevel: "priority",
+    },
+    ULTRA: {
+      qrCampaignLimit: null, marketingLevel: "enterprise", businessGrowthLevel: "enterprise",
+      businessCoachLevel: "rules", shopHealthEnabled: true, digitalDisplaysEnabled: true,
+      multiLocationCampaignsEnabled: true, referralAnalyticsEnabled: true,
+      benchmarkingEnabled: true, apiAccessEnabled: true, supportLevel: "enterprise",
+    },
+  }[effectivePlanCode] || {};
+
   return {
     shopId: shop.id,
     shopName: shop.name || null,
@@ -225,7 +252,7 @@ function buildEntitlements(
       isPaid: Boolean(plan.isPaid),
       isFree: Boolean(plan.isFree),
       rank: Number(plan.rank || 0),
-      label: plan.label,
+      label: storedPlan === "PREMIUM" ? "Plus" : plan.label,
       currentPeriodEnd:
         shop.subscriptionCurrentPeriodEnd || null,
       cancelAtPeriodEnd:
@@ -246,6 +273,7 @@ function buildEntitlements(
         usingTrialLimit ? "TRIAL" : "PLAN",
       maxLocations: plan.maxLocations,
       maxStaffUsers: plan.maxStaffUsers,
+      qrCampaignLimit: planCapabilities.qrCampaignLimit,
     },
 
     features: {
@@ -254,6 +282,16 @@ function buildEntitlements(
       canFeatureListings:
         Boolean(plan.canFeatureListings),
       analyticsLevel: plan.analyticsLevel,
+      marketingLevel: planCapabilities.marketingLevel,
+      businessGrowthLevel: planCapabilities.businessGrowthLevel,
+      businessCoachLevel: planCapabilities.businessCoachLevel,
+      shopHealthEnabled: planCapabilities.shopHealthEnabled,
+      digitalDisplaysEnabled: planCapabilities.digitalDisplaysEnabled,
+      multiLocationCampaignsEnabled: planCapabilities.multiLocationCampaignsEnabled,
+      referralAnalyticsEnabled: planCapabilities.referralAnalyticsEnabled,
+      benchmarkingEnabled: planCapabilities.benchmarkingEnabled,
+      apiAccessEnabled: planCapabilities.apiAccessEnabled,
+      supportLevel: planCapabilities.supportLevel,
     },
 
     billing: {
@@ -291,7 +329,56 @@ function buildEntitlements(
             ),
       isUnlimitedListings,
     },
+
+    implementation: {
+      enforced: ["activeListings", "auctions", "featuredListings", "qrCampaigns"],
+      implemented: ["analytics", "marketingCenter", "businessGrowth", "shopHealth", "ruleBasedBusinessCoach"],
+      planned: ["digitalDisplays", "benchmarking", "apiAccess", "generativeBusinessCoach"],
+    },
   };
+}
+
+export function assertQrCampaignCapacity(entitlements, activeCampaignCount, requestedSlots = 1) {
+  const limit = entitlements?.limits?.qrCampaignLimit;
+  if (limit === null) return entitlements;
+  const used = toSafeNonNegativeInteger(activeCampaignCount);
+  const requested = Math.max(toSafeNonNegativeInteger(requestedSlots), 1);
+  if (used + requested > toSafeNonNegativeInteger(limit)) {
+    throw createPlanError(
+      `Plan limit reached. ${entitlements.subscription.effectivePlan} allows ${limit} active QR campaigns.`,
+      "PLAN_QR_CAMPAIGN_LIMIT_REACHED",
+      403,
+      { limit, used, requested, reason: "ACTIVE_QR_CAMPAIGN_LIMIT_REACHED" },
+    );
+  }
+  return entitlements;
+}
+
+export async function assertCanCreateQrCampaignForShop(shopId, requestedSlots = 1) {
+  const [entitlements, activeCampaignCount] = await Promise.all([
+    getSellerEntitlementsForShop(shopId),
+    prisma.shopMarketingCampaign.count({ where: { shopId: normalizeShopId(shopId), isActive: true } }),
+  ]);
+  return assertQrCampaignCapacity(entitlements, activeCampaignCount, requestedSlots);
+}
+
+export async function assertCanAddStaffForShop(shopId) {
+  const [entitlements, used] = await Promise.all([
+    getSellerEntitlementsForShop(shopId),
+    prisma.staff.count({ where: { shopId: normalizeShopId(shopId), status: { in: ["INVITED", "ACTIVE"] } } }),
+  ]);
+  const limit = entitlements.limits.maxStaffUsers;
+  if (limit !== null && used >= limit) throw createPlanError(`Plan limit reached. ${entitlements.subscription.effectivePlan} allows ${limit} staff accounts.`, "PLAN_STAFF_LIMIT_REACHED", 403, { limit, used, reason: "STAFF_LIMIT_REACHED" });
+  return entitlements;
+}
+
+export async function assertCanAddLocationForOwner(ownerId) {
+  const shops = await prisma.pawnShop.findMany({ where: { ownerId: normalizeTrimmedString(ownerId), isDeleted: false }, select: { id: true } });
+  if (shops.length === 0) return null;
+  const entitlements = await getSellerEntitlementsForShop(shops[0].id);
+  const limit = entitlements.limits.maxLocations;
+  if (limit !== null && shops.length >= limit) throw createPlanError(`Plan limit reached. ${entitlements.subscription.effectivePlan} allows ${limit} locations.`, "PLAN_LOCATION_LIMIT_REACHED", 403, { limit, used: shops.length, reason: "LOCATION_LIMIT_REACHED" });
+  return entitlements;
 }
 
 function assertFeatureEnabled(

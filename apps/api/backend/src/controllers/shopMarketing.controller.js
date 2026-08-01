@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { canAccessShopWithStaffPermission } from "../middleware/staffAccess.middleware.js";
+import { assertCanCreateQrCampaignForShop } from "../services/sellerPlan.service.js";
 
 export const DESTINATION_TYPES = [
   "STOREFRONT", "INVENTORY", "NEW_ARRIVALS", "AUCTIONS", "DEALS", "ITEM",
@@ -154,6 +155,12 @@ export async function createShopMarketingCampaign(req, res) {
   if (!shop) return res.status(404).json({ success: false, error: "Shop not found" });
   const parsed = campaignSchema.safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed.error);
+  try {
+    await ensureDefaultCampaign(shop);
+    await assertCanCreateQrCampaignForShop(shop.id);
+  } catch (error) {
+    return res.status(error?.statusCode || 403).json({ success: false, error: error.message, code: error.code, details: error.details });
+  }
   const data = { ...parsed.data, resourceId: parsed.data.resourceId || null };
   if (!(await validateResource(shop.id, data.destinationType, data.resourceId))) {
     return res.status(400).json({ success: false, error: "Destination is not a public resource owned by this shop." });

@@ -126,6 +126,7 @@ const SuperAdminBuyerPlansPage = lazyPage(() =>
 const SuperAdminSellerPlansPage = lazyPage(() =>
   import("./admin/pages/SuperAdminSellerPlansPage"),
 );
+const SuperAdminPlatformSuccessPage = lazyPage(() => import("./admin/pages/SuperAdminPlatformSuccessPage"));
 const SuperAdminBuyerSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminBuyerSubscriptionsPage"),
 );
@@ -182,6 +183,7 @@ const OwnerDashboardPage = lazyPage(() => import("./pages/OwnerDashboardPage"));
 const OwnerFinancePage = lazyPage(() => import("./pages/OwnerFinancePage"));
 const OwnerInventoryPage = lazyPage(() => import("./pages/OwnerInventoryPage"));
 const OwnerMarketingCenterPage = lazyPage(() => import("./pages/OwnerMarketingCenterPage"));
+const OwnerBusinessGrowthPage = lazyPage(() => import("./pages/OwnerBusinessGrowthPage"));
 const OwnerItemIntakesPage = lazyPage(() =>
   import("./pages/OwnerItemIntakesPage"),
 );
@@ -342,6 +344,7 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner/item-intakes", element: <OwnerItemIntakesPage /> },
   { path: "/owner/integrations", element: <OwnerIntegrationsPage /> },
   { path: "/owner/marketing", element: <OwnerMarketingCenterPage /> },
+  { path: "/owner/business-growth", element: <OwnerBusinessGrowthPage /> },
   { path: "/owner/locations", element: <OwnerLocationsPage /> },
   { path: "/owner/staff", element: <OwnerStaffPage /> },
   { path: "/owner/scan-console", element: <ScanConsolePage /> },
@@ -407,6 +410,7 @@ const superAdminRoutes: RouteConfig[] = [
   { index: true, element: <SuperAdminOverviewPage /> },
   { path: "overview", element: <Navigate to="/super-admin" replace /> },
   { path: "growth", element: <GrowthCenterDashboardPage /> },
+  { path: "platform-success", element: <SuperAdminPlatformSuccessPage /> },
   { path: "growth/leads", element: <GrowthLeadDirectoryPage /> },
   { path: "growth/leads/:leadId", element: <GrowthLeadDetailPage /> },
   { path: "users", element: <AdminUsersPage /> },
