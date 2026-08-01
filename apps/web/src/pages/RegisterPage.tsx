@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { register } from "../services/auth";
 import type { Role } from "../services/auth";
+import PasswordInput from "../components/PasswordInput";
 import "../styles/register-page.css";
 import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
 
@@ -244,7 +245,7 @@ export default function RegisterPage() {
                 Password
               </label>
 
-              <input
+              <PasswordInput
                 id="register-password"
                 className="register-input"
                 value={password}
@@ -252,11 +253,11 @@ export default function RegisterPage() {
                   setPassword(event.target.value)
                 }
                 placeholder="12–128 characters"
-                type="password"
                 autoComplete="new-password"
                 minLength={12}
                 maxLength={128}
                 required
+                visibilityLabel="password"
               />
               <small>
                 Use 12–128 characters. Common test or placeholder passwords are rejected, and the complete email address cannot appear in the password.
@@ -271,7 +272,7 @@ export default function RegisterPage() {
                 Confirm password
               </label>
 
-              <input
+              <PasswordInput
                 id="register-confirm-password"
                 className="register-input"
                 value={confirmPassword}
@@ -287,11 +288,11 @@ export default function RegisterPage() {
                   }
                 }}
                 placeholder="Re-enter your password"
-                type="password"
                 autoComplete="new-password"
                 minLength={12}
                 maxLength={128}
                 required
+                visibilityLabel="password confirmation"
                 aria-invalid={
                   confirmPassword.length > 0 &&
                   password !== confirmPassword
