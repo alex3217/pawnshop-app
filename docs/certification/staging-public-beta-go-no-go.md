@@ -1,6 +1,6 @@
 # Staging Public Beta Go/No-Go
 
-Decision date: 2026-08-01 (America/Chicago)  
+Decision date: 2026-08-01 (America/Chicago)
 Decision: **NO-GO for invite-only public beta**
 
 ## Gate summary
@@ -24,7 +24,7 @@ Decision: **NO-GO for invite-only public beta**
 | Mobile TypeScript validation | PASS |
 | Cloudflare release-candidate preview | PASS |
 | Automated accessibility foundation | PASS — 26/26 axe checks |
-| Provider-backed Stripe test-mode lifecycle | BLOCKED |
+| Provider-backed Stripe test-mode lifecycle | PASS — provider lifecycle and reconciliation certified |
 | Manual accessibility and measured contrast | BLOCKED |
 | Staging and production migration-history inspection | BLOCKED |
 | Centralized monitoring and alert exercises | BLOCKED |
@@ -45,6 +45,10 @@ administrative access, and Super Administrator access.
 The root release-candidate CI now passes Web/API validation, backend automated
 tests, mobile TypeScript validation, and Cloudflare preview deployment.
 
+Provider-backed Stripe test-mode certification now passes. The retained
+redacted evidence covers Connect, payments, signed webhooks, refunds,
+disputes, transfers, connected payouts, and reconciliation.
+
 No production or staging database was modified during these local
 certifications. No production Stripe service was accessed. No migration
 directory was renamed.
@@ -53,11 +57,13 @@ directory was renamed.
 
 ### Provider-backed Stripe certification
 
-Provider-backed certification still requires approved Stripe test-mode
-credentials and webhook signing secrets. It must verify Connect onboarding,
-server-controlled PaymentIntent values, signed webhook behavior, refund and
-dispute lifecycles, transfers, payouts, reconciliation, idempotency, and
-test-object cleanup.
+Provider-backed Stripe test-mode certification passed. Evidence covers
+Connect onboarding and isolation, server-controlled payments, signed and
+idempotent webhooks, failed-payment recovery, refunds, disputes, Transfer
+idempotency, connected-payout observation, and reconciliation states.
+
+The connected payout used the Stripe test-bank failure fixture ending 2227;
+PawnLoop retained the full provider event sequence and terminal failure.
 
 ### Manual accessibility certification
 
@@ -79,10 +85,9 @@ tabletop exercises still require provider-backed evidence and named owners.
 
 ## Conditions to reconsider
 
-1. Complete and retain redacted Stripe test-mode provider evidence.
-2. Complete the named manual accessibility matrix and resolve material issues.
-3. Inspect staging and production migration histories without modifying them.
-4. Exercise monitoring, alerting, deployment, rollback, operational backup, and
+1. Complete the named manual accessibility matrix and resolve material issues.
+2. Inspect staging and production migration histories without modifying them.
+3. Exercise monitoring, alerting, deployment, rollback, operational backup, and
    incident response.
-5. Update this decision from current evidence and conduct the final public-beta
+4. Update this decision from current evidence and conduct the final public-beta
    go/no-go review.
