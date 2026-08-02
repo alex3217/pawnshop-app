@@ -56,6 +56,11 @@ All requests exercised the Express application with Supertest through the real l
 
 Focused total: **11 passed, 0 failed**.
 
+The focused certification test is intentionally excluded from the general
+`*.integration.test.js` glob. It requires a generated runtime credential and
+the deterministic role-and-tenant certification seed, and is executed only
+through `npm run test:role-tenant-certification`.
+
 ## Browser role-routing smoke
 
 The existing Playwright harness supports deterministic Chromium execution with one worker and an isolated local Vite server. A focused three-case smoke suite was added and passed:
@@ -71,7 +76,7 @@ Browser total: **3 passed, 0 failed**. The harness uses intercepted API response
 | Command | Result |
 |---|---|
 | `npm run test:role-tenant-certification` (root) | PASS — 11/11 |
-| `npm run test:integration` (`apps/api/backend`) | PASS — 165/165 |
+| `npm run test:integration` (`apps/api/backend`) | PASS — 154/154 |
 | `npm run test:core` (`apps/api/backend`) | PASS — 200/200 |
 | `npm run test:database-safety` (root) | PASS — 8/8 |
 | `npm run check:migration-prefixes` (root) | PASS — 45 migrations; existing allowlisted duplicate reported |

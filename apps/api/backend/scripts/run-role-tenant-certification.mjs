@@ -23,7 +23,7 @@ const commands = [
   ["npx", ["prisma", "migrate", "deploy"]],
   ["npx", ["prisma", "generate"]],
   [process.execPath, ["scripts/seed-role-tenant-certification.mjs"]],
-  [process.execPath, ["--test", "--test-concurrency=1", "test/roleTenantCertification.integration.test.js"]],
+  [process.execPath, ["--test", "--test-concurrency=1", "test/roleTenantCertification.certification.test.js"]],
 ];
 
 for (const [command, args] of commands) {
