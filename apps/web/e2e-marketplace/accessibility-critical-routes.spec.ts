@@ -11,6 +11,7 @@ const routes: Array<{ name: string; path: string; role?: Role }> = [
   { name: "Privacy Policy", path: "/privacy" },
   { name: "Terms of Service", path: "/terms" },
   { name: "Buyer Dashboard", path: "/buyer/dashboard", role: "CONSUMER" },
+  { name: "Watchlist", path: "/watchlist", role: "CONSUMER" },
   { name: "My Activity", path: "/buyer/workspace", role: "CONSUMER" },
   { name: "Buyer Subscription", path: "/buyer/subscription", role: "CONSUMER" },
   { name: "Payment Methods", path: "/account/payment-methods", role: "CONSUMER" },
@@ -675,6 +676,193 @@ test("Legal documents use readable layout without floating assistance overlap", 
       ),
     ).toHaveCount(0);
   }
+});
+
+
+test("Watchlist single-item card keeps balanced width and inset selection control", async ({ page }) => {
+  await page.setViewportSize({
+    width: 1280,
+    height: 900,
+  });
+
+  await installState(
+    page,
+    "CONSUMER",
+    "dark",
+  );
+
+  await page.unroute("**/api/**");
+
+  await page.route(
+    "**/api/**",
+    async (route) => {
+      const request = route.request();
+      const pathname =
+        new URL(request.url()).pathname.replace(
+          /\/+$/,
+          "",
+        );
+
+      if (
+        request.method() === "GET" &&
+        pathname.endsWith("/watchlist/mine")
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              id: "watch-piano",
+              itemId: "item-piano",
+              createdAt:
+                "2026-08-02T16:30:00.000Z",
+              item: {
+                id: "item-piano",
+                pawnShopId: "shop-larry",
+                title: "Piano",
+                description:
+                  "A saved piano available from Larry Shop.",
+                price: 100,
+                images: [],
+                category: "Electronics",
+                condition: "Good",
+                status: "AVAILABLE",
+                shop: {
+                  id: "shop-larry",
+                  name: "Larry Shop",
+                },
+              },
+            },
+          ]),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: false,
+          error: "Mock service unavailable",
+        }),
+      });
+    },
+  );
+
+  await page.goto("/watchlist");
+
+  const card =
+    page.locator(".watch2-card");
+
+  await expect(card).toHaveCount(1);
+
+  await expect(
+    page.getByRole("link", {
+      name: "Piano",
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  const checkbox =
+    page.getByRole("checkbox", {
+      name: "Select item",
+      exact: true,
+    });
+
+  await expect(checkbox).toBeVisible();
+
+  const cardBox = await card.boundingBox();
+  const checkboxBox =
+    await checkbox.boundingBox();
+
+  expect(cardBox).not.toBeNull();
+  expect(checkboxBox).not.toBeNull();
+
+  expect(cardBox!.width)
+    .toBeGreaterThanOrEqual(360);
+
+  expect(cardBox!.width)
+    .toBeLessThanOrEqual(430);
+
+  expect(
+    checkboxBox!.x - cardBox!.x,
+  ).toBeGreaterThanOrEqual(16);
+
+  expect(
+    checkboxBox!.y - cardBox!.y,
+  ).toBeGreaterThanOrEqual(10);
+
+  await checkbox.check();
+  await expect(checkbox).toBeChecked();
+
+  const viewItemAction =
+    page.getByRole("link", {
+      name: "View item",
+      exact: true,
+    });
+
+  const viewShopAction =
+    page.getByRole("link", {
+      name: "View shop",
+      exact: true,
+    });
+
+  await expect(viewItemAction).toBeVisible();
+  await expect(viewShopAction).toBeVisible();
+
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((activeTheme) => {
+      document.documentElement.setAttribute(
+        "data-theme",
+        activeTheme,
+      );
+    }, theme);
+
+    const matchingActionBackgrounds =
+      await Promise.all([
+        viewItemAction.evaluate(
+          (element) =>
+            window.getComputedStyle(element)
+              .backgroundColor,
+        ),
+        viewShopAction.evaluate(
+          (element) =>
+            window.getComputedStyle(element)
+              .backgroundColor,
+        ),
+      ]);
+
+    expect(
+      matchingActionBackgrounds[0],
+    ).toBe(matchingActionBackgrounds[1]);
+
+    const matchingActionTextColors =
+      await Promise.all([
+        viewItemAction.evaluate(
+          (element) =>
+            window.getComputedStyle(element).color,
+        ),
+        viewShopAction.evaluate(
+          (element) =>
+            window.getComputedStyle(element).color,
+        ),
+      ]);
+
+    expect(
+      matchingActionTextColors[0],
+    ).toBe(matchingActionTextColors[1]);
+  }
+
+  const horizontalOverflow =
+    await page.evaluate(() => {
+      return (
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth
+      );
+    });
+
+  expect(horizontalOverflow)
+    .toBeLessThanOrEqual(1);
 });
 
 test("Launch War Room rejects non-Super Admin access", async ({ page }) => {
