@@ -86,7 +86,7 @@ async function createUser(
 async function createListing({
   seller,
   sellerShop = null,
-  listingType = "CUSTOMER_TO_CUSTOMER",
+  listingType = "SHOP_TO_CUSTOMER",
   price = "89.99",
   quantity = 1,
 }) {
