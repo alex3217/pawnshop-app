@@ -57,10 +57,10 @@ const BUYER_PRIMARY_NAV: NavItem[] = [
   { to: "/my-bids", label: "My Bids" },
   { to: "/offers", label: "Offers" },
   { to: "/watchlist", label: "Watchlist" },
-  { to: "/buyer/workspace", label: "Buyer Tools" },
 ];
 
 const BUYER_SECONDARY_NAV: NavItem[] = [
+  { to: "/buyer/workspace", label: "My Activity" },
   { to: "/my-wins", label: "My Wins" },
   { to: "/saved-searches", label: "Saved Searches" },
   { to: "/buyer/success", label: "Buyer Success Center" },
@@ -71,7 +71,7 @@ const BUYER_SECONDARY_NAV: NavItem[] = [
 ];
 
 const BUYER_SECONDARY_GROUPS = [
-  { label: "Shopping activity", links: BUYER_SECONDARY_NAV.filter((item) => item.to === "/my-wins") },
+  { label: "Shopping activity", links: BUYER_SECONDARY_NAV.filter((item) => ["/buyer/workspace", "/my-wins"].includes(item.to)) },
   { label: "Saved tools", links: BUYER_SECONDARY_NAV.filter((item) => ["/saved-searches", "/buyer/success"].includes(item.to)) },
   { label: "Billing & account", links: BUYER_SECONDARY_NAV.filter((item) => ["/buyer/subscription", "/account/payment-methods", "/buyer/settings"].includes(item.to)) },
   { label: "Help", links: BUYER_SECONDARY_NAV.filter((item) => item.to === "/buyer/help") },
