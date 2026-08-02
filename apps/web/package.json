@@ -14,6 +14,7 @@
     "start": "node ../../scripts/serve-web-dist.mjs",
     "test:marketplace-checkout": "playwright test --config playwright.marketplace.config.ts",
     "test:owner-application-review": "playwright test owner-application-review.spec.ts --config playwright.marketplace.config.ts",
+    "test:role-routing-certification": "playwright test role-routing-certification.spec.ts --config playwright.marketplace.config.ts",
     "test:marketplace-buy-now": "playwright test marketplace-buy-now.spec.ts --config playwright.marketplace.config.ts",
     "test:marketplace-seller-listings": "playwright test marketplace-seller-listings.spec.ts --config playwright.marketplace.config.ts",
     "test:scanner-marketplace-listing-entry": "playwright test scanner-marketplace-listing-entry.spec.ts --config playwright.marketplace.config.ts",

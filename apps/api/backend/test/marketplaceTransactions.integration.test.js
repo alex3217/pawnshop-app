@@ -175,7 +175,7 @@ test("direct purchase reserves inventory and cancellation restores it", async ()
   const listing = await prisma.marketplaceListing.create({
     data: {
       sellerUserId: seller.id,
-      listingType: "CUSTOMER_TO_CUSTOMER",
+      listingType: "SHOP_TO_CUSTOMER",
       status: "ACTIVE",
       title: "Integration marketplace item",
       description: "Direct purchase integration test",
