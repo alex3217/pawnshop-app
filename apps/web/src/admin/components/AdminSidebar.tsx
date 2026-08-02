@@ -257,7 +257,7 @@ export default function AdminSidebar() {
               <div style={{ color: "#e2e8f0", fontWeight: 900, fontSize: 13 }}>
                 {group.title}
               </div>
-              <div style={{ color: "#64748b", fontSize: 11, marginTop: 2 }}>
+              <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
                 {group.description}
               </div>
             </div>
@@ -296,7 +296,7 @@ export default function AdminSidebar() {
             <div style={{ color: "#e2e8f0", fontWeight: 900, fontSize: 13 }}>
               Other Tools
             </div>
-            <div style={{ color: "#64748b", fontSize: 11, marginTop: 2 }}>
+            <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
               Additional pages
             </div>
           </div>

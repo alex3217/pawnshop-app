@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import "../styles/legal-pages.css";
 
 const EFFECTIVE_DATE = "July 28, 2026";
 

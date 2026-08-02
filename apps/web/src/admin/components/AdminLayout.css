@@ -1,0 +1,136 @@
+.admin-layout {
+  --admin-viewport-gutter:
+    clamp(1rem, 3vw, 2.5rem);
+
+  min-height: 100vh;
+  color: #eef2ff;
+  background: #0b1020;
+  overflow-x: clip;
+}
+
+.admin-layout__container {
+  width: min(100%, 1440px);
+  max-width: 1440px;
+  margin: 0 auto;
+  padding-top: 1.5rem;
+  padding-right:
+    max(
+      var(--admin-viewport-gutter),
+      env(safe-area-inset-right)
+    );
+  padding-bottom:
+    max(
+      2.5rem,
+      env(safe-area-inset-bottom)
+    );
+  padding-left:
+    max(
+      var(--admin-viewport-gutter),
+      env(safe-area-inset-left)
+    );
+  display: grid;
+  gap: 1.25rem;
+  box-sizing: border-box;
+}
+
+.admin-layout__header {
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  box-sizing: border-box;
+}
+
+.admin-layout__header > div {
+  min-width: 0;
+}
+
+.admin-layout__body {
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 280px)
+    minmax(0, 1fr);
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.admin-layout__body > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-layout__main {
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  gap: 1rem;
+  box-sizing: border-box;
+}
+
+.admin-layout__main > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-layout__main :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  li,
+  label,
+  legend,
+  th,
+  td
+) {
+  overflow-wrap: anywhere;
+}
+
+.admin-layout__main :where(
+  img,
+  video,
+  canvas,
+  iframe,
+  svg
+) {
+  max-width: 100%;
+}
+
+.admin-layout__main pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+@media (max-width: 980px) {
+  .admin-layout__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-layout {
+    --admin-viewport-gutter: 1rem;
+  }
+
+  .admin-layout__container {
+    padding-top: 1rem;
+  }
+
+  .admin-layout__header {
+    align-items: stretch;
+  }
+
+  .admin-layout__header .btn {
+    width: 100%;
+  }
+}

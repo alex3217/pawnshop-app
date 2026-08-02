@@ -104,6 +104,7 @@ export default function NavigationTour({ role }: NavigationTourProps) {
   const launchFrameRef = useRef<number | null>(null);
   const topics = useMemo(() => topicsForRole(role), [role]);
   const currentPageHelp = useMemo(() => helpForPath(location.pathname, role), [location.pathname, role]);
+  const isLegalDocument = location.pathname === "/privacy" || location.pathname === "/terms";
 
   const immediateTourSteps = useMemo(
     () =>
@@ -304,6 +305,7 @@ export default function NavigationTour({ role }: NavigationTourProps) {
       </p>
 
       {role !== "OWNER"
+      && !isLegalDocument
       && preferences.floatingButtonVisible
       && !floatingShortcutDismissed
       && !centerOpen
