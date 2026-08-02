@@ -78,15 +78,23 @@ export async function removeSavedSearch(req, res) {
       return res.status(400).json({ success: false, error: "id is required" });
     }
 
-    const result = await prisma.savedSearch.deleteMany({
-      where: { id, userId },
-    });
+    try {
+      const removed = await prisma.savedSearch.delete({
+        where: { id, userId },
+        select: { id: true },
+      });
 
-    if (result.count === 0) {
-      return res.status(404).json({ success: false, error: "Saved search not found" });
+      return res.json({ success: true, id: removed.id });
+    } catch (error) {
+      if (error?.code === "P2025") {
+        return res.status(404).json({
+          success: false,
+          error: "Saved search not found",
+        });
+      }
+
+      throw error;
     }
-
-    return res.json({ success: true, id });
   } catch (error) {
     return sendError(res, error, "Failed to remove saved search");
   }
