@@ -1,6 +1,6 @@
 // File: apps/web/src/components/SiteLayout.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   getAuthRole,
@@ -53,23 +53,29 @@ const PUBLIC_NAV: NavItem[] = [
 
 const BUYER_PRIMARY_NAV: NavItem[] = [
   { to: "/buyer/dashboard", label: "Buyer Dashboard" },
-  { to: "/buyer/workspace", label: "Buyer Workspace" },
+  { to: "/marketplace/purchases", label: "My Purchases" },
   { to: "/my-bids", label: "My Bids" },
-  { to: "/my-wins", label: "My Wins" },
-  {
-    to: "/marketplace/purchases",
-    label: "My Purchases",
-  },
   { to: "/offers", label: "Offers" },
+  { to: "/watchlist", label: "Watchlist" },
+  { to: "/buyer/workspace", label: "Buyer Tools" },
 ];
 
 const BUYER_SECONDARY_NAV: NavItem[] = [
+  { to: "/my-wins", label: "My Wins" },
+  { to: "/saved-searches", label: "Saved Searches" },
   { to: "/buyer/success", label: "Buyer Success Center" },
   { to: "/buyer/subscription", label: "Buyer Subscription" },
   { to: "/account/payment-methods", label: "Payment Methods" },
-  { to: "/watchlist", label: "Watchlist" },
-  { to: "/saved-searches", label: "Saved Searches" },
+  { to: "/buyer/settings", label: "Account Settings" },
+  { to: "/buyer/help", label: "Help Center" },
 ];
+
+const BUYER_SECONDARY_GROUPS = [
+  { label: "Shopping activity", links: BUYER_SECONDARY_NAV.filter((item) => item.to === "/my-wins") },
+  { label: "Saved tools", links: BUYER_SECONDARY_NAV.filter((item) => ["/saved-searches", "/buyer/success"].includes(item.to)) },
+  { label: "Billing & account", links: BUYER_SECONDARY_NAV.filter((item) => ["/buyer/subscription", "/account/payment-methods", "/buyer/settings"].includes(item.to)) },
+  { label: "Help", links: BUYER_SECONDARY_NAV.filter((item) => item.to === "/buyer/help") },
+] as const;
 
 const STAFF_AUCTION_NAV: NavItem[] = [
   {
@@ -212,6 +218,7 @@ function getWorkspaceLabel(
 
 export default function SiteLayout() {
   const navigate = useNavigate();
+  const workspaceMenuRef = useRef<HTMLDetailsElement>(null);
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
@@ -431,6 +438,17 @@ export default function SiteLayout() {
     navigate("/login", { replace: true });
   }
 
+  useEffect(() => {
+    function closeWorkspaceOnEscape(event: KeyboardEvent) {
+      const menu = workspaceMenuRef.current;
+      if (event.key !== "Escape" || !menu?.open) return;
+      menu.open = false;
+      menu.querySelector("summary")?.focus();
+    }
+    document.addEventListener("keydown", closeWorkspaceOnEscape);
+    return () => document.removeEventListener("keydown", closeWorkspaceOnEscape);
+  }, []);
+
   return (
     <div className="site-shell">
       <header className="site-header">
@@ -478,13 +496,11 @@ export default function SiteLayout() {
               {role ? (
                 <>
                   <NotificationCenter />
-                  <Link
+                  {role !== "CONSUMER" ? <Link
                     to={dashboardHref}
                     className="site-primary-button"
                     data-tour="dashboard-button"
-                  >
-                    Dashboard
-                  </Link>
+                  >Dashboard</Link> : null}
 
                   <button
                     type="button"
@@ -562,6 +578,7 @@ export default function SiteLayout() {
 
           {workspaceLinks.length > 0 ? (
             <details
+              ref={workspaceMenuRef}
               className="site-workspace-menu"
               data-tour="workspace-menu"
             >
@@ -576,7 +593,8 @@ export default function SiteLayout() {
               </summary>
 
               <div className="site-workspace-panel">
-                {workspaceLinks.map((item) => (
+                {showBuyerLinks ? BUYER_SECONDARY_GROUPS.map((group) => <section className="site-workspace-group" key={group.label} aria-labelledby={`buyer-nav-${group.label.replaceAll(" ", "-").toLowerCase()}`}><h2 id={`buyer-nav-${group.label.replaceAll(" ", "-").toLowerCase()}`}>{group.label}</h2>{group.links.map((item) => <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => isActive ? "site-workspace-menu-link active" : "site-workspace-menu-link"}>{item.label}</NavLink>)}</section>) : null}
+                {workspaceLinks.filter((item) => !showBuyerLinks || !BUYER_SECONDARY_NAV.some((buyerItem) => buyerItem.to === item.to)).map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}

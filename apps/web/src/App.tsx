@@ -23,6 +23,8 @@ import BuyerItemLocatorPage from "./pages/BuyerItemLocatorPage";
 import BuyerWorkspacePage from "./pages/BuyerWorkspacePage";
 import BuyerSuccessCenterPage from "./pages/BuyerSuccessCenterPage";
 import BuyerSubscriptionPage from "./pages/BuyerSubscriptionPage";
+import BuyerSettingsPage from "./pages/BuyerSettingsPage";
+import BuyerHelpPage from "./pages/BuyerHelpPage";
 
 import BuyerSellItemPage from "./pages/BuyerSellItemPage";
 import OwnerRegistrationPage from "./pages/OwnerRegistrationPage";
@@ -297,6 +299,8 @@ const consumerRoutes: RouteConfig[] = [
   { path: "/buyer/workspace", element: <BuyerWorkspacePage /> },
   { path: "/buyer/success", element: <BuyerSuccessCenterPage /> },
   { path: "/buyer/subscription", element: <BuyerSubscriptionPage /> },
+  { path: "/buyer/settings", element: <BuyerSettingsPage /> },
+  { path: "/buyer/help", element: <BuyerHelpPage /> },
   { path: "/my-bids", element: <MyBidsPage /> },
   { path: "/bids", element: <Navigate to="/my-bids" replace /> },
   { path: "/my-wins", element: <MyWinsPage /> },

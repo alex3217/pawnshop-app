@@ -9,6 +9,8 @@ import {
   cancelMyBuyerSubscription,
   adminListBuyerSubscriptions,
   getMyBuyerPlanUsage,
+  scheduleMyBuyerSubscriptionCancellation,
+  resumeMyBuyerSubscription,
 } from "../controllers/buyerPlans.controller.js";
 
 const router = Router();
@@ -192,8 +194,22 @@ router.patch(
 router.delete(
   "/buyer-plans/mine",
   authRequired,
-  requireRole(...BUYER_ROLES),
+  requireRole(...ADMIN_ROLES),
   asyncRoute(cancelMyBuyerSubscription),
+);
+
+router.post(
+  "/buyer-plans/mine/cancel-at-period-end",
+  authRequired,
+  requireRole(...BUYER_ROLES),
+  asyncRoute(scheduleMyBuyerSubscriptionCancellation),
+);
+
+router.post(
+  "/buyer-plans/mine/resume",
+  authRequired,
+  requireRole(...BUYER_ROLES),
+  asyncRoute(resumeMyBuyerSubscription),
 );
 
 /**
