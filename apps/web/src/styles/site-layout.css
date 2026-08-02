@@ -1445,7 +1445,7 @@
 }
 
 .site-top-row {
-  min-height: 58px;
+  min-height: 52px;
 }
 
 .site-primary-nav {
@@ -1521,6 +1521,10 @@
   border-radius: 18px;
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
 }
+
+.site-workspace-group { display: grid; gap: 6px; align-content: start; }
+.site-workspace-group h2 { margin: 0 4px; color: #475569; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+:root[data-theme="dark"] .site-workspace-group h2 { color: #cbd5e1; }
 
 .site-workspace-menu-link {
   display: flex;

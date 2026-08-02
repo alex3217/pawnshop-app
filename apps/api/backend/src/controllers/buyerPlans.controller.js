@@ -4,6 +4,7 @@ import {
   getBuyerPlanCatalog,
 } from "../services/platformPricingCatalog.service.js";
 import { getBuyerEntitlementsForUser } from "../services/buyerEntitlements.service.js";
+import { setAuthenticatedBuyerStripeCancellation } from "../services/buyerSelfServiceSubscription.service.js";
 
 const BUYER_SUBSCRIPTION_STATUSES = [
   "UNKNOWN",
@@ -263,6 +264,28 @@ export async function cancelMyBuyerSubscription(req, res) {
   } catch (error) {
     return sendError(res, error);
   }
+}
+
+async function setMyStripeCancellation(req, res, cancelAtPeriodEnd) {
+  try {
+    const userId = req?.user?.sub;
+    if (!userId) return res.status(401).json({ success: false, error: "Unauthorized" });
+    const result = await setAuthenticatedBuyerStripeCancellation({ userId, cancelAtPeriodEnd });
+    return res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to update buyer subscription");
+  }
+}
+
+export function scheduleMyBuyerSubscriptionCancellation(req, res) {
+  return setMyStripeCancellation(req, res, true);
+}
+
+export function resumeMyBuyerSubscription(req, res) {
+  return setMyStripeCancellation(req, res, false);
 }
 
 export async function adminListBuyerSubscriptions(req, res) {

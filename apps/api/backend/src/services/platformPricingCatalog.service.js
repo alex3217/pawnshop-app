@@ -168,21 +168,32 @@ async function getActivePricingRuleMap() {
 }
 
 function applyBuyerPlanPricingOverrides(plans, ruleMap) {
-  return plans.map((plan) => {
+  return plans.map((plan, rank) => {
     const code = normalizeRuleKey(plan.code);
     const monthlyRule = ruleMap.get(`buyer_plan_${code}_monthly`);
     const yearlyRule = ruleMap.get(`buyer_plan_${code}_yearly`);
 
+    const monthlyPriceCents = toNumberOrFallback(
+      monthlyRule?.amountCents,
+      plan.monthlyPriceCents,
+    );
+    const yearlyPriceCents = toNumberOrFallback(
+      yearlyRule?.amountCents,
+      plan.yearlyPriceCents,
+    );
+    const isFree = plan.code === "FREE";
+
     return {
       ...plan,
-      monthlyPriceCents: toNumberOrFallback(
-        monthlyRule?.amountCents,
-        plan.monthlyPriceCents,
-      ),
-      yearlyPriceCents: toNumberOrFallback(
-        yearlyRule?.amountCents,
-        plan.yearlyPriceCents,
-      ),
+      monthlyPriceCents,
+      yearlyPriceCents,
+      currency: String(monthlyRule?.currency || yearlyRule?.currency || "USD").toUpperCase(),
+      annualSavingsCents: calculateAnnualSavings(monthlyPriceCents, yearlyPriceCents),
+      isPaid: !isFree,
+      isFree,
+      rank,
+      stripeMonthlyPriceId: normalizeOptionalText(monthlyRule?.stripePriceId),
+      stripeYearlyPriceId: normalizeOptionalText(yearlyRule?.stripePriceId),
     };
   });
 }

@@ -6,6 +6,7 @@ import {
   createStripeRefund,
   getStripeConfig,
   createSubscriptionCheckoutSession,
+  createBuyerSubscriptionCheckoutSession,
   createSettlementPaymentIntent,
 } from "../controllers/stripe.controller.js";
 import { createBillingPortalSession, createPaymentMethodSetupSession, listPaymentMethods, removePaymentMethod, setDefaultPaymentMethod } from "../controllers/paymentMethods.controller.js";
@@ -219,6 +220,14 @@ router.post(
   validateObjectBody,
   normalizeSubscriptionCheckoutBody,
   asyncRoute(createSubscriptionCheckoutSession)
+);
+
+router.post(
+  "/checkout/buyer-subscription",
+  authRequired,
+  requireRole("CONSUMER", "ADMIN"),
+  validateObjectBody,
+  asyncRoute(createBuyerSubscriptionCheckoutSession),
 );
 
 /**

@@ -9,8 +9,11 @@ export type BuyerPlanUsage = {
   implementation: Record<string, boolean>;
   coreCommerce: Record<string, boolean>;
 };
-export type BuyerPlanCatalogEntry = { code: string; label: string; monthlyPriceCents: number; yearlyPriceCents: number; maxSavedSearches: number | null; maxWatchlistItems: number | null; features: string[] };
+export type BuyerPlanCatalogEntry = { code: "FREE" | "PLUS" | "PREMIUM" | "ULTRA"; label: string; monthlyPriceCents: number; yearlyPriceCents: number; currency: string; annualSavingsCents: number; isPaid: boolean; isFree: boolean; rank: number; stripeMonthlyPriceId: string | null; stripeYearlyPriceId: string | null; maxSavedSearches: number | null; maxWatchlistItems: number | null; features: string[] };
 
 export function getBuyerPlanUsage(signal?: AbortSignal) { return api.get<BuyerPlanUsage>("/buyer-plans/mine/usage", { signal }); }
 export function getBuyerPlanCatalog(signal?: AbortSignal) { return api.get<{ success: true; plans: BuyerPlanCatalogEntry[] }>("/buyer-plans", { auth: false, signal }); }
+export function createBuyerCheckout(planCode: string, billingInterval: "MONTH" | "YEAR", successUrl: string, cancelUrl: string) { return api.post<{ success: true; url: string }>("/stripe/checkout/buyer-subscription", { planCode, billingInterval, successUrl, cancelUrl }, { headers: { "Idempotency-Key": crypto.randomUUID() } }); }
+export function manageBuyerCancellation(cancel: boolean) { return api.post<{ success: true; pendingWebhookSync: boolean; cancelAtPeriodEnd: boolean }>(cancel ? "/buyer-plans/mine/cancel-at-period-end" : "/buyer-plans/mine/resume", {}); }
+export function openBuyerBillingPortal(returnUrl: string) { return api.post<{ success: true; url: string }>("/stripe/billing-portal", { returnUrl }); }
 export function formatBuyerLimit(value: number | null) { return value === null ? "Unlimited" : String(value); }

@@ -30,6 +30,9 @@ import {
 import {
   syncStripeSubscriptionEvent,
 } from "../services/stripeSubscriptionWebhook.service.js";
+import { createBuyerSubscriptionCheckout } from "../services/buyerSubscriptionCheckout.service.js";
+import { syncBuyerSubscriptionEvent } from "../services/buyerSubscriptionWebhook.service.js";
+import { validateStripeConnectReturnUrl } from "../services/stripeConnect.service.js";
 
 const PI_REUSABLE_STATUSES = new Set([
   "requires_payment_method",
@@ -374,6 +377,30 @@ export async function createSubscriptionCheckoutSession(req, res) {
   }
 }
 
+export async function createBuyerSubscriptionCheckoutSession(req, res) {
+  try {
+    const userId = getRequestUserId(req);
+    const requestedSuccessUrl = validateStripeConnectReturnUrl(req.body?.successUrl, "successUrl");
+    const requestedCancelUrl = validateStripeConnectReturnUrl(req.body?.cancelUrl, "cancelUrl");
+    const successOrigin = new URL(requestedSuccessUrl).origin;
+    const cancelOrigin = new URL(requestedCancelUrl).origin;
+    const successUrl = `${successOrigin}/buyer/subscription?checkout=success`;
+    const cancelUrl = `${cancelOrigin}/buyer/subscription?checkout=canceled`;
+    const requestId = req.headers["idempotency-key"];
+    if (typeof requestId !== "string") throw createHttpError("A valid Idempotency-Key header is required.", 400);
+    const result = await createBuyerSubscriptionCheckout({
+      userId,
+      input: req.body,
+      successUrl,
+      cancelUrl,
+      requestId,
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (err) {
+    return errorResponse(res, err, "Failed to create buyer subscription checkout session");
+  }
+}
+
 export async function createSettlementPaymentIntent(req, res) {
   try {
     getRequestUser(req);
@@ -615,6 +642,8 @@ export async function handleStripeWebhook(req, res) {
       case "invoice.paid":
       case "invoice.payment_succeeded":
       case "invoice.payment_failed": {
+        const buyerResult = await syncBuyerSubscriptionEvent({ event, prismaClient: prisma });
+        if (buyerResult.handled) break;
         await syncStripeSubscriptionEvent({ event, prismaClient: prisma });
         break;
       }

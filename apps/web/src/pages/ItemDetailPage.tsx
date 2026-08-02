@@ -16,6 +16,8 @@ import {
 } from "../services/items";
 import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import { addToWatchlist } from "../services/watchlist";
+import { recordRecentlyViewed, RECENTLY_VIEWED_ENABLED_KEY } from "../services/recentlyViewed.mjs";
+import { getBuyerPreferences } from "../services/buyerPreferences";
 import "../styles/item-detail-v2.css";
 
 function normalizeLabel(value: string | null | undefined, fallback: string) {
@@ -263,6 +265,21 @@ export default function ItemDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!item || getAuthRole() !== "CONSUMER") return;
+    const controller = new AbortController();
+    void getBuyerPreferences(controller.signal).then((preferences) => {
+      try { localStorage.setItem(RECENTLY_VIEWED_ENABLED_KEY, String(preferences.recentlyViewedEnabled)); } catch { /* Storage unavailable means recording safely no-ops. */ }
+      if (preferences.recentlyViewedEnabled) recordRecentlyViewed({
+        itemId: item.id, title: normalizeLabel(item.title, "Untitled item"),
+        imageUrl: item.images?.[0] || null, priceLabel: formatPrice(item.price),
+        shopName: item.shop?.name || null, href: `/items/${encodeURIComponent(item.id)}`,
+        viewedAt: new Date().toISOString(),
+      });
+    }).catch(() => { /* Do not record until the privacy preference is known. */ });
+    return () => controller.abort();
+  }, [item]);
 
 
   useEffect(() => {
