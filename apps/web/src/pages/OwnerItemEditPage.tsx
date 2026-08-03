@@ -9,6 +9,9 @@ import {
   updateItem,
   type Item,
 } from "../services/items";
+import ProductImageManager from "../components/ProductImageManager";
+import AiListingAssistantPanel from "../components/AiListingAssistantPanel";
+import { getShopItemPhotoLimit } from "../services/ownerWorkspace";
 
 function formatPrice(value: string | number) {
   const num = Number(value);
@@ -75,6 +78,8 @@ export default function OwnerItemEditPage() {
   const [price, setPrice] = useState("100");
   const [category, setCategory] = useState("Electronics");
   const [condition, setCondition] = useState("Good");
+  const [images, setImages] = useState<string[]>([]);
+  const [imageLimit, setImageLimit] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -109,6 +114,8 @@ export default function OwnerItemEditPage() {
         setPrice(String(nextItem.price || "100"));
         setCategory(normalizeOption(nextItem.category || "Electronics", ITEM_CATEGORY_OPTIONS, "Electronics"));
         setCondition(normalizeOption(nextItem.condition || "Good", ITEM_CONDITION_OPTIONS, "Good"));
+        setImages(Array.isArray(nextItem.images) ? [...nextItem.images] : []);
+        void getShopItemPhotoLimit(nextItem.pawnShopId).then(setImageLimit).catch((cause) => setError(cause instanceof Error ? cause.message : "Failed to load the seller image limit."));
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load item.");
@@ -156,6 +163,7 @@ export default function OwnerItemEditPage() {
         price: parsedPrice,
         category,
         condition,
+        images,
       });
 
       setItem(updated);
@@ -266,6 +274,8 @@ export default function OwnerItemEditPage() {
         {error ? <div style={styles.error}>{error}</div> : null}
 
         <form onSubmit={onSubmit} style={styles.form}>
+          <AiListingAssistantPanel fields={{ title, description, category, condition, price, images, shopName: item.shop?.name }} onApply={(next) => { setTitle(next.title); setDescription(next.description); setCategory(normalizeOption(next.category, ITEM_CATEGORY_OPTIONS, category)); setCondition(normalizeOption(next.condition, ITEM_CONDITION_OPTIONS, condition)); }} disabled={saving} />
+          {imageLimit === null ? <p role="status">Loading seller image limit…</p> : <ProductImageManager images={images} onChange={setImages} limit={imageLimit} label="Inventory item images" disabled={saving} />}
           <label style={styles.field}>
             Title
             <input

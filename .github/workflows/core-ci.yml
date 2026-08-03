@@ -1,9 +1,8 @@
 name: PawnShop Core CI
 
 on:
-  pull_request:
-    branches:
-      - main
+  # Validate every pull request, including stacked PRs.
+  pull_request: {}
   push:
     branches:
       - main
@@ -16,13 +15,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secret-scanner-candidate-validation:
+    name: Secret Scanner Candidate Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out complete repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+
+      - name: Test secret scanner
+        run: node --test scripts/secret-scan.test.mjs
+
+      - name: Scan tracked files
+        run: node scripts/secret-scan.mjs --tracked
+
+      - name: Scan introduced history
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash scripts/ci-secret-history-scan.sh
+
   web-api-validation:
     name: Web and API Validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pawnshop_ci?schema=public
+      DATABASE_URL: postgresql://example-user:test-only-password@127.0.0.1:5432/pawnshop_ci?schema=public
 
     steps:
       - name: Check out repository
@@ -117,13 +148,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: example_user
+          POSTGRES_PASSWORD: test-only-password
           POSTGRES_DB: pawnshop_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d pawnshop_test"
+          --health-cmd "pg_isready -U example_user -d pawnshop_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -132,8 +163,8 @@ jobs:
       NODE_ENV: test
       APP_ENV: test
       AUCTION_SCHEDULER_ENABLED: "false"
-      JWT_SECRET: pawnloop-core-tests-only-secret-2026-not-for-production
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pawnshop_test?schema=public
+      JWT_SECRET: not-for-production-jwt-signing-secret
+      DATABASE_URL: postgresql://example_user:test-only-password@127.0.0.1:5432/pawnshop_test?schema=public
       CONFIRM_DISPOSABLE_DATABASE: YES_DELETE_TEST_DATA
 
     steps:

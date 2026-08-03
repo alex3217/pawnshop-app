@@ -23,9 +23,10 @@ export function resolveTransactionFamily(record = {}) {
   const type = normalized(record.type || record.transactionType);
   const listingType = normalized(record.listingType || record.listing?.listingType);
   const intent = normalized(record.intent || record.submission?.intent);
+  const preference = normalized(record.shopTransactionPreference || record.submission?.shopTransactionPreference);
 
   if (type === "DEALER_TRANSFER" || listingType === "SHOP_TO_SHOP") return TRANSACTION_FAMILIES.DEALER;
-  if (type === "CUSTOMER_SELL_TO_SHOP") return intent.includes("PAWN") && !intent.includes("SELL") ? TRANSACTION_FAMILIES.CUSTOMER_PAWN : TRANSACTION_FAMILIES.CUSTOMER_SELL;
+  if (type === "CUSTOMER_SELL_TO_SHOP") return preference === "PAWN" || (!preference && intent.includes("PAWN") && !intent.includes("SELL")) ? TRANSACTION_FAMILIES.CUSTOMER_PAWN : TRANSACTION_FAMILIES.CUSTOMER_SELL;
   if (listingType === "CUSTOMER_TO_SHOP") return intent.includes("PAWN") ? TRANSACTION_FAMILIES.CUSTOMER_PAWN : TRANSACTION_FAMILIES.CUSTOMER_SELL;
   if (listingType === "CUSTOMER_TO_CUSTOMER") return TRANSACTION_FAMILIES.COMMUNITY;
   if (["DIRECT_PURCHASE", "ACCEPTED_OFFER"].includes(type) || listingType === "SHOP_TO_CUSTOMER") return TRANSACTION_FAMILIES.RETAIL;

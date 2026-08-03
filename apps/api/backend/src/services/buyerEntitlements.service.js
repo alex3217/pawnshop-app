@@ -9,7 +9,16 @@ import {
 const RESOURCE_LIMITS = Object.freeze({
   savedSearches: "maxSavedSearches",
   watchlistItems: "maxWatchlistItems",
+  activeShopRequests: "maxActiveShopRequests",
+  monthlyShopRequests: "maxMonthlyShopRequests",
+  activeMarketplaceListings: "maxActiveMarketplaceListings",
+  monthlyMarketplaceListings: "maxMonthlyMarketplaceListings",
+  aiListingGenerations: "maxAiListingGenerationsPerMonth",
 });
+
+export const ACTIVE_SHOP_REQUEST_STATUSES = Object.freeze(["SUBMITTED", "REVIEWING", "OFFERED", "NEEDS_INFO"]);
+export const ACTIVE_MARKETPLACE_LISTING_STATUSES = Object.freeze(["DRAFT", "ACTIVE", "RESERVED", "PAUSED"]);
+const SHOP_CHANNEL_INTENTS = Object.freeze(["SHOP_OFFERS", "BOTH", "PAWN_OFFERS"]);
 
 const IMPLEMENTATION_STATUS = Object.freeze({
   savedSearches: true,
@@ -64,6 +73,13 @@ export function buildBuyerEntitlements({ subscription = null, counts = {} } = {}
     },
     entitlements: {
       savedSearchLimit: plan.maxSavedSearches,
+      maxActiveShopRequests: plan.maxActiveShopRequests,
+      maxMonthlyShopRequests: plan.maxMonthlyShopRequests,
+      maxActiveMarketplaceListings: plan.maxActiveMarketplaceListings,
+      maxMonthlyMarketplaceListings: plan.maxMonthlyMarketplaceListings,
+      maxSellItemPhotos: plan.maxSellItemPhotos,
+      maxSellRadiusMiles: plan.maxSellRadiusMiles,
+      maxAiListingGenerationsPerMonth: plan.maxAiListingGenerationsPerMonth,
       wishListLimit: plan.wishListLimit,
       favoriteLimit: plan.favoriteLimit,
       comparisonLimit: plan.comparisonLimit,
@@ -88,6 +104,11 @@ export function buildBuyerEntitlements({ subscription = null, counts = {} } = {}
     usage: {
       savedSearches: limitUsage(Number(counts.savedSearches || 0), plan.maxSavedSearches),
       watchlistItems: limitUsage(Number(counts.watchlistItems || 0), plan.maxWatchlistItems),
+      activeShopRequests: limitUsage(Number(counts.activeShopRequests || 0), plan.maxActiveShopRequests),
+      monthlyShopRequests: limitUsage(Number(counts.monthlyShopRequests || 0), plan.maxMonthlyShopRequests),
+      activeMarketplaceListings: limitUsage(Number(counts.activeMarketplaceListings || 0), plan.maxActiveMarketplaceListings),
+      monthlyMarketplaceListings: limitUsage(Number(counts.monthlyMarketplaceListings || 0), plan.maxMonthlyMarketplaceListings),
+      aiListingGenerations: limitUsage(Number(counts.aiListingGenerations || 0), plan.maxAiListingGenerationsPerMonth),
       wishLists: limitUsage(Number(counts.wishLists || 0), plan.wishListLimit),
       comparisons: limitUsage(Number(counts.comparisons || 0), plan.comparisonLimit),
       collectionItems: limitUsage(Number(counts.collectionItems || 0), plan.collectionItemLimit),
@@ -104,21 +125,41 @@ export function buildBuyerEntitlements({ subscription = null, counts = {} } = {}
       auctions: true,
       orderTracking: true,
       paymentMethods: true,
+      shopSubmissions: true,
+      marketplaceSelling: true,
     },
   };
 }
 
 export async function getBuyerEntitlementsForUser(userId, prismaClient = prisma) {
-  const [subscription, savedSearches, watchlistItems] = await Promise.all([
-    prismaClient.buyerSubscription.findUnique({ where: { userId } }),
-    prismaClient.savedSearch.count({ where: { userId } }),
-    prismaClient.watchlist.count({ where: { userId } }),
+  const subscription = await prismaClient.buyerSubscription.findUnique({ where: { userId } });
+  const effectivePlanCode = effectivePlan(subscription);
+  const now = new Date();
+  const calendarStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const paidPeriodStart = effectivePlanCode !== BUYER_PLAN_CODES.FREE && subscription?.currentPeriodStart
+    ? new Date(subscription.currentPeriodStart)
+    : null;
+  const monthlyStart = paidPeriodStart && !Number.isNaN(paidPeriodStart.getTime()) ? paidPeriodStart : calendarStart;
+  const count = (model, args) => model?.count ? model.count(args) : Promise.resolve(0);
+  const [savedSearches, watchlistItems, activeShopRequests, monthlyShopRequests, activeMarketplaceListings, monthlyMarketplaceListings, aiListingGenerations] = await Promise.all([
+    count(prismaClient.savedSearch, { where: { userId } }),
+    count(prismaClient.watchlist, { where: { userId } }),
+    count(prismaClient.buyerItemSubmission, { where: { buyerId: userId, intent: { in: SHOP_CHANNEL_INTENTS }, status: { in: ACTIVE_SHOP_REQUEST_STATUSES } } }),
+    count(prismaClient.buyerItemSubmission, { where: { buyerId: userId, intent: { in: SHOP_CHANNEL_INTENTS }, createdAt: { gte: monthlyStart } } }),
+    count(prismaClient.marketplaceListing, { where: { sellerUserId: userId, listingType: { in: ["CUSTOMER_TO_CUSTOMER", "CUSTOMER_TO_SHOP"] }, status: { in: ACTIVE_MARKETPLACE_LISTING_STATUSES } } }),
+    count(prismaClient.marketplaceListing, { where: { sellerUserId: userId, listingType: { in: ["CUSTOMER_TO_CUSTOMER", "CUSTOMER_TO_SHOP"] }, createdAt: { gte: monthlyStart } } }),
+    count(prismaClient.aiListingGeneration, { where: { userId, createdAt: { gte: monthlyStart } } }),
   ]);
   return buildBuyerEntitlements({
     subscription,
     counts: {
       savedSearches,
       watchlistItems,
+      activeShopRequests,
+      monthlyShopRequests,
+      activeMarketplaceListings,
+      monthlyMarketplaceListings,
+      aiListingGenerations,
       wishLists: watchlistItems > 0 ? 1 : 0,
       activeAlerts: savedSearches,
     },
@@ -142,9 +183,34 @@ export async function assertBuyerResourceCapacity(userId, resource, prismaClient
       displayName: entitlements.subscription.displayName,
       used: usage.used,
       limit: usage.limit,
+      remaining: usage.remaining,
       upgradePath: "/buyer/subscription",
     };
     throw error;
+  }
+  return entitlements;
+}
+
+export function createBuyerPlanLimitError(entitlements, resource, used, limit) {
+  const error = new Error(`You have reached the ${entitlements.subscription.displayName} plan limit for ${resource}.`);
+  error.statusCode = 409;
+  error.code = "BUYER_PLAN_LIMIT_REACHED";
+  error.details = { resource, planCode: entitlements.subscription.effectivePlan, displayName: entitlements.subscription.displayName, used, limit, remaining: limit === null ? null : Math.max(limit - used, 0), upgradePath: "/buyer/subscription" };
+  return error;
+}
+
+export async function assertBuyerSellingCapacity(userId, { resources = [], photoCount, radiusMiles } = {}, prismaClient = prisma) {
+  const entitlements = await getBuyerEntitlementsForUser(userId, prismaClient);
+  for (const resource of resources) {
+    const usage = entitlements.usage[resource];
+    if (usage?.atLimit) throw createBuyerPlanLimitError(entitlements, resource, usage.used, usage.limit);
+  }
+  const attributes = [
+    ["sellItemPhotos", Number(photoCount), entitlements.entitlements.maxSellItemPhotos],
+    ["sellRadiusMiles", Number(radiusMiles), entitlements.entitlements.maxSellRadiusMiles],
+  ];
+  for (const [resource, used, limit] of attributes) {
+    if (Number.isFinite(used) && limit !== null && used > limit) throw createBuyerPlanLimitError(entitlements, resource, used, limit);
   }
   return entitlements;
 }

@@ -33,6 +33,15 @@ export type CheckoutSessionResponse = {
   currency?: string;
 };
 
+export type SellerSubscriptionActionResponse = {
+  success: boolean;
+  pendingWebhookSync: boolean;
+  shopId: string;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
+  effectivePlan: string;
+};
+
 export type OwnerBuyerItemSubmission = {
   id: string;
   buyerId: string;
@@ -172,15 +181,30 @@ export async function getOwnerItems(signal?: AbortSignal): Promise<unknown> {
   return api.get<unknown>("/items/mine", { signal });
 }
 
+export type ShopSellerEntitlementsResponse = {
+  success: true;
+  entitlements: {
+    subscription: { effectivePlan: "FREE" | "PRO" | "PREMIUM" | "ULTRA" | string };
+    limits: { maxItemPhotos: number };
+  };
+};
+
 export async function getShopEntitlements(
   shopId: string,
   signal?: AbortSignal,
-): Promise<unknown> {
+): Promise<ShopSellerEntitlementsResponse> {
   if (!shopId) throw new Error("Missing shop id.");
 
-  return api.get<unknown>(`/shops/${encodeURIComponent(shopId)}/entitlements`, {
+  return api.get<ShopSellerEntitlementsResponse>(`/shops/${encodeURIComponent(shopId)}/entitlements`, {
     signal,
   });
+}
+
+export async function getShopItemPhotoLimit(shopId: string, signal?: AbortSignal): Promise<number> {
+  const response = await getShopEntitlements(shopId, signal);
+  const limit = Number(response.entitlements?.limits?.maxItemPhotos);
+  if (!Number.isInteger(limit) || limit <= 0) throw new Error("The seller image limit is unavailable. Refresh and try again.");
+  return limit;
 }
 
 export async function createSubscriptionCheckoutSession(
@@ -198,8 +222,34 @@ export async function createSubscriptionCheckoutSession(
   return api.post<CheckoutSessionResponse>(
     "/stripe/checkout/subscription",
     input,
-    { signal },
+    {
+      signal,
+      headers: {
+        "Idempotency-Key": globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+      },
+    },
   );
+}
+
+export function cancelSellerSubscription(shopId: string) {
+  return api.post<SellerSubscriptionActionResponse>(
+    `/stripe/shops/${encodeURIComponent(shopId)}/subscription/cancel-at-period-end`,
+    {},
+  );
+}
+
+export function resumeSellerSubscription(shopId: string) {
+  return api.post<SellerSubscriptionActionResponse>(
+    `/stripe/shops/${encodeURIComponent(shopId)}/subscription/resume`,
+    {},
+  );
+}
+
+export function openSellerBillingPortal(shopId: string, returnUrl: string) {
+  return api.post<{ success: boolean; url: string }>("/stripe/billing-portal", {
+    shopId,
+    returnUrl,
+  });
 }
 
 export async function updateShopSubscription(

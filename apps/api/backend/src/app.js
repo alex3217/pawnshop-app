@@ -35,6 +35,7 @@ import settlementsRoutes from "./routes/settlements.routes.js";
 import stripeRoutes from "./routes/stripe.routes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhook.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
+import uploadsRoutes from "./routes/uploads.routes.js";
 import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes.js";
 import ownerApplicationsRoutes from "./routes/ownerApplications.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
@@ -429,6 +430,7 @@ export function createApp(options = {}) {
   mountApi(app, "/settlements", settlementsRoutes);
   mountApi(app, "/stripe", stripeRoutes);
   mountApi(app, "/ai", aiRoutes);
+  mountApi(app, "/uploads", uploadsRoutes);
 
   app.use("/api", sellerPlansRoutes);
   app.use("/api", platformSettingsPublicRoutes);

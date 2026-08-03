@@ -1,3 +1,7 @@
+import { prisma } from "../lib/prisma.js";
+import { getBuyerEntitlementsForUser } from "./buyerEntitlements.service.js";
+import { getSellerEntitlementsForShop } from "./sellerPlan.service.js";
+
 const DEFAULT_MODEL = "gpt-4o-mini";
 
 const LISTING_SCHEMA = {
@@ -77,8 +81,9 @@ function normalizeInput(body = {}) {
   const condition = cleanText(body.condition, "Good");
   const price = cleanText(body.price);
 
-  if (!title && !description) {
-    const err = new Error("Provide a title or description for the AI listing assistant.");
+  const images = Array.isArray(body.images) ? body.images.map(cleanText).filter((value) => /^https:\/\//i.test(value) || /^data:image\/(jpeg|png|webp);base64,/i.test(value)).slice(0, 6) : [];
+  if (!title && !description && !(cleanText(body.category) && cleanText(body.condition)) && !cleanText(body.productCode) && !images.length) {
+    const err = new Error("Provide a title, description, category and condition, product code, or usable image for the AI listing assistant.");
     err.statusCode = 400;
     throw err;
   }
@@ -91,6 +96,7 @@ function normalizeInput(body = {}) {
     price,
     shopName: cleanText(body.shopName),
     notes: cleanText(body.notes),
+    brand: cleanText(body.brand), model: cleanText(body.model), serialNumber: cleanText(body.serialNumber), productCode: cleanText(body.productCode), accessories: cleanText(body.accessories), defects: cleanText(body.defects), pickupAvailable: Boolean(body.pickupAvailable), shippingAvailable: Boolean(body.shippingAvailable), images,
   };
 }
 
@@ -176,15 +182,17 @@ async function callOpenAI(input) {
   const enabled = process.env.AI_LISTING_ASSISTANT_ENABLED !== "false";
 
   if (!enabled) {
-    return buildFallbackSuggestion(input, "AI Listing Assistant is disabled by configuration.");
+    return { ...buildFallbackSuggestion(input, "AI Listing Assistant is disabled by configuration."), _creditEligible: true };
   }
 
   if (!apiKey) {
-    return buildFallbackSuggestion(input, "OPENAI_API_KEY is not configured. Using safe local fallback.");
+    return { ...buildFallbackSuggestion(input, "OPENAI_API_KEY is not configured. Using safe local fallback."), _creditEligible: true };
   }
 
   const model = process.env.OPENAI_LISTING_MODEL || DEFAULT_MODEL;
 
+  const textPrompt = JSON.stringify({ task: "Improve this pawnshop marketplace listing draft.", input: { ...input, images: undefined }, rules: ["Make the title clear and searchable.", "Make the description buyer-friendly but honest.", "Flag missing information instead of inventing facts.", "Never claim authenticity or that an item is not stolen without evidence.", "Never invent a brand, model, serial number, accessories, defects, or condition details.", "Never hide visible damage.", "Never guarantee value, safety, legality, warranty, ownership, or condition.", "Ask the seller to verify brand, model, serial number, accessories, condition, and defects.", "Keep the qualityScore between 0 and 100."] });
+  const userContent = [{ type: "input_text", text: textPrompt }, ...input.images.map((imageUrl) => ({ type: "input_image", image_url: imageUrl, detail: "low" }))];
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -201,18 +209,7 @@ async function callOpenAI(input) {
         },
         {
           role: "user",
-          content: JSON.stringify({
-            task: "Improve this pawnshop marketplace listing draft.",
-            input,
-            rules: [
-              "Make the title clear and searchable.",
-              "Make the description buyer-friendly but honest.",
-              "Flag missing information instead of inventing facts.",
-              "Never say an item is authentic unless the owner provided proof.",
-              "Never guarantee value, safety, legality, warranty, or condition.",
-              "Keep the qualityScore between 0 and 100.",
-            ],
-          }),
+          content: userContent,
         },
       ],
       text: {
@@ -238,32 +235,96 @@ async function callOpenAI(input) {
       providerType,
     });
 
-    return buildFallbackSuggestion(
+    if (input.images.length) {
+      const textOnly = await callOpenAI({ ...input, images: [] });
+      return { ...textOnly, riskWarnings: uniqueStrings([...textOnly.riskWarnings, "Image analysis was unavailable; the suggestion used text and metadata only."]) };
+    }
+    return { ...buildFallbackSuggestion(
       input,
       `OpenAI unavailable (${providerStatus}${providerType ? ` ${providerType}` : ""}). Using safe local fallback.`,
-    );
+    ), _creditEligible: false };
   }
 
   const outputText = extractOutputText(payload);
 
   if (!outputText) {
-    return buildFallbackSuggestion(input, "OpenAI returned no parseable output.");
+    return { ...buildFallbackSuggestion(input, "OpenAI returned no parseable output."), _creditEligible: false };
   }
 
   try {
     const parsed = JSON.parse(outputText);
-    return normalizeSuggestion(parsed, input, "openai");
+    return { ...normalizeSuggestion(parsed, input, "openai"), _creditEligible: true };
   } catch {
-    return buildFallbackSuggestion(input, "OpenAI output could not be parsed.");
+    return { ...buildFallbackSuggestion(input, "OpenAI output could not be parsed."), _creditEligible: false };
   }
+}
+
+function planLimitError({ resource, planCode, displayName, used, limit, upgradePath }) {
+  const error = new Error(`You have reached the ${displayName} plan limit for AI listing generations.`);
+  error.statusCode = 409;
+  error.code = resource === "buyerAiListingGenerations" ? "BUYER_PLAN_LIMIT_REACHED" : "SELLER_PLAN_LIMIT_REACHED";
+  error.details = { resource, planCode, displayName, used, limit, remaining: Math.max(limit - used, 0), upgradePath };
+  return error;
+}
+
+async function resolveUsageScope(req) {
+  const userId = String(req.user?.id || req.user?.sub || "").trim();
+  const role = String(req.user?.role || "").toUpperCase();
+  if (role === "CONSUMER") {
+    const entitlements = await getBuyerEntitlementsForUser(userId);
+    const usage = entitlements.usage.aiListingGenerations;
+    const periodStart = entitlements.subscription.effectivePlan !== "FREE" && entitlements.subscription.currentPeriodStart ? new Date(entitlements.subscription.currentPeriodStart) : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+    return { userId, shopId: null, usage, periodStart, planCode: entitlements.subscription.effectivePlan, displayName: entitlements.subscription.displayName, resource: "buyerAiListingGenerations", upgradePath: "/buyer/subscription" };
+  }
+  if (role === "OWNER") {
+    const requestedShopId = cleanText(req.body?.pawnShopId);
+    const shop = requestedShopId
+      ? await prisma.pawnShop.findFirst({ where: { id: requestedShopId, ownerId: userId, isDeleted: false }, select: { id: true, subscriptionCurrentPeriodEnd: true } })
+      : await prisma.pawnShop.findFirst({ where: { ownerId: userId, isDeleted: false }, orderBy: { createdAt: "asc" }, select: { id: true, subscriptionCurrentPeriodEnd: true } });
+    if (!shop) { const error = new Error("An owned pawn shop is required for AI listing generation."); error.statusCode = 403; throw error; }
+    const entitlements = await getSellerEntitlementsForShop(shop.id);
+    const periodEnd = shop.subscriptionCurrentPeriodEnd ? new Date(shop.subscriptionCurrentPeriodEnd) : null;
+    const periodStart = periodEnd && !Number.isNaN(periodEnd.getTime()) && entitlements.subscription.isUsable ? new Date(Date.UTC(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() - 1, periodEnd.getUTCDate(), periodEnd.getUTCHours(), periodEnd.getUTCMinutes(), periodEnd.getUTCSeconds())) : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+    return { userId: null, shopId: shop.id, usage: entitlements.usage.aiListingGenerations, periodStart, planCode: entitlements.subscription.effectivePlan, displayName: entitlements.subscription.label, resource: "sellerAiListingGenerations", upgradePath: "/owner/subscription" };
+  }
+  return null;
+}
+
+export function assertAiCapacity(scope) {
+  if (scope?.usage?.atLimit) throw planLimitError({ ...scope, used: scope.usage.used, limit: scope.usage.limit });
+}
+
+export async function recordAiCredit(scope, source, prismaClient = prisma) {
+  if (!scope) return null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await prismaClient.$transaction(async (tx) => {
+        const where = scope.userId ? { userId: scope.userId, createdAt: { gte: scope.periodStart } } : { shopId: scope.shopId, createdAt: { gte: scope.periodStart } };
+        const used = await tx.aiListingGeneration.count({ where });
+        if (used >= scope.usage.limit) throw planLimitError({ ...scope, used, limit: scope.usage.limit });
+        await tx.aiListingGeneration.create({ data: { userId: scope.userId, shopId: scope.shopId, source } });
+        return { used: used + 1, limit: scope.usage.limit, remaining: Math.max(scope.usage.limit - used - 1, 0), effectivePlan: scope.planCode, upgradePath: scope.upgradePath };
+      }, { isolationLevel: "Serializable" });
+    } catch (error) {
+      if (error?.code !== "P2034" || attempt === 2) throw error;
+    }
+  }
+  return null;
 }
 
 export async function createListingAssistantSuggestion(req, res) {
   const input = normalizeInput(req.body);
+  const scope = await resolveUsageScope(req);
+  assertAiCapacity(scope);
   const suggestion = await callOpenAI(input);
+  const creditEligible = suggestion._creditEligible === true;
+  delete suggestion._creditEligible;
+  const usage = creditEligible ? await recordAiCredit(scope, suggestion.source) : scope ? { used: scope.usage.used, limit: scope.usage.limit, remaining: scope.usage.remaining, effectivePlan: scope.planCode, upgradePath: scope.upgradePath } : null;
 
   return res.status(200).json({
     success: true,
     suggestion,
+    usageCharged: creditEligible,
+    usage,
   });
 }

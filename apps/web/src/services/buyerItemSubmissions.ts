@@ -1,8 +1,8 @@
 import { api } from "./apiClient";
 
 export type BuyerItemSubmissionIntent =
-  | "PAWN_OFFERS"
-  | "MARKETPLACE_LISTING"
+  | "SHOP_OFFERS"
+  | "MARKETPLACE"
   | "BOTH"
   | string;
 
@@ -27,6 +27,7 @@ export type BuyerItemSubmission = {
   estimatedValue?: string | number | null;
   images: string[];
   intent: BuyerItemSubmissionIntent;
+  shopTransactionPreference: "SELL" | "PAWN" | "EITHER";
   radiusMiles: number;
   status: BuyerItemSubmissionStatus;
   reviewMessage?: string | null;
@@ -63,6 +64,7 @@ export type CreateBuyerItemSubmissionInput = {
   estimatedValue?: string;
   images: string[];
   intent: BuyerItemSubmissionIntent;
+  shopTransactionPreference: "SELL" | "PAWN" | "EITHER";
   radiusMiles: number;
 };
 

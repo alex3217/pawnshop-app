@@ -1051,3 +1051,21 @@ small {
   color: #8df0cc;
   font-weight: 900;
 }
+
+/* guided-tour-wcag-contrast-v1 */
+.react-joyride__tooltip button[data-testid="button-skip"] {
+  color: #334155 !important;
+  opacity: 1 !important;
+}
+
+.react-joyride__tooltip button[data-testid="button-primary"] {
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.react-joyride__tooltip button[data-testid="button-skip"]:focus-visible,
+.react-joyride__tooltip button[data-testid="button-primary"]:focus-visible {
+  outline: 3px solid #f59e0b !important;
+  outline-offset: 3px !important;
+}

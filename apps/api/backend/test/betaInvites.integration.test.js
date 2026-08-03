@@ -7,9 +7,9 @@ import request from "supertest";
 import { digestInviteToken } from "../src/services/betaInvite.service.js";
 import { digestAccountActionToken } from "../src/services/accountActionToken.service.js";
 
-const SECRET = "beta-invite-integration-test-secret";
+const SECRET = "test-only-secret";
 const DOMAIN = "@beta-invite.integration.pawnloop.test";
-const PASSWORD = "BetaInviteSecure123!";
+const PASSWORD = "test-only-password";
 const CONSENT = {
   accepted: true,
   termsVersion: "2026-07-28",

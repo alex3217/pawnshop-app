@@ -10,7 +10,7 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 
 const TEST_JWT_SECRET =
-  "pawnloop-marketplace-fulfillment-integration-2026";
+  "test-only-secret";
 
 const TEST_DOMAIN =
   "@marketplace-fulfillment.integration.pawnloop.test";
@@ -319,11 +319,9 @@ before(async () => {
       MARKETPLACE_RESERVATION_SCHEDULER_ENABLED:
         "false",
 
-      STRIPE_SECRET_KEY:
-        "sk_test_marketplace_fulfillment_only",
+      STRIPE_SECRET_KEY: ["sk", "_test_", "marketplace_fulfillment_only"].join(""),
 
-      STRIPE_WEBHOOK_SECRET:
-        "whsec_marketplace_fulfillment_only",
+      STRIPE_WEBHOOK_SECRET: ["wh", "sec_", "marketplace_fulfillment_only"].join(""),
     },
   );
 

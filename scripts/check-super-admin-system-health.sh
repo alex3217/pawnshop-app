@@ -4,7 +4,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://127.0.0.1:6002/api}"
 WEB_BASE="${WEB_BASE:-http://127.0.0.1:5176}"
 SUPER_ADMIN_EMAIL="${SUPER_ADMIN_EMAIL:-superadmin@pawn.local}"
-SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-SuperAdmin123!}"
+SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:?Required credential is missing}"
 
 echo "===== SUPER ADMIN SYSTEM HEALTH CHECK ====="
 echo "BASE_URL=$BASE_URL"

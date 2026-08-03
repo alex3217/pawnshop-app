@@ -27,8 +27,9 @@ function shopFixture(overrides = {}) {
   };
 }
 
-function mockPrisma(initialShop = shopFixture()) {
+function mockPrisma(initialShop = shopFixture(), initialItems = []) {
   let shop = { ...initialShop };
+  let items = initialItems.map((item) => ({ ...item }));
   const audits = [];
   const notifications = [];
   const client = {
@@ -63,6 +64,10 @@ function mockPrisma(initialShop = shopFixture()) {
         return { count: data.length };
       },
     },
+    item: {
+      findMany: async () => items.filter((item) => !item.isDeleted && ["AVAILABLE", "PENDING"].includes(item.status)).sort((a, b) => b.updatedAt - a.updatedAt).map(({ id }) => ({ id })),
+      updateMany: async ({ where, data }) => { items = items.map((item) => where.id.in.includes(item.id) ? { ...item, ...data } : item); return { count: where.id.in.length }; },
+    },
   };
   client.$transaction = async (callback) => callback(client);
   return {
@@ -72,6 +77,7 @@ function mockPrisma(initialShop = shopFixture()) {
     },
     audits,
     notifications,
+    get items() { return items; },
   };
 }
 
@@ -265,4 +271,15 @@ test("same-second cancellation outranks a successful invoice regardless of event
   assert.equal(result.applied, true);
   assert.equal(db.shop.subscriptionStatus, "CANCELED");
   assert.equal(db.shop.stripeSubscriptionEventType, "customer.subscription.deleted");
+});
+
+test("downgrade preserves every inventory record and moves only excess active products to draft", async () => {
+  const inventory = Array.from({ length: 24 }, (_, index) => ({ id: `item_${index}`, status: "AVAILABLE", isDeleted: false, updatedAt: new Date(2026, 6, 24 - index) }));
+  const db = mockPrisma(shopFixture(), inventory);
+  const subscription = { id: "sub_1", customer: "cus_1", status: "canceled", canceled_at: 1_785_283_200, metadata: { shopId: "shop_1", planCode: "PRO" } };
+  await syncStripeSubscriptionEvent({ event: event("customer.subscription.deleted", subscription, { id: "evt_preserve_inventory" }), prismaClient: db.client });
+  assert.equal(db.items.length, 24);
+  assert.equal(db.items.filter((item) => item.status === "AVAILABLE").length, 20);
+  assert.equal(db.items.filter((item) => item.status === "DRAFT").length, 4);
+  assert.match(db.notifications.at(-1).message, /preserved as drafts/i);
 });

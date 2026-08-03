@@ -13,6 +13,9 @@ import { getMyWatchlist, type WatchlistEntry } from "../services/watchlist";
 import { getMySavedSearches, type SavedSearch } from "../services/savedSearches";
 import { getMySettlements, type Settlement } from "../services/settlements";
 import { clearRecentlyViewed, readRecentlyViewed, type RecentlyViewedItem } from "../services/recentlyViewed.mjs";
+import { getBuyerPlanUsage, type BuyerPlanUsage } from "../services/buyerPlans";
+import { getMyBuyerItemSubmissionOffers } from "../services/buyerItemSubmissions";
+import { getMyMarketplaceSales } from "../services/marketplaceTransactions";
 
 type ViewMode = "grid" | "list" | "map";
 
@@ -188,6 +191,9 @@ export default function BuyerDashboardPage() {
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [sellingUsage, setSellingUsage] = useState<BuyerPlanUsage | null>(null);
+  const [newShopOffers, setNewShopOffers] = useState(0);
+  const [marketplaceSales, setMarketplaceSales] = useState(0);
   const [discoveryItems, setDiscoveryItems] = useState<BuyerDashboardItem[]>([]);
   const [nearbyShops, setNearbyShops] = useState<BuyerDashboardShop[]>([]);
   const [liveAuctions, setLiveAuctions] = useState<BuyerDashboardAuction[]>([]);
@@ -219,6 +225,9 @@ export default function BuyerDashboardPage() {
         savedSearchesResult,
         settlementsResult,
         discoveryResult,
+        sellingUsageResult,
+        shopOffersResult,
+        marketplaceSalesResult,
       ] = await Promise.allSettled([
         getMyBids(),
         getMyOffers(),
@@ -226,6 +235,9 @@ export default function BuyerDashboardPage() {
         getMySavedSearches(),
         getMySettlements(),
         getBuyerDashboardDiscovery(),
+        getBuyerPlanUsage(),
+        getMyBuyerItemSubmissionOffers(),
+        getMyMarketplaceSales({ limit: 1 }),
       ]);
 
       const nextBids = settledValue(bidsResult, "bids", errors);
@@ -234,12 +246,18 @@ export default function BuyerDashboardPage() {
       const nextSavedSearches = settledValue(savedSearchesResult, "saved searches", errors);
       const nextSettlements = settledValue(settlementsResult, "settlements", errors);
       const nextDiscovery = settledValue(discoveryResult, "marketplace discovery", errors);
+      const nextSellingUsage = settledValue(sellingUsageResult, "selling usage", errors);
+      const nextShopOffers = settledValue(shopOffersResult, "shop offers", errors);
+      const nextMarketplaceSales = settledValue(marketplaceSalesResult, "marketplace sales", errors);
 
       if (nextBids) setBids(nextBids);
       if (nextOffers) setOffers(nextOffers);
       if (nextWatchlist) setWatchlist(nextWatchlist);
       if (nextSavedSearches) setSavedSearches(nextSavedSearches);
       if (nextSettlements) setSettlements(nextSettlements);
+      if (nextSellingUsage) setSellingUsage(nextSellingUsage);
+      if (nextShopOffers) setNewShopOffers(nextShopOffers.filter((offer) => normalizeStatus(offer.status) === "PENDING").length);
+      if (nextMarketplaceSales) setMarketplaceSales(nextMarketplaceSales.pagination.total);
 
       if (nextDiscovery) {
         setDiscoveryItems(nextDiscovery.items);
@@ -443,6 +461,10 @@ export default function BuyerDashboardPage() {
       ) : null}
 
       <section className="bd-stats">
+        <StatCard label="Active shop requests" value={String(sellingUsage?.usage.activeShopRequests.used ?? 0)} helper={sellingUsage?.usage.activeShopRequests.unlimited ? "Unlimited capacity" : `${sellingUsage?.usage.activeShopRequests.remaining ?? 0} remaining`} />
+        <StatCard label="New shop offers" value={String(newShopOffers)} helper="Pawnshop responses awaiting review" />
+        <StatCard label="Active marketplace listings" value={String(sellingUsage?.usage.activeMarketplaceListings.used ?? 0)} helper={sellingUsage?.usage.activeMarketplaceListings.unlimited ? "Unlimited capacity" : `${sellingUsage?.usage.activeMarketplaceListings.remaining ?? 0} remaining`} />
+        <StatCard label="Marketplace sales" value={String(marketplaceSales)} helper="API-backed seller transactions" />
         <StatCard
           label="Active bids"
           value={String(dashboardSummary.activeBids)}

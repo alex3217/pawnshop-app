@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 
 const TEST_JWT_SECRET =
-  "pawnloop-core-tests-only-secret-2026-not-for-production";
+  "test-only-secret";
 
 let app;
 let createApp;

@@ -18,7 +18,7 @@ beforeEach(() => {
   process.env.NODE_ENV = "test";
   process.env.EMAIL_PROVIDER = "resend";
   process.env.EMAIL_FROM = "PawnLoop <no-reply@notifications.pawnloop.com>";
-  process.env.RESEND_API_KEY = "test-only-key";
+  process.env.RESEND_API_KEY = "fake-api-key";
   process.env.RESEND_API_TIMEOUT_MS = "10000";
   process.env.WEB_URL = "https://pawnloop.test";
   resetTransactionalEmailForTests();

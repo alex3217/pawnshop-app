@@ -22,6 +22,7 @@ function createFakeStripe(price) {
     retrieve: 0,
     checkoutCreate: 0,
     checkoutParams: null,
+    checkoutOptions: null,
   };
 
   return {
@@ -38,9 +39,10 @@ function createFakeStripe(price) {
     },
     checkout: {
       sessions: {
-        async create(params) {
+        async create(params, options) {
           calls.checkoutCreate += 1;
           calls.checkoutParams = params;
+          calls.checkoutOptions = options;
 
           return {
             id: "cs_test_validated",
@@ -120,6 +122,22 @@ test("creates Checkout only after a valid Price passes", async () => {
       },
     ],
   );
+});
+
+test("passes seller Checkout idempotency options to Stripe", async () => {
+  const stripe = createFakeStripe(validMonthlyPrice());
+  await createValidatedSellerSubscriptionCheckoutSession({
+    stripe,
+    catalog: TEST_CATALOG,
+    planCode: "PRO",
+    billingInterval: "MONTH",
+    stripeSecretKey: "sk_test_core_only",
+    checkoutParams: { mode: "subscription", customer: "cus_shop" },
+    checkoutOptions: { idempotencyKey: "seller-subscription:shop:PRO:MONTH:request" },
+  });
+  assert.deepEqual(stripe.calls.checkoutOptions, {
+    idempotencyKey: "seller-subscription:shop:PRO:MONTH:request",
+  });
 });
 
 test("amount mismatch blocks Checkout Session creation", async () => {

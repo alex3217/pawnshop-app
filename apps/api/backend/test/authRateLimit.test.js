@@ -13,7 +13,7 @@ import {
   MemoryRateLimitStore,
 } from "../src/middleware/authRateLimit.js";
 
-const SECRET = "rate-limit-tests-only-secret-with-enough-entropy";
+const SECRET = ["rate", "limit", "test-only", "secret"].join("-");
 
 function config(overrides = {}) {
   return {

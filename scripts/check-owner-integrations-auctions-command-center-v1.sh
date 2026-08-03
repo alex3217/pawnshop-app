@@ -4,7 +4,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://127.0.0.1:6002/api}"
 WEB_BASE="${WEB_BASE:-http://127.0.0.1:5176}"
 OWNER_EMAIL="${OWNER_EMAIL:-owner1@pawn.local}"
-OWNER_PASSWORD="${OWNER_PASSWORD:-Owner123!}"
+OWNER_PASSWORD="${OWNER_PASSWORD:?Required credential is missing}"
 
 echo "===== OWNER INTEGRATIONS + AUCTIONS COMMAND CENTER V1 CHECK ====="
 

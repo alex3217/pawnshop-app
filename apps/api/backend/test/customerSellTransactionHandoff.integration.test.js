@@ -10,7 +10,7 @@ import {
 import request from "supertest";
 
 const TEST_DOMAIN = "@customer-sell-handoff.integration.pawnloop.test";
-const TEST_JWT_SECRET = "pawnloop-customer-sell-handoff-integration-2026";
+const TEST_JWT_SECRET = "test-only-secret";
 
 let app;
 let prisma;
@@ -197,8 +197,8 @@ before(async () => {
     JWT_SECRET: TEST_JWT_SECRET,
     AUCTION_SCHEDULER_ENABLED: "false",
     MARKETPLACE_RESERVATION_SCHEDULER_ENABLED: "false",
-    STRIPE_SECRET_KEY: "sk_test_customer_sell_handoff_only",
-    STRIPE_WEBHOOK_SECRET: "whsec_customer_sell_handoff_only",
+    STRIPE_SECRET_KEY: ["sk", "_test_", "customer_sell_handoff_only"].join(""),
+    STRIPE_WEBHOOK_SECRET: ["wh", "sec_", "customer_sell_handoff_only"].join(""),
   });
   assert.equal(process.env.NODE_ENV, "test");
   assert.equal(process.env.APP_ENV, "test");

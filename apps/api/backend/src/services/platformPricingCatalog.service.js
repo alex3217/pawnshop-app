@@ -274,6 +274,16 @@ function applySellerPlanPricingOverrides(plans, ruleMap) {
       maxActiveListings,
       trialMaxActiveListings,
 
+      maxItemPhotos: toNullableNonNegativeIntegerOrFallback(
+        metadata.maxItemPhotos,
+        plan.maxItemPhotos,
+      ),
+
+      maxAiListingGenerationsPerMonth: toNullableNonNegativeIntegerOrFallback(
+        metadata.maxAiListingGenerationsPerMonth,
+        plan.maxAiListingGenerationsPerMonth,
+      ),
+
       maxLocations:
         toNullableNonNegativeIntegerOrFallback(
           metadata.maxLocations,
@@ -373,6 +383,13 @@ export async function getSellerPlanCatalog() {
         plan.maxStaffUsers === null
           ? null
           : Number(plan.maxStaffUsers || 0),
+
+      maxItemPhotos:
+        plan.maxItemPhotos === null
+          ? null
+          : Number(plan.maxItemPhotos || 0),
+
+      maxAiListingGenerationsPerMonth: Number(plan.maxAiListingGenerationsPerMonth || 0),
 
       canCreateAuctions:
         Boolean(plan.canCreateAuctions),

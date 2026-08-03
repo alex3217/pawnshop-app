@@ -10,7 +10,7 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 
 const TEST_JWT_SECRET =
-  "pawnloop-marketplace-reservation-tests-2026";
+  "test-only-secret";
 
 const TEST_DOMAIN =
   "@marketplace-reserve.integration.pawnloop.test";

@@ -7,7 +7,7 @@ test("authoritative seller prices and FREE/trial limits match billing policy", (
   assert.deepEqual(Object.keys(SELLER_PLANS), ["FREE", "PRO", "PREMIUM", "ULTRA"]);
   assert.deepEqual([SELLER_PLANS.FREE.monthlyPriceCents, SELLER_PLANS.PRO.monthlyPriceCents, SELLER_PLANS.PREMIUM.monthlyPriceCents, SELLER_PLANS.ULTRA.monthlyPriceCents], [0, 4900, 14900, 29900]);
   assert.deepEqual([SELLER_PLANS.FREE.yearlyPriceCents, SELLER_PLANS.PRO.yearlyPriceCents, SELLER_PLANS.PREMIUM.yearlyPriceCents, SELLER_PLANS.ULTRA.yearlyPriceCents], [0, 49000, 149000, 299000]);
-  assert.equal(SELLER_PLANS.FREE.maxActiveListings, 25);
+  assert.equal(SELLER_PLANS.FREE.maxActiveListings, 20);
   assert.equal(SELLER_PLANS.FREE.trialMaxActiveListings, 50);
 });
 

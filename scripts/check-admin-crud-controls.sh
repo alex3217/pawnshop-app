@@ -3,7 +3,7 @@ set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://127.0.0.1:6002/api}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin1@example.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:?Required credential is missing}"
 
 echo "===== ADMIN CRUD CONTROLS CHECK ====="
 echo "BASE_URL=$BASE_URL"

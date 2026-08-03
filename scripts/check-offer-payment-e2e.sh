@@ -14,9 +14,9 @@ API_BASE="${API_BASE:-http://127.0.0.1:6002/api}"
 API_ROOT="${API_ROOT:-http://127.0.0.1:6002}"
 
 BUYER_EMAIL="${BUYER_EMAIL:-buyer@pawn.local}"
-BUYER_PASSWORD="${BUYER_PASSWORD:-Buyer123!}"
+BUYER_PASSWORD="${BUYER_PASSWORD:?Required credential is missing}"
 OWNER_EMAIL="${OWNER_EMAIL:-owner1@pawn.local}"
-OWNER_PASSWORD="${OWNER_PASSWORD:-Owner123!}"
+OWNER_PASSWORD="${OWNER_PASSWORD:?Required credential is missing}"
 
 LAST_BODY="$OUT/last-response.json"
 
