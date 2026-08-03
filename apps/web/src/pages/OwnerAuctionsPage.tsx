@@ -410,10 +410,10 @@ function OwnerAuctionDetailCell({
   return (
     <div
       style={{
-        border: "1px solid rgba(148,163,184,0.18)",
+        border: "1px solid var(--owner-auction-soft-border)",
         borderRadius: 12,
         padding: "10px 12px",
-        background: "rgba(15,23,42,0.45)",
+        background: "var(--owner-auction-soft-panel-bg)",
         display: "grid",
         gap: 4,
       }}
@@ -1796,8 +1796,8 @@ export default function OwnerAuctionsPage() {
                     style={{
                       borderRadius: 12,
                       padding: "10px 12px",
-                      background: "rgba(110,168,254,0.10)",
-                      border: "1px solid rgba(110,168,254,0.22)",
+                      background: "var(--owner-auction-info-bg)",
+                      border: "1px solid var(--owner-auction-info-border)",
                       color: "var(--owner-auction-muted)",
                       fontWeight: 800,
                       fontSize: 13,

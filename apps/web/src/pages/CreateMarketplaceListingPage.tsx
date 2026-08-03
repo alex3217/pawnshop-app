@@ -746,7 +746,7 @@ export default function CreateMarketplaceListingPage() {
           </p>
 
           <div className="create-listing-field-grid">
-            {imageLimit === null ? <p role="status">Loading seller image limit…</p> : <ProductImageManager images={images} onChange={setImages} limit={imageLimit} label="Marketplace listing images" disabled={submitting} showUrlOption />}
+            {imageLimit === null ? <p className="create-listing-loading-status" role="status">Loading seller image limit…</p> : <ProductImageManager images={images} onChange={setImages} limit={imageLimit} label="Marketplace listing images" disabled={submitting} showUrlOption />}
             <label>
               <span>
                 Listing type

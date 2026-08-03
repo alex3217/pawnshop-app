@@ -18,6 +18,7 @@ import { getMyShops, type Shop } from "../services/shops";
 import ProductImageManager from "../components/ProductImageManager";
 import AiListingAssistantPanel from "../components/AiListingAssistantPanel";
 import { getShopItemPhotoLimit } from "../services/ownerWorkspace";
+import "../styles/owner-workspace-readability.css";
 
 type ItemPrefill = {
   pawnShopId: string;
@@ -592,7 +593,7 @@ export default function CreateItemPage() {
     !condition;
 
   return (
-    <div className="page-stack">
+    <div className="page-stack owner-readable-page owner-create-item-page">
       <div className="page-card" style={{ display: "grid", gap: 18 }}>
         <div
           style={{
@@ -781,8 +782,8 @@ export default function CreateItemPage() {
 
           {scanError ? (
             <div
+              className="owner-readable-error-panel"
               style={{
-                color: "#fecaca",
                 background: "rgba(220,38,38,0.12)",
                 border: "1px solid rgba(248,113,113,0.25)",
                 padding: 12,
@@ -795,8 +796,8 @@ export default function CreateItemPage() {
 
           {scanMessage ? (
             <div
+              className="owner-readable-success-panel"
               style={{
-                color: "#bbf7d0",
                 background: "rgba(22,163,74,0.12)",
                 border: "1px solid rgba(74,222,128,0.25)",
                 padding: 12,
@@ -852,8 +853,8 @@ export default function CreateItemPage() {
 
         {error ? (
           <div
+            className="owner-readable-error-panel"
             style={{
-              color: "#fecaca",
               background: "rgba(220,38,38,0.12)",
               border: "1px solid rgba(248,113,113,0.25)",
               padding: 12,
@@ -903,8 +904,8 @@ export default function CreateItemPage() {
 
           {aiError ? (
             <div
+              className="owner-readable-error-panel"
               style={{
-                color: "#fecaca",
                 background: "rgba(220,38,38,0.12)",
                 border: "1px solid rgba(248,113,113,0.25)",
                 padding: 12,

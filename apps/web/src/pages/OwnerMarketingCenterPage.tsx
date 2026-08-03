@@ -11,6 +11,7 @@ import {
   type ShopMarketingCampaign,
 } from "../services/shopMarketing";
 import { downloadMarketingAsset, getCustomerGrowth, getMarketingTemplates, getShopReferrals, type CustomerGrowth, type MarketingTemplate } from "../services/customerEngagement";
+import "../styles/owner-workspace-readability.css";
 
 const DESTINATIONS: Array<[MarketingDestinationType, string]> = [
   ["STOREFRONT", "Shop storefront"], ["INVENTORY", "Inventory"],
@@ -106,8 +107,8 @@ export default function OwnerMarketingCenterPage() {
   }
 
   return (
-    <main style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 20px 60px" }}>
-      <header><p style={{ fontWeight: 800, color: "#0f766e" }}>OWNER TOOLS</p><h1>Marketing Center</h1><p>Create shop-specific links and QR codes. Every destination stays inside PawnLoop.</p></header>
+    <main className="owner-readable-page owner-marketing-page">
+      <header><p className="owner-marketing-eyebrow">OWNER TOOLS</p><h1>Marketing Center</h1><p>Create shop-specific links and QR codes. Every destination stays inside PawnLoop.</p></header>
       {error ? <div role="alert" className="error-text">{error}</div> : null}
       {message ? <div role="status" className="success-text">{message}</div> : null}
       {loading ? <p aria-live="polite">Loading Marketing Center…</p> : null}

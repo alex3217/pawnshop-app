@@ -462,13 +462,6 @@
   cursor: pointer;
 }
 
-.seller-listings-empty-actions a:first-child {
-  border-color: #4338ca;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  background: #4338ca;
-}
-
 .seller-listings-empty-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -480,11 +473,31 @@
   background: #ffffff;
 }
 
-.seller-listings-hero-actions
-  a:first-child {
+.seller-listings-page :is(.seller-listings-hero-actions, .seller-listings-empty-actions) .seller-listings-primary-action,
+.seller-listings-page :is(.seller-listings-hero-actions, .seller-listings-empty-actions) .seller-listings-primary-action:visited,
+.seller-listings-page :is(.seller-listings-hero-actions, .seller-listings-empty-actions) .seller-listings-primary-action:hover,
+.seller-listings-page :is(.seller-listings-hero-actions, .seller-listings-empty-actions) .seller-listings-primary-action:focus,
+.seller-listings-page :is(.seller-listings-hero-actions, .seller-listings-empty-actions) .seller-listings-primary-action:focus-visible,
+.seller-listings-page :is(.seller-listings-hero-actions, .seller-listings-empty-actions) .seller-listings-primary-action:active {
   border-color: #4338ca;
-  color: #ffffff;
   background: #4338ca;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.seller-listings-page .seller-listings-primary-action:hover {
+  border-color: #3730a3;
+  background: #3730a3;
+}
+
+.seller-listings-page .seller-listings-primary-action:active {
+  border-color: #312e81;
+  background: #312e81;
+}
+
+.seller-listings-page .seller-listings-primary-action:focus-visible {
+  outline: 3px solid #818cf8;
+  outline-offset: 3px;
 }
 
 :root[data-theme="dark"]
