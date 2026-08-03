@@ -31,6 +31,8 @@ export type StaffPermission =
   | "locations:write"
   | "staff:read"
   | "staff:write"
+  | "marketing:read"
+  | "marketing:write"
   | string;
 
 export type StaffMember = {
@@ -409,4 +411,3 @@ export async function getStaffAssignableShops(
   const data = await api.get<unknown>("/shops/mine", { signal });
   return unwrapShopList(data);
 }
-

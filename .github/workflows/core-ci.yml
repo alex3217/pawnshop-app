@@ -47,6 +47,11 @@ jobs:
       - name: Install backend dependencies
         run: npm --prefix apps/api/backend ci
 
+      - name: Audit migration ordering and database target safeguards
+        run: |
+          npm run check:migration-prefixes
+          npm run test:database-safety
+
       - name: Frontend lint
         run: npm --prefix apps/web run lint
 
@@ -129,6 +134,7 @@ jobs:
       AUCTION_SCHEDULER_ENABLED: "false"
       JWT_SECRET: pawnloop-core-tests-only-secret-2026-not-for-production
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/pawnshop_test?schema=public
+      CONFIRM_DISPOSABLE_DATABASE: YES_DELETE_TEST_DATA
 
     steps:
       - name: Check out repository

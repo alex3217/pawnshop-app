@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getShopItems, type Shop, type ShopItem } from "../services/shops";
+import { getAuthRole, isAuthenticated } from "../services/auth";
+import { followShop, getFollowStatus, unfollowShop, updateFollowPreferences, type ShopFollow } from "../services/customerEngagement";
 
 function formatPrice(value: string | number) {
   const num = Number(value);
@@ -76,6 +78,9 @@ export default function ShopDetailPage() {
   const [sortBy, setSortBy] = useState<SortOption>("TITLE_ASC");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [follow, setFollow] = useState<ShopFollow | null>(null);
+  const [followError, setFollowError] = useState("");
+  const [followSaving, setFollowSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +118,28 @@ export default function ShopDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!shop?.id || !isAuthenticated() || getAuthRole() !== "CONSUMER") return;
+    getFollowStatus(shop.id).then((result) => setFollow(result.follow)).catch((cause) => setFollowError(cause instanceof Error ? cause.message : "Unable to load follow status."));
+  }, [shop?.id]);
+
+  async function startFollowing() {
+    if (!shop) return;
+    if (!isAuthenticated()) { window.location.assign(`/login?returnTo=${encodeURIComponent(window.location.pathname)}`); return; }
+    setFollowSaving(true); setFollowError("");
+    try { setFollow((await followShop(shop.id)).follow); } catch (cause) { setFollowError(cause instanceof Error ? cause.message : "Unable to follow shop."); } finally { setFollowSaving(false); }
+  }
+
+  async function stopFollowing() {
+    if (!shop) return; setFollowSaving(true); setFollowError("");
+    try { setFollow((await unfollowShop(shop.id)).follow); } catch (cause) { setFollowError(cause instanceof Error ? cause.message : "Unable to unfollow shop."); } finally { setFollowSaving(false); }
+  }
+
+  async function changePreference(input: Parameters<typeof updateFollowPreferences>[1]) {
+    if (!shop) return; setFollowSaving(true); setFollowError("");
+    try { setFollow((await updateFollowPreferences(shop.id, input)).follow); } catch (cause) { setFollowError(cause instanceof Error ? cause.message : "Unable to update alerts."); } finally { setFollowSaving(false); }
+  }
 
   useEffect(() => {
     if (
@@ -260,6 +287,14 @@ export default function ShopDetailPage() {
         <p style={styles.meta}>{shop.phone || "No phone provided"}</p>
         <p style={styles.meta}>{shop.hours || "Hours not listed"}</p>
         {shop.description ? <p style={styles.description}>{shop.description}</p> : null}
+        <div style={{ marginTop: 16 }}>
+          {followError ? <p role="alert" style={styles.error}>{followError}</p> : null}
+          {(!isAuthenticated() || getAuthRole() === "CONSUMER") && !follow?.following ? <button type="button" style={styles.itemLink} disabled={followSaving} onClick={() => void startFollowing()}>{followSaving ? "Saving…" : "Follow Shop"}</button> : follow?.following ? <div>
+            <strong>Following</strong><p style={styles.meta}>Alerts are off until you explicitly select them.</p>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{([ ["newArrivals", "New arrivals"], ["deals", "Deals"], ["auctions", "Auctions"], ["general", "Shop announcements"] ] as const).map(([key, label]) => <label key={key}><input type="checkbox" checked={follow.preferences[key]} disabled={followSaving} onChange={(event) => void changePreference({ [key]: event.target.checked })} /> {label}</label>)}</div>
+            <div style={{ display: "flex", gap: 10, marginTop: 12 }}><button type="button" disabled={followSaving} onClick={() => void changePreference({ paused: !follow.paused })}>{follow.paused ? "Resume alerts" : "Pause alerts"}</button><button type="button" disabled={followSaving} onClick={() => void stopFollowing()}>Unfollow</button></div>
+          </div> : null}
+        </div>
       </section>
 
       <section style={styles.filterCard}>

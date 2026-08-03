@@ -384,3 +384,15 @@ button:not(:disabled) {
   -webkit-text-fill-color: #f8fafc !important;
   border-color: rgba(203, 213, 225, 0.48) !important;
 }
+/* Evidence-backed launch guard: primary actions must retain AA text contrast. */
+.btn.btn-primary,
+button.btn.btn-primary,
+a.btn.btn-primary {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="dark"] :is(.btn.btn-primary, button.btn.btn-primary, a.btn.btn-primary) {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+}

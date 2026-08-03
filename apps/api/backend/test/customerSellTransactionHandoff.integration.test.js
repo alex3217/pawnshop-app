@@ -93,7 +93,9 @@ async function createOfferFixture({ intent = "SELL_OFFERS", competing = true } =
   };
 }
 
-async function createListingPurchaseFixture() {
+async function createListingPurchaseFixture({
+  listingType = "CUSTOMER_TO_SHOP",
+} = {}) {
   const seller = await createUser(`listing-seller-${Date.now()}`);
   const buyer = await createUser(`listing-buyer-${Date.now()}`, "OWNER");
   const buyerShop = await prisma.pawnShop.create({
@@ -105,7 +107,7 @@ async function createListingPurchaseFixture() {
   const listing = await prisma.marketplaceListing.create({
     data: {
       sellerUserId: seller.id,
-      listingType: "CUSTOMER_TO_SHOP",
+      listingType,
       status: "ACTIVE",
       title: "Established customer listing",
       description: "Customer-to-shop compatibility fixture",
@@ -474,19 +476,8 @@ test("customer SELL transaction is rejected by the generic Stripe payment workfl
   assert.equal(transaction.status, "PENDING");
 });
 
-test("CUSTOMER_TO_SHOP listing purchase retains its origin and enters Stripe payment", async () => {
+test("CUSTOMER_TO_SHOP listing reservation is rejected before Stripe payment", async () => {
   const fixture = await createListingPurchaseFixture();
-  const transaction = await reserveMarketplacePurchase({
-    listingId: fixture.listing.id,
-    buyerUserId: fixture.buyer.id,
-    buyerShopId: fixture.buyerShop.id,
-  });
-
-  assert.equal(transaction.type, "CUSTOMER_SELL_TO_SHOP");
-  assert.equal(transaction.listingId, fixture.listing.id);
-  assert.equal(transaction.submissionId, null);
-  assert.equal(transaction.submissionOfferId, null);
-
   let createCalls = 0;
   let retrieveCalls = 0;
   const stripeClient = {
@@ -508,16 +499,32 @@ test("CUSTOMER_TO_SHOP listing purchase retains its origin and enters Stripe pay
     },
   };
 
-  const payment = await createMarketplaceTransactionPaymentIntent({
-    transactionId: transaction.id,
-    buyerUserId: fixture.buyer.id,
-    role: fixture.buyer.role,
-    stripeClient,
-  });
+  await assert.rejects(
+    async () => {
+      const transaction = await reserveMarketplacePurchase({
+        listingId: fixture.listing.id,
+        buyerUserId: fixture.buyer.id,
+        buyerShopId: fixture.buyerShop.id,
+      });
+      await createMarketplaceTransactionPaymentIntent({
+        transactionId: transaction.id,
+        buyerUserId: fixture.buyer.id,
+        role: fixture.buyer.role,
+        stripeClient,
+      });
+    },
+    (error) => {
+      assert.equal(error.statusCode, 409);
+      assert.equal(error.code, "CUSTOMER_INTAKE_PURCHASE_DISABLED");
+      return true;
+    },
+  );
 
-  assert.equal(payment.paymentIntentId, "pi_listing_origin_customer_to_shop");
-  assert.equal(payment.transactionStatus, "PAYMENT_PROCESSING");
-  assert.equal(createCalls, 1);
+  const transactionCount = await prisma.marketplaceTransaction.count({
+    where: { listingId: fixture.listing.id },
+  });
+  assert.equal(transactionCount, 0);
+  assert.equal(createCalls, 0);
   assert.equal(retrieveCalls, 0);
 });
 
@@ -576,7 +583,7 @@ test("non-listing transaction outside the payment allowlist is rejected before S
       assert.equal(error.statusCode, 409);
       assert.equal(
         error.code,
-        "MARKETPLACE_TRANSACTION_PAYMENT_TYPE_UNSUPPORTED",
+        "CUSTOMER_INTAKE_ONLINE_PAYMENT_DISABLED",
       );
       return true;
     },
@@ -592,14 +599,16 @@ test("database accepts valid origins and rejects mixed, incomplete, or incompati
     offerId: first.offer.id,
     customerId: first.customer.id,
   });
-  const listingFixture = await createListingPurchaseFixture();
+  const listingFixture = await createListingPurchaseFixture({
+    listingType: "SHOP_TO_CUSTOMER",
+  });
   const listingTransaction = await reserveMarketplacePurchase({
     listingId: listingFixture.listing.id,
     buyerUserId: listingFixture.buyer.id,
     buyerShopId: listingFixture.buyerShop.id,
   });
 
-  assert.equal(listingTransaction.type, "CUSTOMER_SELL_TO_SHOP");
+  assert.equal(listingTransaction.type, "DIRECT_PURCHASE");
   assert.equal(listingTransaction.listingId, listingFixture.listing.id);
   assert.equal(listingTransaction.submissionId, null);
   assert.equal(listingTransaction.submissionOfferId, null);

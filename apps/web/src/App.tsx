@@ -20,6 +20,11 @@ import TermsPage from "./pages/TermsPage";
 import BuyerDashboardPage from "./pages/BuyerDashboardPage";
 
 import BuyerItemLocatorPage from "./pages/BuyerItemLocatorPage";
+import BuyerWorkspacePage from "./pages/BuyerWorkspacePage";
+import BuyerSuccessCenterPage from "./pages/BuyerSuccessCenterPage";
+import BuyerSubscriptionPage from "./pages/BuyerSubscriptionPage";
+import BuyerSettingsPage from "./pages/BuyerSettingsPage";
+import BuyerHelpPage from "./pages/BuyerHelpPage";
 
 import BuyerSellItemPage from "./pages/BuyerSellItemPage";
 import OwnerRegistrationPage from "./pages/OwnerRegistrationPage";
@@ -116,6 +121,7 @@ const SuperAdminPlatformSettingsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminPlatformSettingsPage"),
 );
 const SuperAdminRevenuePage = lazyPage(() => import("./admin/pages/SuperAdminRevenuePage"));
+const SuperAdminLaunchReadinessPage = lazyPage(() => import("./admin/pages/SuperAdminLaunchReadinessPage"));
 const SuperAdminPricingPage = lazyPage(() => import("./admin/pages/SuperAdminPricingPage"));
 const SuperAdminBuyerPlansPage = lazyPage(() =>
   import("./admin/pages/SuperAdminBuyerPlansPage"),
@@ -123,6 +129,9 @@ const SuperAdminBuyerPlansPage = lazyPage(() =>
 const SuperAdminSellerPlansPage = lazyPage(() =>
   import("./admin/pages/SuperAdminSellerPlansPage"),
 );
+const SuperAdminPlatformSuccessPage = lazyPage(() => import("./admin/pages/SuperAdminPlatformSuccessPage"));
+const SuperAdminMarketplaceIntelligencePage = lazyPage(() => import("./admin/pages/SuperAdminMarketplaceIntelligencePage"));
+const SuperAdminMarketingAdministrationPage = lazyPage(() => import("./admin/pages/SuperAdminMarketingAdministrationPage"));
 const SuperAdminBuyerSubscriptionsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminBuyerSubscriptionsPage"),
 );
@@ -150,6 +159,7 @@ const VerifyEmailPage = lazyPage(() => import("./pages/VerifyEmailPage"));
 const ForgotPasswordPage = lazyPage(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazyPage(() => import("./pages/ResetPasswordPage"));
 const MarketplacePage = lazyPage(() => import("./pages/MarketplacePage"));
+const DealerMarketplacePage = lazyPage(() => import("./pages/DealerMarketplacePage"));
 const MarketplaceBuyNowPage = lazyPage(() =>
   import("./pages/MarketplaceBuyNowPage"),
 );
@@ -178,6 +188,8 @@ const OwnerAuctionsPage = lazyPage(() => import("./pages/OwnerAuctionsPage"));
 const OwnerDashboardPage = lazyPage(() => import("./pages/OwnerDashboardPage"));
 const OwnerFinancePage = lazyPage(() => import("./pages/OwnerFinancePage"));
 const OwnerInventoryPage = lazyPage(() => import("./pages/OwnerInventoryPage"));
+const OwnerMarketingCenterPage = lazyPage(() => import("./pages/OwnerMarketingCenterPage"));
+const OwnerBusinessGrowthPage = lazyPage(() => import("./pages/OwnerBusinessGrowthPage"));
 const OwnerItemIntakesPage = lazyPage(() =>
   import("./pages/OwnerItemIntakesPage"),
 );
@@ -258,7 +270,6 @@ function renderRouteGroup(
 const publicRoutes: RouteConfig[] = [
   { index: true, element: <HomePage /> },
   { path: "/buyer", element: <Navigate to="/buyer/dashboard" replace /> },
-  { path: "/buyer/dashboard", element: <BuyerDashboardPage /> },
   { path: "/buyer/item-locator", element: <BuyerItemLocatorPage /> },
   { path: "/buyer/sell-item", element: <BuyerSellItemPage /> },
   { path: "/terms", element: <TermsPage /> },
@@ -284,6 +295,12 @@ const publicRoutes: RouteConfig[] = [
 ];
 
 const consumerRoutes: RouteConfig[] = [
+  { path: "/buyer/dashboard", element: <BuyerDashboardPage /> },
+  { path: "/buyer/workspace", element: <BuyerWorkspacePage /> },
+  { path: "/buyer/success", element: <BuyerSuccessCenterPage /> },
+  { path: "/buyer/subscription", element: <BuyerSubscriptionPage /> },
+  { path: "/buyer/settings", element: <BuyerSettingsPage /> },
+  { path: "/buyer/help", element: <BuyerHelpPage /> },
   { path: "/my-bids", element: <MyBidsPage /> },
   { path: "/bids", element: <Navigate to="/my-bids" replace /> },
   { path: "/my-wins", element: <MyWinsPage /> },
@@ -327,6 +344,7 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner", element: <OwnerDashboardPage /> },
   { path: "/owner/dashboard", element: <Navigate to="/owner" replace /> },
   { path: "/owner/finance", element: <OwnerFinancePage /> },
+  { path: "/owner/dealer-marketplace", element: <DealerMarketplacePage /> },
   { path: "/owner/onboarding", element: <OwnerOnboardingPage /> },
   { path: "/owner/shops/new", element: <CreateShopPage /> },
   { path: "/owner/items/new", element: <CreateItemPage /> },
@@ -334,6 +352,8 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner/inventory", element: <OwnerInventoryPage /> },
   { path: "/owner/item-intakes", element: <OwnerItemIntakesPage /> },
   { path: "/owner/integrations", element: <OwnerIntegrationsPage /> },
+  { path: "/owner/marketing", element: <OwnerMarketingCenterPage /> },
+  { path: "/owner/business-growth", element: <OwnerBusinessGrowthPage /> },
   { path: "/owner/locations", element: <OwnerLocationsPage /> },
   { path: "/owner/staff", element: <OwnerStaffPage /> },
   { path: "/owner/scan-console", element: <ScanConsolePage /> },
@@ -399,6 +419,9 @@ const superAdminRoutes: RouteConfig[] = [
   { index: true, element: <SuperAdminOverviewPage /> },
   { path: "overview", element: <Navigate to="/super-admin" replace /> },
   { path: "growth", element: <GrowthCenterDashboardPage /> },
+  { path: "platform-success", element: <SuperAdminPlatformSuccessPage /> },
+  { path: "marketplace-intelligence", element: <SuperAdminMarketplaceIntelligencePage /> },
+  { path: "marketing-administration", element: <SuperAdminMarketingAdministrationPage /> },
   { path: "growth/leads", element: <GrowthLeadDirectoryPage /> },
   { path: "growth/leads/:leadId", element: <GrowthLeadDetailPage /> },
   { path: "users", element: <AdminUsersPage /> },
@@ -420,6 +443,7 @@ const superAdminRoutes: RouteConfig[] = [
   { path: "settlements", element: <SuperAdminSettlementsPage /> },
   { path: "pricing", element: <SuperAdminPricingPage /> },
   { path: "revenue", element: <SuperAdminRevenuePage /> },
+  { path: "launch-readiness", element: <SuperAdminLaunchReadinessPage /> },
   { path: "audit", element: <SuperAdminAuditPage /> },
   { path: "system", element: <SuperAdminSystemHealthPage /> },
   { path: "platform-settings", element: <SuperAdminPlatformSettingsPage /> },

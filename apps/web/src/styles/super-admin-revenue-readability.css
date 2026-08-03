@@ -15,3 +15,14 @@ body:has(.super-admin-revenue-readability) a[href="/super-admin"],
   line-height: 1.15 !important;
 }
 /* END Super Admin Revenue tap-target polish. */
+.super-admin-revenue-readability button:focus-visible,
+.super-admin-revenue-readability a:focus-visible,
+.super-admin-revenue-readability select:focus-visible {
+  outline: 3px solid var(--ring, #2563eb) !important;
+  outline-offset: 3px !important;
+}
+
+.super-admin-revenue-readability button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}

@@ -12,6 +12,7 @@ import { getMyOffers, type Offer } from "../services/offers";
 import { getMyWatchlist, type WatchlistEntry } from "../services/watchlist";
 import { getMySavedSearches, type SavedSearch } from "../services/savedSearches";
 import { getMySettlements, type Settlement } from "../services/settlements";
+import { clearRecentlyViewed, readRecentlyViewed, type RecentlyViewedItem } from "../services/recentlyViewed.mjs";
 
 type ViewMode = "grid" | "list" | "map";
 
@@ -193,6 +194,7 @@ export default function BuyerDashboardPage() {
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [refreshingDashboard, setRefreshingDashboard] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
+  const [recentlyViewed, setRecentlyViewed] = useState<RecentlyViewedItem[]>(() => readRecentlyViewed());
 
   const marketplaceSearchHref = searchQuery.trim()
     ? `/marketplace?search=${encodeURIComponent(searchQuery.trim())}`
@@ -661,19 +663,31 @@ export default function BuyerDashboardPage() {
         </div>
       </section>
 
+      <section className="bd-panel" aria-labelledby="recently-viewed-heading">
+        <div className="bd-section-title">
+          <div>
+            <p>Browser history</p>
+            <h2 id="recently-viewed-heading">Recently viewed</h2>
+          </div>
+          {recentlyViewed.length ? <button type="button" className="bd-secondary-small" onClick={() => setRecentlyViewed(clearRecentlyViewed())}>Clear history</button> : null}
+        </div>
+        <p>This history is stored only in this browser and is not synchronized across devices.</p>
+        {recentlyViewed.length ? <div className="bd-actions-grid">{recentlyViewed.map((entry) => <Link key={entry.itemId} to={entry.href}><span>{entry.title}</span>{entry.priceLabel || entry.shopName ? <small>{[entry.priceLabel, entry.shopName].filter(Boolean).join(" · ")}</small> : null}</Link>)}</div> : <EmptyPanel title="No recently viewed items" body="Items you open will appear here when browser-local history is enabled." href="/marketplace" cta="Browse marketplace" />}
+      </section>
+
       <section className="bd-quick-actions">
         <SectionTitle eyebrow="Quick actions" title="Keep shopping" />
 
         <div className="bd-actions-grid">
-          <Link to="/buyer/item-locator">Item locator</Link>
+          <Link to="/marketplace/purchases">My purchases</Link>
           <Link to="/marketplace">Marketplace</Link>
           <Link to="/auctions">Auctions</Link>
           <Link to="/shops">Pawnshops</Link>
-          <Link to="/watchlist">Watchlist</Link>
-          <Link to="/my-bids">My bids</Link>
-          <Link to="/offers">Offers</Link>
-          <Link to="/my-wins">My wins</Link>
-          <Link to="/saved-searches">Saved searches</Link>
+          <Link to="/watchlist">Watchlist <span aria-label={`${dashboardSummary.watchlistCount} items`}>({dashboardSummary.watchlistCount})</span></Link>
+          <Link to="/my-bids">My bids <span aria-label={`${dashboardSummary.activeBids} active bids`}>({dashboardSummary.activeBids})</span></Link>
+          <Link to="/offers">Offers <span aria-label={`${dashboardSummary.offerCount} offers`}>({dashboardSummary.offerCount})</span></Link>
+          <Link to="/my-wins">My wins <span aria-label={`${dashboardSummary.settlementCount} settlements`}>({dashboardSummary.settlementCount})</span></Link>
+          <Link to="/saved-searches">Saved searches <span aria-label={`${dashboardSummary.savedSearchCount} searches`}>({dashboardSummary.savedSearchCount})</span></Link>
         </div>
       </section>
     </main>

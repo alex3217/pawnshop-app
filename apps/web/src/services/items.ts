@@ -75,6 +75,14 @@ export type ItemPriceComparisonResponse = {
   comparison: ItemPriceComparisonResult;
 };
 
+export type MarketplaceIntelligence = {
+  version: string; generatedAt: string; listingPriceCents: number; comparableActiveListings: number;
+  completedSales: { available: boolean; sampleSize: number; averageSalePriceCents: number | null; medianSalePriceCents: number | null; lowSalePriceCents: number | null; highSalePriceCents: number | null; confidence: { level: string; sufficient: boolean } };
+  pricePosition: string; demand: { score: number; label: string; evidenceCount: number };
+  similarListings: Array<{ id: string; itemId: string | null; title: string; priceCents: number; currency: string; images: string[]; condition?: string | null; shop: { id: string; name: string; state?: string | null } | null }>;
+  priceHistory: { available: false; reason: string }; limitations: string[]; disclaimer: string;
+};
+
 export type CreateItemInput = {
   pawnShopId: string;
   title: string;
@@ -170,6 +178,11 @@ export async function getItemPriceComparison(
       signal,
     },
   );
+}
+
+export async function getMarketplaceIntelligence(id: string, signal?: AbortSignal): Promise<MarketplaceIntelligence> {
+  const response = await api.get<{ success: true; intelligence: MarketplaceIntelligence }>(`/items/${encodeURIComponent(id)}/intelligence`, { auth: false, signal });
+  return response.intelligence;
 }
 
 export async function getMyItems(signal?: AbortSignal): Promise<Item[]> {

@@ -338,6 +338,20 @@ test("consumer tokens cannot access owner-only routes", async () => {
   });
 });
 
+test("buyer checkout rejects unauthenticated and owner requests", async () => {
+  await request(app).post("/api/stripe/checkout/buyer-subscription").send({}).expect(401);
+  const ownerToken = jwt.sign({ sub: "owner-auction-permission-test", email: "owner-auction@test.pawnloop.local", role: "OWNER", authVersion: AUTH_VERSION }, TEST_JWT_SECRET, { expiresIn: "5m" });
+  await request(app).post("/api/stripe/checkout/buyer-subscription").set("Authorization", `Bearer ${ownerToken}`).send({}).expect(403);
+});
+
+test("buyer checkout requires idempotency and rejects Free without touching Stripe", async () => {
+  const token = jwt.sign({ sub: "consumer-core-test", email: "consumer@test.pawnloop.local", role: "CONSUMER", authVersion: AUTH_VERSION }, TEST_JWT_SECRET, { expiresIn: "5m" });
+  const body = { planCode: "FREE", billingInterval: "MONTH", successUrl: "https://allowed.example/anything", cancelUrl: "https://allowed.example/anything-else" };
+  await request(app).post("/api/stripe/checkout/buyer-subscription").set("Authorization", `Bearer ${token}`).send(body).expect(400);
+  const response = await request(app).post("/api/stripe/checkout/buyer-subscription").set("Authorization", `Bearer ${token}`).set("Idempotency-Key", "buyer-checkout-test-0001").send(body).expect(400);
+  assert.equal(response.body.code, "BUYER_FREE_CHECKOUT_NOT_ALLOWED");
+});
+
 test("Stripe refunds require ADMIN or SUPER_ADMIN and validate a reason", async () => {
   const tokenFor = (id) => {
     const user = authenticatedUsers.get(id);
@@ -583,13 +597,16 @@ test("admin routes reject unauthenticated requests", async () => {
 });
 
 test("super-admin routes reject unauthenticated requests", async () => {
-  const response = await request(app)
-    .get("/api/super-admin/overview")
-    .expect(401);
+  for (const path of ["/api/super-admin/overview", "/api/super-admin/marketplace-intelligence"]) {
+    const response = await request(app).get(path).expect(401);
+    assert.deepEqual(response.body, { error: "Unauthorized" });
+  }
+});
 
-  assert.deepEqual(response.body, {
-    error: "Unauthorized",
-  });
+test("Marketplace Intelligence denies a consumer at the server authorization boundary", async () => {
+  const token = jwt.sign({ sub: "consumer-core-test", role: "CONSUMER", authVersion: AUTH_VERSION }, TEST_JWT_SECRET);
+  const response = await request(app).get("/api/super-admin/marketplace-intelligence").set("Authorization", `Bearer ${token}`).expect(403);
+  assert.deepEqual(response.body, { error: "Forbidden" });
 });
 
 

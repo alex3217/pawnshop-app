@@ -1,6 +1,9 @@
 {
   "private": true,
   "scripts": {
+    "check:migration-prefixes": "node scripts/audit-migration-prefixes.mjs",
+    "test:database-safety": "node --test scripts/database-safety.test.mjs scripts/migration-prefixes.test.mjs",
+    "test:role-tenant-certification": "npm --prefix apps/api/backend run test:role-tenant-certification",
     "check:dev-safe": "npm --prefix apps/web run check:dev-safe",
     "check:dev-wiring": "npm --prefix apps/web run check:dev-wiring",
     "build:web": "npm --prefix apps/web run build",

@@ -1,0 +1,4 @@
+import { api } from "../../services/apiClient";
+export type MarketingAdministration = { metrics: Record<string, number>; campaigns: Array<{ id: string; name: string; destinationType: string; placementLabel: string | null; isActive: boolean; isDefault: boolean; scanCount: number; shop: { id: string; name: string } }>; privacy: { aggregateFollowersOnly: boolean; buyerContactsIncluded: boolean } };
+export const getMarketingAdministration = (q = "") => api.get<{ success: true; administration: MarketingAdministration }>(`/super-admin/marketing-administration${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+export const disableMarketingCampaign = (campaignId: string, reason: string) => api.patch<{ success: true; audited: true }>(`/super-admin/marketing-campaigns/${encodeURIComponent(campaignId)}/status`, { active: false, reason });

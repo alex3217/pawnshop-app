@@ -185,7 +185,7 @@ test("admin queue supports search, filter, pagination, details, reasons, and rev
   await page.getByLabel(/Decision reason/).fill("Upload a current license.");
   await page.getByLabel(/Administrator notes/).fill("License review is incomplete.");
   await page.getByRole("button", { name: "Confirm status change" }).click();
-  await expect(page.getByText("Ada Admin · admin@pawnloop.test")).toBeVisible();
+  await expect(page.getByText("Ada Admin · admin@pawnloop.test").first()).toBeVisible();
   await expect(page.getByText("License review is incomplete.", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("PENDING → INFORMATION REQUESTED")).toBeVisible();
   await expect(
@@ -561,7 +561,7 @@ test("owner application header and setup shortcut stay usable across responsive 
       exact: true,
     });
     const logout = page.getByRole("button", { name: "Logout" });
-    const shortcut = page.getByLabel("Return to pawn shop owner setup");
+    const shortcut = page.getByRole("button", { name: /Owner setup/ });
     const continueSetup = page.getByRole("link", {
       name: "Continue Shop Setup",
     });
@@ -595,7 +595,7 @@ test("owner application header and setup shortcut stay usable across responsive 
 
       const logoRect = rect(".site-brand");
       const actionsRect = rect(".site-top-actions");
-      const shortcutRect = rect(".role-checklist-return");
+      const shortcutRect = rect(".role-setup-trigger");
       const continueRect = rect(
         '.owner-application__actions a[href="/owner/onboarding"]',
       );
@@ -658,28 +658,9 @@ test("owner application header and setup shortcut stay usable across responsive 
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   }
 
-  const shortcut = page.getByLabel("Return to pawn shop owner setup");
-  const shortcutBox = await shortcut.boundingBox();
-  expect(shortcutBox).not.toBeNull();
-  if (shortcutBox) {
-    const headerBox = await page.locator(".site-header").boundingBox();
-    const headerBottom = headerBox ? headerBox.y + headerBox.height : 0;
-    await page.getByRole("button", {
-      name: "Move owner setup shortcut",
-      exact: true,
-    }).hover();
-    await page.mouse.down();
-    await page.mouse.move(40, headerBottom + 30);
-    await page.mouse.up();
-    const movedBox = await shortcut.boundingBox();
-    expect(movedBox).not.toBeNull();
-    expect(movedBox?.y).toBeGreaterThanOrEqual(headerBottom + 11);
-  }
-
-  await page.getByRole("button", {
-    name: "Owner setup",
-    exact: true,
-  }).click();
+  const shortcut = page.getByRole("button", { name: /Owner setup/ });
+  await expect(shortcut).toBeInViewport();
+  await shortcut.click();
   await expect(
     page.getByLabel("Pawn shop owner setup checklist"),
   ).toBeVisible();

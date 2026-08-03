@@ -30,6 +30,16 @@ export const SHOP_PERMISSION_CODES = Object.freeze([
   "settlements:read",
   "customer-sell:read",
   "customer-sell:write",
+  "marketing:read",
+  "marketing:write",
+  "growth:read",
+  "analytics:read",
+  "dealer-marketplace:read",
+  "dealer-marketplace:buy",
+  "dealer-marketplace:sell",
+  "dealer-marketplace:approve",
+  "dealer-marketplace:finance",
+  "dealer-marketplace:dispute",
 ]);
 
 export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
@@ -48,6 +58,16 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "settlements:read",
       "customer-sell:read",
       "customer-sell:write",
+      "marketing:read",
+      "marketing:write",
+      "growth:read",
+      "analytics:read",
+      "dealer-marketplace:read",
+      "dealer-marketplace:buy",
+      "dealer-marketplace:sell",
+      "dealer-marketplace:approve",
+      "dealer-marketplace:finance",
+      "dealer-marketplace:dispute",
     ]),
     SHOP_MANAGER: Object.freeze([
       "inventory:read",
@@ -62,6 +82,15 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "settlements:read",
       "customer-sell:read",
       "customer-sell:write",
+      "marketing:read",
+      "marketing:write",
+      "growth:read",
+      "analytics:read",
+      "dealer-marketplace:read",
+      "dealer-marketplace:buy",
+      "dealer-marketplace:sell",
+      "dealer-marketplace:approve",
+      "dealer-marketplace:dispute",
     ]),
     SHOP_STAFF: Object.freeze([
       "inventory:read",
@@ -69,6 +98,8 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "offers:read",
       "locations:read",
       "customer-sell:read",
+      "marketing:read",
+      "growth:read",
     ]),
     SHOP_VIEWER: Object.freeze([
       "inventory:read",
@@ -76,6 +107,8 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "offers:read",
       "locations:read",
       "customer-sell:read",
+      "marketing:read",
+      "growth:read",
     ]),
     INVENTORY_MANAGER: Object.freeze([
       "inventory:read",
@@ -100,6 +133,8 @@ export const DEFAULT_SHOP_PERMISSIONS_BY_ROLE =
       "settlements:read",
       "offers:read",
       "customer-sell:read",
+      "dealer-marketplace:read",
+      "dealer-marketplace:finance",
     ]),
   });
 

@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { assertBuyerResourceCapacity } from "../services/buyerEntitlements.service.js";
 
 const SAFE_SHOP_SELECT = {
   id: true,
@@ -22,6 +23,8 @@ function sendError(res, error, fallback = "Internal server error") {
   return res.status(status).json({
     success: false,
     error: error?.message || fallback,
+    ...(error?.code ? { code: error.code } : {}),
+    ...(error?.details ? { details: error.details } : {}),
   });
 }
 
@@ -92,6 +95,15 @@ export async function addToWatchlist(req, res) {
 
     if (!item || item.isDeleted || item.status !== "AVAILABLE") {
       return res.status(404).json({ success: false, error: "Available item not found" });
+    }
+
+    const existing = await prisma.watchlist.findUnique({
+      where: { userId_itemId: { userId, itemId } },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      await assertBuyerResourceCapacity(userId, "watchlistItems");
     }
 
     const entry = await prisma.watchlist.upsert({

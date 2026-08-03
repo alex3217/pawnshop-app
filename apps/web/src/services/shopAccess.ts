@@ -12,6 +12,8 @@ export type ShopPermissionCode =
   | "staff:read"
   | "staff:write"
   | "settlements:read"
+  | "marketing:read"
+  | "marketing:write"
   | string;
 
 export type ShopAccessCapabilities = {
@@ -26,6 +28,8 @@ export type ShopAccessCapabilities = {
   staffRead: boolean;
   staffWrite: boolean;
   settlementsRead: boolean;
+  marketingRead: boolean;
+  marketingWrite: boolean;
 };
 
 export type ShopAccessEntry = {
@@ -60,6 +64,8 @@ const EMPTY_CAPABILITIES: ShopAccessCapabilities = {
   staffRead: false,
   staffWrite: false,
   settlementsRead: false,
+  marketingRead: false,
+  marketingWrite: false,
 };
 
 function isRecord(
@@ -116,6 +122,10 @@ function normalizeCapabilities(
       value.staffWrite === true,
     settlementsRead:
       value.settlementsRead === true,
+    marketingRead:
+      value.marketingRead === true,
+    marketingWrite:
+      value.marketingWrite === true,
   };
 }
 

@@ -7,6 +7,7 @@ import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
+import { rejectSensitiveFinancialFields } from "./middleware/rejectSensitiveFinancialFields.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import shopRoutes from "./routes/shops.routes.js";
@@ -26,6 +27,7 @@ import integrationsRoutes from "./routes/integrations.routes.js";
 import savedSearchesRoutes from "./routes/savedSearches.routes.js";
 import sellerPlansRoutes from "./routes/sellerPlans.routes.js";
 import buyerPlansRoutes from "./routes/buyerPlans.routes.js";
+import buyerPreferencesRoutes from "./routes/buyerPreferences.routes.js";
 import buyerItemSubmissionRoutes from "./routes/buyerItemSubmissions.routes.js";
 import locationsRoutes from "./routes/locations.routes.js";
 import staffRoutes from "./routes/staff.routes.js";
@@ -36,12 +38,16 @@ import aiRoutes from "./routes/ai.routes.js";
 import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes.js";
 import ownerApplicationsRoutes from "./routes/ownerApplications.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
+import followedShopsRoutes from "./routes/followedShops.routes.js";
+import { redirectMarketingCampaign } from "./controllers/shopMarketing.controller.js";
+import { convertReferral, redirectReferral } from "./controllers/customerEngagement.controller.js";
 import { prisma } from "./lib/prisma.js";
 import {
   loadAuthRateLimitConfig,
   loadTrustProxyConfig,
 } from "./config/authRateLimit.js";
 import { createAuthRateLimiters } from "./middleware/authRateLimit.js";
+import { authRequired } from "./middleware/auth.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -286,6 +292,10 @@ export function createApp(options = {}) {
         return next();
       }
 
+      if (req.path.startsWith("/r/")) {
+        return next();
+      }
+
       if (isFrontendAssetRequest(req)) {
         return express.static(webDistDirectory, {
           index: false,
@@ -361,6 +371,8 @@ export function createApp(options = {}) {
   app.get("/api/health", noStore, healthHandler);
   app.get("/ready", noStore, readinessHandler);
   app.get("/api/ready", noStore, readinessHandler);
+  app.get("/r/:shortCode", redirectMarketingCampaign);
+  app.get("/api/r/:shortCode", redirectMarketingCampaign);
 
   /**
    * Stripe webhook must stay before express.json().
@@ -369,6 +381,9 @@ export function createApp(options = {}) {
   app.use("/api/webhooks/stripe", stripeWebhookRoutes);
 
   app.use(authRateLimiters.beforeBody);
+
+  app.get("/ref/:code", redirectReferral);
+  app.get("/api/ref/:code", redirectReferral);
 
   app.use(
     express.json({
@@ -386,10 +401,12 @@ export function createApp(options = {}) {
   );
 
   app.use(authRateLimiters.afterBody);
+  app.use(rejectSensitiveFinancialFields);
 
   mountApi(app, "/auth", authRoutes);
   mountApi(app, "/owner-applications", ownerApplicationsRoutes);
   mountApi(app, "/notifications", notificationsRoutes);
+  mountApi(app, "/followed-shops", followedShopsRoutes);
   mountApi(app, "/shops", shopRoutes);
   mountApi(app, "/locations", locationsRoutes);
   mountApi(app, "/items", itemRoutes);
@@ -407,6 +424,7 @@ export function createApp(options = {}) {
   mountApi(app, "/saved-searches", savedSearchesRoutes);
   mountApi(app, "/offers", offersRoutes);
   mountApi(app, "/buyer/item-submissions", buyerItemSubmissionRoutes);
+  mountApi(app, "/buyer/preferences", buyerPreferencesRoutes);
   mountApi(app, "/staff", staffRoutes);
   mountApi(app, "/settlements", settlementsRoutes);
   mountApi(app, "/stripe", stripeRoutes);
@@ -415,6 +433,7 @@ export function createApp(options = {}) {
   app.use("/api", sellerPlansRoutes);
   app.use("/api", platformSettingsPublicRoutes);
   app.use("/api", buyerPlansRoutes);
+  app.post("/api/ref/:code/convert", authRequired, convertReferral);
 
   app.use((req, res) => {
     return res.status(404).json({

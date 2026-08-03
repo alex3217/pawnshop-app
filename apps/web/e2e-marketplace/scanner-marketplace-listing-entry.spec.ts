@@ -279,6 +279,15 @@ async function installAuth(
 
           role:
             "OWNER",
+
+          ownerApplication: {
+            id: "scanner-marketplace-owner-application",
+            status: "APPROVED",
+            submittedAt: "2026-07-01T00:00:00.000Z",
+            reviewedAt: "2026-07-02T00:00:00.000Z",
+            decisionReason: null,
+            statusChangedAt: "2026-07-02T00:00:00.000Z",
+          },
         }),
       );
     },
@@ -314,6 +323,17 @@ async function installMocks(
         new URL(
           request.url(),
         ).pathname;
+
+      if (method === "GET" && pathname === "/api/auth/me") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: jsonBody({ user: {
+          id: OWNER_ID,
+          name: "Scanner Marketplace Browser Owner",
+          email: "scanner-marketplace@pawnloop.test",
+          role: "OWNER",
+          ownerApplication: { id: "scanner-marketplace-owner-application", status: "APPROVED", submittedAt: "2026-07-01T00:00:00.000Z", reviewedAt: "2026-07-02T00:00:00.000Z", decisionReason: null, statusChangedAt: "2026-07-02T00:00:00.000Z" },
+        } }) });
+        return;
+      }
 
       if (
         method === "GET" &&

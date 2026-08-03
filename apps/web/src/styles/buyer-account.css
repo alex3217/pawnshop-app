@@ -1,0 +1,7 @@
+.mx-auto.max-w-4xl > .list-card,
+.mx-auto.max-w-5xl > .grid > .list-card { background: var(--bg-elevated); color: var(--text); }
+.mx-auto.max-w-4xl > .list-card h2,
+.mx-auto.max-w-5xl > .grid > .list-card h2 { color: var(--text-strong); }
+.mx-auto.max-w-4xl > .list-card a,
+.mx-auto.max-w-5xl > .grid > .list-card a { color: var(--primary); }
+.mx-auto.max-w-4xl > .list-card .btn-secondary { background: var(--bg-soft); color: var(--text); }

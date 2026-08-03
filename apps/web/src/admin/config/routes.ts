@@ -190,6 +190,13 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     group: "super-admin-core",
   }),
   route({
+    key: "superAdminLaunchReadiness",
+    path: "/super-admin/launch-readiness",
+    label: "Launch War Room",
+    permissions: ["admin:overview:read"],
+    group: "super-admin-core",
+  }),
+  route({
     key: "superAdminShops",
     path: "/super-admin/shops",
     label: "Shop Management",
@@ -209,6 +216,20 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     label: "Growth Center",
     permissions: ["admin:shops:read"],
     group: "super-admin-growth",
+  }),
+  route({
+    key: "superAdminPlatformSuccess",
+    path: "/super-admin/platform-success",
+    label: "Platform Success",
+    permissions: ["admin:overview:read"],
+    group: "super-admin-growth",
+  }),
+  route({
+    key: "superAdminMarketplaceIntelligence",
+    path: "/super-admin/marketplace-intelligence",
+    label: "Marketplace Intelligence",
+    permissions: ["admin:overview:read"],
+    group: "super-admin-marketplace",
   }),
   route({
     key: "superAdminGrowthLeads",

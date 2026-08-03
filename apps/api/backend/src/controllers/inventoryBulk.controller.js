@@ -1,5 +1,5 @@
-import { parse } from "csv-parse/sync";
 import { prisma } from "../lib/prisma.js";
+import { parseInventoryCsv } from "../services/inventoryCsv.service.js";
 
 function sendError(res, error, fallback = "Internal server error") {
   const status =
@@ -62,47 +62,18 @@ export async function importInventoryCsv(req, res) {
       return res.status(404).json({ success: false, error: "Owned shop not found" });
     }
 
-    const importJob = await prisma.inventoryImportJob.create({
-      data: {
-        userId,
-        shopId,
-        filename: req.file.originalname || "upload.csv",
-        status: "PENDING",
-      },
-    });
-
-    const rows = parse(req.file.buffer, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-    });
-
-    let successCount = 0;
-    let failedCount = 0;
-    const errors = [];
-
-    for (let i = 0; i < rows.length; i += 1) {
-      const row = rows[i];
-      const line = i + 2;
-
-      try {
-        const title = normalizeString(row.title);
-        const price = normalizePrice(row.price);
-
-        if (!title) {
-          throw new Error("title is required");
-        }
-
-        if (price === null) {
-          throw new Error("price must be a valid number");
-        }
-
-        await prisma.item.create({
+    const { filename, rows } = parseInventoryCsv(req.file);
+    const updatedJob = await prisma.$transaction(async (tx) => {
+      const importJob = await tx.inventoryImportJob.create({
+        data: { userId, shopId, filename, status: "PENDING", totalRows: rows.length },
+      });
+      for (const row of rows) {
+        await tx.item.create({
           data: {
             pawnShopId: shopId,
-            title,
+            title: normalizeString(row.title),
             description: normalizeString(row.description),
-            price,
+            price: normalizePrice(row.price),
             currency: normalizeString(row.currency) || "USD",
             images: [],
             category: normalizeString(row.category),
@@ -110,29 +81,8 @@ export async function importInventoryCsv(req, res) {
             status: normalizeStatus(row.status),
           },
         });
-
-        successCount += 1;
-      } catch (error) {
-        failedCount += 1;
-        errors.push({
-          line,
-          row,
-          error: error instanceof Error ? error.message : "Unknown row error",
-        });
       }
-    }
-
-    const finalStatus = failedCount > 0 && successCount === 0 ? "FAILED" : "COMPLETED";
-
-    const updatedJob = await prisma.inventoryImportJob.update({
-      where: { id: importJob.id },
-      data: {
-        status: finalStatus,
-        totalRows: rows.length,
-        successCount,
-        failedCount,
-        errorsJson: errors,
-      },
+      return tx.inventoryImportJob.update({ where: { id: importJob.id }, data: { status: "COMPLETED", successCount: rows.length, failedCount: 0, errorsJson: [] } });
     });
 
     return res.status(201).json({
@@ -140,11 +90,12 @@ export async function importInventoryCsv(req, res) {
       importJob: updatedJob,
       shop,
       totalRows: rows.length,
-      successCount,
-      failedCount,
-      errors,
+      successCount: rows.length,
+      failedCount: 0,
+      errors: [],
     });
   } catch (error) {
+    if (Array.isArray(error?.rowErrors)) return res.status(error.statusCode || 422).json({ success: false, error: error.message, errors: error.rowErrors });
     return sendError(res, error, "Failed to import inventory");
   }
 }
