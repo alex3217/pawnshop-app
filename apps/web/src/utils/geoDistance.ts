@@ -4,15 +4,19 @@ export type GeoPoint = {
 };
 
 export function toNumber(value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 export function hasCoordinates(point: GeoPoint | null | undefined): boolean {
-  return toNumber(point?.latitude) !== null && toNumber(point?.longitude) !== null;
+  const latitude = toNumber(point?.latitude);
+  const longitude = toNumber(point?.longitude);
+  return latitude !== null && longitude !== null && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
 }
 
 export function distanceMiles(from: GeoPoint, to: GeoPoint): number | null {
+  if (!hasCoordinates(from) || !hasCoordinates(to)) return null;
   const lat1 = toNumber(from.latitude);
   const lon1 = toNumber(from.longitude);
   const lat2 = toNumber(to.latitude);
@@ -47,6 +51,7 @@ export function formatMiles(value: number | null | undefined): string {
 }
 
 export function directionsUrl(point: GeoPoint): string | null {
+  if (!hasCoordinates(point)) return null;
   const latitude = toNumber(point.latitude);
   const longitude = toNumber(point.longitude);
 
