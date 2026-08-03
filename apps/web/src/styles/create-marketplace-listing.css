@@ -1,7 +1,35 @@
 .create-marketplace-listing-page {
+  --surface: #ffffff;
+  --surface-strong: #ffffff;
+  --text-strong: #0f172a;
+  --muted: #475569;
+  --bg-soft: #f1f5f9;
+  --border: #cbd5e1;
+  --border-strong: #94a3b8;
+  --accent: #4338ca;
+  --danger: #b91c1c;
+  --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.08);
   width: min(1060px, calc(100% - 2rem));
   margin: 0 auto;
   padding: 32px 0 72px;
+}
+
+:root[data-theme="dark"] .create-marketplace-listing-page {
+  --surface: #0f172a;
+  --surface-strong: #020617;
+  --text-strong: #f8fafc;
+  --muted: #cbd5e1;
+  --bg-soft: #1e293b;
+  --border: #475569;
+  --border-strong: #64748b;
+  --accent: #4338ca;
+  --danger: #fca5a5;
+  --shadow-soft: none;
+  color: var(--text-strong);
+}
+
+:root[data-theme="dark"] .create-listing-hero > div:first-child > span {
+  color: #a5b4fc;
 }
 
 .create-listing-hero,
@@ -38,6 +66,11 @@
   font-size: clamp(34px, 5vw, 52px);
 }
 
+.create-marketplace-listing-page :is(h1, h2, h3, strong) {
+  color: var(--text-strong) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
 .create-listing-hero p,
 .create-listing-panel > p {
   margin: 0;
@@ -64,6 +97,19 @@
   color: var(--text-strong);
   font-weight: 850;
   text-decoration: none;
+}
+
+.create-listing-hero-actions a,
+.create-listing-hero-actions a:visited,
+.create-listing-hero-actions a:hover,
+.create-listing-hero-actions a:focus,
+.create-listing-hero-actions a:active,
+.create-listing-submit-row a,
+.create-listing-submit-row a:visited {
+  border-color: var(--border-strong);
+  background: var(--surface-strong);
+  color: var(--text-strong) !important;
+  -webkit-text-fill-color: var(--text-strong) !important;
 }
 
 .create-listing-message {
@@ -96,6 +142,7 @@
 
 .create-listing-panel h2 {
   margin-top: 0;
+  color: var(--text-strong);
 }
 
 .create-listing-field-grid {
@@ -116,8 +163,14 @@
 }
 
 .create-listing-panel label > span {
+  color: var(--text-strong);
   font-size: 13px;
   font-weight: 850;
+}
+
+.create-listing-panel label:has(:is(input, select, textarea)[required]) > span::after {
+  content: " *";
+  color: var(--danger);
 }
 
 .create-listing-panel input,
@@ -131,6 +184,15 @@
   background: var(--surface-strong);
   color: var(--text-strong);
   font: inherit;
+}
+
+.create-listing-panel :is(input, textarea)::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.create-listing-panel input[type="checkbox"] {
+  accent-color: var(--accent);
 }
 
 .create-listing-panel textarea {
@@ -175,13 +237,23 @@
 .create-listing-submit-row button {
   border-color: var(--accent);
   background: var(--accent);
-  color: white;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   cursor: pointer;
 }
 
 .create-listing-submit-row button:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  border-color: var(--border);
+  background: var(--bg-soft);
+  color: var(--muted) !important;
+  -webkit-text-fill-color: var(--muted) !important;
+  opacity: 1;
+}
+
+.create-marketplace-listing-page :is(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid #3b82f6;
+  outline-offset: 3px;
 }
 
 @media (max-width: 700px) {
