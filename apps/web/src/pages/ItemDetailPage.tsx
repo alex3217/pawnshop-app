@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { createOffer } from "../services/offers";
 import {
@@ -74,6 +74,30 @@ type PriceComparisonView =
   | "cards"
   | "table"
   | "compare";
+
+type FulfillmentPreference =
+  | "pickup"
+  | "shipping"
+  | "local-delivery";
+
+type OfferFeedback = {
+  kind: "error" | "success";
+  source: "amount-validation" | "submission";
+  message: string;
+};
+
+const fulfillmentMessageLines: Record<FulfillmentPreference, string> = {
+  pickup: "Preferred fulfillment: Pick up at shop.",
+  shipping: "Preferred fulfillment request: Shipping, subject to shop confirmation.",
+  "local-delivery": "Preferred fulfillment request: Local delivery, subject to shop confirmation.",
+};
+
+const buyerChecklistItems = [
+  "I reviewed the item condition",
+  "I reviewed the photos and description",
+  "I understand the pickup requirements",
+  "I understand the payment and buyer-protection terms",
+] as const;
 
 function qualityScoreForCondition(
   condition: string | null | undefined,
@@ -201,9 +225,16 @@ export default function ItemDetailPage() {
   const [selectedImage, setSelectedImage] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
   const [offerMessage, setOfferMessage] = useState("");
+  const [fulfillmentPreference, setFulfillmentPreference] =
+    useState<FulfillmentPreference>("pickup");
+  const [buyerChecklist, setBuyerChecklist] = useState<boolean[]>(
+    () => buyerChecklistItems.map(() => false),
+  );
   const [loading, setLoading] = useState(true);
   const [savingWatchlist, setSavingWatchlist] = useState(false);
   const [submittingOffer, setSubmittingOffer] = useState(false);
+  const [offerFeedback, setOfferFeedback] =
+    useState<OfferFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
@@ -227,8 +258,66 @@ export default function ItemDetailPage() {
     useRef<HTMLFormElement | null>(null);
   const offerAmountInputRef =
     useRef<HTMLInputElement | null>(null);
+  const offerMessageInputRef =
+    useRef<HTMLTextAreaElement | null>(null);
+  const activeItemIdRef = useRef(id);
+  const offerSubmissionTokenRef = useRef(0);
+
+  useLayoutEffect(() => {
+    activeItemIdRef.current = id;
+  }, [id]);
+
+  const reviewedChecklistCount = buyerChecklist.filter(Boolean).length;
+  const isBuyerChecklistComplete =
+    reviewedChecklistCount === buyerChecklistItems.length;
+  const hasAmountValidationError =
+    offerFeedback?.kind === "error"
+    && offerFeedback.source === "amount-validation";
+
+  function clearOfferFeedbackForEdit() {
+    setOfferFeedback(null);
+  }
+
+  function handleFulfillmentPreferenceChange(
+    preference: FulfillmentPreference,
+  ) {
+    clearOfferFeedbackForEdit();
+    setFulfillmentPreference(preference);
+  }
+
+  function focusOfferAmount() {
+    offerFormRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    window.requestAnimationFrame(() => {
+      offerAmountInputRef.current?.focus();
+    });
+  }
+
+  function focusOfferMessage(prefill: string) {
+    clearOfferFeedbackForEdit();
+
+    if (!offerMessage.trim()) {
+      setOfferMessage(prefill);
+    }
+
+    offerFormRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    window.requestAnimationFrame(() => {
+      offerMessageInputRef.current?.focus();
+    });
+  }
 
   useEffect(() => {
+    offerSubmissionTokenRef.current += 1;
+    setSubmittingOffer(false);
+    setOfferFeedback(null);
+    setFulfillmentPreference("pickup");
+    setBuyerChecklist(buyerChecklistItems.map(() => false));
+
     let cancelled = false;
 
     async function load() {
@@ -486,7 +575,11 @@ export default function ItemDetailPage() {
   async function handleOfferSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!item?.id || submittingOffer) return;
+    if (
+      !item?.id
+      || item.id !== activeItemIdRef.current
+      || submittingOffer
+    ) return;
 
     if (!isAuthenticated()) {
       navigate(
@@ -507,27 +600,67 @@ export default function ItemDetailPage() {
     const amount = Number(offerAmount);
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      setNotice("Enter a valid offer amount.");
+      setOfferFeedback({
+        kind: "error",
+        source: "amount-validation",
+        message: "Enter an offer amount greater than $0.",
+      });
+      offerAmountInputRef.current?.focus();
       return;
+    }
+
+    const submittedItemId = item.id;
+    const submissionToken =
+      offerSubmissionTokenRef.current + 1;
+    offerSubmissionTokenRef.current = submissionToken;
+
+    function isCurrentSubmission() {
+      return activeItemIdRef.current === submittedItemId
+        && offerSubmissionTokenRef.current === submissionToken;
     }
 
     try {
       setSubmittingOffer(true);
       setNotice(null);
+      setOfferFeedback(null);
+
+      const typedMessage = offerMessage.trim();
+      const outgoingMessage = [
+        fulfillmentMessageLines[fulfillmentPreference],
+        typedMessage,
+      ].filter(Boolean).join("\n\n");
 
       await createOffer({
-        itemId: item.id,
+        itemId: submittedItemId,
         amount,
-        message: offerMessage.trim() || undefined,
+        message: outgoingMessage,
       });
 
-      setNotice("Offer sent to the shop.");
+      if (!isCurrentSubmission()) return;
+
+      setOfferFeedback({
+        kind: "success",
+        source: "submission",
+        message: "Offer sent to the shop.",
+      });
       setOfferAmount("");
       setOfferMessage("");
+      setFulfillmentPreference("pickup");
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to send offer.");
+      if (!isCurrentSubmission()) return;
+
+      setOfferFeedback({
+        kind: "error",
+        source: "submission",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Failed to send offer.",
+      });
     } finally {
-      setSubmittingOffer(false);
+      if (isCurrentSubmission()) {
+        setSubmittingOffer(false);
+      }
     }
   }
 
@@ -1274,28 +1407,120 @@ export default function ItemDetailPage() {
             </p>
           </div>
 
+          <fieldset
+            className="item-detail-fulfillment"
+            aria-describedby="item-fulfillment-note"
+          >
+            <legend>How would you like to get this item?</legend>
+            <div className="item-detail-fulfillment-options">
+              <label className={fulfillmentPreference === "pickup" ? "selected" : undefined}>
+                <input
+                  type="radio"
+                  name="fulfillment-preference"
+                  value="pickup"
+                  checked={fulfillmentPreference === "pickup"}
+                  onChange={() => handleFulfillmentPreferenceChange("pickup")}
+                />
+                <span className="item-detail-fulfillment-copy">
+                  <strong>Pick up at shop</strong>
+                  <small>Arrange pickup directly with the pawn shop.</small>
+                </span>
+              </label>
+              <label className={fulfillmentPreference === "shipping" ? "selected" : undefined}>
+                <input
+                  type="radio"
+                  name="fulfillment-preference"
+                  value="shipping"
+                  checked={fulfillmentPreference === "shipping"}
+                  onChange={() => handleFulfillmentPreferenceChange("shipping")}
+                />
+                <span className="item-detail-fulfillment-copy">
+                  <strong>Ask about shipping</strong>
+                  <small>Request only — the shop must confirm availability, price, and timing.</small>
+                </span>
+              </label>
+              <label className={fulfillmentPreference === "local-delivery" ? "selected" : undefined}>
+                <input
+                  type="radio"
+                  name="fulfillment-preference"
+                  value="local-delivery"
+                  checked={fulfillmentPreference === "local-delivery"}
+                  onChange={() => handleFulfillmentPreferenceChange("local-delivery")}
+                />
+                <span className="item-detail-fulfillment-copy">
+                  <strong>Ask about local delivery</strong>
+                  <small>Request only — the shop must confirm availability, price, service area, and timing.</small>
+                </span>
+              </label>
+            </div>
+            <p id="item-fulfillment-note" className="item-detail-fulfillment-note">
+              Shipping and local delivery are requests only until the shop confirms availability, cost, and timing.
+            </p>
+          </fieldset>
+
           <label>
             <span>Offer amount</span>
             <input
               ref={offerAmountInputRef}
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
               value={offerAmount}
-              onChange={(event) => setOfferAmount(event.target.value)}
+              onChange={(event) => {
+                setOfferAmount(event.target.value);
+                clearOfferFeedbackForEdit();
+              }}
               placeholder={suggestedOffer ? `$${suggestedOffer}` : "$100"}
               inputMode="decimal"
+              aria-invalid={hasAmountValidationError}
+              aria-describedby={
+                offerFeedback
+                  ? "item-offer-feedback"
+                  : undefined
+              }
             />
           </label>
 
           <label>
             <span>Message</span>
             <textarea
+              ref={offerMessageInputRef}
               value={offerMessage}
-              onChange={(event) => setOfferMessage(event.target.value)}
+              onChange={(event) => {
+                setOfferMessage(event.target.value);
+                clearOfferFeedbackForEdit();
+              }}
               placeholder="Optional message to the shop..."
               rows={4}
             />
           </label>
 
-          <button type="submit" disabled={submittingOffer}>
+          {offerFeedback ? (
+            <div
+              id="item-offer-feedback"
+              className={`item-detail-offer-feedback ${offerFeedback.kind}`}
+              role={
+                offerFeedback.kind === "error"
+                  ? "alert"
+                  : "status"
+              }
+              aria-live="polite"
+            >
+              {offerFeedback.message}
+            </div>
+          ) : null}
+
+          <button
+            type="submit"
+            className="item-detail-offer-submit"
+            disabled={submittingOffer}
+            aria-label={
+              submittingOffer
+                ? "Sending offer"
+                : "Send offer to shop"
+            }
+          >
             {submittingOffer ? "Sending..." : "Send offer"}
           </button>
         </form>
@@ -1327,7 +1552,19 @@ export default function ItemDetailPage() {
           </div>
 
           <div className="item-detail-map-card">
-            <div className="item-detail-map-user">Shop</div>
+            <div
+              className="item-detail-map-user"
+              role="img"
+              aria-label="Shop location marker"
+            >
+              <span
+                className="item-detail-map-pin"
+                aria-hidden="true"
+              />
+              <strong aria-hidden="true">
+                Shop location
+              </strong>
+            </div>
             <div className="item-detail-map-note">
               <strong>Shop location</strong>
               <span>{shopDistanceText}</span>
@@ -1369,6 +1606,75 @@ export default function ItemDetailPage() {
               <span>Use platform offer and watchlist tools to track activity.</span>
             </div>
           </div>
+
+          <div className="item-detail-confidence-actions" role="group" aria-label="Buyer confidence actions">
+            <button
+              type="button"
+              onClick={() => focusOfferMessage("I have a question about the item condition.")}
+            >
+              Ask about condition
+            </button>
+            <button type="button" onClick={handleSaveItem} disabled={savingWatchlist}>
+              {savingWatchlist ? "Saving..." : "Save to watchlist"}
+            </button>
+            <button
+              type="button"
+              onClick={() => focusOfferMessage("Please confirm pickup requirements and available pickup times.")}
+            >
+              Discuss pickup
+            </button>
+            <Link to="/buyer/help">Buyer protection help</Link>
+          </div>
+
+          <fieldset className="item-detail-buyer-checklist">
+            <legend>Before making an offer</legend>
+            <p className="item-detail-checklist-note">
+              Optional review checklist. You can make an offer at any time.
+            </p>
+            <p className="item-detail-checklist-progress" aria-live="polite">
+              {reviewedChecklistCount} of {buyerChecklistItems.length} reviewed
+            </p>
+            <div className="item-detail-checklist-options">
+              {buyerChecklistItems.map((label, index) => (
+                <label key={label}>
+                  <input
+                    type="checkbox"
+                    checked={buyerChecklist[index]}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setBuyerChecklist((current) => current.map((value, itemIndex) => (
+                        itemIndex === index ? checked : value
+                      )));
+                    }}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+            {isBuyerChecklistComplete ? (
+              <div
+                className="item-detail-checklist-complete"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="item-detail-checklist-complete-icon" aria-hidden="true">
+                  ✓
+                </span>
+                <div className="item-detail-checklist-complete-copy">
+                  <h3>Review complete</h3>
+                  <p>You are ready to continue with your offer.</p>
+                </div>
+                <button
+                  type="button"
+                  className="item-detail-checklist-continue"
+                  aria-controls="item-offer-form"
+                  onClick={focusOfferAmount}
+                >
+                  Continue to make offer
+                </button>
+              </div>
+            ) : null}
+          </fieldset>
         </section>
 
         <section className="item-detail-next-card">
