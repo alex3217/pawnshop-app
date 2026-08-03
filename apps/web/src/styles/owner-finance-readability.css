@@ -148,6 +148,12 @@
   border: 1px solid #60a5fa;
   background: #2563eb;
   color: #fff;
+  -webkit-text-fill-color: #fff;
+}
+
+.owner-finance-page .owner-finance-primary-button {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 .owner-finance-secondary-button {
@@ -477,6 +483,132 @@
     text-align: center;
   }
 }
+
+/* SiteLayout's explicit theme is authoritative over OS color preference. */
+.owner-finance-page {
+  padding-bottom: 7rem;
+  color: #0f172a;
+}
+
+.owner-finance-hero,
+.owner-finance-toolbar,
+.owner-finance-panel,
+.owner-finance-connect-panel,
+.owner-finance-payout-request,
+.owner-finance-balance-grid article {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+.owner-finance-page :is(h1, h2, h3, strong) { color: #0f172a; }
+.owner-finance-hero p,
+.owner-finance-connect-panel p,
+.owner-finance-connect-panel small,
+.owner-finance-toolbar label,
+.owner-finance-filters label,
+.owner-finance-shop-summary span,
+.owner-finance-pagination span,
+.owner-finance-empty span { color: #475569; }
+.owner-finance-eyebrow { color: #1d4ed8 !important; }
+
+.owner-finance-toolbar :is(select, input),
+.owner-finance-filters :is(select, input),
+.owner-finance-amount-input input {
+  border-color: #94a3b8;
+  background: #ffffff;
+  color: #0f172a;
+  color-scheme: light;
+}
+
+.owner-finance-secondary-button,
+.owner-finance-pagination button,
+.owner-finance-filter-button {
+  border-color: #94a3b8;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.owner-finance-balance-grid article > span { color: #3730a3; }
+.owner-finance-balance-grid strong,
+.owner-finance-table-wrap td { color: #0f172a; }
+.owner-finance-balance-grid small { color: #475569; }
+.owner-finance-table-wrap th { background: #f1f5f9; color: #334155; }
+.owner-finance-table-wrap :is(th, td),
+.owner-finance-tabs { border-color: #cbd5e1; }
+.owner-finance-tabs button { color: #334155; }
+.owner-finance-tabs button.is-active { border-color: #2563eb; background: #dbeafe; color: #1e3a8a; }
+.owner-finance-status { background: #e2e8f0; color: #334155; }
+.owner-finance-status-available,
+.owner-finance-status-paid { background: #dcfce7; color: #166534; }
+.owner-finance-status-pending,
+.owner-finance-status-processing { background: #fef3c7; color: #92400e; }
+.owner-finance-status-held,
+.owner-finance-status-failed,
+.owner-finance-status-reversed,
+.owner-finance-status-canceled { background: #fee2e2; color: #991b1b; }
+.owner-finance-alert { background: #fef2f2; color: #991b1b; }
+.owner-finance-success { color: #166534; }
+.owner-finance-connect-error { color: #b91c1c; }
+.owner-finance-export-button { background: #ecfdf5; color: #065f46; }
+.owner-finance-page button:disabled { opacity: 1; background-color: #e2e8f0; color: #64748b; }
+.owner-finance-table-wrap:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
+}
+
+:root[data-theme="dark"] .owner-finance-page { color: #e5e7eb; }
+:root[data-theme="dark"] .owner-finance-hero,
+:root[data-theme="dark"] .owner-finance-toolbar,
+:root[data-theme="dark"] .owner-finance-panel,
+:root[data-theme="dark"] .owner-finance-connect-panel,
+:root[data-theme="dark"] .owner-finance-payout-request,
+:root[data-theme="dark"] .owner-finance-balance-grid article {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.78);
+  box-shadow: 0 18px 45px rgba(2, 6, 23, 0.18);
+}
+:root[data-theme="dark"] .owner-finance-page :is(h1, h2, h3, strong) { color: #f8fafc; }
+:root[data-theme="dark"] .owner-finance-hero p,
+:root[data-theme="dark"] .owner-finance-connect-panel p,
+:root[data-theme="dark"] .owner-finance-toolbar label,
+:root[data-theme="dark"] .owner-finance-filters label,
+:root[data-theme="dark"] .owner-finance-pagination span { color: #cbd5e1; }
+:root[data-theme="dark"] .owner-finance-connect-panel small,
+:root[data-theme="dark"] .owner-finance-shop-summary span,
+:root[data-theme="dark"] .owner-finance-empty span { color: #94a3b8; }
+:root[data-theme="dark"] .owner-finance-eyebrow { color: #93c5fd !important; }
+:root[data-theme="dark"] .owner-finance-toolbar :is(select, input),
+:root[data-theme="dark"] .owner-finance-filters :is(select, input),
+:root[data-theme="dark"] .owner-finance-amount-input input {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: #0f172a;
+  color: #f8fafc;
+  color-scheme: dark;
+}
+:root[data-theme="dark"] .owner-finance-secondary-button,
+:root[data-theme="dark"] .owner-finance-pagination button,
+:root[data-theme="dark"] .owner-finance-filter-button { border-color: rgba(148, 163, 184, 0.35); background: rgba(30, 41, 59, 0.9); color: #f8fafc; }
+:root[data-theme="dark"] .owner-finance-balance-grid article > span { color: #a5b4fc; }
+:root[data-theme="dark"] .owner-finance-balance-grid small { color: #94a3b8; }
+:root[data-theme="dark"] .owner-finance-table-wrap td { color: #e2e8f0; }
+:root[data-theme="dark"] .owner-finance-table-wrap th { background: rgba(15, 23, 42, 0.95); color: #cbd5e1; }
+:root[data-theme="dark"] .owner-finance-tabs button { color: #cbd5e1; }
+:root[data-theme="dark"] .owner-finance-tabs button.is-active { border-color: rgba(96, 165, 250, 0.45); background: rgba(37, 99, 235, 0.2); color: #dbeafe; }
+:root[data-theme="dark"] .owner-finance-status { background: rgba(148, 163, 184, 0.16); color: #e2e8f0; }
+:root[data-theme="dark"] .owner-finance-status-available,
+:root[data-theme="dark"] .owner-finance-status-paid { background: rgba(34, 197, 94, 0.18); color: #bbf7d0; }
+:root[data-theme="dark"] .owner-finance-status-pending,
+:root[data-theme="dark"] .owner-finance-status-processing { background: rgba(245, 158, 11, 0.18); color: #fde68a; }
+:root[data-theme="dark"] .owner-finance-status-held,
+:root[data-theme="dark"] .owner-finance-status-failed,
+:root[data-theme="dark"] .owner-finance-status-reversed,
+:root[data-theme="dark"] .owner-finance-status-canceled { background: rgba(239, 68, 68, 0.18); color: #fecaca; }
+:root[data-theme="dark"] .owner-finance-alert { background: rgba(127, 29, 29, 0.22); color: #fecaca; }
+:root[data-theme="dark"] .owner-finance-success { color: #bbf7d0; }
+:root[data-theme="dark"] .owner-finance-connect-error { color: #fecaca; }
+:root[data-theme="dark"] .owner-finance-export-button { background: rgba(5, 150, 105, 0.22); color: #d1fae5; }
+:root[data-theme="dark"] .owner-finance-page button:disabled { opacity: 0.65; }
 
 /* Finance date filtering and CSV export controls */
 .owner-finance-toolbar input,
