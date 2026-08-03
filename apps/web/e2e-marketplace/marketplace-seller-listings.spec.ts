@@ -247,6 +247,7 @@ function replaceListing(
 async function installMocks(
   page: Page,
   state: MockState,
+  role: "CONSUMER" | "OWNER",
 ) {
   await page.route(
     "https://js.stripe.com/**",
@@ -268,6 +269,103 @@ async function installMocks(
         new URL(
           request.url(),
         ).pathname;
+
+      const userId =
+        role === "OWNER"
+          ? OWNER_ID
+          : CONSUMER_ID;
+
+      if (
+        method === "GET" &&
+        pathname === "/api/auth/me"
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: jsonBody({
+            user: {
+              id: userId,
+              name: "Seller Listings Browser User",
+              email: "seller-listings@pawnloop.test",
+              role,
+              ...(role === "OWNER"
+                ? {
+                    ownerApplication: {
+                      id: "seller-listings-owner-application",
+                      status: "APPROVED",
+                    },
+                  }
+                : {}),
+            },
+          }),
+        });
+
+        return;
+      }
+
+      if (
+        method === "GET" &&
+        pathname === "/api/auth/shop-access"
+      ) {
+        const ownerAccess =
+          role === "OWNER";
+
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: jsonBody({
+            access: {
+              role,
+              unrestricted: ownerAccess,
+              shopIds: ownerAccess ? [SHOP_ID] : [],
+              permissions: [],
+              capabilities: {
+                inventoryRead: ownerAccess,
+                inventoryWrite: ownerAccess,
+                auctionsRead: false,
+                auctionsWrite: false,
+                offersRead: false,
+                offersWrite: false,
+                locationsRead: false,
+                locationsWrite: false,
+                staffRead: false,
+                staffWrite: false,
+                settlementsRead: false,
+              },
+              shops: ownerAccess
+                ? [
+                    {
+                      shopId: SHOP_ID,
+                      shopName: "Seller Listings Browser Shop",
+                      source: "OWNER",
+                      staffId: null,
+                      staffRole: null,
+                      permissions: [],
+                    },
+                  ]
+                : [],
+            },
+          }),
+        });
+
+        return;
+      }
+
+      if (
+        method === "GET" &&
+        pathname === "/api/notifications"
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: jsonBody({
+            success: true,
+            notifications: [],
+          }),
+        });
+
+        return;
+      }
 
       if (
         method === "GET" &&
@@ -680,6 +778,7 @@ test(
     await installMocks(
       page,
       state,
+      "CONSUMER",
     );
 
     await page.goto(
@@ -799,6 +898,7 @@ test(
     await installMocks(
       page,
       state,
+      "OWNER",
     );
 
     await page.goto(
@@ -911,6 +1011,7 @@ test(
     await installMocks(
       page,
       state,
+      "OWNER",
     );
 
     await page.goto(
@@ -1007,6 +1108,7 @@ test(
     await installMocks(
       page,
       state,
+      "OWNER",
     );
 
     await page.goto(

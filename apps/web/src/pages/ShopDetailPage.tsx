@@ -1,8 +1,10 @@
 // File: apps/web/src/pages/ShopDetailPage.tsx
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getShopItems, type Shop, type ShopItem } from "../services/shops";
+import { firstUsableImage } from "../utils/imageUrl";
+import "../styles/shop-detail-readability.css";
 
 function formatPrice(value: string | number) {
   const num = Number(value);
@@ -24,38 +26,12 @@ function toPriceNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getItemStatusTone(status: string): CSSProperties {
+function getItemStatusTone(status: string) {
   const normalized = String(status || "").toUpperCase();
-
-  if (["AVAILABLE", "ACTIVE"].includes(normalized)) {
-    return {
-      color: "#7ef0b3",
-      background: "rgba(46, 204, 113, 0.12)",
-      border: "1px solid rgba(46, 204, 113, 0.24)",
-    };
-  }
-
-  if (["PENDING"].includes(normalized)) {
-    return {
-      color: "#ffd98a",
-      background: "rgba(255, 193, 7, 0.12)",
-      border: "1px solid rgba(255, 193, 7, 0.24)",
-    };
-  }
-
-  if (["SOLD", "INACTIVE", "REMOVED"].includes(normalized)) {
-    return {
-      color: "#ffb2bc",
-      background: "rgba(255, 128, 143, 0.10)",
-      border: "1px solid rgba(255, 128, 143, 0.18)",
-    };
-  }
-
-  return {
-    color: "#c7d2fe",
-    background: "rgba(199, 210, 254, 0.10)",
-    border: "1px solid rgba(199, 210, 254, 0.18)",
-  };
+  if (["AVAILABLE", "ACTIVE"].includes(normalized)) return "available";
+  if (normalized === "PENDING") return "pending";
+  if (["SOLD", "INACTIVE", "REMOVED"].includes(normalized)) return "unavailable";
+  return "neutral";
 }
 
 type SortOption =
@@ -133,7 +109,9 @@ export default function ShopDetailPage() {
               "inventory",
             )
             ?.scrollIntoView({
-              behavior: "smooth",
+              behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                ? "auto"
+                : "smooth",
               block: "start",
             });
         },
@@ -248,108 +226,115 @@ export default function ShopDetailPage() {
     statusFilter !== "ALL" ||
     sortBy !== "TITLE_ASC";
 
-  if (loading) return <div style={styles.card}>Loading shop...</div>;
-  if (error) return <div style={styles.error}>{error}</div>;
-  if (!shop) return <div style={styles.card}>Shop not found.</div>;
+  if (loading) {
+    return (
+      <main className="shop-detail-page">
+        <div className="shop-detail-state" role="status" aria-live="polite">
+          Loading shop…
+        </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="shop-detail-page">
+        <div className="shop-detail-state shop-detail-error" role="alert">
+          {error}
+        </div>
+      </main>
+    );
+  }
+
+  if (!shop) {
+    return (
+      <main className="shop-detail-page">
+        <div className="shop-detail-state">Shop not found.</div>
+      </main>
+    );
+  }
 
   return (
-    <div style={styles.page}>
-      <section style={styles.card}>
-        <h2 style={styles.title}>{shop.name}</h2>
-        <p style={styles.meta}>{shop.address || "No address provided"}</p>
-        <p style={styles.meta}>{shop.phone || "No phone provided"}</p>
-        <p style={styles.meta}>{shop.hours || "Hours not listed"}</p>
-        {shop.description ? <p style={styles.description}>{shop.description}</p> : null}
-      </section>
+    <main className="shop-detail-page">
+      <header className="shop-detail-card shop-detail-header">
+        <div>
+          <p className="shop-detail-eyebrow">Shop storefront</p>
+          <h1>{shop.name}</h1>
+          {shop.description ? (
+            <p className="shop-detail-description">{shop.description}</p>
+          ) : null}
+        </div>
 
-      <section style={styles.filterCard}>
-        <div style={styles.filterTopRow}>
+        <dl className="shop-detail-contact-list">
           <div>
-            <div style={styles.filterTitle}>Filter storefront inventory</div>
-            <div style={styles.filterSubtitle}>
-              Search and sort this shop’s inventory.
-            </div>
+            <dt>Address</dt>
+            <dd><address>{shop.address || "No address provided"}</address></dd>
           </div>
+          <div>
+            <dt>Phone</dt>
+            <dd>
+              {shop.phone ? <a href={`tel:${shop.phone}`}>{shop.phone}</a> : "No phone provided"}
+            </dd>
+          </div>
+          <div>
+            <dt>Hours</dt>
+            <dd>{shop.hours || "Hours not listed"}</dd>
+          </div>
+        </dl>
+      </header>
 
+      <section
+        className="shop-detail-card shop-detail-filters"
+        aria-labelledby="shop-detail-filter-title"
+      >
+        <div className="shop-detail-filter-heading">
+          <div>
+            <h2 id="shop-detail-filter-title">Filter storefront inventory</h2>
+            <p>Search and sort this shop’s inventory.</p>
+          </div>
           <button
             type="button"
             onClick={clearFilters}
             disabled={!hasActiveFilters}
-            style={{
-              ...styles.clearButton,
-              ...(!hasActiveFilters ? styles.disabledButton : {}),
-            }}
+            className="shop-detail-clear-button"
           >
             Clear Filters
           </button>
         </div>
 
-        <div style={styles.filterGrid}>
-          <label style={styles.field}>
-            <span style={styles.label}>Search</span>
+        <div className="shop-detail-filter-grid">
+          <label>
+            <span>Search</span>
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="Search items in this shop..."
-              style={styles.input}
             />
           </label>
-
-          <label style={styles.field}>
-            <span style={styles.label}>Category</span>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              style={styles.input}
-            >
+          <label>
+            <span>Category</span>
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
               <option value="ALL">All Categories</option>
-              {categoryOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
+              {categoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </label>
-
-          <label style={styles.field}>
-            <span style={styles.label}>Condition</span>
-            <select
-              value={conditionFilter}
-              onChange={(e) => setConditionFilter(e.target.value)}
-              style={styles.input}
-            >
+          <label>
+            <span>Condition</span>
+            <select value={conditionFilter} onChange={(event) => setConditionFilter(event.target.value)}>
               <option value="ALL">All Conditions</option>
-              {conditionOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
+              {conditionOptions.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </label>
-
-          <label style={styles.field}>
-            <span style={styles.label}>Status</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={styles.input}
-            >
+          <label>
+            <span>Status</span>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="ALL">All Statuses</option>
-              {statusOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
+              {statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </label>
-
-          <label style={styles.field}>
-            <span style={styles.label}>Sort By</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              style={styles.input}
-            >
+          <label>
+            <span>Sort By</span>
+            <select value={sortBy} onChange={(event) => setSortBy(event.target.value as SortOption)}>
               <option value="TITLE_ASC">Title A–Z</option>
               <option value="PRICE_LOW_HIGH">Price Low → High</option>
               <option value="PRICE_HIGH_LOW">Price High → Low</option>
@@ -359,232 +344,75 @@ export default function ShopDetailPage() {
         </div>
       </section>
 
-      <section style={styles.statsRow}>
-        <div style={styles.statPill}>All items: {stats.totalInventory}</div>
-        <div style={styles.statPill}>Matching: {stats.matchingInventory}</div>
-        <div style={styles.statPill}>
-          Visible value: ${stats.totalValue.toFixed(2)}
-        </div>
-      </section>
+      <dl className="shop-detail-stats" aria-label="Inventory summary">
+        <div><dt>All items</dt><dd>{stats.totalInventory}</dd></div>
+        <div><dt>Matching items</dt><dd>{stats.matchingInventory}</dd></div>
+        <div><dt>Visible inventory value</dt><dd>${stats.totalValue.toFixed(2)}</dd></div>
+      </dl>
 
-      <section
-        id="inventory"
-        style={{
-          ...styles.section,
-          scrollMarginTop: 180,
-        }}
-      >
-        <div style={styles.sectionHeader}>
-          <h3 style={styles.sectionTitle}>Available Inventory</h3>
-          <Link to="/auctions" style={styles.backLink}>
-            Browse Auctions
-          </Link>
+      <section id="inventory" className="shop-detail-inventory">
+        <div className="shop-detail-section-heading">
+          <h2>Available Inventory</h2>
+          <Link to="/auctions" className="shop-detail-secondary-link">Browse Auctions</Link>
         </div>
 
         {filteredItems.length === 0 ? (
-          <div style={styles.card}>No items matched this storefront filter.</div>
+          <div className="shop-detail-state">
+            {items.length === 0
+              ? "This shop has no inventory yet."
+              : "No items matched this storefront filter."}
+          </div>
         ) : (
-          <div style={styles.grid}>
-            {filteredItems.map((item) => (
-              <article key={item.id} style={styles.card}>
-                <h4 style={styles.itemTitle}>{item.title}</h4>
-                <div style={styles.price}>{formatPrice(item.price)}</div>
-
-                <div style={styles.metaRow}>
-                  <span style={{ ...styles.metaPill, ...getItemStatusTone(item.status) }}>
-                    {item.status}
-                  </span>
-                  <span style={styles.metaPill}>
-                    {normalizeLabel(item.category, "Uncategorized")}
-                  </span>
-                  <span style={styles.metaPill}>
-                    {normalizeLabel(item.condition, "Condition not listed")}
-                  </span>
-                </div>
-
-                {item.description ? (
-                  <p style={styles.description}>{item.description}</p>
-                ) : null}
-
-                <div style={styles.itemActions}>
-                  <Link to={`/items/${item.id}`} style={styles.itemLink}>
-                    View Item
-                  </Link>
-                </div>
-              </article>
-            ))}
+          <div className="shop-detail-grid">
+            {filteredItems.map((item) => {
+              const imageUrl = firstUsableImage(item.images);
+              return (
+                <article key={item.id} className="shop-detail-card shop-detail-item-card">
+                  <div className="shop-detail-item-media">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt={item.title} />
+                    ) : (
+                      <div
+                        className="shop-detail-image-placeholder"
+                        role="img"
+                        aria-label={`No image available for ${item.title}`}
+                      >
+                        <span aria-hidden="true">◇</span>
+                        <span>No image available</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="shop-detail-item-body">
+                    <h3>{item.title}</h3>
+                    <div className="shop-detail-price">{formatPrice(item.price)}</div>
+                    <div className="shop-detail-badges">
+                      <span className={`shop-detail-badge shop-detail-status-${getItemStatusTone(item.status)}`}>
+                        {item.status}
+                      </span>
+                      <span className="shop-detail-badge shop-detail-badge-neutral">
+                        {normalizeLabel(item.category, "Uncategorized")}
+                      </span>
+                      <span className="shop-detail-badge shop-detail-badge-neutral">
+                        {normalizeLabel(item.condition, "Condition not listed")}
+                      </span>
+                    </div>
+                    {item.description ? (
+                      <p className="shop-detail-item-description">{item.description}</p>
+                    ) : (
+                      <p className="shop-detail-item-description shop-detail-missing-description">
+                        No description provided.
+                      </p>
+                    )}
+                    <div className="shop-detail-item-actions">
+                      <Link to={`/items/${item.id}`} className="shop-detail-view-item">View Item</Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
-    </div>
+    </main>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  page: {
-    display: "grid",
-    gap: 20,
-    color: "#eef2ff",
-  },
-  section: {
-    display: "grid",
-    gap: 14,
-  },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  sectionTitle: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 800,
-  },
-  backLink: {
-    textDecoration: "none",
-    color: "#c7d2fe",
-    fontWeight: 700,
-  },
-  card: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 20,
-    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
-  },
-  title: {
-    margin: 0,
-    fontSize: 30,
-    fontWeight: 800,
-  },
-  itemTitle: {
-    margin: "0 0 8px",
-    fontSize: 20,
-    fontWeight: 800,
-  },
-  meta: {
-    color: "#a7b0d8",
-    marginTop: 8,
-  },
-  metaRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    marginTop: 12,
-  },
-  metaPill: {
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: "rgba(110,168,254,0.12)",
-    color: "#cfe0ff",
-    border: "1px solid rgba(110,168,254,0.2)",
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  description: {
-    color: "#d7def7",
-    lineHeight: 1.5,
-  },
-  price: {
-    fontSize: 22,
-    fontWeight: 800,
-    marginTop: 8,
-  },
-  error: {
-    color: "#ff9ead",
-    fontWeight: 700,
-  },
-  grid: {
-    display: "grid",
-    gap: 16,
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  },
-  itemActions: {
-    marginTop: 14,
-  },
-  itemLink: {
-    textDecoration: "none",
-    border: "none",
-    color: "#08111f",
-    background: "#6ea8fe",
-    padding: "10px 14px",
-    borderRadius: 12,
-    fontWeight: 800,
-    display: "inline-block",
-  },
-  filterCard: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 18,
-    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
-    display: "grid",
-    gap: 16,
-  },
-  filterTopRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  filterTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-  },
-  filterSubtitle: {
-    color: "#a7b0d8",
-    fontSize: 14,
-    marginTop: 6,
-  },
-  filterGrid: {
-    display: "grid",
-    gap: 16,
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  },
-  field: {
-    display: "grid",
-    gap: 8,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: "#c7d2fe",
-  },
-  input: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "#0c1330",
-    color: "#eef2ff",
-    padding: "12px 14px",
-  },
-  clearButton: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#eef2ff",
-    padding: "10px 14px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  disabledButton: {
-    opacity: 0.5,
-    cursor: "not-allowed",
-  },
-  statsRow: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  statPill: {
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: "rgba(110,168,254,0.12)",
-    color: "#cfe0ff",
-    border: "1px solid rgba(110,168,254,0.2)",
-    fontSize: 13,
-    fontWeight: 700,
-  },
-};

@@ -625,7 +625,10 @@ export default function MarketplaceSellerListingsPage() {
         </div>
 
         <div className="seller-listings-hero-actions">
-          <Link to="/marketplace/listings/new">
+          <Link
+            className="seller-listings-primary-action"
+            to="/marketplace/listings/new"
+          >
             Create listing
           </Link>
 
@@ -880,7 +883,10 @@ export default function MarketplaceSellerListingsPage() {
           </p>
 
           <div className="seller-listings-empty-actions">
-            <Link to="/marketplace/listings/new">
+            <Link
+              className="seller-listings-primary-action"
+              to="/marketplace/listings/new"
+            >
               Create listing
             </Link>
 
