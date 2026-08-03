@@ -15,7 +15,20 @@ const SENSITIVE_KEYS = [
   "stripeSecretKey",
   "apiKey",
   "authorization",
+  "cookie",
+  "credential",
+  "cardNumber",
+  "cvc",
+  "cvv",
+  "paymentMethod",
+  "bankAccount",
+  "routingNumber",
 ];
+
+// Stable, application-specific two-int32 namespace/key pair. PostgreSQL holds
+// this lock only for the current transaction and releases it on rollback too.
+const GOVERNANCE_LOCK_NAMESPACE = 1885434471;
+const SUPER_ADMIN_GOVERNANCE_LOCK_KEY = 1935764577;
 
 function isSensitiveKey(key = "") {
   const normalized = String(key).toLowerCase();
@@ -48,6 +61,255 @@ function safeJson(value) {
   } catch {
     return null;
   }
+}
+
+export function redactSuperAdminAuditMetadata(value) {
+  return safeJson(value);
+}
+
+function governanceError(message, code) {
+  const error = new Error(message);
+  error.statusCode = 403;
+  error.code = code;
+  return error;
+}
+
+function actorIdFromRequest(req) {
+  return String(req?.user?.sub || req?.user?.id || req?.user?.userId || "").trim();
+}
+
+function actorRoleFromRequest(req) {
+  return String(req?.user?.role || "").trim().toUpperCase();
+}
+
+function requireGovernanceActor(req) {
+  const role = actorRoleFromRequest(req);
+  if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+    throw governanceError("Admin access required.", "ADMIN_REQUIRED");
+  }
+  return role;
+}
+
+function userMutationRemovesSuperAdmin(target, update) {
+  return Boolean(
+    target?.role === "SUPER_ADMIN" &&
+      target?.isActive === true &&
+      (update?.isActive === false ||
+        (update?.role !== undefined && update.role !== "SUPER_ADMIN")),
+  );
+}
+
+function userMutationSelfLocks(update) {
+  return Boolean(
+    update?.isActive === false ||
+      (update?.role !== undefined && update.role !== "SUPER_ADMIN"),
+  );
+}
+
+async function acquireSuperAdminGovernanceLock(tx) {
+  const rows = await tx.$queryRaw`
+    SELECT pg_advisory_xact_lock(
+      CAST(${GOVERNANCE_LOCK_NAMESPACE} AS INTEGER),
+      CAST(${SUPER_ADMIN_GOVERNANCE_LOCK_KEY} AS INTEGER)
+    ) IS NULL AS acquired
+  `;
+
+  if (!Array.isArray(rows) || rows.length !== 1 || !("acquired" in rows[0])) {
+    throw new Error("Failed to acquire the Super Admin governance lock.");
+  }
+}
+
+function auditData(req, entry) {
+  const actor = getActor(req);
+
+  return {
+    ...actor,
+    action: entry.action,
+    method: String(req?.method || "").toUpperCase(),
+    path: String(req?.originalUrl || req?.url || ""),
+    routeKey: getRouteKey(req),
+    targetType: entry.targetType,
+    targetId: entry.targetId,
+    statusCode: entry.statusCode || 200,
+    success: entry.success !== false,
+    requestId:
+      String(req?.id || req?.requestId || req?.headers?.["x-request-id"] || "") ||
+      null,
+    ipAddress: getRequestIp(req),
+    userAgent: String(req?.headers?.["user-agent"] || "") || null,
+    metadata: safeJson(entry.metadata || {}),
+  };
+}
+
+export async function runGovernedUserMutation({
+  req,
+  targetUserId,
+  update,
+  action,
+  prismaClient = prisma,
+}) {
+  const actorId = actorIdFromRequest(req);
+  const actorRole = requireGovernanceActor(req);
+
+  if (actorRole === "ADMIN" && update?.role === "SUPER_ADMIN") {
+    throw governanceError(
+      "Only Super Admin can assign Super Admin role.",
+      "SUPER_ADMIN_REQUIRED",
+    );
+  }
+
+  return prismaClient.$transaction(
+    async (tx) => {
+      // Serialize every potentially destructive Super Admin mutation across
+      // users. The transaction-scoped PostgreSQL lock is released on commit or
+      // rollback and prevents concurrent requests from both passing a stale
+      // active-admin count.
+      await acquireSuperAdminGovernanceLock(tx);
+
+      const target = await tx.user.findUnique({ where: { id: targetUserId } });
+      if (!target) {
+        const error = new Error("User not found.");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      if (actorRole !== "SUPER_ADMIN" && target.role === "SUPER_ADMIN") {
+        throw governanceError(
+          "Only Super Admin can modify a Super Admin account.",
+          "SUPER_ADMIN_REQUIRED",
+        );
+      }
+
+      const removesSuperAdmin = userMutationRemovesSuperAdmin(target, update);
+      if (
+        target.role === "SUPER_ADMIN" &&
+        actorId &&
+        actorId === target.id &&
+        userMutationSelfLocks(update)
+      ) {
+        throw governanceError(
+          "Super Admins cannot deactivate or demote their own account.",
+          "SUPER_ADMIN_SELF_LOCKOUT",
+        );
+      }
+
+      if (removesSuperAdmin) {
+        const activeSuperAdmins = await tx.user.count({
+          where: { role: "SUPER_ADMIN", isActive: true },
+        });
+
+        if (activeSuperAdmins <= 1) {
+          throw governanceError(
+            "At least one active Super Admin account must remain.",
+            "LAST_ACTIVE_SUPER_ADMIN",
+          );
+        }
+      }
+
+      const updated = await tx.user.update({
+        where: { id: targetUserId },
+        data: update,
+      });
+
+      if (!tx.superAdminAuditLog?.create) {
+        throw new Error("Super Admin audit persistence is unavailable.");
+      }
+
+      await tx.superAdminAuditLog.create({
+        data: auditData(req, {
+          action,
+          targetType: "USER",
+          targetId: targetUserId,
+          metadata: { update },
+        }),
+      });
+
+      // The controller owns the single transactional success audit for this
+      // route, so the generic response listener must not add another record.
+      req.skipPersistedSuperAdminAudit = true;
+      return updated;
+    },
+    // READ COMMITTED gives the count statement a fresh snapshot after a
+    // concurrent transaction releases the advisory lock. The lock itself
+    // serializes the invariant check and mutation.
+    { isolationLevel: "ReadCommitted" },
+  );
+}
+
+export async function runGovernedShopMutation({
+  req,
+  targetShopId,
+  update,
+  action,
+  include,
+  select,
+  metadata,
+  statusCode = 200,
+  prismaClient = prisma,
+}) {
+  requireGovernanceActor(req);
+
+  return prismaClient.$transaction(async (tx) => {
+    const updated = await tx.pawnShop.update({
+      where: { id: targetShopId },
+      data: update,
+      ...(include ? { include } : {}),
+      ...(select ? { select } : {}),
+    });
+
+    if (!tx.superAdminAuditLog?.create) {
+      throw new Error("Super Admin audit persistence is unavailable.");
+    }
+
+    await tx.superAdminAuditLog.create({
+      data: auditData(req, {
+        action,
+        targetType: "SHOP",
+        targetId: targetShopId,
+        statusCode,
+        metadata:
+          typeof metadata === "function"
+            ? metadata(updated)
+            : metadata ?? { update },
+      }),
+    });
+
+    req.skipPersistedSuperAdminAudit = true;
+    return updated;
+  });
+}
+
+export async function runGovernedCreateMutation({
+  req,
+  action,
+  targetType,
+  statusCode = 201,
+  create,
+  metadata,
+  prismaClient = prisma,
+}) {
+  requireGovernanceActor(req);
+
+  return prismaClient.$transaction(async (tx) => {
+    const created = await create(tx);
+
+    if (!tx.superAdminAuditLog?.create) {
+      throw new Error("Super Admin audit persistence is unavailable.");
+    }
+
+    await tx.superAdminAuditLog.create({
+      data: auditData(req, {
+        action,
+        targetType,
+        targetId: created.id,
+        statusCode,
+        metadata: typeof metadata === "function" ? metadata(created) : metadata,
+      }),
+    });
+
+    req.skipPersistedSuperAdminAudit = true;
+    return created;
+  });
 }
 
 function getActor(req) {
@@ -180,6 +442,7 @@ export function auditSuperAdminMutation(req, res, next) {
   }
 
   res.on("finish", () => {
+    if (req.skipPersistedSuperAdminAudit) return;
     createSuperAdminAuditLog(req, res).catch((error) => {
       console.error("[superAdminAudit] failed to write audit log", error);
     });

@@ -1,7 +1,6 @@
 // File: apps/api/backend/src/routes/superAdmin.routes.js
 
 import { Router } from "express";
-import { prisma } from "../lib/prisma.js";
 import {
   auditSuperAdminMutation as persistedSuperAdminAuditMutation,
   listSuperAdminAuditLogs,
@@ -60,123 +59,6 @@ import {
 } from "../controllers/growthCenter.controller.js";
 
 const router = Router();
-
-function getActorEmail(req) {
-  return req?.user?.email || req?.user?.username || null;
-}
-
-function buildGovernanceAuditActions(req) {
-  const path = String(req?.route?.path || req?.path || "");
-  const body = req?.body || {};
-  const actions = [];
-
-  if (path.includes("/users/:id")) {
-    if (Object.prototype.hasOwnProperty.call(body, "role")) {
-      actions.push({
-        action: "UPDATE_USER_ROLE",
-        targetType: "USER",
-        targetId: req.params?.id,
-        metadata: {
-          newRole: body.role,
-        },
-      });
-    }
-
-    if (Object.prototype.hasOwnProperty.call(body, "isActive")) {
-      actions.push({
-        action: body.isActive === false ? "DEACTIVATE_USER" : "ACTIVATE_USER",
-        targetType: "USER",
-        targetId: req.params?.id,
-        metadata: {
-          isActive: body.isActive,
-        },
-      });
-    }
-  }
-
-  if (path.includes("/shops/:id")) {
-    if (Object.prototype.hasOwnProperty.call(body, "subscriptionPlan")) {
-      actions.push({
-        action: "UPDATE_SHOP_PLAN",
-        targetType: "SHOP",
-        targetId: req.params?.id,
-        metadata: {
-          subscriptionPlan: body.subscriptionPlan,
-        },
-      });
-    }
-
-    if (Object.prototype.hasOwnProperty.call(body, "subscriptionStatus")) {
-      actions.push({
-        action: "UPDATE_SHOP_STATUS",
-        targetType: "SHOP",
-        targetId: req.params?.id,
-        metadata: {
-          subscriptionStatus: body.subscriptionStatus,
-        },
-      });
-    }
-
-    if (Object.prototype.hasOwnProperty.call(body, "isDeleted")) {
-      actions.push({
-        action: body.isDeleted === true ? "DISABLE_SHOP" : "RESTORE_SHOP",
-        targetType: "SHOP",
-        targetId: req.params?.id,
-        metadata: {
-          isDeleted: body.isDeleted,
-        },
-      });
-    }
-  }
-
-  return actions.filter((entry) => entry.targetId);
-}
-
-function auditSuperAdminGovernanceMutation(req, res, next) {
-  const actions = buildGovernanceAuditActions(req);
-
-  if (!actions.length) {
-    next();
-    return;
-  }
-
-  res.on("finish", () => {
-    const statusCode = Number(res.statusCode || 0);
-    const success = statusCode >= 200 && statusCode < 400;
-
-    void Promise.all(
-      actions.map((entry) =>
-        prisma.superAdminAuditLog.create({
-          data: {
-            actorId: req?.user?.sub ?? null,
-            actorEmail: getActorEmail(req),
-            actorRole: req?.user?.role ?? null,
-            action: entry.action,
-            method: req?.method ?? "UNKNOWN",
-            path: req?.originalUrl ?? req?.url ?? "",
-            routeKey: req?.route?.path ? String(req.route.path) : null,
-            targetType: entry.targetType,
-            targetId: entry.targetId,
-            statusCode,
-            success,
-            requestId: req?.id ?? req?.requestId ?? null,
-            ipAddress: req?.ip ?? null,
-            userAgent: typeof req?.get === "function" ? req.get("user-agent") : null,
-            metadata: entry.metadata || {},
-          },
-        }),
-      ),
-    ).catch((error) => {
-      console.warn("[super-admin:audit] Failed to write mutation audit log", {
-        error: error?.message || error,
-      });
-    });
-  });
-
-  next();
-}
-
-
 
 const SUPER_ADMIN_ROLES = ["SUPER_ADMIN"];
 const ID_MAX_LENGTH = 128;
@@ -360,7 +242,7 @@ router.get("/beta-invites/:id", asyncRoute(getBetaInvite));
 router.post("/beta-invites/:id/revoke", asyncRoute(revokeBetaInvite));
 
 router.patch(
-  "/users/:id", auditSuperAdminGovernanceMutation,
+  "/users/:id",
   validateIdParam("id", "User id"),
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminUser)
@@ -375,7 +257,7 @@ router.patch("/integrations/:id/restore", asyncRoute(restoreSuperAdminIntegratio
 router.get("/shops", asyncRoute(listSuperAdminShops));
 
 router.patch(
-  "/shops/:id", auditSuperAdminGovernanceMutation,
+  "/shops/:id",
   validateIdParam("id", "Shop id"),
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminShop)

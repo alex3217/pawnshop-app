@@ -3,6 +3,11 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
 import { validatePassword } from "../services/passwordPolicy.service.js";
+import {
+  runGovernedCreateMutation,
+  runGovernedShopMutation,
+  runGovernedUserMutation,
+} from "../services/superAdminAudit.service.js";
 
 function sendError(res, error, fallbackMessage = "Internal server error") {
   const status =
@@ -279,25 +284,21 @@ export async function createAdminUser(req, res) {
     const input = pickAdminUserCreateData(req.body, req?.user?.role);
     const passwordHash = await bcrypt.hash(input.password, 12);
 
-    const user = await prisma.user.create({
-      data: {
-        name: input.name,
-        email: input.email,
-        password: passwordHash,
-        role: input.role,
-        isActive: input.isActive,
-        emailVerifiedAt: new Date(),
-      },
-    });
-
-    await writeAdminActionAudit(req, {
+    const user = await runGovernedCreateMutation({
+      req,
       action: "ADMIN_CREATE_USER",
       targetType: "USER",
-      targetId: user.id,
-      metadata: {
-        email: user.email,
-        role: user.role,
-      },
+      create: (tx) => tx.user.create({
+        data: {
+          name: input.name,
+          email: input.email,
+          password: passwordHash,
+          role: input.role,
+          isActive: input.isActive,
+          emailVerifiedAt: new Date(),
+        },
+      }),
+      metadata: (created) => ({ email: created.email, role: created.role }),
     });
 
     return res.status(201).json({
@@ -320,16 +321,11 @@ export async function updateAdminUser(req, res) {
       throw error;
     }
 
-    const user = await prisma.user.update({
-      where: { id },
-      data,
-    });
-
-    await writeAdminActionAudit(req, {
+    const user = await runGovernedUserMutation({
+      req,
+      targetUserId: id,
+      update: data,
       action: "ADMIN_UPDATE_USER",
-      targetType: "USER",
-      targetId: user.id,
-      metadata: data,
     });
 
     return res.json({
@@ -368,27 +364,23 @@ export async function createAdminShop(req, res) {
       throw error;
     }
 
-    const shop = await prisma.pawnShop.create({
-      data,
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    await writeAdminActionAudit(req, {
+    const shop = await runGovernedCreateMutation({
+      req,
       action: "ADMIN_CREATE_SHOP",
       targetType: "SHOP",
-      targetId: shop.id,
-      metadata: {
-        ownerId: shop.ownerId,
-        name: shop.name,
-      },
+      create: (tx) => tx.pawnShop.create({
+        data,
+        include: {
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      }),
+      metadata: (created) => ({ ownerId: created.ownerId, name: created.name }),
     });
 
     return res.status(201).json({
@@ -424,9 +416,11 @@ export async function updateAdminShop(req, res) {
       }
     }
 
-    const shop = await prisma.pawnShop.update({
-      where: { id },
-      data,
+    const shop = await runGovernedShopMutation({
+      req,
+      targetShopId: id,
+      update: data,
+      action: "ADMIN_UPDATE_SHOP",
       include: {
         owner: {
           select: {
@@ -436,13 +430,6 @@ export async function updateAdminShop(req, res) {
           },
         },
       },
-    });
-
-    await writeAdminActionAudit(req, {
-      action: "ADMIN_UPDATE_SHOP",
-      targetType: "SHOP",
-      targetId: shop.id,
-      metadata: data,
     });
 
     return res.json({
@@ -610,9 +597,11 @@ export async function updateAdminItem(req, res) {
 export async function blockUser(req, res) {
   try {
     const { id } = req.params;
-    const user = await prisma.user.update({
-      where: { id },
-      data: { isActive: false, authVersion: { increment: 1 } },
+    const user = await runGovernedUserMutation({
+      req,
+      targetUserId: id,
+      update: { isActive: false, authVersion: { increment: 1 } },
+      action: "ADMIN_BLOCK_USER",
     });
 
     return res.json({ ok: true, id: user.id, isActive: user.isActive });
@@ -624,9 +613,11 @@ export async function blockUser(req, res) {
 export async function unblockUser(req, res) {
   try {
     const { id } = req.params;
-    const user = await prisma.user.update({
-      where: { id },
-      data: { isActive: true },
+    const user = await runGovernedUserMutation({
+      req,
+      targetUserId: id,
+      update: { isActive: true },
+      action: "ADMIN_UNBLOCK_USER",
     });
 
     return res.json({ ok: true, id: user.id, isActive: user.isActive });
@@ -711,9 +702,11 @@ export async function adminListShops(req, res) {
 export async function softDeleteShop(req, res) {
   try {
     const { id } = req.params;
-    const shop = await prisma.pawnShop.update({
-      where: { id },
-      data: { isDeleted: true },
+    const shop = await runGovernedShopMutation({
+      req,
+      targetShopId: id,
+      update: { isDeleted: true },
+      action: "ADMIN_DISABLE_SHOP",
     });
 
     return res.json({ ok: true, id: shop.id, isDeleted: shop.isDeleted });
@@ -725,9 +718,11 @@ export async function softDeleteShop(req, res) {
 export async function restoreShop(req, res) {
   try {
     const { id } = req.params;
-    const shop = await prisma.pawnShop.update({
-      where: { id },
-      data: { isDeleted: false },
+    const shop = await runGovernedShopMutation({
+      req,
+      targetShopId: id,
+      update: { isDeleted: false },
+      action: "ADMIN_RESTORE_SHOP",
     });
 
     return res.json({ ok: true, id: shop.id, isDeleted: shop.isDeleted });
