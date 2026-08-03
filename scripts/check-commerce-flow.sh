@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 export SUPER_ADMIN_EMAIL="${SUPER_ADMIN_EMAIL:-superadmin1@example.com}"
-export SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-SuperAdmin123!}"
+export SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:?Required credential is missing}"
 
 echo "===== COMMERCE FLOW CHECK ====="
 echo "Repo: $ROOT"

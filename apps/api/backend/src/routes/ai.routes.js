@@ -11,7 +11,7 @@ function asyncRoute(handler) {
 router.post(
   "/listing-assistant",
   authRequired,
-  requireRole("OWNER", "ADMIN"),
+  requireRole("OWNER", "CONSUMER", "ADMIN"),
   asyncRoute(createListingAssistantSuggestion)
 );
 

@@ -9,7 +9,7 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 
 const TEST_JWT_SECRET =
-  "pawnloop-db-tests-only-secret-2026";
+  "test-only-secret";
 
 const TEST_DOMAIN =
   "@commerce.integration.pawnloop.test";

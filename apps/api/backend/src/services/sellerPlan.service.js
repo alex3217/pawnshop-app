@@ -9,6 +9,7 @@ import {
   isUnlimited,
   normalizeSellerPlanCode,
   normalizeSubscriptionStatus,
+  SELLER_PLANS,
 } from "../config/sellerPlans.js";
 import { getSellerPlanCatalog } from "./platformPricingCatalog.service.js";
 
@@ -33,6 +34,9 @@ const SHOP_PLAN_SELECT = Object.freeze({
   subscriptionPlan: true,
   subscriptionStatus: true,
   subscriptionCurrentPeriodEnd: true,
+  subscriptionBillingInterval: true,
+  subscriptionStartedAt: true,
+  subscriptionCanceledAt: true,
   cancelAtPeriodEnd: true,
   stripeCustomerId: true,
   stripeSubscriptionId: true,
@@ -138,7 +142,8 @@ function getCountedListingStatuses() {
 function buildEntitlements(
   shop,
   activeListingCount,
-  planOverride = null
+  planOverride = null,
+  aiListingGenerationCount = 0,
 ) {
   const storedPlan = normalizeStoredPlan(shop);
   const normalizedStatus =
@@ -255,6 +260,13 @@ function buildEntitlements(
       label: storedPlan === "PREMIUM" ? "Plus" : plan.label,
       currentPeriodEnd:
         shop.subscriptionCurrentPeriodEnd || null,
+      currentPeriodStart: shop.subscriptionStartedAt || null,
+      trialEnd:
+        normalizedStatus === "TRIALING"
+          ? shop.subscriptionCurrentPeriodEnd || null
+          : null,
+      billingInterval: shop.subscriptionBillingInterval || null,
+      canceledAt: shop.subscriptionCanceledAt || null,
       cancelAtPeriodEnd:
         Boolean(shop.cancelAtPeriodEnd),
       stripeCustomerId:
@@ -273,6 +285,8 @@ function buildEntitlements(
         usingTrialLimit ? "TRIAL" : "PLAN",
       maxLocations: plan.maxLocations,
       maxStaffUsers: plan.maxStaffUsers,
+      maxItemPhotos: plan.maxItemPhotos,
+      maxAiListingGenerationsPerMonth: plan.maxAiListingGenerationsPerMonth,
       qrCampaignLimit: planCapabilities.qrCampaignLimit,
     },
 
@@ -328,6 +342,12 @@ function buildEntitlements(
               0
             ),
       isUnlimitedListings,
+      aiListingGenerations: {
+        used: toSafeNonNegativeInteger(aiListingGenerationCount),
+        limit: plan.maxAiListingGenerationsPerMonth,
+        remaining: Math.max(Number(plan.maxAiListingGenerationsPerMonth || 0) - toSafeNonNegativeInteger(aiListingGenerationCount), 0),
+        atLimit: toSafeNonNegativeInteger(aiListingGenerationCount) >= Number(plan.maxAiListingGenerationsPerMonth || 0),
+      },
     },
 
     implementation: {
@@ -562,6 +582,21 @@ export async function getSellerEntitlementsForShop(
   const effectivePlanCode =
     getEffectivePlanCode(shop);
 
+  const trialEndMs = new Date(shop.subscriptionCurrentPeriodEnd || "").getTime();
+  const warningWindowMs = 7 * 24 * 60 * 60 * 1000;
+  if (normalizeStoredSubscriptionStatus(shop) === "TRIALING" && trialEndMs > Date.now() && trialEndMs - Date.now() <= warningWindowMs && activeListingCount > SELLER_PLANS.FREE.maxActiveListings && shop.ownerId && prisma.notification?.createMany) {
+    await prisma.notification.createMany({ data: [{ userId: shop.ownerId, type: "SELLER_TRIAL_LISTING_LIMIT_WARNING", title: "Choose products before your trial ends", message: `Your trial permits 50 active products. The permanent Free plan permits ${SELLER_PLANS.FREE.maxActiveListings}; choose which products should remain active before expiration.`, actionUrl: "/owner/items", dedupeKey: `seller-trial-limit-warning:${shop.id}:${shop.subscriptionCurrentPeriodEnd?.toISOString?.() || trialEndMs}` }], skipDuplicates: true });
+  }
+
+  let reconciledActiveListingCount = activeListingCount;
+  if (effectivePlanCode === DEFAULT_SELLER_PLAN && activeListingCount > SELLER_PLANS.FREE.maxActiveListings) {
+    const kept = await prisma.item.findMany({ where: { pawnShopId: shop.id, isDeleted: false, status: { in: getCountedListingStatuses() } }, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], take: SELLER_PLANS.FREE.maxActiveListings, select: { id: true } });
+    const keptIds = kept.map((item) => item.id);
+    const result = await prisma.item.updateMany({ where: { pawnShopId: shop.id, isDeleted: false, status: { in: getCountedListingStatuses() }, id: { notIn: keptIds } }, data: { status: "DRAFT" } });
+    reconciledActiveListingCount = SELLER_PLANS.FREE.maxActiveListings;
+    if (result.count > 0 && shop.ownerId && prisma.notification?.createMany) await prisma.notification.createMany({ data: [{ userId: shop.ownerId, type: "SELLER_LISTING_LIMIT_RECONCILED", title: "Choose your active products", message: `${result.count} products were preserved as drafts because the Free plan allows ${SELLER_PLANS.FREE.maxActiveListings} active products.`, actionUrl: "/owner/items", dedupeKey: `seller-listing-reconcile:${shop.id}:${shop.subscriptionCurrentPeriodEnd?.toISOString?.() || "free"}` }], skipDuplicates: true });
+  }
+
   const planOverride =
     catalog.find(
       (candidate) =>
@@ -569,10 +604,21 @@ export async function getSellerEntitlementsForShop(
         effectivePlanCode
     ) || null;
 
+  const now = new Date();
+  const calendarStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const periodEnd = shop.subscriptionCurrentPeriodEnd ? new Date(shop.subscriptionCurrentPeriodEnd) : null;
+  const periodStart = periodEnd && !Number.isNaN(periodEnd.getTime()) && isShopSubscriptionUsable(shop)
+    ? new Date(Date.UTC(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() - 1, periodEnd.getUTCDate(), periodEnd.getUTCHours(), periodEnd.getUTCMinutes(), periodEnd.getUTCSeconds()))
+    : calendarStart;
+  const aiListingGenerationCount = prisma.aiListingGeneration?.count
+    ? await prisma.aiListingGeneration.count({ where: { shopId: shop.id, createdAt: { gte: periodStart } } })
+    : 0;
+
   return buildEntitlements(
     shop,
-    activeListingCount,
-    planOverride
+    reconciledActiveListingCount,
+    planOverride,
+    aiListingGenerationCount,
   );
 }
 
@@ -582,6 +628,20 @@ export async function assertCanCreateListingForShop(
 ) {
   const entitlements = await getSellerEntitlementsForShop(shopId);
   return assertListingCapacity(entitlements, requestedSlots);
+}
+
+export async function assertSellerItemPhotoCapacity(shopId, photoCount) {
+  const entitlements = await getSellerEntitlementsForShop(shopId);
+  return assertSellerItemPhotoLimit(entitlements, photoCount);
+}
+
+export function assertSellerItemPhotoLimit(entitlements, photoCount) {
+  const limit = entitlements.limits.maxItemPhotos;
+  const used = Number(photoCount || 0);
+  if (limit !== null && used > limit) {
+    throw createPlanError(`You have reached the ${entitlements.subscription.label} plan limit for item photos.`, "SELLER_PLAN_LIMIT_REACHED", 409, { resource: "itemPhotos", planCode: entitlements.subscription.effectivePlan, displayName: entitlements.subscription.label, used, limit, remaining: Math.max(limit - used, 0), upgradePath: "/owner/subscription" });
+  }
+  return entitlements;
 }
 
 export async function assertCanCreateAuctionForShop(shopId) {

@@ -30,7 +30,7 @@ test("usage calculations are explicit for finite and unlimited resources", () =>
 });
 
 test("QR campaign limit rejects capacity overflow", () => {
-  const free = buildEntitlements({ ...shop, subscriptionPlan: "FREE" }, 1, { code: "FREE", label: "Free", maxActiveListings: 25, trialMaxActiveListings: 50, maxLocations: 1, maxStaffUsers: 1, commissionBps: 1200 });
+  const free = buildEntitlements({ ...shop, subscriptionPlan: "FREE" }, 1, { code: "FREE", label: "Free", maxActiveListings: 20, trialMaxActiveListings: 50, maxLocations: 1, maxStaffUsers: 1, maxItemPhotos: 8, maxAiListingGenerationsPerMonth: 3, commissionBps: 1200 });
   assert.equal(free.limits.qrCampaignLimit, 1);
   assert.throws(() => assertQrCampaignCapacity(free, 1), (error) => error.code === "PLAN_QR_CAMPAIGN_LIMIT_REACHED");
 });

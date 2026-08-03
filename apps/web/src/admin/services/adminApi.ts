@@ -345,6 +345,8 @@ export type SellerPlanSummary = {
   isPaid?: boolean;
   isFree?: boolean;
   maxActiveListings?: number | null;
+  maxItemPhotos?: number;
+  maxAiListingGenerationsPerMonth?: number;
   maxLocations?: number | null;
   maxStaffUsers?: number | null;
   canCreateAuctions?: boolean;

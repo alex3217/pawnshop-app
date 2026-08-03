@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
   type FormEvent,
 } from "react";
 import { Link } from "react-router-dom";
@@ -24,9 +23,13 @@ import {
 import {
   createMarketplaceListing,
 } from "../services/marketplaceListings";
+import { getBuyerPlanUsage } from "../services/buyerPlans";
+import ProductImageManager from "../components/ProductImageManager";
+import AiListingAssistantPanel from "../components/AiListingAssistantPanel";
 import "../styles/buyer-sell-item.css";
 
-type BuyerItemIntent = "PAWN_OFFERS" | "MARKETPLACE_LISTING" | "BOTH";
+type BuyerItemIntent = "SHOP_OFFERS" | "MARKETPLACE" | "BOTH";
+type ShopTransactionPreference = "SELL" | "PAWN" | "EITHER";
 
 type DraftSubmission = {
   title: string;
@@ -35,16 +38,17 @@ type DraftSubmission = {
   estimatedValue: string;
   description: string;
   intent: BuyerItemIntent;
+  shopTransactionPreference: ShopTransactionPreference;
   radius: string;
   photos: string[];
 };
 
 function intentLabel(intent: BuyerItemIntent | string) {
-  if (intent === "PAWN_OFFERS") {
-    return "Get pawnshop offers";
+  if (intent === "SHOP_OFFERS") {
+    return "Pawnshop offers";
   }
 
-  if (intent === "MARKETPLACE_LISTING") {
+  if (intent === "MARKETPLACE") {
     return "Create customer marketplace draft";
   }
 
@@ -144,9 +148,12 @@ export default function BuyerSellItemPage() {
   const [condition, setCondition] = useState("Good");
   const [estimatedValue, setEstimatedValue] = useState("");
   const [description, setDescription] = useState("");
-  const [intent, setIntent] = useState<BuyerItemIntent>("PAWN_OFFERS");
+  const [intent, setIntent] = useState<BuyerItemIntent>("SHOP_OFFERS");
+  const [shopTransactionPreference, setShopTransactionPreference] = useState<ShopTransactionPreference>("SELL");
   const [radius, setRadius] = useState("25");
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [photoLimit, setPhotoLimit] = useState(6);
+  const [radiusLimit, setRadiusLimit] = useState(25);
 
   const [scanCode, setScanCode] =
     useState("");
@@ -175,15 +182,15 @@ export default function BuyerSellItemPage() {
 
   const wantsPawnOffers =
     intent !==
-    "MARKETPLACE_LISTING";
+    "MARKETPLACE";
 
   const wantsMarketplace =
     intent !==
-    "PAWN_OFFERS";
+    "SHOP_OFFERS";
 
   const scanDestination =
     intent ===
-    "PAWN_OFFERS"
+    "SHOP_OFFERS"
       ? "CUSTOMER_PAWN"
       : "CUSTOMER_MARKETPLACE";
 
@@ -315,39 +322,12 @@ export default function BuyerSellItemPage() {
 
   useEffect(() => {
     void loadActivity();
+    void getBuyerPlanUsage().then((value) => { setPhotoLimit(value.entitlements.maxSellItemPhotos ?? 30); setRadiusLimit(value.entitlements.maxSellRadiusMiles ?? 250); }).catch(() => undefined);
 
     return () => {
       stopCamera();
     };
   }, [stopCamera]);
-
-  function handlePhotos(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || []);
-    if (!files.length) return;
-
-    const readers = files.slice(0, 6).map(
-      (file) =>
-        new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result || ""));
-          reader.onerror = () => reject(new Error("Failed to preview photo."));
-          reader.readAsDataURL(file);
-        }),
-    );
-
-    Promise.all(readers)
-      .then((nextPreviews) => {
-        setPhotoPreviews((current) => [...current, ...nextPreviews].slice(0, 6));
-        setNotice(null);
-      })
-      .catch((err) => {
-        setNotice(err instanceof Error ? err.message : "Failed to preview photos.");
-      });
-  }
-
-  function removePhoto(index: number) {
-    setPhotoPreviews((current) => current.filter((_, currentIndex) => currentIndex !== index));
-  }
 
   function applyCustomerScan(
     result: BuyerItemScanResult,
@@ -734,6 +714,7 @@ export default function BuyerSellItemPage() {
       estimatedValue,
       description: description.trim(),
       intent,
+      shopTransactionPreference,
       radius,
       photos: photoPreviews,
     };
@@ -871,6 +852,7 @@ export default function BuyerSellItemPage() {
 
               intent:
                 draft.intent,
+              shopTransactionPreference: draft.shopTransactionPreference,
 
               radiusMiles:
                 Number(
@@ -1228,7 +1210,8 @@ export default function BuyerSellItemPage() {
     setCondition("Good");
     setEstimatedValue("");
     setDescription("");
-    setIntent("PAWN_OFFERS");
+    setIntent("SHOP_OFFERS");
+    setShopTransactionPreference("SELL");
     setRadius("25");
     setPhotoPreviews([]);
     setScanCode("");
@@ -1262,7 +1245,7 @@ export default function BuyerSellItemPage() {
           <div>
             <span>Photos</span>
             <strong>{photoPreviews.length}</strong>
-            <small>up to 6 previews</small>
+            <small>up to {photoLimit} previews</small>
           </div>
           <div>
             <span>Requests</span>
@@ -1282,7 +1265,7 @@ export default function BuyerSellItemPage() {
         </aside>
       </section>
 
-      <section className="sellitem-discovery-strip">
+      <section className="sellitem-discovery-strip" aria-label="Selling and pawning activity">
         <Link to="/buyer/dashboard">
           Buyer dashboard <span>Return to command center</span>
         </Link>
@@ -1295,6 +1278,8 @@ export default function BuyerSellItemPage() {
         <Link to="/watchlist">
           Watchlist <span>Track saved inventory</span>
         </Link>
+        <Link id="my-listings" to="/marketplace/listings/mine">My listings <span>Manage marketplace inventory</span></Link>
+        <Link id="my-sales" to="/marketplace/sales">My sales <span>Track marketplace sales</span></Link>
       </section>
 
       {notice ? <section className="sellitem-notice">{notice}</section> : null}
@@ -1429,8 +1414,9 @@ export default function BuyerSellItemPage() {
         </form>
       </section>
 
-      <section className="sellitem-layout">
+      <section className="sellitem-layout" id="new-item">
         <form className="sellitem-form" onSubmit={handleSubmit}>
+          <AiListingAssistantPanel fields={{ title, description, category, condition, price: estimatedValue, images: photoPreviews }} onApply={(next) => { setTitle(next.title); setDescription(next.description); setCategory(next.category); setCondition(next.condition); }} disabled={submitting} />
           <div className="sellitem-section-title">
             <span>Item details</span>
             <h2>Tell shops what you have</h2>
@@ -1439,30 +1425,8 @@ export default function BuyerSellItemPage() {
             </p>
           </div>
 
-          <label className="sellitem-upload-box">
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              onChange={handlePhotos}
-            />
-            <strong>Take or upload photos</strong>
-            <span>Use your phone camera or select up to 6 item photos.</span>
-          </label>
-
-          {photoPreviews.length ? (
-            <div className="sellitem-photo-grid">
-              {photoPreviews.map((src, index) => (
-                <div key={src.slice(0, 40) + index} className="sellitem-photo">
-                  <img src={src} alt={`Item preview ${index + 1}`} />
-                  <button type="button" onClick={() => removePhoto(index)}>
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <ProductImageManager images={photoPreviews} onChange={setPhotoPreviews} limit={photoLimit} label="Sell or pawn item photos" disabled={submitting} />
+          <aside className="sellitem-photo-guidance" aria-label="Suggested photo angles"><strong>Suggested photo coverage</strong><p>Front · Back · Left side · Right side · Top · Bottom · Serial or model label · Included accessories · Packaging or certificates · Scratches, damage, or wear</p><small>You do not need every angle. Show the item honestly and include important defects.</small></aside>
 
           <div className="sellitem-field-grid">
             <label>
@@ -1510,28 +1474,15 @@ export default function BuyerSellItemPage() {
               </select>
             </label>
 
-            <label>
-              <span>What do you want?</span>
-              <select
-                value={intent}
-                onChange={(event) => {
-                  setIntent(
-                    event.target.value as BuyerItemIntent,
-                  );
-
-                  setScanResult(null);
-                  setCameraMessage("");
-                }}
-              >
-                <option value="PAWN_OFFERS">Get pawnshop offers</option>
-                <option value="MARKETPLACE_LISTING">
-                  Create customer marketplace draft
-                </option>
-                <option value="BOTH">
-                  Pawn offers + marketplace draft
-                </option>
-              </select>
-            </label>
+            <fieldset className="sellitem-workflow-options">
+              <legend>How would you like to move forward?</legend>
+              {[
+                ["sell", "Sell to pawn shops", "SHOP_OFFERS", "SELL"],
+                ["pawn", "Pawn for a loan", "SHOP_OFFERS", "PAWN"],
+                ["marketplace", "List in the marketplace", "MARKETPLACE", "EITHER"],
+                ["compare", "Compare shop and marketplace options", "BOTH", "EITHER"],
+              ].map(([value, label, channel, preference]) => <label key={value}><input type="radio" name="workflow" value={value} checked={intent === channel && shopTransactionPreference === preference} onChange={() => { setIntent(channel as BuyerItemIntent); setShopTransactionPreference(preference as ShopTransactionPreference); setScanResult(null); setCameraMessage(""); }} /><span>{label}</span></label>)}
+            </fieldset>
 
             <label>
               <span>Offer radius</span>
@@ -1540,7 +1491,9 @@ export default function BuyerSellItemPage() {
                 <option value="25">25 miles</option>
                 <option value="50">50 miles</option>
                 <option value="100">100 miles</option>
+                <option value="250">250 miles</option>
               </select>
+              {Number(radius) > radiusLimit ? <small>Your plan supports a radius up to {radiusLimit} miles. <Link to="/buyer/subscription">Upgrade your plan</Link>.</small> : null}
             </label>
           </div>
 
@@ -1558,9 +1511,9 @@ export default function BuyerSellItemPage() {
             <button type="submit" disabled={submitting || !canSubmit}>
               {submitting
                 ? "Saving workflow..."
-                : intent === "PAWN_OFFERS"
-                  ? "Submit for pawnshop offers"
-                  : intent === "MARKETPLACE_LISTING"
+                : intent === "SHOP_OFFERS"
+                  ? shopTransactionPreference === "PAWN" ? "Submit pawn request" : "Submit sale request"
+                  : intent === "MARKETPLACE"
                     ? "Create marketplace draft"
                     : hasPartialCombinedRecovery
                       ? "Complete remaining action"
@@ -1607,7 +1560,7 @@ export default function BuyerSellItemPage() {
             </div>
           </section>
 
-          <section className="sellitem-next-card">
+          <section className="sellitem-next-card" id="shop-offers">
             <div className="sellitem-section-title">
               <span>Shop offers</span>
               <h2>Pawnshop responses</h2>
@@ -1658,7 +1611,7 @@ export default function BuyerSellItemPage() {
             )}
           </section>
 
-          <section className="sellitem-next-card">
+          <section className="sellitem-next-card" id="my-submissions">
             <div className="sellitem-section-title">
               <span>My submissions</span>
               <h2>Submitted items</h2>

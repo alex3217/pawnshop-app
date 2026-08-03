@@ -6,8 +6,8 @@ cd "$ROOT"
 
 API_BASE="${API_BASE:-http://127.0.0.1:6002/api}"
 OWNER_EMAIL="${OWNER_EMAIL:-owner1@pawn.local}"
-OWNER_PASSWORD="${OWNER_PASSWORD:-Owner123!}"
-STAFF_PASSWORD="${STAFF_PASSWORD:-Staff123!}"
+OWNER_PASSWORD="${OWNER_PASSWORD:?Required credential is missing}"
+STAFF_PASSWORD="${STAFF_PASSWORD:?Required credential is missing}"
 
 OUT="reports/staff-permission-enforcement-v1-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$OUT"

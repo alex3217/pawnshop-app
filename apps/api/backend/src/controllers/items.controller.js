@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { canAccessShopWithStaffPermission, getStaffAccessibleShopIds } from "../middleware/staffAccess.middleware.js";
-import { assertCanCreateListingForShop } from "../services/sellerPlan.service.js";
+import { assertCanCreateListingForShop, assertSellerItemPhotoCapacity } from "../services/sellerPlan.service.js";
 import { recordItemIntakeScan } from "../services/itemIntake.service.js";
 import {
   calculateItemPriceComparison,
@@ -344,7 +344,7 @@ function buildItemOrderBy(sort, itemColumns) {
 function handleControllerError(res, err, fallback = "Internal Server Error") {
   const statusCode = Number(err?.statusCode) || 500;
   const message = err?.message || fallback;
-  return res.status(statusCode).json({ error: message });
+  return res.status(statusCode).json({ error: message, ...(err?.code ? { code: err.code } : {}), ...(err?.details ? { details: err.details } : {}) });
 }
 
 export async function listItems(req, res) {
@@ -743,7 +743,8 @@ export async function createItem(req, res) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    await assertCanCreateListingForShop(pawnShopId);
+    if (["AVAILABLE", "PENDING"].includes(requestedStatus || "AVAILABLE")) await assertCanCreateListingForShop(pawnShopId);
+    await assertSellerItemPhotoCapacity(pawnShopId, images.length);
 
     const itemColumns = await getTableColumns("Item");
     const data = {
@@ -785,6 +786,7 @@ export async function updateItem(req, res) {
       select: {
         id: true,
         isDeleted: true,
+        status: true,
         shop: { select: { id: true, ownerId: true } },
       },
     });
@@ -812,6 +814,11 @@ export async function updateItem(req, res) {
 
     if (images === null) {
       return res.status(400).json({ error: "Images must be an array of strings" });
+    }
+
+    if (images !== undefined) await assertSellerItemPhotoCapacity(item.shop.id, images.length);
+    if (rawBody.status !== undefined && ["AVAILABLE", "PENDING"].includes(status) && !["AVAILABLE", "PENDING"].includes(item.status)) {
+      await assertCanCreateListingForShop(item.shop.id);
     }
 
     if (

@@ -408,6 +408,25 @@
   margin-top: 18px;
 }
 
+.sellitem-workflow-options {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sellitem-workflow-options legend { margin-bottom: 0.65rem; font-weight: 800; }
+.sellitem-workflow-options label { display: flex; gap: 0.65rem; align-items: center; min-width: 0; padding: 0.85rem; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; }
+.sellitem-workflow-options input:focus-visible { outline: 3px solid var(--focus-ring, #2563eb); outline-offset: 3px; }
+
+@media (max-width: 640px) {
+  .sellitem-workflow-options { grid-template-columns: minmax(0, 1fr); }
+}
+
 .sellitem-field-grid label,
 .sellitem-textarea-label {
   display: grid;
@@ -973,4 +992,13 @@
 .sellitem-page .sellitem-scanner-actions a:focus-visible {
   outline: 3px solid #f59e0b !important;
   outline-offset: 3px;
+}
+
+/* buyer-sell-photo-guidance-contrast-v1 */
+.sellitem-photo-guidance > small {
+  color: #475569;
+}
+
+:root[data-theme="dark"] .sellitem-photo-guidance > small {
+  color: #cbd5e1;
 }

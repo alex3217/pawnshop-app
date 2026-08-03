@@ -9,11 +9,11 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 
 const TEST_JWT_SECRET =
-  "pawnloop-owner-review-tests-only-secret-2026";
+  "test-only-secret";
 const TEST_DOMAIN =
   "@owner-review.integration.pawnloop.test";
 const TEST_PASSWORD =
-  "OwnerReviewSecure123!";
+  "test-only-password";
 
 let app;
 let prisma;

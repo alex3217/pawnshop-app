@@ -1584,6 +1584,8 @@ export async function updateSuperAdminSellerPlan(req, res) {
     const yearlyPriceCents = sellerPlanInteger(body.yearlyPriceCents ?? current.yearlyPriceCents, "Yearly price");
     const maxActiveListings = sellerPlanInteger(body.maxActiveListings ?? current.maxActiveListings, "Active-listing limit", true);
     const trialMaxActiveListings = sellerPlanInteger(body.trialMaxActiveListings ?? current.trialMaxActiveListings, "Trial listing limit", true);
+    const maxItemPhotos = sellerPlanInteger(body.maxItemPhotos ?? current.maxItemPhotos, "Item photo limit");
+    const maxAiListingGenerationsPerMonth = sellerPlanInteger(body.maxAiListingGenerationsPerMonth ?? current.maxAiListingGenerationsPerMonth, "AI listing generation limit");
     const commissionBps = sellerPlanInteger(body.commissionBps ?? current.commissionBps, "Commission basis points");
     if (commissionBps > 10000) throw badRequest("Commission basis points cannot exceed 10000.");
     const trialDays = sellerPlanInteger(body.trialDays ?? 60, "Trial duration");
@@ -1596,6 +1598,8 @@ export async function updateSuperAdminSellerPlan(req, res) {
     if (normalizeString(body.expectedVersion) !== currentVersion) throw createHttpError("This plan changed since it was loaded. Refresh and try again.", 409);
     const actorId = req.user?.sub || req.user?.id || null;
     const metadata = { label: normalizeString(body.label, current.label), description: normalizeString(body.description), maxActiveListings, trialMaxActiveListings, maxLocations: sellerPlanInteger(body.maxLocations ?? current.maxLocations, "Location limit", true), maxStaffUsers: sellerPlanInteger(body.maxStaffUsers ?? current.maxStaffUsers, "Staff-seat limit", true), canCreateAuctions: Boolean(body.canCreateAuctions), canFeatureListings: Boolean(body.canFeatureListings), analyticsLevel: normalizeString(body.analyticsLevel, current.analyticsLevel), supportLevel: normalizeString(body.supportLevel, "STANDARD"), trialEligible: body.trialEligible !== false, trialDays, features: Array.isArray(body.features) ? body.features.map(String) : current.features, stripeProductId, grandfatherExisting: body.grandfatherExisting === true, scheduledMigrationAt: body.scheduledMigrationAt || null };
+    metadata.maxItemPhotos = maxItemPhotos;
+    metadata.maxAiListingGenerationsPerMonth = maxAiListingGenerationsPerMonth;
     await prisma.$transaction(async (tx) => {
       const base = { category: "SUBSCRIPTIONS", appliesTo: "SELLER", currency: "USD", status, updatedByUserId: actorId };
       await tx.platformPricingRule.upsert({ where: { key: `${prefix}_monthly` }, update: { ...base, label: `${metadata.label} monthly`, feeType: "FIXED_CENTS", amountCents: monthlyPriceCents, stripePriceId: stripeMonthlyPriceId }, create: { ...base, key: `${prefix}_monthly`, label: `${metadata.label} monthly`, feeType: "FIXED_CENTS", amountCents: monthlyPriceCents, stripePriceId: stripeMonthlyPriceId, createdByUserId: actorId } });

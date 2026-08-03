@@ -5,6 +5,7 @@ import {
   recordItemIntakeScan,
 } from "../services/itemIntake.service.js";
 import { acceptSubmissionOffer } from "../services/customerSellTransaction.service.js";
+import { assertBuyerSellingCapacity } from "../services/buyerEntitlements.service.js";
 
 const CUSTOMER_SCAN_DESTINATIONS =
   new Set([
@@ -29,12 +30,11 @@ function normalizeImages(value) {
   if (!Array.isArray(value)) return [];
   return value
     .map((entry) => String(entry || "").trim())
-    .filter(Boolean)
-    .slice(0, 6);
+    .filter(Boolean);
 }
 
 function getUserId(req) {
-  return normalizeString(req.user?.id || req.user?.userId || req.auth?.userId);
+  return normalizeString(req.user?.id || req.user?.userId || req.user?.sub || req.auth?.userId);
 }
 
 
@@ -76,7 +76,9 @@ function sendBuyerSubmissionCreateError(
           "Failed to create buyer item submission",
 
     ...(
-      error?.linkageCode
+      error?.code === "BUYER_PLAN_LIMIT_REACHED"
+        ? { code: error.code, details: error.details }
+        : error?.linkageCode
         ? {
             code:
               error.linkageCode,
@@ -94,8 +96,12 @@ function sendBuyerSubmissionCreateError(
 function normalizeSubmission(row) {
   if (!row) return row;
 
+  const legacyPawnOffers = normalizeString(row.intent).toUpperCase() === "PAWN_OFFERS";
+
   return {
     ...row,
+    intent: legacyPawnOffers ? "SHOP_OFFERS" : row.intent,
+    shopTransactionPreference: row.shopTransactionPreference || (legacyPawnOffers ? "PAWN" : "EITHER"),
     estimatedValue:
       row.estimatedValue === null || row.estimatedValue === undefined
         ? null
@@ -143,11 +149,16 @@ export async function createBuyerItemSubmission(req, res) {
         req.body?.description,
       );
 
-    const intent =
+    let intent =
       normalizeString(
         req.body?.intent,
       ) ||
-      "PAWN_OFFERS";
+      "SHOP_OFFERS";
+
+    const shopTransactionPreference = normalizeString(req.body?.shopTransactionPreference || req.body?.transactionPreference).toUpperCase() || (intent === "PAWN_OFFERS" ? "PAWN" : "EITHER");
+    if (intent === "PAWN_OFFERS") intent = "SHOP_OFFERS";
+    if (!["SHOP_OFFERS", "MARKETPLACE", "MARKETPLACE_LISTING", "BOTH"].includes(intent)) return res.status(400).json({ success: false, error: "Invalid distribution channel" });
+    if (!["SELL", "PAWN", "EITHER"].includes(shopTransactionPreference)) return res.status(400).json({ success: false, error: "Invalid shop transaction preference" });
 
     const radiusMiles =
       Number.parseInt(
@@ -197,13 +208,23 @@ export async function createBuyerItemSubmission(req, res) {
       });
     }
 
+    const normalizedIntent = intent === "MARKETPLACE_LISTING" ? "MARKETPLACE" : intent;
+    const shopResources = ["activeShopRequests", "monthlyShopRequests"];
+    const marketplaceResources = ["activeMarketplaceListings", "monthlyMarketplaceListings"];
+    await assertBuyerSellingCapacity(buyerId, {
+      resources: normalizedIntent === "BOTH" ? [...shopResources, ...marketplaceResources] : normalizedIntent === "SHOP_OFFERS" ? shopResources : marketplaceResources,
+      photoCount: images.length,
+      radiusMiles,
+    });
+
     const submissionData = {
       buyerId,
       title,
       category,
       condition,
       description,
-      intent,
+      intent: normalizedIntent,
+      shopTransactionPreference,
 
       radiusMiles:
         Number.isFinite(

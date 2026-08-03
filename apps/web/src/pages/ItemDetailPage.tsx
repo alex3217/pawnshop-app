@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { createOffer } from "../services/offers";
 import {
@@ -223,6 +231,10 @@ export default function ItemDetailPage() {
 
   const [item, setItem] = useState<Item | null>(null);
   const [selectedImage, setSelectedImage] = useState("");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const lightboxOpenerRef = useRef<HTMLButtonElement | null>(null);
+  const lightboxRef = useRef<HTMLDivElement | null>(null);
+  const touchStartX = useRef<number | null>(null);
   const [offerAmount, setOfferAmount] = useState("");
   const [offerMessage, setOfferMessage] = useState("");
   const [fulfillmentPreference, setFulfillmentPreference] =
@@ -317,6 +329,8 @@ export default function ItemDetailPage() {
     setOfferFeedback(null);
     setFulfillmentPreference("pickup");
     setBuyerChecklist(buyerChecklistItems.map(() => false));
+    setLightboxOpen(false);
+    touchStartX.current = null;
 
     let cancelled = false;
 
@@ -457,6 +471,33 @@ export default function ItemDetailPage() {
   }, [item]);
 
   const images = useMemo(() => (item ? itemImages(item) : []), [item]);
+  const selectedImageIndex = Math.max(images.indexOf(selectedImage), 0);
+  const selectRelative = useCallback((delta: number) => {
+    if (!images.length) return;
+
+    const next =
+      (selectedImageIndex + delta + images.length) % images.length;
+    setSelectedImage(images[next]);
+  }, [images, selectedImageIndex]);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxOpen(false);
+    window.setTimeout(() => lightboxOpenerRef.current?.focus(), 0);
+  }, []);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    lightboxRef.current?.focus();
+    const listener = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeLightbox();
+      if (images.length > 1 && event.key === "ArrowLeft") selectRelative(-1);
+      if (images.length > 1 && event.key === "ArrowRight") selectRelative(1);
+    };
+
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
+  }, [closeLightbox, images.length, lightboxOpen, selectRelative]);
 
   const suggestedOffer = useMemo(() => {
     if (!item) return "";
@@ -719,7 +760,18 @@ export default function ItemDetailPage() {
         <div className="item-detail-gallery">
           <div className="item-detail-main-image">
             {selectedImage ? (
-              <img src={selectedImage} alt={item.title} />
+              <button
+                ref={lightboxOpenerRef}
+                type="button"
+                className="item-detail-main-image-button"
+                onClick={() => setLightboxOpen(true)}
+                aria-label={`Open ${item.title} image ${selectedImageIndex + 1} of ${images.length} full screen`}
+              >
+                <img
+                  src={selectedImage}
+                  alt={`${item.title} — image ${selectedImageIndex + 1} of ${images.length}`}
+                />
+              </button>
             ) : (
               <div className="item-detail-placeholder">PawnLoop</div>
             )}
@@ -730,20 +782,110 @@ export default function ItemDetailPage() {
           </div>
 
           {images.length > 1 ? (
-            <div className="item-detail-thumbs">
-              {images.slice(0, 5).map((image) => (
+            <>
+              <div className="item-detail-gallery-controls">
                 <button
-                  key={image}
                   type="button"
-                  className={selectedImage === image ? "active" : ""}
-                  onClick={() => setSelectedImage(image)}
+                  onClick={() => selectRelative(-1)}
+                  aria-label="View previous image"
                 >
-                  <img src={image} alt="" />
+                  Previous image
                 </button>
-              ))}
-            </div>
+                <span aria-live="polite">
+                  Image {selectedImageIndex + 1} of {images.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => selectRelative(1)}
+                  aria-label="View next image"
+                >
+                  Next image
+                </button>
+              </div>
+              <div
+                className="item-detail-thumbs"
+                role="group"
+                aria-label={`${item.title} image thumbnails`}
+              >
+                {images.map((image, index) => (
+                  <button
+                    key={`${image}-${index}`}
+                    type="button"
+                    className={selectedImage === image ? "active" : ""}
+                    onClick={() => setSelectedImage(image)}
+                    aria-label={`View image ${index + 1} of ${images.length}`}
+                  >
+                    <img src={image} alt="" />
+                  </button>
+                ))}
+              </div>
+            </>
           ) : null}
         </div>
+
+        {lightboxOpen ? (
+          <div
+            className="item-detail-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${item.title} image viewer`}
+            tabIndex={-1}
+            ref={lightboxRef}
+            onTouchStart={(event) => {
+              touchStartX.current = event.touches[0]?.clientX ?? null;
+            }}
+            onTouchEnd={(event) => {
+              const start = touchStartX.current;
+              const end = event.changedTouches[0]?.clientX;
+
+              if (
+                start !== null
+                && end !== undefined
+                && Math.abs(end - start) > 45
+              ) {
+                selectRelative(end > start ? -1 : 1);
+              }
+
+              touchStartX.current = null;
+            }}
+          >
+            <button
+              type="button"
+              className="item-detail-lightbox-close"
+              onClick={closeLightbox}
+              aria-label="Close full-screen image viewer"
+            >
+              Close
+            </button>
+            {images.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => selectRelative(-1)}
+                aria-label="Previous full-screen image"
+              >
+                ‹
+              </button>
+            ) : null}
+            <figure>
+              <img
+                src={selectedImage}
+                alt={`${item.title} — image ${selectedImageIndex + 1} of ${images.length}`}
+              />
+              <figcaption>
+                Image {selectedImageIndex + 1} of {images.length}
+              </figcaption>
+            </figure>
+            {images.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => selectRelative(1)}
+                aria-label="Next full-screen image"
+              >
+                ›
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="item-detail-summary">
           <Link to="/marketplace" className="item-detail-back">

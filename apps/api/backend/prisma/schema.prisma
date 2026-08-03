@@ -114,6 +114,17 @@ model PaymentMethodConsent {
   @@index([stripeCustomerId, status])
 }
 
+model AiListingGeneration {
+  id        String   @id @default(cuid())
+  userId    String?
+  shopId    String?
+  source    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([shopId, createdAt])
+}
+
 enum OwnerApplicationStatus {
   PENDING
   IN_REVIEW
@@ -729,7 +740,8 @@ model BuyerItemSubmission {
   condition      String?
   estimatedValue Decimal?  @db.Decimal(10, 2)
   images         String[]  @default([])
-  intent         String    @default("PAWN_OFFERS")
+  intent         String    @default("SHOP_OFFERS")
+  shopTransactionPreference String @default("EITHER")
   radiusMiles    Int       @default(25)
   status         String    @default("SUBMITTED")
   reviewMessage  String?
@@ -1104,6 +1116,7 @@ enum Role {
 }
 
 enum ItemStatus {
+  DRAFT
   AVAILABLE
   PENDING
   SOLD

@@ -1,0 +1,13 @@
+.product-image-manager__pending {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.product-image-manager__pending img {
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+}

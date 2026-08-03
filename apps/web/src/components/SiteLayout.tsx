@@ -46,13 +46,14 @@ const PUBLIC_NAV: NavItem[] = [
   { to: "/marketplace", label: "Marketplace" },
   { to: "/marketplace/buy-now", label: "Buy Now" },
   { to: "/buyer/item-locator", label: "Item Locator" },
-  { to: "/buyer/sell-item", label: "Sell / Pawn Item" },
+  { to: "/buyer/sell-item", label: "Sell or Pawn" },
   { to: "/shops", label: "Shops" },
   { to: "/auctions", label: "Auctions" },
 ];
 
 const BUYER_PRIMARY_NAV: NavItem[] = [
   { to: "/buyer/dashboard", label: "Buyer Dashboard" },
+  { to: "/buyer/sell-item#new-item", label: "Sell or Pawn" },
   { to: "/marketplace/purchases", label: "My Purchases" },
   { to: "/my-bids", label: "My Bids" },
   { to: "/offers", label: "Offers" },
@@ -70,7 +71,16 @@ const BUYER_SECONDARY_NAV: NavItem[] = [
   { to: "/buyer/help", label: "Help Center" },
 ];
 
+const BUYER_SELLING_NAV: NavItem[] = [
+  { to: "/buyer/sell-item#new-item", label: "Start selling or pawning" },
+  { to: "/buyer/sell-item#my-submissions", label: "My item submissions" },
+  { to: "/buyer/sell-item#shop-offers", label: "Pawnshop offers" },
+  { to: "/marketplace/listings/mine", label: "My marketplace listings" },
+  { to: "/marketplace/sales", label: "My marketplace sales" },
+];
+
 const BUYER_SECONDARY_GROUPS = [
+  { label: "Selling & Pawning", links: BUYER_SELLING_NAV },
   { label: "Shopping activity", links: BUYER_SECONDARY_NAV.filter((item) => ["/buyer/workspace", "/my-wins"].includes(item.to)) },
   { label: "Saved tools", links: BUYER_SECONDARY_NAV.filter((item) => ["/saved-searches", "/buyer/success"].includes(item.to)) },
   { label: "Billing & account", links: BUYER_SECONDARY_NAV.filter((item) => ["/buyer/subscription", "/account/payment-methods", "/buyer/settings"].includes(item.to)) },
@@ -333,7 +343,7 @@ export default function SiteLayout() {
     ]);
 
     const workspace = dedupeNav([
-      ...(showBuyerLinks ? BUYER_SECONDARY_NAV : []),
+      ...(showBuyerLinks ? [...BUYER_SECONDARY_NAV, ...BUYER_SELLING_NAV] : []),
       ...(showStaffAuctionLinks
         ? STAFF_AUCTION_NAV
         : []),
@@ -594,7 +604,7 @@ export default function SiteLayout() {
 
               <div className="site-workspace-panel">
                 {showBuyerLinks ? BUYER_SECONDARY_GROUPS.map((group) => <section className="site-workspace-group" key={group.label} aria-labelledby={`buyer-nav-${group.label.replaceAll(" ", "-").toLowerCase()}`}><h2 id={`buyer-nav-${group.label.replaceAll(" ", "-").toLowerCase()}`}>{group.label}</h2>{group.links.map((item) => <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => isActive ? "site-workspace-menu-link active" : "site-workspace-menu-link"}>{item.label}</NavLink>)}</section>) : null}
-                {workspaceLinks.filter((item) => !showBuyerLinks || !BUYER_SECONDARY_NAV.some((buyerItem) => buyerItem.to === item.to)).map((item) => (
+                {workspaceLinks.filter((item) => !showBuyerLinks || ![...BUYER_SECONDARY_NAV, ...BUYER_SELLING_NAV].some((buyerItem) => buyerItem.to === item.to)).map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}

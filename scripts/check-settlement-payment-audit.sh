@@ -14,13 +14,13 @@ API_BASE="${API_BASE:-http://127.0.0.1:6002/api}"
 WEB_BASE="${WEB_BASE:-http://127.0.0.1:5176}"
 
 BUYER_EMAIL="${BUYER_EMAIL:-buyer@pawn.local}"
-BUYER_PASSWORD="${BUYER_PASSWORD:-Buyer123!}"
+BUYER_PASSWORD="${BUYER_PASSWORD:?Required credential is missing}"
 
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin1@example.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123!}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:?Required credential is missing}"
 
 SUPER_ADMIN_EMAIL="${SUPER_ADMIN_EMAIL:-superadmin@pawn.local}"
-SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-SuperAdmin123!}"
+SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:?Required credential is missing}"
 
 echo "===== SETTLEMENT / PAYMENT AUDIT ====="
 echo "Repo: $ROOT"

@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { mapStripeSubscriptionStatus } from "../lib/stripe.js";
-import { isPaidSellerPlanCode } from "../config/sellerPlans.js";
+import { isPaidSellerPlanCode, SELLER_PLANS } from "../config/sellerPlans.js";
 
 export const STRIPE_SUBSCRIPTION_WEBHOOK_TYPES = new Set([
   "invoice.paid",
@@ -347,6 +347,19 @@ export async function syncStripeSubscriptionEvent({
             }],
             skipDuplicates: true,
           });
+        }
+        if (["CANCELED", "INCOMPLETE"].includes(resultingShop.subscriptionStatus) && tx.item?.findMany) {
+          const freeLimit = SELLER_PLANS.FREE.maxActiveListings;
+          const activeItems = await tx.item.findMany({
+            where: { pawnShopId: lockedShop.id, isDeleted: false, status: { in: ["AVAILABLE", "PENDING"] } },
+            orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+            select: { id: true },
+          });
+          const excessIds = activeItems.slice(freeLimit).map((item) => item.id);
+          if (excessIds.length) {
+            await tx.item.updateMany({ where: { id: { in: excessIds } }, data: { status: "DRAFT" } });
+            await tx.notification.createMany({ data: [{ userId: lockedShop.ownerId, type: "SELLER_LISTING_LIMIT_RECONCILED", title: "Choose your active products", message: `${excessIds.length} products were preserved as drafts because the Free plan allows ${freeLimit} active products.`, actionUrl: "/owner/items", dedupeKey: `seller-listing-reconcile:${event.id}` }], skipDuplicates: true });
+          }
         }
       }
 
