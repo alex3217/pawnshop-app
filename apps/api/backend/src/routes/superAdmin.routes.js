@@ -58,6 +58,9 @@ import {
   updateGrowthContact,
   updateGrowthLead,
 } from "../controllers/growthCenter.controller.js";
+import { getSuperAdminPlatformSuccess } from "../controllers/platformSuccess.controller.js";
+import { getSuperAdminMarketplaceIntelligenceController } from "../controllers/marketplaceIntelligence.controller.js";
+import { listMarketingAdministration, patchMarketingCampaignStatus } from "../controllers/marketingAdministration.controller.js";
 
 const router = Router();
 
@@ -206,6 +209,8 @@ export const SUPER_ADMIN_ROUTE_MAP = Object.freeze({
   growthSummary: "GET /api/super-admin/growth/leads/summary",
   growthLeads: "GET /api/super-admin/growth/leads",
   growthLead: "GET /api/super-admin/growth/leads/:leadId",
+  platformSuccess: "GET /api/super-admin/platform-success",
+  marketplaceIntelligence: "GET /api/super-admin/marketplace-intelligence",
 });
 
 function asyncRoute(handler) {
@@ -352,6 +357,10 @@ router.get(
 
 router.get("/audit", asyncRoute(listSuperAdminAuditLogs));
 router.get("/overview", asyncRoute(getSuperAdminOverview));
+router.get("/platform-success", asyncRoute(getSuperAdminPlatformSuccess));
+router.get("/marketplace-intelligence", asyncRoute(getSuperAdminMarketplaceIntelligenceController));
+router.get("/marketing-administration", asyncRoute(listMarketingAdministration));
+router.patch("/marketing-campaigns/:campaignId/status", validateJsonObjectBody, asyncRoute(patchMarketingCampaignStatus));
 router.get("/system", asyncRoute(getSuperAdminSystemHealth));
 router.get("/users", asyncRoute(listSuperAdminUsers));
 router.post("/beta-invites", asyncRoute(createBetaInvite));

@@ -12,6 +12,10 @@ import { getMyOffers, type Offer } from "../services/offers";
 import { getMyWatchlist, type WatchlistEntry } from "../services/watchlist";
 import { getMySavedSearches, type SavedSearch } from "../services/savedSearches";
 import { getMySettlements, type Settlement } from "../services/settlements";
+import { clearRecentlyViewed, readRecentlyViewed, type RecentlyViewedItem } from "../services/recentlyViewed.mjs";
+import { getBuyerPlanUsage, type BuyerPlanUsage } from "../services/buyerPlans";
+import { getMyBuyerItemSubmissionOffers } from "../services/buyerItemSubmissions";
+import { getMyMarketplaceSales } from "../services/marketplaceTransactions";
 
 type ViewMode = "grid" | "list" | "map";
 
@@ -187,12 +191,16 @@ export default function BuyerDashboardPage() {
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([]);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [sellingUsage, setSellingUsage] = useState<BuyerPlanUsage | null>(null);
+  const [newShopOffers, setNewShopOffers] = useState(0);
+  const [marketplaceSales, setMarketplaceSales] = useState(0);
   const [discoveryItems, setDiscoveryItems] = useState<BuyerDashboardItem[]>([]);
   const [nearbyShops, setNearbyShops] = useState<BuyerDashboardShop[]>([]);
   const [liveAuctions, setLiveAuctions] = useState<BuyerDashboardAuction[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [refreshingDashboard, setRefreshingDashboard] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
+  const [recentlyViewed, setRecentlyViewed] = useState<RecentlyViewedItem[]>(() => readRecentlyViewed());
 
   const marketplaceSearchHref = searchQuery.trim()
     ? `/marketplace?search=${encodeURIComponent(searchQuery.trim())}`
@@ -217,6 +225,9 @@ export default function BuyerDashboardPage() {
         savedSearchesResult,
         settlementsResult,
         discoveryResult,
+        sellingUsageResult,
+        shopOffersResult,
+        marketplaceSalesResult,
       ] = await Promise.allSettled([
         getMyBids(),
         getMyOffers(),
@@ -224,6 +235,9 @@ export default function BuyerDashboardPage() {
         getMySavedSearches(),
         getMySettlements(),
         getBuyerDashboardDiscovery(),
+        getBuyerPlanUsage(),
+        getMyBuyerItemSubmissionOffers(),
+        getMyMarketplaceSales({ limit: 1 }),
       ]);
 
       const nextBids = settledValue(bidsResult, "bids", errors);
@@ -232,12 +246,18 @@ export default function BuyerDashboardPage() {
       const nextSavedSearches = settledValue(savedSearchesResult, "saved searches", errors);
       const nextSettlements = settledValue(settlementsResult, "settlements", errors);
       const nextDiscovery = settledValue(discoveryResult, "marketplace discovery", errors);
+      const nextSellingUsage = settledValue(sellingUsageResult, "selling usage", errors);
+      const nextShopOffers = settledValue(shopOffersResult, "shop offers", errors);
+      const nextMarketplaceSales = settledValue(marketplaceSalesResult, "marketplace sales", errors);
 
       if (nextBids) setBids(nextBids);
       if (nextOffers) setOffers(nextOffers);
       if (nextWatchlist) setWatchlist(nextWatchlist);
       if (nextSavedSearches) setSavedSearches(nextSavedSearches);
       if (nextSettlements) setSettlements(nextSettlements);
+      if (nextSellingUsage) setSellingUsage(nextSellingUsage);
+      if (nextShopOffers) setNewShopOffers(nextShopOffers.filter((offer) => normalizeStatus(offer.status) === "PENDING").length);
+      if (nextMarketplaceSales) setMarketplaceSales(nextMarketplaceSales.pagination.total);
 
       if (nextDiscovery) {
         setDiscoveryItems(nextDiscovery.items);
@@ -441,6 +461,10 @@ export default function BuyerDashboardPage() {
       ) : null}
 
       <section className="bd-stats">
+        <StatCard label="Active shop requests" value={String(sellingUsage?.usage.activeShopRequests.used ?? 0)} helper={sellingUsage?.usage.activeShopRequests.unlimited ? "Unlimited capacity" : `${sellingUsage?.usage.activeShopRequests.remaining ?? 0} remaining`} />
+        <StatCard label="New shop offers" value={String(newShopOffers)} helper="Pawnshop responses awaiting review" />
+        <StatCard label="Active marketplace listings" value={String(sellingUsage?.usage.activeMarketplaceListings.used ?? 0)} helper={sellingUsage?.usage.activeMarketplaceListings.unlimited ? "Unlimited capacity" : `${sellingUsage?.usage.activeMarketplaceListings.remaining ?? 0} remaining`} />
+        <StatCard label="Marketplace sales" value={String(marketplaceSales)} helper="API-backed seller transactions" />
         <StatCard
           label="Active bids"
           value={String(dashboardSummary.activeBids)}
@@ -661,19 +685,31 @@ export default function BuyerDashboardPage() {
         </div>
       </section>
 
+      <section className="bd-panel" aria-labelledby="recently-viewed-heading">
+        <div className="bd-section-title">
+          <div>
+            <p>Browser history</p>
+            <h2 id="recently-viewed-heading">Recently viewed</h2>
+          </div>
+          {recentlyViewed.length ? <button type="button" className="bd-secondary-small" onClick={() => setRecentlyViewed(clearRecentlyViewed())}>Clear history</button> : null}
+        </div>
+        <p>This history is stored only in this browser and is not synchronized across devices.</p>
+        {recentlyViewed.length ? <div className="bd-actions-grid">{recentlyViewed.map((entry) => <Link key={entry.itemId} to={entry.href}><span>{entry.title}</span>{entry.priceLabel || entry.shopName ? <small>{[entry.priceLabel, entry.shopName].filter(Boolean).join(" · ")}</small> : null}</Link>)}</div> : <EmptyPanel title="No recently viewed items" body="Items you open will appear here when browser-local history is enabled." href="/marketplace" cta="Browse marketplace" />}
+      </section>
+
       <section className="bd-quick-actions">
         <SectionTitle eyebrow="Quick actions" title="Keep shopping" />
 
         <div className="bd-actions-grid">
-          <Link to="/buyer/item-locator">Item locator</Link>
+          <Link to="/marketplace/purchases">My purchases</Link>
           <Link to="/marketplace">Marketplace</Link>
           <Link to="/auctions">Auctions</Link>
           <Link to="/shops">Pawnshops</Link>
-          <Link to="/watchlist">Watchlist</Link>
-          <Link to="/my-bids">My bids</Link>
-          <Link to="/offers">Offers</Link>
-          <Link to="/my-wins">My wins</Link>
-          <Link to="/saved-searches">Saved searches</Link>
+          <Link to="/watchlist">Watchlist <span aria-label={`${dashboardSummary.watchlistCount} items`}>({dashboardSummary.watchlistCount})</span></Link>
+          <Link to="/my-bids">My bids <span aria-label={`${dashboardSummary.activeBids} active bids`}>({dashboardSummary.activeBids})</span></Link>
+          <Link to="/offers">Offers <span aria-label={`${dashboardSummary.offerCount} offers`}>({dashboardSummary.offerCount})</span></Link>
+          <Link to="/my-wins">My wins <span aria-label={`${dashboardSummary.settlementCount} settlements`}>({dashboardSummary.settlementCount})</span></Link>
+          <Link to="/saved-searches">Saved searches <span aria-label={`${dashboardSummary.savedSearchCount} searches`}>({dashboardSummary.savedSearchCount})</span></Link>
         </div>
       </section>
     </main>

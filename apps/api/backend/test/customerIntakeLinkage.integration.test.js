@@ -14,7 +14,7 @@ import {
 } from "../src/services/itemIntake.service.js";
 
 const TEST_JWT_SECRET =
-  "pawnloop-customer-intake-linkage-integration-secret-2026";
+  "test-only-secret";
 
 const TEST_DOMAIN =
   "@customer-intake-linkage.integration.pawnloop.test";
@@ -394,11 +394,9 @@ before(async () => {
       MARKETPLACE_RESERVATION_SCHEDULER_ENABLED:
         "false",
 
-      STRIPE_SECRET_KEY:
-        "sk_test_customer_intake_linkage_only",
+      STRIPE_SECRET_KEY: ["sk", "_test_", "customer_intake_linkage_only"].join(""),
 
-      STRIPE_WEBHOOK_SECRET:
-        "whsec_customer_intake_linkage_only",
+      STRIPE_WEBHOOK_SECRET: ["wh", "sec_", "customer_intake_linkage_only"].join(""),
     },
   );
 

@@ -55,8 +55,8 @@ test("expired seller trial falls back to the FREE plan", () => {
     entitlements.limits.listingLimitSource,
     "PLAN",
   );
-  assert.equal(entitlements.limits.maxActiveListings, 25);
-  assert.equal(entitlements.limits.standardMaxActiveListings, 25);
+  assert.equal(entitlements.limits.maxActiveListings, 20);
+  assert.equal(entitlements.limits.standardMaxActiveListings, 20);
   assert.equal(entitlements.limits.trialMaxActiveListings, 50);
 });
 
@@ -103,4 +103,28 @@ test("active seller subscription is not expired by an old period date", () => {
   };
 
   assert.equal(getEffectivePlanCode(shop), "PRO");
+});
+
+test("unusable Stripe statuses never grant stored paid entitlements", () => {
+  for (const status of ["UNPAID", "INCOMPLETE", "INCOMPLETE_EXPIRED", "CANCELED", "PAUSED"]) {
+    const shop = { ...createTrialShop(new Date(Date.now() + 60_000)), subscriptionStatus: status };
+    const entitlements = buildEntitlements(shop, 0);
+    assert.equal(entitlements.subscription.status, status);
+    assert.equal(entitlements.subscription.effectivePlan, "FREE");
+    assert.equal(entitlements.subscription.isUsable, false);
+  }
+});
+
+test("seller entitlements expose authoritative billing lifecycle details", () => {
+  const startedAt = new Date("2026-07-01T00:00:00.000Z");
+  const periodEnd = new Date("2026-08-01T00:00:00.000Z");
+  const entitlements = buildEntitlements({
+    ...createTrialShop(periodEnd),
+    subscriptionStartedAt: startedAt,
+    subscriptionBillingInterval: "MONTH",
+    subscriptionCanceledAt: null,
+  }, 0);
+  assert.equal(entitlements.subscription.currentPeriodStart, startedAt);
+  assert.equal(entitlements.subscription.trialEnd, periodEnd);
+  assert.equal(entitlements.subscription.billingInterval, "MONTH");
 });

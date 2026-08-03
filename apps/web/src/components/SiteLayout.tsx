@@ -1,6 +1,6 @@
 // File: apps/web/src/components/SiteLayout.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   getAuthRole,
@@ -46,34 +46,46 @@ const PUBLIC_NAV: NavItem[] = [
   { to: "/marketplace", label: "Marketplace" },
   { to: "/marketplace/buy-now", label: "Buy Now" },
   { to: "/buyer/item-locator", label: "Item Locator" },
-  { to: "/buyer/sell-item", label: "Sell / Pawn Item" },
+  { to: "/buyer/sell-item", label: "Sell or Pawn" },
   { to: "/shops", label: "Shops" },
   { to: "/auctions", label: "Auctions" },
 ];
 
 const BUYER_PRIMARY_NAV: NavItem[] = [
+  { to: "/buyer/dashboard", label: "Buyer Dashboard" },
+  { to: "/buyer/sell-item#new-item", label: "Sell or Pawn" },
+  { to: "/marketplace/purchases", label: "My Purchases" },
   { to: "/my-bids", label: "My Bids" },
-  { to: "/my-wins", label: "My Wins" },
-  {
-    to: "/marketplace/purchases",
-    label: "My Purchases",
-  },
-  {
-    to: "/marketplace/listings/mine",
-    label: "My Listings",
-  },
-  {
-    to: "/marketplace/listings/new",
-    label: "Create Listing",
-  },
   { to: "/offers", label: "Offers" },
+  { to: "/watchlist", label: "Watchlist" },
 ];
 
 const BUYER_SECONDARY_NAV: NavItem[] = [
-  { to: "/account/payment-methods", label: "Payment Methods" },
-  { to: "/watchlist", label: "Watchlist" },
+  { to: "/buyer/workspace", label: "My Activity" },
+  { to: "/my-wins", label: "My Wins" },
   { to: "/saved-searches", label: "Saved Searches" },
+  { to: "/buyer/success", label: "Buyer Success Center" },
+  { to: "/buyer/subscription", label: "Buyer Subscription" },
+  { to: "/account/payment-methods", label: "Payment Methods" },
+  { to: "/buyer/settings", label: "Account Settings" },
+  { to: "/buyer/help", label: "Help Center" },
 ];
+
+const BUYER_SELLING_NAV: NavItem[] = [
+  { to: "/buyer/sell-item#new-item", label: "Start selling or pawning" },
+  { to: "/buyer/sell-item#my-submissions", label: "My item submissions" },
+  { to: "/buyer/sell-item#shop-offers", label: "Pawnshop offers" },
+  { to: "/marketplace/listings/mine", label: "My marketplace listings" },
+  { to: "/marketplace/sales", label: "My marketplace sales" },
+];
+
+const BUYER_SECONDARY_GROUPS = [
+  { label: "Selling & Pawning", links: BUYER_SELLING_NAV },
+  { label: "Shopping activity", links: BUYER_SECONDARY_NAV.filter((item) => ["/buyer/workspace", "/my-wins"].includes(item.to)) },
+  { label: "Saved tools", links: BUYER_SECONDARY_NAV.filter((item) => ["/saved-searches", "/buyer/success"].includes(item.to)) },
+  { label: "Billing & account", links: BUYER_SECONDARY_NAV.filter((item) => ["/buyer/subscription", "/account/payment-methods", "/buyer/settings"].includes(item.to)) },
+  { label: "Help", links: BUYER_SECONDARY_NAV.filter((item) => item.to === "/buyer/help") },
+] as const;
 
 const STAFF_AUCTION_NAV: NavItem[] = [
   {
@@ -96,6 +108,8 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
   { to: "/owner/inventory", label: "Inventory" },
   { to: "/owner/item-intakes", label: "Intake Review" },
   { to: "/owner/integrations", label: "Integrations" },
+  { to: "/owner/marketing", label: "Marketing Center" },
+  { to: "/owner/business-growth", label: "Business Growth" },
   {
     to: "/marketplace/sales",
     label: "Marketplace Sales",
@@ -137,11 +151,15 @@ const ADMIN_SECONDARY_NAV: NavItem[] = [
 
 const SUPER_ADMIN_PRIMARY_NAV: NavItem[] = [
   { to: "/super-admin", label: "Platform Overview", end: true },
+  { to: "/super-admin/launch-readiness", label: "Launch War Room" },
   { to: "/super-admin/users", label: "Platform Users" },
   { to: "/super-admin/shops", label: "Platform Shops" },
 ];
 
 const SUPER_ADMIN_SECONDARY_NAV: NavItem[] = [
+  { to: "/super-admin/platform-success", label: "Platform Success" },
+  { to: "/super-admin/marketing-administration", label: "Marketing Administration" },
+  { to: "/super-admin/growth", label: "Growth Center" },
   { to: "/super-admin/plans/seller", label: "Seller Plans" },
   { to: "/super-admin/seller-subscriptions", label: "Seller Subscriptions" },
   { to: "/super-admin/plans/buyer", label: "Buyer Plans" },
@@ -210,6 +228,7 @@ function getWorkspaceLabel(
 
 export default function SiteLayout() {
   const navigate = useNavigate();
+  const workspaceMenuRef = useRef<HTMLDetailsElement>(null);
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
@@ -324,7 +343,7 @@ export default function SiteLayout() {
     ]);
 
     const workspace = dedupeNav([
-      ...(showBuyerLinks ? BUYER_SECONDARY_NAV : []),
+      ...(showBuyerLinks ? [...BUYER_SECONDARY_NAV, ...BUYER_SELLING_NAV] : []),
       ...(showStaffAuctionLinks
         ? STAFF_AUCTION_NAV
         : []),
@@ -429,6 +448,17 @@ export default function SiteLayout() {
     navigate("/login", { replace: true });
   }
 
+  useEffect(() => {
+    function closeWorkspaceOnEscape(event: KeyboardEvent) {
+      const menu = workspaceMenuRef.current;
+      if (event.key !== "Escape" || !menu?.open) return;
+      menu.open = false;
+      menu.querySelector("summary")?.focus();
+    }
+    document.addEventListener("keydown", closeWorkspaceOnEscape);
+    return () => document.removeEventListener("keydown", closeWorkspaceOnEscape);
+  }, []);
+
   return (
     <div className="site-shell">
       <header className="site-header">
@@ -476,13 +506,11 @@ export default function SiteLayout() {
               {role ? (
                 <>
                   <NotificationCenter />
-                  <Link
+                  {role !== "CONSUMER" ? <Link
                     to={dashboardHref}
                     className="site-primary-button"
                     data-tour="dashboard-button"
-                  >
-                    Dashboard
-                  </Link>
+                  >Dashboard</Link> : null}
 
                   <button
                     type="button"
@@ -560,6 +588,7 @@ export default function SiteLayout() {
 
           {workspaceLinks.length > 0 ? (
             <details
+              ref={workspaceMenuRef}
               className="site-workspace-menu"
               data-tour="workspace-menu"
             >
@@ -574,7 +603,8 @@ export default function SiteLayout() {
               </summary>
 
               <div className="site-workspace-panel">
-                {workspaceLinks.map((item) => (
+                {showBuyerLinks ? BUYER_SECONDARY_GROUPS.map((group) => <section className="site-workspace-group" key={group.label} aria-labelledby={`buyer-nav-${group.label.replaceAll(" ", "-").toLowerCase()}`}><h2 id={`buyer-nav-${group.label.replaceAll(" ", "-").toLowerCase()}`}>{group.label}</h2>{group.links.map((item) => <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => isActive ? "site-workspace-menu-link active" : "site-workspace-menu-link"}>{item.label}</NavLink>)}</section>) : null}
+                {workspaceLinks.filter((item) => !showBuyerLinks || ![...BUYER_SECONDARY_NAV, ...BUYER_SELLING_NAV].some((buyerItem) => buyerItem.to === item.to)).map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}

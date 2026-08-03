@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { createOffer } from "../services/offers";
 import {
@@ -8,12 +16,16 @@ import {
 import {
   getItemById,
   getItemPriceComparison,
+  getMarketplaceIntelligence,
   type Item,
   type ItemPriceComparisonReason,
   type ItemPriceComparisonResponse,
+  type MarketplaceIntelligence,
 } from "../services/items";
 import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import { addToWatchlist } from "../services/watchlist";
+import { recordRecentlyViewed, RECENTLY_VIEWED_ENABLED_KEY } from "../services/recentlyViewed.mjs";
+import { getBuyerPreferences } from "../services/buyerPreferences";
 import "../styles/item-detail-v2.css";
 
 function normalizeLabel(value: string | null | undefined, fallback: string) {
@@ -70,6 +82,30 @@ type PriceComparisonView =
   | "cards"
   | "table"
   | "compare";
+
+type FulfillmentPreference =
+  | "pickup"
+  | "shipping"
+  | "local-delivery";
+
+type OfferFeedback = {
+  kind: "error" | "success";
+  source: "amount-validation" | "submission";
+  message: string;
+};
+
+const fulfillmentMessageLines: Record<FulfillmentPreference, string> = {
+  pickup: "Preferred fulfillment: Pick up at shop.",
+  shipping: "Preferred fulfillment request: Shipping, subject to shop confirmation.",
+  "local-delivery": "Preferred fulfillment request: Local delivery, subject to shop confirmation.",
+};
+
+const buyerChecklistItems = [
+  "I reviewed the item condition",
+  "I reviewed the photos and description",
+  "I understand the pickup requirements",
+  "I understand the payment and buyer-protection terms",
+] as const;
 
 function qualityScoreForCondition(
   condition: string | null | undefined,
@@ -195,11 +231,22 @@ export default function ItemDetailPage() {
 
   const [item, setItem] = useState<Item | null>(null);
   const [selectedImage, setSelectedImage] = useState("");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const lightboxOpenerRef = useRef<HTMLButtonElement | null>(null);
+  const lightboxRef = useRef<HTMLDivElement | null>(null);
+  const touchStartX = useRef<number | null>(null);
   const [offerAmount, setOfferAmount] = useState("");
   const [offerMessage, setOfferMessage] = useState("");
+  const [fulfillmentPreference, setFulfillmentPreference] =
+    useState<FulfillmentPreference>("pickup");
+  const [buyerChecklist, setBuyerChecklist] = useState<boolean[]>(
+    () => buyerChecklistItems.map(() => false),
+  );
   const [loading, setLoading] = useState(true);
   const [savingWatchlist, setSavingWatchlist] = useState(false);
   const [submittingOffer, setSubmittingOffer] = useState(false);
+  const [offerFeedback, setOfferFeedback] =
+    useState<OfferFeedback | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
@@ -209,6 +256,9 @@ export default function ItemDetailPage() {
   const [comparisonLoading, setComparisonLoading] = useState(true);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [comparisonReloadKey, setComparisonReloadKey] = useState(0);
+  const [marketIntelligence, setMarketIntelligence] = useState<MarketplaceIntelligence | null>(null);
+  const [intelligenceLoading, setIntelligenceLoading] = useState(true);
+  const [intelligenceError, setIntelligenceError] = useState<string | null>(null);
   const [comparisonView, setComparisonView] =
     useState<PriceComparisonView>("cards");
   const [
@@ -220,8 +270,68 @@ export default function ItemDetailPage() {
     useRef<HTMLFormElement | null>(null);
   const offerAmountInputRef =
     useRef<HTMLInputElement | null>(null);
+  const offerMessageInputRef =
+    useRef<HTMLTextAreaElement | null>(null);
+  const activeItemIdRef = useRef(id);
+  const offerSubmissionTokenRef = useRef(0);
+
+  useLayoutEffect(() => {
+    activeItemIdRef.current = id;
+  }, [id]);
+
+  const reviewedChecklistCount = buyerChecklist.filter(Boolean).length;
+  const isBuyerChecklistComplete =
+    reviewedChecklistCount === buyerChecklistItems.length;
+  const hasAmountValidationError =
+    offerFeedback?.kind === "error"
+    && offerFeedback.source === "amount-validation";
+
+  function clearOfferFeedbackForEdit() {
+    setOfferFeedback(null);
+  }
+
+  function handleFulfillmentPreferenceChange(
+    preference: FulfillmentPreference,
+  ) {
+    clearOfferFeedbackForEdit();
+    setFulfillmentPreference(preference);
+  }
+
+  function focusOfferAmount() {
+    offerFormRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    window.requestAnimationFrame(() => {
+      offerAmountInputRef.current?.focus();
+    });
+  }
+
+  function focusOfferMessage(prefill: string) {
+    clearOfferFeedbackForEdit();
+
+    if (!offerMessage.trim()) {
+      setOfferMessage(prefill);
+    }
+
+    offerFormRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    window.requestAnimationFrame(() => {
+      offerMessageInputRef.current?.focus();
+    });
+  }
 
   useEffect(() => {
+    offerSubmissionTokenRef.current += 1;
+    setSubmittingOffer(false);
+    setOfferFeedback(null);
+    setFulfillmentPreference("pickup");
+    setBuyerChecklist(buyerChecklistItems.map(() => false));
+    setLightboxOpen(false);
+    touchStartX.current = null;
+
     let cancelled = false;
 
     async function load() {
@@ -258,6 +368,21 @@ export default function ItemDetailPage() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!item || getAuthRole() !== "CONSUMER") return;
+    const controller = new AbortController();
+    void getBuyerPreferences(controller.signal).then((preferences) => {
+      try { localStorage.setItem(RECENTLY_VIEWED_ENABLED_KEY, String(preferences.recentlyViewedEnabled)); } catch { /* Storage unavailable means recording safely no-ops. */ }
+      if (preferences.recentlyViewedEnabled) recordRecentlyViewed({
+        itemId: item.id, title: normalizeLabel(item.title, "Untitled item"),
+        imageUrl: item.images?.[0] || null, priceLabel: formatPrice(item.price),
+        shopName: item.shop?.name || null, href: `/items/${encodeURIComponent(item.id)}`,
+        viewedAt: new Date().toISOString(),
+      });
+    }).catch(() => { /* Do not record until the privacy preference is known. */ });
+    return () => controller.abort();
+  }, [item]);
 
 
   useEffect(() => {
@@ -308,6 +433,14 @@ export default function ItemDetailPage() {
     };
   }, [id, comparisonReloadKey]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    if (!id) { setIntelligenceLoading(false); return () => controller.abort(); }
+    setIntelligenceLoading(true); setIntelligenceError(null);
+    getMarketplaceIntelligence(id, controller.signal).then(setMarketIntelligence).catch((cause) => { if (!controller.signal.aborted) setIntelligenceError(cause instanceof Error ? cause.message : "Marketplace Intelligence could not load."); }).finally(() => { if (!controller.signal.aborted) setIntelligenceLoading(false); });
+    return () => controller.abort();
+  }, [id]);
+
 
   useEffect(() => {
     if (
@@ -338,6 +471,33 @@ export default function ItemDetailPage() {
   }, [item]);
 
   const images = useMemo(() => (item ? itemImages(item) : []), [item]);
+  const selectedImageIndex = Math.max(images.indexOf(selectedImage), 0);
+  const selectRelative = useCallback((delta: number) => {
+    if (!images.length) return;
+
+    const next =
+      (selectedImageIndex + delta + images.length) % images.length;
+    setSelectedImage(images[next]);
+  }, [images, selectedImageIndex]);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxOpen(false);
+    window.setTimeout(() => lightboxOpenerRef.current?.focus(), 0);
+  }, []);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    lightboxRef.current?.focus();
+    const listener = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeLightbox();
+      if (images.length > 1 && event.key === "ArrowLeft") selectRelative(-1);
+      if (images.length > 1 && event.key === "ArrowRight") selectRelative(1);
+    };
+
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
+  }, [closeLightbox, images.length, lightboxOpen, selectRelative]);
 
   const suggestedOffer = useMemo(() => {
     if (!item) return "";
@@ -456,7 +616,11 @@ export default function ItemDetailPage() {
   async function handleOfferSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!item?.id || submittingOffer) return;
+    if (
+      !item?.id
+      || item.id !== activeItemIdRef.current
+      || submittingOffer
+    ) return;
 
     if (!isAuthenticated()) {
       navigate(
@@ -477,27 +641,67 @@ export default function ItemDetailPage() {
     const amount = Number(offerAmount);
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      setNotice("Enter a valid offer amount.");
+      setOfferFeedback({
+        kind: "error",
+        source: "amount-validation",
+        message: "Enter an offer amount greater than $0.",
+      });
+      offerAmountInputRef.current?.focus();
       return;
+    }
+
+    const submittedItemId = item.id;
+    const submissionToken =
+      offerSubmissionTokenRef.current + 1;
+    offerSubmissionTokenRef.current = submissionToken;
+
+    function isCurrentSubmission() {
+      return activeItemIdRef.current === submittedItemId
+        && offerSubmissionTokenRef.current === submissionToken;
     }
 
     try {
       setSubmittingOffer(true);
       setNotice(null);
+      setOfferFeedback(null);
+
+      const typedMessage = offerMessage.trim();
+      const outgoingMessage = [
+        fulfillmentMessageLines[fulfillmentPreference],
+        typedMessage,
+      ].filter(Boolean).join("\n\n");
 
       await createOffer({
-        itemId: item.id,
+        itemId: submittedItemId,
         amount,
-        message: offerMessage.trim() || undefined,
+        message: outgoingMessage,
       });
 
-      setNotice("Offer sent to the shop.");
+      if (!isCurrentSubmission()) return;
+
+      setOfferFeedback({
+        kind: "success",
+        source: "submission",
+        message: "Offer sent to the shop.",
+      });
       setOfferAmount("");
       setOfferMessage("");
+      setFulfillmentPreference("pickup");
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : "Failed to send offer.");
+      if (!isCurrentSubmission()) return;
+
+      setOfferFeedback({
+        kind: "error",
+        source: "submission",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Failed to send offer.",
+      });
     } finally {
-      setSubmittingOffer(false);
+      if (isCurrentSubmission()) {
+        setSubmittingOffer(false);
+      }
     }
   }
 
@@ -556,7 +760,18 @@ export default function ItemDetailPage() {
         <div className="item-detail-gallery">
           <div className="item-detail-main-image">
             {selectedImage ? (
-              <img src={selectedImage} alt={item.title} />
+              <button
+                ref={lightboxOpenerRef}
+                type="button"
+                className="item-detail-main-image-button"
+                onClick={() => setLightboxOpen(true)}
+                aria-label={`Open ${item.title} image ${selectedImageIndex + 1} of ${images.length} full screen`}
+              >
+                <img
+                  src={selectedImage}
+                  alt={`${item.title} — image ${selectedImageIndex + 1} of ${images.length}`}
+                />
+              </button>
             ) : (
               <div className="item-detail-placeholder">PawnLoop</div>
             )}
@@ -567,20 +782,110 @@ export default function ItemDetailPage() {
           </div>
 
           {images.length > 1 ? (
-            <div className="item-detail-thumbs">
-              {images.slice(0, 5).map((image) => (
+            <>
+              <div className="item-detail-gallery-controls">
                 <button
-                  key={image}
                   type="button"
-                  className={selectedImage === image ? "active" : ""}
-                  onClick={() => setSelectedImage(image)}
+                  onClick={() => selectRelative(-1)}
+                  aria-label="View previous image"
                 >
-                  <img src={image} alt="" />
+                  Previous image
                 </button>
-              ))}
-            </div>
+                <span aria-live="polite">
+                  Image {selectedImageIndex + 1} of {images.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => selectRelative(1)}
+                  aria-label="View next image"
+                >
+                  Next image
+                </button>
+              </div>
+              <div
+                className="item-detail-thumbs"
+                role="group"
+                aria-label={`${item.title} image thumbnails`}
+              >
+                {images.map((image, index) => (
+                  <button
+                    key={`${image}-${index}`}
+                    type="button"
+                    className={selectedImage === image ? "active" : ""}
+                    onClick={() => setSelectedImage(image)}
+                    aria-label={`View image ${index + 1} of ${images.length}`}
+                  >
+                    <img src={image} alt="" />
+                  </button>
+                ))}
+              </div>
+            </>
           ) : null}
         </div>
+
+        {lightboxOpen ? (
+          <div
+            className="item-detail-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${item.title} image viewer`}
+            tabIndex={-1}
+            ref={lightboxRef}
+            onTouchStart={(event) => {
+              touchStartX.current = event.touches[0]?.clientX ?? null;
+            }}
+            onTouchEnd={(event) => {
+              const start = touchStartX.current;
+              const end = event.changedTouches[0]?.clientX;
+
+              if (
+                start !== null
+                && end !== undefined
+                && Math.abs(end - start) > 45
+              ) {
+                selectRelative(end > start ? -1 : 1);
+              }
+
+              touchStartX.current = null;
+            }}
+          >
+            <button
+              type="button"
+              className="item-detail-lightbox-close"
+              onClick={closeLightbox}
+              aria-label="Close full-screen image viewer"
+            >
+              Close
+            </button>
+            {images.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => selectRelative(-1)}
+                aria-label="Previous full-screen image"
+              >
+                ‹
+              </button>
+            ) : null}
+            <figure>
+              <img
+                src={selectedImage}
+                alt={`${item.title} — image ${selectedImageIndex + 1} of ${images.length}`}
+              />
+              <figcaption>
+                Image {selectedImageIndex + 1} of {images.length}
+              </figcaption>
+            </figure>
+            {images.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => selectRelative(1)}
+                aria-label="Next full-screen image"
+              >
+                ›
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="item-detail-summary">
           <Link to="/marketplace" className="item-detail-back">
@@ -637,6 +942,19 @@ export default function ItemDetailPage() {
       </section>
 
       <section className="item-detail-content-grid">
+
+        <section className="item-detail-price-intelligence-card" aria-live="polite">
+          <div className="item-detail-section-title"><span>Marketplace Intelligence</span><h2>Observed marketplace context</h2><p>Deterministic comparisons from active public listings and completed PawnLoop transactions.</p></div>
+          {intelligenceLoading ? <div className="item-detail-price-state"><strong>Loading Marketplace Intelligence…</strong></div> : null}
+          {intelligenceError ? <div role="alert" className="item-detail-price-state item-detail-price-error"><strong>Marketplace Intelligence unavailable</strong><span>{intelligenceError}</span></div> : null}
+          {marketIntelligence ? <div>
+            <div className="item-detail-price-metrics"><div><span>Active comparables</span><strong>{marketIntelligence.comparableActiveListings}</strong></div><div><span>Completed sales</span><strong>{marketIntelligence.completedSales.sampleSize}</strong></div><div><span>Confidence</span><strong>{marketIntelligence.completedSales.confidence.level}</strong></div><div><span>Demand</span><strong>{marketIntelligence.demand.label.replaceAll("_", " ")}</strong></div></div>
+            {marketIntelligence.completedSales.available ? <p>Completed-sale median: {formatPrice((marketIntelligence.completedSales.medianSalePriceCents ?? 0) / 100)} · Position: {marketIntelligence.pricePosition.replaceAll("_", " ").toLowerCase()}</p> : <p><strong>Insufficient completed-sale data.</strong> At least three comparable completed sales are required.</p>}
+            <p><strong>Price history unavailable:</strong> {marketIntelligence.priceHistory.reason}</p>
+            <h3>Similar listings</h3>{marketIntelligence.similarListings.length ? <div className="item-detail-next-grid">{marketIntelligence.similarListings.slice(0, 6).map((listing) => <Link key={listing.id} to={listing.itemId ? `/items/${encodeURIComponent(listing.itemId)}` : "/marketplace"}>{listing.title} · {formatPrice(listing.priceCents / 100)}</Link>)}</div> : <p>No eligible similar active listings are available.</p>}
+            <p><small>{marketIntelligence.disclaimer} Limitations: {marketIntelligence.limitations.join(" ")}</small></p>
+          </div> : null}
+        </section>
 
         <section
           className="item-detail-price-intelligence-card"
@@ -1231,28 +1549,120 @@ export default function ItemDetailPage() {
             </p>
           </div>
 
+          <fieldset
+            className="item-detail-fulfillment"
+            aria-describedby="item-fulfillment-note"
+          >
+            <legend>How would you like to get this item?</legend>
+            <div className="item-detail-fulfillment-options">
+              <label className={fulfillmentPreference === "pickup" ? "selected" : undefined}>
+                <input
+                  type="radio"
+                  name="fulfillment-preference"
+                  value="pickup"
+                  checked={fulfillmentPreference === "pickup"}
+                  onChange={() => handleFulfillmentPreferenceChange("pickup")}
+                />
+                <span className="item-detail-fulfillment-copy">
+                  <strong>Pick up at shop</strong>
+                  <small>Arrange pickup directly with the pawn shop.</small>
+                </span>
+              </label>
+              <label className={fulfillmentPreference === "shipping" ? "selected" : undefined}>
+                <input
+                  type="radio"
+                  name="fulfillment-preference"
+                  value="shipping"
+                  checked={fulfillmentPreference === "shipping"}
+                  onChange={() => handleFulfillmentPreferenceChange("shipping")}
+                />
+                <span className="item-detail-fulfillment-copy">
+                  <strong>Ask about shipping</strong>
+                  <small>Request only — the shop must confirm availability, price, and timing.</small>
+                </span>
+              </label>
+              <label className={fulfillmentPreference === "local-delivery" ? "selected" : undefined}>
+                <input
+                  type="radio"
+                  name="fulfillment-preference"
+                  value="local-delivery"
+                  checked={fulfillmentPreference === "local-delivery"}
+                  onChange={() => handleFulfillmentPreferenceChange("local-delivery")}
+                />
+                <span className="item-detail-fulfillment-copy">
+                  <strong>Ask about local delivery</strong>
+                  <small>Request only — the shop must confirm availability, price, service area, and timing.</small>
+                </span>
+              </label>
+            </div>
+            <p id="item-fulfillment-note" className="item-detail-fulfillment-note">
+              Shipping and local delivery are requests only until the shop confirms availability, cost, and timing.
+            </p>
+          </fieldset>
+
           <label>
             <span>Offer amount</span>
             <input
               ref={offerAmountInputRef}
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
               value={offerAmount}
-              onChange={(event) => setOfferAmount(event.target.value)}
+              onChange={(event) => {
+                setOfferAmount(event.target.value);
+                clearOfferFeedbackForEdit();
+              }}
               placeholder={suggestedOffer ? `$${suggestedOffer}` : "$100"}
               inputMode="decimal"
+              aria-invalid={hasAmountValidationError}
+              aria-describedby={
+                offerFeedback
+                  ? "item-offer-feedback"
+                  : undefined
+              }
             />
           </label>
 
           <label>
             <span>Message</span>
             <textarea
+              ref={offerMessageInputRef}
               value={offerMessage}
-              onChange={(event) => setOfferMessage(event.target.value)}
+              onChange={(event) => {
+                setOfferMessage(event.target.value);
+                clearOfferFeedbackForEdit();
+              }}
               placeholder="Optional message to the shop..."
               rows={4}
             />
           </label>
 
-          <button type="submit" disabled={submittingOffer}>
+          {offerFeedback ? (
+            <div
+              id="item-offer-feedback"
+              className={`item-detail-offer-feedback ${offerFeedback.kind}`}
+              role={
+                offerFeedback.kind === "error"
+                  ? "alert"
+                  : "status"
+              }
+              aria-live="polite"
+            >
+              {offerFeedback.message}
+            </div>
+          ) : null}
+
+          <button
+            type="submit"
+            className="item-detail-offer-submit"
+            disabled={submittingOffer}
+            aria-label={
+              submittingOffer
+                ? "Sending offer"
+                : "Send offer to shop"
+            }
+          >
             {submittingOffer ? "Sending..." : "Send offer"}
           </button>
         </form>
@@ -1284,7 +1694,19 @@ export default function ItemDetailPage() {
           </div>
 
           <div className="item-detail-map-card">
-            <div className="item-detail-map-user">Shop</div>
+            <div
+              className="item-detail-map-user"
+              role="img"
+              aria-label="Shop location marker"
+            >
+              <span
+                className="item-detail-map-pin"
+                aria-hidden="true"
+              />
+              <strong aria-hidden="true">
+                Shop location
+              </strong>
+            </div>
             <div className="item-detail-map-note">
               <strong>Shop location</strong>
               <span>{shopDistanceText}</span>
@@ -1326,6 +1748,75 @@ export default function ItemDetailPage() {
               <span>Use platform offer and watchlist tools to track activity.</span>
             </div>
           </div>
+
+          <div className="item-detail-confidence-actions" role="group" aria-label="Buyer confidence actions">
+            <button
+              type="button"
+              onClick={() => focusOfferMessage("I have a question about the item condition.")}
+            >
+              Ask about condition
+            </button>
+            <button type="button" onClick={handleSaveItem} disabled={savingWatchlist}>
+              {savingWatchlist ? "Saving..." : "Save to watchlist"}
+            </button>
+            <button
+              type="button"
+              onClick={() => focusOfferMessage("Please confirm pickup requirements and available pickup times.")}
+            >
+              Discuss pickup
+            </button>
+            <Link to="/buyer/help">Buyer protection help</Link>
+          </div>
+
+          <fieldset className="item-detail-buyer-checklist">
+            <legend>Before making an offer</legend>
+            <p className="item-detail-checklist-note">
+              Optional review checklist. You can make an offer at any time.
+            </p>
+            <p className="item-detail-checklist-progress" aria-live="polite">
+              {reviewedChecklistCount} of {buyerChecklistItems.length} reviewed
+            </p>
+            <div className="item-detail-checklist-options">
+              {buyerChecklistItems.map((label, index) => (
+                <label key={label}>
+                  <input
+                    type="checkbox"
+                    checked={buyerChecklist[index]}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setBuyerChecklist((current) => current.map((value, itemIndex) => (
+                        itemIndex === index ? checked : value
+                      )));
+                    }}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+            {isBuyerChecklistComplete ? (
+              <div
+                className="item-detail-checklist-complete"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="item-detail-checklist-complete-icon" aria-hidden="true">
+                  ✓
+                </span>
+                <div className="item-detail-checklist-complete-copy">
+                  <h3>Review complete</h3>
+                  <p>You are ready to continue with your offer.</p>
+                </div>
+                <button
+                  type="button"
+                  className="item-detail-checklist-continue"
+                  aria-controls="item-offer-form"
+                  onClick={focusOfferAmount}
+                >
+                  Continue to make offer
+                </button>
+              </div>
+            ) : null}
+          </fieldset>
         </section>
 
         <section className="item-detail-next-card">

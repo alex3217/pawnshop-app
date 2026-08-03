@@ -718,8 +718,9 @@ async function installMocks(
             success:
               true,
 
-            rows:
-              [],
+            ...(pathname.endsWith("/notifications")
+              ? { notifications: [] }
+              : { rows: [] }),
           }),
       });
     },

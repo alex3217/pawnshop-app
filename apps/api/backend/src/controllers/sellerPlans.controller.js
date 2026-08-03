@@ -43,7 +43,7 @@ function getRequestUserId(req) {
 
 function isAdminRequest(req) {
   const user = getRequestUser(req);
-  return String(user.role || "").toUpperCase() === "ADMIN";
+  return ["ADMIN", "SUPER_ADMIN"].includes(String(user.role || "").toUpperCase());
 }
 
 function parseOptionalDate(value, fieldName = "currentPeriodEnd") {

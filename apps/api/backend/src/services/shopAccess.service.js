@@ -441,6 +441,8 @@ function buildShopCapabilities(
     staffRead: has("staff:read"),
     staffWrite: has("staff:write"),
     settlementsRead: has("settlements:read"),
+    marketingRead: has("marketing:read"),
+    marketingWrite: has("marketing:write"),
   };
 }
 

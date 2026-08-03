@@ -2,6 +2,10 @@ import { prisma } from "../lib/prisma.js";
 import {
   calculateSettlementRevenueContext,
 } from "./revenue/settlementRevenueAdapter.service.js";
+import {
+  getTransactionFamilyPolicy,
+  TRANSACTION_FAMILIES,
+} from "./transactionFamilyPolicy.service.js";
 
 const TRANSACTION_TYPES = new Set([
   "DIRECT_PURCHASE",
@@ -517,11 +521,21 @@ function amountFromCents(cents) {
 function getPurchaseFlow(listingType) {
   switch (normalizeEnum(listingType)) {
     case "CUSTOMER_TO_CUSTOMER":
+      throw Object.assign(
+        httpError(
+          "Community Marketplace is disabled: separate verification, fraud, policy, and legal approval required",
+          403,
+        ),
+        { code: "COMMUNITY_MARKETPLACE_DISABLED" },
+      );
+
     case "SHOP_TO_CUSTOMER":
       return {
         transactionType: "DIRECT_PURCHASE",
         revenueType: "MARKETPLACE",
         buyerShopRequired: false,
+        transactionFamily:
+          TRANSACTION_FAMILIES.RETAIL,
       };
 
     case "SHOP_TO_SHOP":
@@ -529,14 +543,18 @@ function getPurchaseFlow(listingType) {
         transactionType: "DEALER_TRANSFER",
         revenueType: "DEALER",
         buyerShopRequired: true,
+        transactionFamily:
+          TRANSACTION_FAMILIES.DEALER,
       };
 
     case "CUSTOMER_TO_SHOP":
-      return {
-        transactionType: "CUSTOMER_SELL_TO_SHOP",
-        revenueType: "PAWN",
-        buyerShopRequired: true,
-      };
+      throw Object.assign(
+        httpError(
+          "Customer sell and pawn requests must use the submission, offer, inspection, and intake workflow",
+          409,
+        ),
+        { code: "CUSTOMER_INTAKE_PURCHASE_DISABLED" },
+      );
 
     default:
       throw httpError(
@@ -746,6 +764,10 @@ export async function reserveMarketplacePurchase({
 
         const flow =
           getPurchaseFlow(listing.listingType);
+        const familyPolicy =
+          getTransactionFamilyPolicy(
+            flow.transactionFamily,
+          );
 
         const buyerShop = await loadBuyerShop({
           tx,
@@ -919,6 +941,20 @@ export async function reserveMarketplacePurchase({
                 revenueContext.transactionType,
               pricingRuleSnapshot:
                 revenue.pricingRuleSnapshot,
+              transactionFamily:
+                flow.transactionFamily,
+              transactionFamilyPolicy: {
+                paymentRequired:
+                  familyPolicy.paymentRequired,
+                inspectionRequired:
+                  familyPolicy.inspectionRequired,
+                delayedReleaseRequired:
+                  familyPolicy.delayedReleaseRequired,
+                stripeChargeModel:
+                  familyPolicy.stripeChargeModel,
+                sellerType:
+                  familyPolicy.sellerType,
+              },
             },
           },
           include: TRANSACTION_INCLUDE,

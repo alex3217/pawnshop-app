@@ -1,0 +1,9 @@
+{
+  "20260722000000": {
+    "migrations": [
+      "20260722000000_auth_session_password_hardening_v1",
+      "20260722000000_customer_sell_transaction_handoff_v1"
+    ],
+    "reason": "Known P0 collision retained until staging and production _prisma_migrations histories are certified; do not rename blindly. Fresh replay remains blocked pending that evidence."
+  }
+}

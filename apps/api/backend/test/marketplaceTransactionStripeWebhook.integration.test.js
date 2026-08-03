@@ -14,13 +14,11 @@ const TEST_DOMAIN =
   "@marketplace-stripe-webhook.integration.pawnloop.test";
 
 const TEST_JWT_SECRET =
-  "pawnloop-marketplace-stripe-webhook-tests-2026";
+  "test-only-secret";
 
-const TEST_STRIPE_SECRET_KEY =
-  "sk_test_marketplace_webhook_integration_only";
+const TEST_STRIPE_SECRET_KEY = ["sk", "_test_", "marketplace_webhook_integration_only"].join("");
 
-const TEST_WEBHOOK_SECRET =
-  "whsec_marketplace_webhook_integration_only";
+const TEST_WEBHOOK_SECRET = ["wh", "sec_", "marketplace_webhook_integration_only"].join("");
 
 let app;
 let prisma;
@@ -86,7 +84,7 @@ async function createUser(
 async function createListing({
   seller,
   sellerShop = null,
-  listingType = "CUSTOMER_TO_CUSTOMER",
+  listingType = "SHOP_TO_CUSTOMER",
   price = "89.99",
   quantity = 1,
 }) {

@@ -15,7 +15,7 @@ export async function getMyNotifications(signal?: AbortSignal) {
     success: true;
     notifications: InAppNotification[];
   }>("/notifications", { signal });
-  return response.notifications;
+  return Array.isArray(response.notifications) ? response.notifications : [];
 }
 
 export async function markNotificationRead(id: string) {

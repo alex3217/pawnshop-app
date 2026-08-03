@@ -161,8 +161,8 @@ done
 
 invalid_cases=(
   'APP_NAME|other-service' 'APP_ENV|production' 'NODE_ENV|production'
-  'DATABASE_URL|not-a-url' 'DATABASE_URL|postgresql://user:pass@localhost/staging'
-  'DATABASE_URL|postgresql://user:pass@127.0.0.2/staging'
+  'DATABASE_URL|not-a-url' 'DATABASE_URL|postgresql://example-user:test-only-password@localhost/staging'
+  'DATABASE_URL|postgresql://example-user:test-only-password@127.0.0.2/staging'
   'JWT_SECRET|short' 'INTEGRATION_CREDENTIAL_ENCRYPTION_KEY|short'
   'TRUST_PROXY|0' 'SMTP_HOST|smtp.invalid:587' 'SMTP_PORT|65536'
   'EMAIL_FROM|not-an-email' 'STRIPE_SECRET_KEY|sk_live_synthetic'

@@ -10,7 +10,7 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 
 const TEST_JWT_SECRET =
-  "pawnloop-marketplace-reservation-tests-2026";
+  "test-only-secret";
 
 const TEST_DOMAIN =
   "@marketplace-reserve.integration.pawnloop.test";
@@ -75,7 +75,7 @@ async function createShop(
 async function createListing({
   seller,
   sellerShop = null,
-  listingType = "CUSTOMER_TO_CUSTOMER",
+  listingType = "SHOP_TO_CUSTOMER",
   quantity = 1,
   price = "100.00",
 }) {
@@ -770,6 +770,61 @@ test(
         (row) => row.id === transaction.id,
       ),
     );
+  },
+);
+
+test(
+  "reservation API rejects disabled Community Marketplace listings",
+  async () => {
+    const seller =
+      await createUser("api-community-seller");
+
+    const buyer =
+      await createUser("api-community-buyer");
+
+    const listing = await createListing({
+      seller,
+      listingType: "CUSTOMER_TO_CUSTOMER",
+      quantity: 1,
+      price: "75.00",
+    });
+
+    const response = await request(app)
+      .post(
+        "/api/marketplace-transactions/reserve",
+      )
+      .set(
+        "Authorization",
+        `Bearer ${tokenFor(buyer)}`,
+      )
+      .send({
+        listingId: listing.id,
+        quantity: 1,
+      });
+
+    assert.equal(response.status, 403);
+    assert.equal(
+      response.body.code,
+      "COMMUNITY_MARKETPLACE_DISABLED",
+    );
+
+    const unchangedListing =
+      await prisma.marketplaceListing.findUnique({
+        where: {
+          id: listing.id,
+        },
+      });
+
+    const transactionCount =
+      await prisma.marketplaceTransaction.count({
+        where: {
+          listingId: listing.id,
+        },
+      });
+
+    assert.equal(unchangedListing.quantity, 1);
+    assert.equal(unchangedListing.status, "ACTIVE");
+    assert.equal(transactionCount, 0);
   },
 );
 

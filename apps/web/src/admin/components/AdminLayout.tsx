@@ -1,25 +1,31 @@
 import { useLayoutEffect } from "react";
 import { Outlet } from "react-router-dom";
+
 import Breadcrumbs from "../../components/Breadcrumbs";
 import PageBackButton from "../../components/PageBackButton";
 import ScrollToTopButton from "../../components/ScrollToTopButton";
 import { logout } from "../../services/auth";
 import AdminSidebar from "./AdminSidebar";
+import "./AdminLayout.css";
 
 export default function AdminLayout() {
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const previousTheme = root.getAttribute("data-theme");
+    const previousTheme =
+      root.getAttribute("data-theme");
 
     /*
-     * Admin and Super Admin are dedicated operational workspaces.
-     * Keep them consistently dark regardless of the public-site theme.
+     * Admin and Super Admin are dedicated
+     * operational workspaces and remain dark.
      */
     root.setAttribute("data-theme", "dark");
 
     return () => {
       if (previousTheme) {
-        root.setAttribute("data-theme", previousTheme);
+        root.setAttribute(
+          "data-theme",
+          previousTheme,
+        );
       } else {
         root.removeAttribute("data-theme");
       }
@@ -27,29 +33,17 @@ export default function AdminLayout() {
   }, []);
 
   return (
-    <div className="admin-layout" style={{ minHeight: "100vh", background: "#0b1020", color: "#eef2ff" }}>
-      <div
-        style={{
-          maxWidth: 1440,
-          margin: "0 auto",
-          padding: "24px 20px 40px",
-          display: "grid",
-          gap: 20,
-        }}
-      >
-        <div
-          className="page-card admin-layout__header"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 16,
-          }}
-        >
+    <div className="admin-layout">
+      <div className="admin-layout__container">
+        <header className="page-card admin-layout__header">
           <div>
-            <div className="section-title">PawnLoop Marketplace Admin</div>
+            <div className="section-title">
+              PawnLoop Marketplace Admin
+            </div>
+
             <div className="section-subtitle">
-              Configure, moderate, and monitor the platform.
+              Configure, moderate, and monitor the
+              platform.
             </div>
           </div>
 
@@ -63,18 +57,19 @@ export default function AdminLayout() {
           >
             Logout
           </button>
-        </div>
+        </header>
 
-        <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+        <div className="admin-layout__body">
           <AdminSidebar />
 
-          <main style={{ flex: 1, minWidth: 0, display: "grid", gap: 16 }}>
+          <main className="admin-layout__main">
             <Breadcrumbs />
             <PageBackButton />
             <Outlet />
           </main>
         </div>
       </div>
+
       <ScrollToTopButton />
     </div>
   );

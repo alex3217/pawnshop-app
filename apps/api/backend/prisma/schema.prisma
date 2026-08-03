@@ -30,6 +30,8 @@ model User {
   Bid                             Bid[]
   bidArchives                     BidArchive[]
   buyerSubscription               BuyerSubscription?
+  buyerPreference                 BuyerPreference?
+  buyerSubscriptionEvents         BuyerSubscriptionEvent[]
   inventoryImportJobs             InventoryImportJob[]             @relation("UserInventoryImportJobs")
   inventoryIntegrations           InventoryIntegration[]           @relation("UserInventoryIntegrations")
   buyerOffers                     Offer[]                          @relation("OfferBuyer")
@@ -79,34 +81,48 @@ model User {
   pawnShopLeadImports             PawnShopLeadImport[]             @relation("PawnShopLeadImportCreator")
   pawnShopLeadSuppressions        PawnShopLeadSuppression[]        @relation("PawnShopLeadSuppressionCreator")
   paymentMethodConsents           PaymentMethodConsent[]
+  shopFollows                     ShopFollow[]                     @relation("BuyerShopFollows")
+  referralCodes                   ReferralCode[]                   @relation("UserReferralCodes")
+  referralAttributions            ReferralAttribution[]            @relation("AttributedReferralUser")
 
   @@index([role, isActive])
   @@index([createdAt])
 }
 
 model PaymentMethodConsent {
-  id                String   @id @default(cuid())
-  idempotencyKey    String   @unique
-  userId            String
-  shopId            String?
-  stripeCustomerId  String
-  stripeCheckoutSessionId String? @unique
-  stripeSetupIntentId String? @unique
-  stripeMandateId   String?
-  paymentMethodId   String?
-  termsVersion      String
-  consentText       String
-  consentedAt       DateTime
-  ipAddress         String?
-  userAgent         String?
-  status            String   @default("PENDING")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                      String   @id @default(cuid())
+  idempotencyKey          String   @unique
+  userId                  String
+  shopId                  String?
+  stripeCustomerId        String
+  stripeCheckoutSessionId String?  @unique
+  stripeSetupIntentId     String?  @unique
+  stripeMandateId         String?
+  paymentMethodId         String?
+  termsVersion            String
+  consentText             String
+  consentedAt             DateTime
+  ipAddress               String?
+  userAgent               String?
+  status                  String   @default("PENDING")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([shopId, createdAt])
   @@index([stripeCustomerId, status])
+}
+
+model AiListingGeneration {
+  id        String   @id @default(cuid())
+  userId    String?
+  shopId    String?
+  source    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([shopId, createdAt])
 }
 
 enum OwnerApplicationStatus {
@@ -230,18 +246,62 @@ model BuyerSubscription {
   stripePriceId           String?
   stripeLatestInvoiceId   String?
   stripeCheckoutSessionId String?
+  stripeEventCreatedAt    DateTime?
+  stripeEventId           String?
+  stripeEventType         String?
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
   user                    User                    @relation(fields: [userId], references: [id])
+  events                  BuyerSubscriptionEvent[]
 
   @@index([plan, status])
   @@index([status, currentPeriodEnd])
   @@index([createdAt])
 }
 
+model BuyerPreference {
+  id                         String   @id @default(cuid())
+  userId                     String   @unique
+  phone                      String?
+  locationLabel              String?
+  searchRadiusMiles          Int      @default(25)
+  savedSearchNotifications   Boolean  @default(true)
+  priceDropAlerts            Boolean  @default(true)
+  auctionAlerts              Boolean  @default(true)
+  followedShopAlerts         Boolean  @default(true)
+  marketingCommunications    Boolean  @default(false)
+  recentlyViewedEnabled      Boolean  @default(true)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
+}
+
+model BuyerSubscriptionEvent {
+  id                    String   @id @default(cuid())
+  stripeEventId         String   @unique
+  buyerSubscriptionId   String
+  userId                String
+  eventType             String
+  stripeEventCreatedAt  DateTime
+  normalizedStatus      BuyerSubscriptionStatus
+  plan                  BuyerSubscriptionPlan
+  billingInterval       BillingInterval?
+  applied               Boolean
+  reasonCode            String
+  createdAt             DateTime @default(now())
+  buyerSubscription     BuyerSubscription @relation(fields: [buyerSubscriptionId], references: [id], onDelete: Restrict)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([buyerSubscriptionId, stripeEventCreatedAt, id])
+  @@index([userId, createdAt])
+}
+
 model PawnShop {
   id                                 String                           @id @default(cuid())
   name                               String
+  slug                               String?                          @unique
   address                            String?
   city                               String?
   state                              String?
@@ -306,11 +366,120 @@ model PawnShop {
   claimedGrowthLeads                 PawnShopLead[]                   @relation("PawnShopLeadClaimedShop")
   stripeDisputes                     StripeDispute[]                  @relation("StripeDisputeShop")
   stripeSubscriptionBillingEvents    StripeSubscriptionBillingEvent[]
+  marketingCampaigns                 ShopMarketingCampaign[]
+  followers                          ShopFollow[]
+  referralCodes                      ReferralCode[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
   @@index([subscriptionPlan, subscriptionStatus])
   @@index([subscriptionStatus, subscriptionCurrentPeriodEnd])
+}
+
+enum ShopMarketingDestinationType {
+  STOREFRONT
+  INVENTORY
+  NEW_ARRIVALS
+  AUCTIONS
+  DEALS
+  ITEM
+  CATEGORY
+  SELL_ITEM
+  PAWN_INQUIRY
+  FOLLOW_SHOP
+  REVIEW_REQUEST
+  CUSTOMER_REGISTRATION
+  BUYER_REFERRAL
+  PAWNSHOP_REFERRAL
+}
+
+model ShopMarketingCampaign {
+  id              String                       @id @default(cuid())
+  shopId          String
+  name            String
+  shortCode       String                       @unique
+  destinationType ShopMarketingDestinationType @default(STOREFRONT)
+  resourceId      String?
+  placementLabel  String?
+  isActive        Boolean                      @default(true)
+  isDefault       Boolean                      @default(false)
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+
+  shop  PawnShop                    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  scans ShopMarketingCampaignScan[]
+
+  @@index([shopId, isActive])
+  @@index([shopId, createdAt])
+}
+
+model ShopMarketingCampaignScan {
+  id             String   @id @default(cuid())
+  campaignId     String
+  occurredAt     DateTime @default(now())
+  referrerHost   String?
+  userAgentClass String?
+
+  campaign ShopMarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, occurredAt])
+}
+
+model ShopFollow {
+  id                       String    @id @default(cuid())
+  userId                   String
+  shopId                   String
+  status                   String    @default("FOLLOWING")
+  newArrivalNotifications  Boolean   @default(false)
+  dealNotifications        Boolean   @default(false)
+  auctionNotifications     Boolean   @default(false)
+  generalShopNotifications Boolean   @default(false)
+  pausedAt                 DateTime?
+  unsubscribedAt           DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  user User     @relation("BuyerShopFollows", fields: [userId], references: [id], onDelete: Cascade)
+  shop PawnShop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shopId])
+  @@index([shopId, status])
+  @@index([userId, status, updatedAt])
+}
+
+model ReferralCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  type        String
+  ownerUserId String?
+  shopId      String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ownerUser    User?                 @relation("UserReferralCodes", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  shop         PawnShop?             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  attributions ReferralAttribution[]
+
+  @@unique([ownerUserId, type])
+  @@unique([shopId, type])
+  @@index([type, isActive])
+}
+
+model ReferralAttribution {
+  id               String   @id @default(cuid())
+  referralCodeId   String
+  attributedUserId String?
+  eventType        String
+  eventKey         String   @unique
+  metadata         Json?
+  occurredAt       DateTime @default(now())
+
+  referralCode   ReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+  attributedUser User?        @relation("AttributedReferralUser", fields: [attributedUserId], references: [id], onDelete: SetNull)
+
+  @@index([referralCodeId, eventType, occurredAt])
+  @@index([attributedUserId, occurredAt])
 }
 
 model StripeSubscriptionBillingEvent {
@@ -571,7 +740,8 @@ model BuyerItemSubmission {
   condition      String?
   estimatedValue Decimal?  @db.Decimal(10, 2)
   images         String[]  @default([])
-  intent         String    @default("PAWN_OFFERS")
+  intent         String    @default("SHOP_OFFERS")
+  shopTransactionPreference String @default("EITHER")
   radiusMiles    Int       @default(25)
   status         String    @default("SUBMITTED")
   reviewMessage  String?
@@ -946,6 +1116,7 @@ enum Role {
 }
 
 enum ItemStatus {
+  DRAFT
   AVAILABLE
   PENDING
   SOLD

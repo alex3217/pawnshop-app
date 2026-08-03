@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createShop } from "../services/shops";
+import "../styles/owner-workspace-readability.css";
 
 export default function CreateShopPage() {
   const navigate = useNavigate();
@@ -44,76 +45,71 @@ export default function CreateShopPage() {
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <h2 style={styles.title}>Create Your First Shop</h2>
-          <p style={styles.subtitle}>
+    <div className="owner-readable-page owner-create-shop-page">
+      <div className="owner-readable-card owner-create-shop-card">
+        <div className="owner-create-shop-header">
+          <h1 className="owner-readable-heading">Create Your First Shop</h1>
+          <p className="owner-readable-muted">
             Set up your pawn shop before adding inventory or creating auctions.
           </p>
         </div>
 
-        <form onSubmit={onSubmit} style={styles.form}>
-          <label style={styles.label}>
+        <form onSubmit={onSubmit} className="owner-create-shop-form">
+          <label className="owner-readable-field">
             Shop Name
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Downtown Pawn"
               required
-              style={styles.input}
             />
           </label>
 
-          <label style={styles.label}>
+          <label className="owner-readable-field">
             Address
             <input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="123 Main St, Houston, TX"
-              style={styles.input}
             />
           </label>
 
-          <label style={styles.label}>
+          <label className="owner-readable-field">
             Phone
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="713-555-1111"
-              style={styles.input}
             />
           </label>
 
-          <label style={styles.label}>
+          <label className="owner-readable-field">
             Hours
             <input
               value={hours}
               onChange={(e) => setHours(e.target.value)}
               placeholder="Mon-Sat 10am-6pm"
-              style={styles.input}
             />
           </label>
 
-          <label style={styles.label}>
+          <label className="owner-readable-field">
             Description
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Tell buyers about your shop."
               rows={4}
-              style={styles.textarea}
             />
           </label>
 
-          {error ? <div style={styles.error}>{error}</div> : null}
+          {error ? <div className="owner-readable-error" role="alert">{error}</div> : null}
 
-          <div style={styles.actions}>
-            <button type="submit" disabled={submitting} style={styles.primaryButton}>
+          <div className="owner-create-shop-actions">
+            <button type="submit" disabled={submitting} className="owner-readable-button owner-readable-button-primary">
               {submitting ? "Creating Shop..." : "Create Shop"}
             </button>
 
-            <Link to="/owner" style={styles.secondaryLink}>
+            <Link to="/owner" className="owner-readable-link">
               Back to Dashboard
             </Link>
           </div>
@@ -122,81 +118,3 @@ export default function CreateShopPage() {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    display: "grid",
-    placeItems: "start",
-  },
-  card: {
-    width: "100%",
-    maxWidth: 720,
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 24,
-    color: "#eef2ff",
-    boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
-  },
-  header: {
-    marginBottom: 20,
-  },
-  title: {
-    margin: 0,
-    fontSize: 28,
-    fontWeight: 800,
-  },
-  subtitle: {
-    marginTop: 8,
-    color: "#a7b0d8",
-  },
-  form: {
-    display: "grid",
-    gap: 16,
-  },
-  label: {
-    display: "grid",
-    gap: 8,
-    fontWeight: 600,
-    color: "#d7def7",
-  },
-  input: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "#0c1330",
-    color: "#eef2ff",
-    padding: "12px 14px",
-  },
-  textarea: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "#0c1330",
-    color: "#eef2ff",
-    padding: "12px 14px",
-    resize: "vertical",
-  },
-  actions: {
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  primaryButton: {
-    border: "none",
-    borderRadius: 12,
-    padding: "12px 16px",
-    background: "#6ea8fe",
-    color: "#08111f",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  secondaryLink: {
-    color: "#c7d2fe",
-    textDecoration: "none",
-    fontWeight: 700,
-  },
-  error: {
-    color: "#ff9ead",
-    fontWeight: 700,
-  },
-};

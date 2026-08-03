@@ -1445,7 +1445,7 @@
 }
 
 .site-top-row {
-  min-height: 58px;
+  min-height: 52px;
 }
 
 .site-primary-nav {
@@ -1521,6 +1521,10 @@
   border-radius: 18px;
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
 }
+
+.site-workspace-group { display: grid; gap: 6px; align-content: start; }
+.site-workspace-group h2 { margin: 0 4px; color: #475569; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+:root[data-theme="dark"] .site-workspace-group h2 { color: #cbd5e1; }
 
 .site-workspace-menu-link {
   display: flex;
@@ -2827,5 +2831,103 @@
 @media (max-width: 430px) {
   .site-footer-links {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Universal PawnLoop viewport gutters v2 */
+:root {
+  --pawnloop-viewport-gutter:
+    clamp(1rem, 3vw, 2.5rem);
+}
+
+.site-header-inner,
+.site-footer-inner {
+  width: min(100%, 1440px);
+  max-width: 1440px;
+  box-sizing: border-box;
+  padding-left:
+    max(
+      var(--pawnloop-viewport-gutter),
+      env(safe-area-inset-left)
+    );
+  padding-right:
+    max(
+      var(--pawnloop-viewport-gutter),
+      env(safe-area-inset-right)
+    );
+}
+
+.site-main {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-left:
+    max(
+      var(--pawnloop-viewport-gutter),
+      env(safe-area-inset-left)
+    );
+  padding-right:
+    max(
+      var(--pawnloop-viewport-gutter),
+      env(safe-area-inset-right)
+    );
+  overflow-x: clip;
+}
+
+.site-main > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.site-main :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  li,
+  dd,
+  dt,
+  label,
+  legend,
+  th,
+  td
+) {
+  overflow-wrap: anywhere;
+}
+
+.site-main :where(
+  img,
+  video,
+  canvas,
+  iframe
+) {
+  max-width: 100%;
+}
+
+.site-main svg {
+  max-width: 100%;
+}
+
+.site-main pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --pawnloop-viewport-gutter: 1rem;
+  }
+
+  .site-main {
+    padding-bottom:
+      max(
+        1rem,
+        env(safe-area-inset-bottom)
+      );
   }
 }

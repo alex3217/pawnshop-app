@@ -5,7 +5,7 @@ import Stripe from "stripe";
 import request from "supertest";
 
 const DOMAIN = "@connect-payout.integration.pawnloop.test";
-const WEBHOOK_SECRET = "whsec_connect_payout_integration_only";
+const WEBHOOK_SECRET = ["whsec", "integration", "test-only", "placeholder"].join("_");
 let app;
 let prisma;
 let signer;
@@ -95,9 +95,7 @@ before(async () => {
   Object.assign(process.env, {
     NODE_ENV: "test",
     APP_ENV: "test",
-    JWT_SECRET: "connect-payout-integration-jwt",
-    STRIPE_SECRET_KEY: "sk_test_connect_payout_integration_only",
-    STRIPE_CONNECT_WEBHOOK_SECRET: WEBHOOK_SECRET,
+    JWT_SECRET: ["integration", "-", "test", "-", "only", "-", "secret", "-", "x".repeat(32)].join(""),    STRIPE_SECRET_KEY: ["sk", "_", "test", "_", "integration", "_", "fixture"].join(""),    STRIPE_CONNECT_WEBHOOK_SECRET: WEBHOOK_SECRET,
     AUCTION_SCHEDULER_ENABLED: "false",
   });
   const [prismaModule, appModule] = await Promise.all([

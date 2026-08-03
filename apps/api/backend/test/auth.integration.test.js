@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 
-const TEST_JWT_SECRET = "pawnloop-db-tests-only-secret-2026";
+const TEST_JWT_SECRET = "test-only-secret";
 const TEST_DOMAIN = "@integration.pawnloop.test";
 
 const VALID_LEGAL_CONSENT = Object.freeze({

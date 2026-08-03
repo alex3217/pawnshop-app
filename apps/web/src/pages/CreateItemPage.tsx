@@ -15,6 +15,10 @@ import {
   type ScanResult,
 } from "../services/items";
 import { getMyShops, type Shop } from "../services/shops";
+import ProductImageManager from "../components/ProductImageManager";
+import AiListingAssistantPanel from "../components/AiListingAssistantPanel";
+import { getShopItemPhotoLimit } from "../services/ownerWorkspace";
+import "../styles/owner-workspace-readability.css";
 
 type ItemPrefill = {
   pawnShopId: string;
@@ -143,6 +147,8 @@ export default function CreateItemPage() {
   const [price, setPrice] = useState(prefill.price);
   const [category, setCategory] = useState(prefill.category);
   const [condition, setCondition] = useState(prefill.condition);
+  const [images, setImages] = useState<string[]>([]);
+  const [imageLimit, setImageLimit] = useState<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -170,6 +176,7 @@ export default function CreateItemPage() {
     () => shops.find((shop) => shop.id === pawnShopId) ?? null,
     [shops, pawnShopId],
   );
+  useEffect(() => { setImageLimit(null); if (!pawnShopId) return; void getShopItemPhotoLimit(pawnShopId).then(setImageLimit).catch((cause) => setError(cause instanceof Error ? cause.message : "Failed to load the seller image limit.")); }, [pawnShopId]);
 
   const scanIntakeSummary = useMemo(
     () => getScanIntakeSummary(scanResult),
@@ -483,7 +490,7 @@ export default function CreateItemPage() {
         title: title.trim(),
         description: description.trim(),
         price: parsedPrice,
-        images: [],
+        images,
         category,
         condition,
       });
@@ -502,6 +509,7 @@ export default function CreateItemPage() {
     setPrice("100");
     setCategory("Electronics");
     setCondition("Good");
+    setImages([]);
 
     nav("/owner/items/new", { replace: true });
   }
@@ -585,7 +593,7 @@ export default function CreateItemPage() {
     !condition;
 
   return (
-    <div className="page-stack">
+    <div className="page-stack owner-readable-page owner-create-item-page">
       <div className="page-card" style={{ display: "grid", gap: 18 }}>
         <div
           style={{
@@ -774,8 +782,8 @@ export default function CreateItemPage() {
 
           {scanError ? (
             <div
+              className="owner-readable-error-panel"
               style={{
-                color: "#fecaca",
                 background: "rgba(220,38,38,0.12)",
                 border: "1px solid rgba(248,113,113,0.25)",
                 padding: 12,
@@ -788,8 +796,8 @@ export default function CreateItemPage() {
 
           {scanMessage ? (
             <div
+              className="owner-readable-success-panel"
               style={{
-                color: "#bbf7d0",
                 background: "rgba(22,163,74,0.12)",
                 border: "1px solid rgba(74,222,128,0.25)",
                 padding: 12,
@@ -845,8 +853,8 @@ export default function CreateItemPage() {
 
         {error ? (
           <div
+            className="owner-readable-error-panel"
             style={{
-              color: "#fecaca",
               background: "rgba(220,38,38,0.12)",
               border: "1px solid rgba(248,113,113,0.25)",
               padding: 12,
@@ -896,8 +904,8 @@ export default function CreateItemPage() {
 
           {aiError ? (
             <div
+              className="owner-readable-error-panel"
               style={{
-                color: "#fecaca",
                 background: "rgba(220,38,38,0.12)",
                 border: "1px solid rgba(248,113,113,0.25)",
                 padding: 12,
@@ -1002,6 +1010,8 @@ export default function CreateItemPage() {
         </section>
 
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+          <AiListingAssistantPanel fields={{ title, description, category, condition, price, images, shopName: selectedShop?.name }} onApply={(next) => { setTitle(next.title); setDescription(next.description); setCategory(normalizeOption(next.category, ITEM_CATEGORY_OPTIONS, category)); setCondition(normalizeOption(next.condition, ITEM_CONDITION_OPTIONS, condition)); }} disabled={saving} />
+          {imageLimit === null ? <p role="status">Loading seller image limit…</p> : <ProductImageManager images={images} onChange={setImages} limit={imageLimit} label="Inventory item images" />}
           <label style={fieldStyle}>
             Shop
             <select

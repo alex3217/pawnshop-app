@@ -13,6 +13,7 @@ function createTransaction(overrides = {}) {
     listingId: "listing-test-1",
     buyerUserId: "buyer-test-1",
     sellerUserId: "seller-test-1",
+    sellerShopId: "shop-test-1",
     type: "DIRECT_PURCHASE",
     status: "PENDING",
     totalAmount: "89.99",
@@ -20,11 +21,23 @@ function createTransaction(overrides = {}) {
     paymentIntentId: null,
     metadata: {
       grossAmountCents: 8999,
+      platformFeeCents: 1080,
+      sellerNetCents: 7919,
+      sellerPlanCode: "FREE",
+      pricingRuleSnapshot: { key: "seller_plan_free_commission_bps" },
     },
     listing: {
       id: "listing-test-1",
       title: "Marketplace payment test item",
       status: "RESERVED",
+      sellerUserId: "seller-test-1",
+      sellerShopId: "shop-test-1",
+    },
+    sellerShop: {
+      id: "shop-test-1",
+      ownerId: "seller-test-1",
+      isDeleted: false,
+      stripeConnectAccountId: "acct_test_seller",
     },
     ...overrides,
   };
@@ -213,6 +226,12 @@ test(
         .createOptions.idempotencyKey,
       `marketplace-transaction-${transaction.id}`,
     );
+
+    assert.equal(stripeClient.calls.createParameters.transfer_data, undefined);
+    assert.equal(stripeClient.calls.createParameters.application_fee_amount, undefined);
+    assert.equal(stripeClient.calls.createParameters.metadata.chargeModel, "SEPARATE_CHARGE_AND_TRANSFER");
+    assert.equal(stripeClient.calls.createParameters.metadata.platformFeeCents, "1080");
+    assert.equal(stripeClient.calls.createParameters.metadata.sellerPlanCode, "FREE");
 
     assert.equal(
       prismaClient.calls

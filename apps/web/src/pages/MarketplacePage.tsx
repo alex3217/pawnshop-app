@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { addSavedSearch } from "../services/savedSearches";
 import { addToWatchlist } from "../services/watchlist";
 import { getMarketplaceItemsPaged, type Item } from "../services/items";
-import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
+import { directionsUrl, distanceMiles, formatMiles, hasCoordinates, type GeoPoint } from "../utils/geoDistance";
 import {
   ITEM_CATEGORY_OPTIONS,
   ITEM_CONDITION_OPTIONS,
@@ -56,6 +56,7 @@ function itemDistanceMiles(item: Item, userPoint: GeoPoint | null): number | nul
 }
 
 function itemDistanceLabel(item: Item, userPoint: GeoPoint | null): string {
+  if (!hasCoordinates(itemShopPoint(item))) return "Location unavailable";
   return formatMiles(itemDistanceMiles(item, userPoint));
 }
 
@@ -217,7 +218,9 @@ function MarketplaceMap({
   selectedItemId: string | null;
   setSelectedItemId: (id: string) => void;
 }) {
-  const mapItems = items.slice(0, 8);
+  const listItems = items.slice(0, 8);
+  const mapItems = listItems.filter((item) => hasCoordinates(itemShopPoint(item)));
+  const effectiveSelectedId = mapItems.some((item) => item.id === selectedItemId) ? selectedItemId : mapItems[0]?.id || null;
 
   return (
     <section className="mp2-map-shell">
@@ -226,7 +229,7 @@ function MarketplaceMap({
 
         {mapItems.map((item, index) => {
           const [x, y] = mapPosition(index);
-          const selected = selectedItemId === item.id;
+          const selected = effectiveSelectedId === item.id;
 
           return (
             <button
@@ -235,13 +238,16 @@ function MarketplaceMap({
               className={selected ? "mp2-map-pin selected" : "mp2-map-pin"}
               style={{ left: `${x}%`, top: `${y}%` }}
               onClick={() => setSelectedItemId(item.id)}
-              title={item.title}
+              aria-label={`${normalizeLabel(item.title, "Untitled item")}, ${formatPrice(item.price)}, ${itemShopName(item)}`}
             >
               <strong>{formatPrice(item.price)}</strong>
-              <span>{itemShopName(item)} · {itemDistanceLabel(item, userPoint)}</span>
+              <span className="mp2-map-pin-title">{normalizeLabel(item.title, "Untitled item")}</span>
+              <span>{itemShopName(item)}{userPoint ? ` · ${itemDistanceLabel(item, userPoint)}` : ""}</span>
             </button>
           );
         })}
+
+        {mapItems.length === 0 ? <div className="mp2-map-empty" role="status"><strong>Mapped results unavailable</strong><span>None of these listings has a valid saved shop location. All listings remain available in the results list.</span></div> : null}
 
         <div className="mp2-map-card">
           <strong>Coordinate-backed browsing</strong>
@@ -256,19 +262,19 @@ function MarketplaceMap({
       <aside className="mp2-map-list">
         <div className="mp2-map-list-heading">
           <h3>Items in this area</h3>
-          <span>{mapItems.length} shown</span>
+          <span>{listItems.length} shown · {mapItems.length} mapped</span>
         </div>
 
-        {mapItems.map((item) => (
+        {listItems.map((item) => (
           <button
             key={item.id}
             type="button"
-            className={selectedItemId === item.id ? "mp2-map-row active" : "mp2-map-row"}
+            className={effectiveSelectedId === item.id ? "mp2-map-row active" : "mp2-map-row"}
             onClick={() => setSelectedItemId(item.id)}
           >
             <span>
               <strong>{normalizeLabel(item.title, "Untitled item")}</strong>
-              <small>{itemShopName(item)} · {itemDistanceLabel(item, userPoint)}</small>
+              <small>{itemShopName(item)} · {hasCoordinates(itemShopPoint(item)) ? (userPoint ? itemDistanceLabel(item, userPoint) : "Mapped shop location") : "Location unavailable"}</small>
             </span>
             <b>{formatPrice(item.price)}</b>
           </button>

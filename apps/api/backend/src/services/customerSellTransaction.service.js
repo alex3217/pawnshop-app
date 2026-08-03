@@ -130,10 +130,14 @@ export function isRetryableCustomerSellAcceptanceError(error) {
   return RETRYABLE_POSTGRES_CODES.has(postgresCodeFromPrismaConnectorDiagnostic(error));
 }
 
-function assertSupportedIntent(intent) {
-  const normalized = normalizeWorkflowValue(intent);
+function assertSupportedIntent(submission) {
+  const preference = normalizeWorkflowValue(submission?.shopTransactionPreference);
+  if (preference === "SELL") return "CUSTOMER_SALE";
+  if (preference === "PAWN") return "PAWN";
+  const normalized = normalizeWorkflowValue(submission?.intent);
   if (CUSTOMER_SALE_INTENTS.has(normalized)) return "CUSTOMER_SALE";
   if (PAWN_INTENTS.has(normalized)) return "PAWN";
+  if (normalized === "SHOP_OFFERS" && preference === "EITHER") return "CUSTOMER_SALE";
 
   throw acceptanceError(
     "Submission intent does not support offer acceptance",
@@ -175,7 +179,7 @@ function loadAcceptedPawnResult(offer, existingTransaction, offerId) {
   if (offer.id !== offerId || offer.submissionId !== offer.submission?.id) return null;
   if (normalizeWorkflowValue(offer.status) !== "ACCEPTED") return null;
   if (normalizeWorkflowValue(offer.submission.status) !== "ACCEPTED") return null;
-  if (!PAWN_INTENTS.has(normalizeWorkflowValue(offer.submission.intent))) return null;
+  if (normalizeWorkflowValue(offer.submission.shopTransactionPreference) !== "PAWN" && !PAWN_INTENTS.has(normalizeWorkflowValue(offer.submission.intent))) return null;
 
   return { offer, submission: offer.submission, transaction: null, reused: true };
 }
@@ -203,7 +207,7 @@ async function acceptSubmissionOfferOnce({ offerId, customerId, prismaClient = p
         throw acceptanceError("Another offer has already been accepted", 409, "SUBMISSION_OFFER_ALREADY_ACCEPTED");
       }
 
-      const intentKind = assertSupportedIntent(existing.submission.intent);
+      const intentKind = assertSupportedIntent(existing.submission);
 
       if (normalizeWorkflowValue(existing.submission.status) !== ACCEPTABLE_SUBMISSION_STATUS) {
         throw acceptanceError(

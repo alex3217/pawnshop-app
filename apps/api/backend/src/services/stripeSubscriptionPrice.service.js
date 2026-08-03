@@ -278,6 +278,7 @@ export async function createValidatedSellerSubscriptionCheckoutSession({
   planCode,
   billingInterval = SELLER_BILLING_INTERVALS.MONTH,
   checkoutParams,
+  checkoutOptions,
   catalog = null,
   stripeSecretKey = process.env.STRIPE_SECRET_KEY,
 }) {
@@ -336,7 +337,7 @@ export async function createValidatedSellerSubscriptionCheckoutSession({
           quantity: 1,
         },
       ],
-    });
+    }, checkoutOptions);
 
   return {
     session,

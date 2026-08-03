@@ -9,6 +9,7 @@ import {
   isUnlimited,
   normalizeSellerPlanCode,
   normalizeSubscriptionStatus,
+  SELLER_PLANS,
 } from "../config/sellerPlans.js";
 import { getSellerPlanCatalog } from "./platformPricingCatalog.service.js";
 
@@ -33,6 +34,9 @@ const SHOP_PLAN_SELECT = Object.freeze({
   subscriptionPlan: true,
   subscriptionStatus: true,
   subscriptionCurrentPeriodEnd: true,
+  subscriptionBillingInterval: true,
+  subscriptionStartedAt: true,
+  subscriptionCanceledAt: true,
   cancelAtPeriodEnd: true,
   stripeCustomerId: true,
   stripeSubscriptionId: true,
@@ -138,7 +142,8 @@ function getCountedListingStatuses() {
 function buildEntitlements(
   shop,
   activeListingCount,
-  planOverride = null
+  planOverride = null,
+  aiListingGenerationCount = 0,
 ) {
   const storedPlan = normalizeStoredPlan(shop);
   const normalizedStatus =
@@ -212,6 +217,33 @@ function buildEntitlements(
           appliedListingLimit
         );
 
+  const planCapabilities = {
+    FREE: {
+      qrCampaignLimit: 1, marketingLevel: "basic", businessGrowthLevel: "basic",
+      businessCoachLevel: "limited", shopHealthEnabled: true, digitalDisplaysEnabled: false,
+      multiLocationCampaignsEnabled: false, referralAnalyticsEnabled: false,
+      benchmarkingEnabled: false, apiAccessEnabled: false, supportLevel: "standard",
+    },
+    PRO: {
+      qrCampaignLimit: 10, marketingLevel: "basic", businessGrowthLevel: "standard",
+      businessCoachLevel: "rules", shopHealthEnabled: true, digitalDisplaysEnabled: false,
+      multiLocationCampaignsEnabled: false, referralAnalyticsEnabled: false,
+      benchmarkingEnabled: false, apiAccessEnabled: false, supportLevel: "standard",
+    },
+    PREMIUM: {
+      qrCampaignLimit: null, marketingLevel: "advanced", businessGrowthLevel: "advanced",
+      businessCoachLevel: "rules", shopHealthEnabled: true, digitalDisplaysEnabled: true,
+      multiLocationCampaignsEnabled: true, referralAnalyticsEnabled: true,
+      benchmarkingEnabled: true, apiAccessEnabled: false, supportLevel: "priority",
+    },
+    ULTRA: {
+      qrCampaignLimit: null, marketingLevel: "enterprise", businessGrowthLevel: "enterprise",
+      businessCoachLevel: "rules", shopHealthEnabled: true, digitalDisplaysEnabled: true,
+      multiLocationCampaignsEnabled: true, referralAnalyticsEnabled: true,
+      benchmarkingEnabled: true, apiAccessEnabled: true, supportLevel: "enterprise",
+    },
+  }[effectivePlanCode] || {};
+
   return {
     shopId: shop.id,
     shopName: shop.name || null,
@@ -225,9 +257,16 @@ function buildEntitlements(
       isPaid: Boolean(plan.isPaid),
       isFree: Boolean(plan.isFree),
       rank: Number(plan.rank || 0),
-      label: plan.label,
+      label: storedPlan === "PREMIUM" ? "Plus" : plan.label,
       currentPeriodEnd:
         shop.subscriptionCurrentPeriodEnd || null,
+      currentPeriodStart: shop.subscriptionStartedAt || null,
+      trialEnd:
+        normalizedStatus === "TRIALING"
+          ? shop.subscriptionCurrentPeriodEnd || null
+          : null,
+      billingInterval: shop.subscriptionBillingInterval || null,
+      canceledAt: shop.subscriptionCanceledAt || null,
       cancelAtPeriodEnd:
         Boolean(shop.cancelAtPeriodEnd),
       stripeCustomerId:
@@ -246,6 +285,9 @@ function buildEntitlements(
         usingTrialLimit ? "TRIAL" : "PLAN",
       maxLocations: plan.maxLocations,
       maxStaffUsers: plan.maxStaffUsers,
+      maxItemPhotos: plan.maxItemPhotos,
+      maxAiListingGenerationsPerMonth: plan.maxAiListingGenerationsPerMonth,
+      qrCampaignLimit: planCapabilities.qrCampaignLimit,
     },
 
     features: {
@@ -254,6 +296,16 @@ function buildEntitlements(
       canFeatureListings:
         Boolean(plan.canFeatureListings),
       analyticsLevel: plan.analyticsLevel,
+      marketingLevel: planCapabilities.marketingLevel,
+      businessGrowthLevel: planCapabilities.businessGrowthLevel,
+      businessCoachLevel: planCapabilities.businessCoachLevel,
+      shopHealthEnabled: planCapabilities.shopHealthEnabled,
+      digitalDisplaysEnabled: planCapabilities.digitalDisplaysEnabled,
+      multiLocationCampaignsEnabled: planCapabilities.multiLocationCampaignsEnabled,
+      referralAnalyticsEnabled: planCapabilities.referralAnalyticsEnabled,
+      benchmarkingEnabled: planCapabilities.benchmarkingEnabled,
+      apiAccessEnabled: planCapabilities.apiAccessEnabled,
+      supportLevel: planCapabilities.supportLevel,
     },
 
     billing: {
@@ -290,8 +342,106 @@ function buildEntitlements(
               0
             ),
       isUnlimitedListings,
+      aiListingGenerations: {
+        used: toSafeNonNegativeInteger(aiListingGenerationCount),
+        limit: plan.maxAiListingGenerationsPerMonth,
+        remaining: Math.max(Number(plan.maxAiListingGenerationsPerMonth || 0) - toSafeNonNegativeInteger(aiListingGenerationCount), 0),
+        atLimit: toSafeNonNegativeInteger(aiListingGenerationCount) >= Number(plan.maxAiListingGenerationsPerMonth || 0),
+      },
+    },
+
+    implementation: {
+      enforced: ["activeListings", "auctions", "featuredListings", "qrCampaigns"],
+      implemented: ["analytics", "marketingCenter", "businessGrowth", "shopHealth", "ruleBasedBusinessCoach"],
+      planned: ["digitalDisplays", "benchmarking", "apiAccess", "generativeBusinessCoach"],
     },
   };
+}
+
+export function assertQrCampaignCapacity(entitlements, activeCampaignCount, requestedSlots = 1) {
+  const limit = entitlements?.limits?.qrCampaignLimit;
+  if (limit === null) return entitlements;
+  const used = toSafeNonNegativeInteger(activeCampaignCount);
+  const requested = Math.max(toSafeNonNegativeInteger(requestedSlots), 1);
+  if (used + requested > toSafeNonNegativeInteger(limit)) {
+    throw createPlanError(
+      `Plan limit reached. ${entitlements.subscription.effectivePlan} allows ${limit} active QR campaigns.`,
+      "PLAN_QR_CAMPAIGN_LIMIT_REACHED",
+      403,
+      { limit, used, requested, reason: "ACTIVE_QR_CAMPAIGN_LIMIT_REACHED" },
+    );
+  }
+  return entitlements;
+}
+
+export async function assertCanCreateQrCampaignForShop(shopId, requestedSlots = 1) {
+  const [entitlements, activeCampaignCount] = await Promise.all([
+    getSellerEntitlementsForShop(shopId),
+    prisma.shopMarketingCampaign.count({ where: { shopId: normalizeShopId(shopId), isActive: true } }),
+  ]);
+  return assertQrCampaignCapacity(entitlements, activeCampaignCount, requestedSlots);
+}
+
+const MARKETING_TEMPLATE_MINIMUM_PLAN = Object.freeze({
+  STOREFRONT_POSTER: "FREE",
+  WINDOW_24_7_POSTER: "PREMIUM",
+  COUNTER_SIGN: "FREE",
+  RECEIPT_INSERT: "PREMIUM",
+  PRODUCT_DISPLAY_CARD: "PRO",
+  NEW_ARRIVALS_FLYER: "PRO",
+  AUCTION_FLYER: "PRO",
+  SELL_OR_PAWN_FLYER: "PRO",
+  REVIEW_REQUEST_CARD: "PREMIUM",
+  REFERRAL_CARD: "PRO",
+});
+
+const MARKETING_PLAN_RANK = Object.freeze({ FREE: 0, PRO: 1, PREMIUM: 2, ULTRA: 3 });
+
+export function getMarketingTemplateAccess(entitlements, templateType) {
+  const normalized = String(templateType || "").trim().toUpperCase();
+  const minimumPlan = MARKETING_TEMPLATE_MINIMUM_PLAN[normalized];
+  if (!minimumPlan) return { known: false, allowed: false, minimumPlan: null };
+  const effectivePlan = String(entitlements?.subscription?.effectivePlan || "FREE").toUpperCase();
+  return {
+    known: true,
+    allowed: (MARKETING_PLAN_RANK[effectivePlan] ?? 0) >= MARKETING_PLAN_RANK[minimumPlan],
+    minimumPlan,
+    effectivePlan,
+  };
+}
+
+export async function assertMarketingTemplateAccessForShop(shopId, templateType) {
+  const entitlements = await getSellerEntitlementsForShop(shopId);
+  const access = getMarketingTemplateAccess(entitlements, templateType);
+  if (!access.known) throw createPlanError("Unknown marketing template.", "MARKETING_TEMPLATE_NOT_FOUND", 404);
+  if (!access.allowed) throw createPlanError(
+    `${access.minimumPlan === "PREMIUM" ? "Plus" : access.minimumPlan} is required for this printable template.`,
+    "MARKETING_TEMPLATE_PLAN_RESTRICTED",
+    403,
+    access,
+  );
+  return { entitlements, access };
+}
+
+export const marketingTemplateMinimumPlans = MARKETING_TEMPLATE_MINIMUM_PLAN;
+
+export async function assertCanAddStaffForShop(shopId) {
+  const [entitlements, used] = await Promise.all([
+    getSellerEntitlementsForShop(shopId),
+    prisma.staff.count({ where: { shopId: normalizeShopId(shopId), status: { in: ["INVITED", "ACTIVE"] } } }),
+  ]);
+  const limit = entitlements.limits.maxStaffUsers;
+  if (limit !== null && used >= limit) throw createPlanError(`Plan limit reached. ${entitlements.subscription.effectivePlan} allows ${limit} staff accounts.`, "PLAN_STAFF_LIMIT_REACHED", 403, { limit, used, reason: "STAFF_LIMIT_REACHED" });
+  return entitlements;
+}
+
+export async function assertCanAddLocationForOwner(ownerId) {
+  const shops = await prisma.pawnShop.findMany({ where: { ownerId: normalizeTrimmedString(ownerId), isDeleted: false }, select: { id: true } });
+  if (shops.length === 0) return null;
+  const entitlements = await getSellerEntitlementsForShop(shops[0].id);
+  const limit = entitlements.limits.maxLocations;
+  if (limit !== null && shops.length >= limit) throw createPlanError(`Plan limit reached. ${entitlements.subscription.effectivePlan} allows ${limit} locations.`, "PLAN_LOCATION_LIMIT_REACHED", 403, { limit, used: shops.length, reason: "LOCATION_LIMIT_REACHED" });
+  return entitlements;
 }
 
 function assertFeatureEnabled(
@@ -432,6 +582,21 @@ export async function getSellerEntitlementsForShop(
   const effectivePlanCode =
     getEffectivePlanCode(shop);
 
+  const trialEndMs = new Date(shop.subscriptionCurrentPeriodEnd || "").getTime();
+  const warningWindowMs = 7 * 24 * 60 * 60 * 1000;
+  if (normalizeStoredSubscriptionStatus(shop) === "TRIALING" && trialEndMs > Date.now() && trialEndMs - Date.now() <= warningWindowMs && activeListingCount > SELLER_PLANS.FREE.maxActiveListings && shop.ownerId && prisma.notification?.createMany) {
+    await prisma.notification.createMany({ data: [{ userId: shop.ownerId, type: "SELLER_TRIAL_LISTING_LIMIT_WARNING", title: "Choose products before your trial ends", message: `Your trial permits 50 active products. The permanent Free plan permits ${SELLER_PLANS.FREE.maxActiveListings}; choose which products should remain active before expiration.`, actionUrl: "/owner/items", dedupeKey: `seller-trial-limit-warning:${shop.id}:${shop.subscriptionCurrentPeriodEnd?.toISOString?.() || trialEndMs}` }], skipDuplicates: true });
+  }
+
+  let reconciledActiveListingCount = activeListingCount;
+  if (effectivePlanCode === DEFAULT_SELLER_PLAN && activeListingCount > SELLER_PLANS.FREE.maxActiveListings) {
+    const kept = await prisma.item.findMany({ where: { pawnShopId: shop.id, isDeleted: false, status: { in: getCountedListingStatuses() } }, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], take: SELLER_PLANS.FREE.maxActiveListings, select: { id: true } });
+    const keptIds = kept.map((item) => item.id);
+    const result = await prisma.item.updateMany({ where: { pawnShopId: shop.id, isDeleted: false, status: { in: getCountedListingStatuses() }, id: { notIn: keptIds } }, data: { status: "DRAFT" } });
+    reconciledActiveListingCount = SELLER_PLANS.FREE.maxActiveListings;
+    if (result.count > 0 && shop.ownerId && prisma.notification?.createMany) await prisma.notification.createMany({ data: [{ userId: shop.ownerId, type: "SELLER_LISTING_LIMIT_RECONCILED", title: "Choose your active products", message: `${result.count} products were preserved as drafts because the Free plan allows ${SELLER_PLANS.FREE.maxActiveListings} active products.`, actionUrl: "/owner/items", dedupeKey: `seller-listing-reconcile:${shop.id}:${shop.subscriptionCurrentPeriodEnd?.toISOString?.() || "free"}` }], skipDuplicates: true });
+  }
+
   const planOverride =
     catalog.find(
       (candidate) =>
@@ -439,10 +604,21 @@ export async function getSellerEntitlementsForShop(
         effectivePlanCode
     ) || null;
 
+  const now = new Date();
+  const calendarStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const periodEnd = shop.subscriptionCurrentPeriodEnd ? new Date(shop.subscriptionCurrentPeriodEnd) : null;
+  const periodStart = periodEnd && !Number.isNaN(periodEnd.getTime()) && isShopSubscriptionUsable(shop)
+    ? new Date(Date.UTC(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() - 1, periodEnd.getUTCDate(), periodEnd.getUTCHours(), periodEnd.getUTCMinutes(), periodEnd.getUTCSeconds()))
+    : calendarStart;
+  const aiListingGenerationCount = prisma.aiListingGeneration?.count
+    ? await prisma.aiListingGeneration.count({ where: { shopId: shop.id, createdAt: { gte: periodStart } } })
+    : 0;
+
   return buildEntitlements(
     shop,
-    activeListingCount,
-    planOverride
+    reconciledActiveListingCount,
+    planOverride,
+    aiListingGenerationCount,
   );
 }
 
@@ -452,6 +628,20 @@ export async function assertCanCreateListingForShop(
 ) {
   const entitlements = await getSellerEntitlementsForShop(shopId);
   return assertListingCapacity(entitlements, requestedSlots);
+}
+
+export async function assertSellerItemPhotoCapacity(shopId, photoCount) {
+  const entitlements = await getSellerEntitlementsForShop(shopId);
+  return assertSellerItemPhotoLimit(entitlements, photoCount);
+}
+
+export function assertSellerItemPhotoLimit(entitlements, photoCount) {
+  const limit = entitlements.limits.maxItemPhotos;
+  const used = Number(photoCount || 0);
+  if (limit !== null && used > limit) {
+    throw createPlanError(`You have reached the ${entitlements.subscription.label} plan limit for item photos.`, "SELLER_PLAN_LIMIT_REACHED", 409, { resource: "itemPhotos", planCode: entitlements.subscription.effectivePlan, displayName: entitlements.subscription.label, used, limit, remaining: Math.max(limit - used, 0), upgradePath: "/owner/subscription" });
+  }
+  return entitlements;
 }
 
 export async function assertCanCreateAuctionForShop(shopId) {

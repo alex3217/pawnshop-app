@@ -9,6 +9,8 @@ export type AiListingAssistantInput = {
   category: string;
   condition: string;
   notes?: string;
+  images?: string[];
+  brand?: string; model?: string; serialNumber?: string; productCode?: string; accessories?: string; defects?: string; pickupAvailable?: boolean; shippingAvailable?: boolean;
 };
 
 export type AiListingSuggestion = {
@@ -64,8 +66,8 @@ export async function requestListingAssistant(
   input: AiListingAssistantInput,
   signal?: AbortSignal,
 ): Promise<AiListingSuggestion> {
-  if (!input.title.trim() && !input.description.trim()) {
-    throw new Error("Add a title or description before asking AI for help.");
+  if (!input.title.trim() && !input.description.trim() && !(input.category.trim() && input.condition.trim()) && !input.productCode?.trim() && !input.images?.length) {
+    throw new Error("Add a title, description, category and condition, product code, or image before asking AI for help.");
   }
 
   const data = await api.post<unknown>(
@@ -79,6 +81,7 @@ export async function requestListingAssistant(
       category: input.category,
       condition: input.condition,
       notes: input.notes,
+      images: input.images?.slice(0, 6), brand: input.brand, model: input.model, serialNumber: input.serialNumber, productCode: input.productCode, accessories: input.accessories, defects: input.defects, pickupAvailable: input.pickupAvailable, shippingAvailable: input.shippingAvailable,
     },
     { signal },
   );

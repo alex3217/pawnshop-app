@@ -32,6 +32,10 @@ import {
 } from "../services/shops";
 
 import "../styles/create-marketplace-listing.css";
+import ProductImageManager from "../components/ProductImageManager";
+import { getBuyerPlanUsage } from "../services/buyerPlans";
+import AiListingAssistantPanel from "../components/AiListingAssistantPanel";
+import { getShopItemPhotoLimit } from "../services/ownerWorkspace";
 
 const CUSTOMER_TYPES: MarketplaceListingType[] = [
   "CUSTOMER_TO_CUSTOMER",
@@ -103,7 +107,7 @@ function parseImages(value: string) {
         )
         .filter(Boolean),
     ),
-  ).slice(0, 20);
+  );
 }
 
 function queryValue(
@@ -290,6 +294,15 @@ export default function CreateMarketplaceListingPage() {
         "imageUrls",
       ),
   );
+  const [images, setImages] = useState<string[]>(() => parseImages(queryValue(searchParams, "imageUrls")));
+  const [imageLimit, setImageLimit] = useState<number | null>(role === "CONSUMER" ? 6 : null);
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  useEffect(() => { if (role === "CONSUMER") void getBuyerPlanUsage().then((value) => setImageLimit(value.entitlements.maxSellItemPhotos ?? 30)).catch(() => undefined); }, [role]);
+  useEffect(() => { if (!isShopListing(listingType) || !sellerShopId) return; setImageLimit(null); void getShopItemPhotoLimit(sellerShopId).then(setImageLimit).catch((cause) => setError(cause instanceof Error ? cause.message : "Failed to load the seller image limit.")); }, [listingType, sellerShopId]);
 
   const [
     allowOffers,
@@ -320,11 +333,6 @@ export default function CreateMarketplaceListingPage() {
     submitting,
     setSubmitting,
   ] = useState(false);
-
-  const [
-    error,
-    setError,
-  ] = useState("");
 
   useEffect(() => {
     if (
@@ -486,13 +494,8 @@ export default function CreateMarketplaceListingPage() {
       ),
     );
 
-    setImageUrls(
-      Array.isArray(
-        item.images,
-      )
-        ? item.images.join("\n")
-        : "",
-    );
+    setImages(Array.isArray(item.images) ? [...item.images] : []);
+    setImageUrls("");
   }
 
   async function handleSubmit(
@@ -627,10 +630,7 @@ export default function CreateMarketplaceListingPage() {
         quantity:
           parsedQuantity,
 
-        images:
-          parseImages(
-            imageUrls,
-          ),
+        images: [...images, ...parseImages(imageUrls)],
 
         allowOffers,
         pickupAvailable,
@@ -727,6 +727,7 @@ export default function CreateMarketplaceListingPage() {
           role="alert"
         >
           {error}
+          {role === "CONSUMER" ? <Link to="/buyer/subscription">Review plan limits or upgrade</Link> : null}
         </section>
       ) : null}
 
@@ -734,6 +735,7 @@ export default function CreateMarketplaceListingPage() {
         className="create-listing-form"
         onSubmit={handleSubmit}
       >
+        <AiListingAssistantPanel fields={{ title, description, category, condition, price, images, pickupAvailable, shippingAvailable }} onApply={(next) => { setTitle(next.title); setDescription(next.description); setCategory(next.category); setCondition(next.condition); }} disabled={submitting} />
         <section className="create-listing-panel">
           <h2>
             Listing destination
@@ -744,6 +746,7 @@ export default function CreateMarketplaceListingPage() {
           </p>
 
           <div className="create-listing-field-grid">
+            {imageLimit === null ? <p className="create-listing-loading-status" role="status">Loading seller image limit…</p> : <ProductImageManager images={images} onChange={setImages} limit={imageLimit} label="Marketplace listing images" disabled={submitting} showUrlOption />}
             <label>
               <span>
                 Listing type

@@ -7,13 +7,16 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { Link } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
 import {
   createSubscriptionCheckoutSession,
+  cancelSellerSubscription,
   getOwnerShops,
   getSellerPlans,
   getShopEntitlements,
-  updateShopSubscription,
+  openSellerBillingPortal,
+  resumeSellerSubscription,
   type SellerBillingInterval,
 } from "../services/ownerWorkspace";
 import "../styles/owner-subscription-readability.css";
@@ -28,6 +31,8 @@ type SellerPlan = {
   stripeMonthlyPriceId: string | null;
   stripeYearlyPriceId: string | null;
   maxActiveListings: number | null;
+  maxItemPhotos?: number;
+  maxAiListingGenerationsPerMonth?: number;
   maxLocations: number | null;
   maxStaffUsers: number | null;
   canCreateAuctions: boolean;
@@ -47,6 +52,10 @@ type Entitlements = {
     status: string;
     isUsable?: boolean;
     currentPeriodEnd: string | null;
+    currentPeriodStart?: string | null;
+    trialEnd?: string | null;
+    billingInterval?: string | null;
+    canceledAt?: string | null;
     cancelAtPeriodEnd: boolean;
     stripeCustomerId: string | null;
     stripeSubscriptionId: string | null;
@@ -55,6 +64,8 @@ type Entitlements = {
     maxActiveListings: number | null;
     maxLocations: number | null;
     maxStaffUsers: number | null;
+    maxItemPhotos?: number;
+    maxAiListingGenerationsPerMonth?: number;
   };
   features: {
     canCreateAuctions: boolean;
@@ -72,6 +83,7 @@ type Entitlements = {
     remainingActiveListings: number | null;
     isUnlimitedListings: boolean;
     countedStatuses?: string[];
+    aiListingGenerations?: { used: number; limit: number; remaining: number; atLimit: boolean };
   };
 };
 
@@ -147,6 +159,20 @@ function isPaidPlanCode(planCode: string) {
   return PAID_PLAN_CODES.has(String(planCode || "").trim().toUpperCase());
 }
 
+const subscriptionGuidance: Record<string, string> = {
+  PAST_DUE: "Payment is past due. Update billing details to avoid losing paid access.",
+  UNPAID: "The subscription is unpaid, so paid seller entitlements are unavailable.",
+  INCOMPLETE: "Stripe is still waiting for the subscription payment to complete.",
+  INCOMPLETE_EXPIRED: "The incomplete subscription expired. Start a new Checkout to subscribe.",
+  CANCELED: "The paid subscription has ended. Free seller entitlements apply.",
+  PAUSED: "The subscription is paused. Paid seller entitlements are unavailable until Stripe confirms resumption.",
+};
+
+function isTrustedStripeUrl(value: string) {
+  const url = new URL(value);
+  return url.protocol === "https:" && (url.hostname === "stripe.com" || url.hostname.endsWith(".stripe.com"));
+}
+
 
 
 function requireAuthToken() {
@@ -209,6 +235,8 @@ function toSellerPlan(value: unknown): SellerPlan | null {
       v.maxActiveListings === null || v.maxActiveListings === undefined
         ? null
         : Number(v.maxActiveListings),
+    maxItemPhotos: Number(v.maxItemPhotos || 0),
+    maxAiListingGenerationsPerMonth: Number(v.maxAiListingGenerationsPerMonth || 0),
     maxLocations:
       v.maxLocations === null || v.maxLocations === undefined
         ? null
@@ -569,9 +597,9 @@ export default function OwnerSubscriptionPage() {
             : "";
 
       setCheckoutMessage(
-        `Checkout completed${plan ? ` for ${plan}` : ""}${
+        `Checkout returned successfully${plan ? ` for ${plan}` : ""}${
           billingLabel ? ` (${billingLabel})` : ""
-        }. Refreshing subscription details.`,
+        }. Stripe confirmation is pending; paid access changes only after webhook confirmation.`,
       );
     } else if (checkout === "cancelled") {
       setCheckoutMessage("Checkout was cancelled. No billing changes were made.");
@@ -579,14 +607,12 @@ export default function OwnerSubscriptionPage() {
       return;
     }
 
+    const queryShopId = url.searchParams.get("shopId") || selectedShopId;
     url.searchParams.delete("checkout");
     url.searchParams.delete("plan");
     url.searchParams.delete("billing");
     url.searchParams.delete("shopId");
     window.history.replaceState({}, "", url.toString());
-
-    const queryShopId =
-      new URLSearchParams(window.location.search).get("shopId") || selectedShopId;
 
     if (queryShopId) {
       void loadEntitlements(queryShopId, { silent: true });
@@ -644,26 +670,42 @@ export default function OwnerSubscriptionPage() {
         return;
       }
 
-      const json = await updateShopSubscription(selectedShopId, {
-        plan: normalizedPlanCode,
-        status: "ACTIVE",
-        cancelAtPeriodEnd: false,
-      });
-
-      const nextEntitlements = normalizeEntitlements(json);
-
-      if (nextEntitlements) {
-        setEntitlements(nextEntitlements);
-      } else {
-        await loadEntitlements(selectedShopId, { silent: true });
+      if (normalizedPlanCode !== "FREE") throw new Error("Unsupported seller plan.");
+      if (!entitlements.subscription.stripeSubscriptionId || !isPaidPlanCode(entitlements.subscription.storedPlan)) {
+        setCheckoutMessage("This shop already uses the Free plan and has no paid Stripe subscription.");
+        return;
       }
-
-      setCheckoutMessage(`Plan updated to ${normalizedPlanCode}.`);
+      if (!window.confirm(`Schedule cancellation for ${entitlements.shopName} at the end of the current paid period? Inventory will be preserved.`)) return;
+      const result = await cancelSellerSubscription(selectedShopId);
+      await loadEntitlements(selectedShopId, { silent: true });
+      setCheckoutMessage(`Cancellation is pending Stripe webhook confirmation. Paid access remains through ${formatDate(result.currentPeriodEnd)}.`);
     } catch (err: unknown) {
       setEntitlementsError(getErrorMessage(err, "Failed to switch plan"));
     } finally {
       setSwitchingPlan("");
     }
+  }
+
+  async function manageBilling() {
+    if (!selectedShopId) return;
+    setSwitchingPlan("portal"); setEntitlementsError("");
+    try {
+      const returnUrl = new URL(`/owner/subscription?shopId=${encodeURIComponent(selectedShopId)}`, window.location.origin).toString();
+      const result = await openSellerBillingPortal(selectedShopId, returnUrl);
+      if (!result.url || !isTrustedStripeUrl(result.url)) throw new Error("Stripe returned an untrusted Billing Portal URL.");
+      window.location.assign(result.url);
+    } catch (error) { setEntitlementsError(getErrorMessage(error, "Unable to open Stripe Billing Portal.")); setSwitchingPlan(""); }
+  }
+
+  async function resumeSubscription() {
+    if (!selectedShopId) return;
+    setSwitchingPlan("resume"); setEntitlementsError("");
+    try {
+      await resumeSellerSubscription(selectedShopId);
+      await loadEntitlements(selectedShopId, { silent: true });
+      setCheckoutMessage("Resume request accepted by Stripe. Confirmation is pending webhook synchronization.");
+    } catch (error) { setEntitlementsError(getErrorMessage(error, "Unable to resume the subscription.")); }
+    finally { setSwitchingPlan(""); }
   }
 
   async function refreshCurrentShop() {
@@ -733,9 +775,9 @@ export default function OwnerSubscriptionPage() {
           </div>
         </div>
 
-        {checkoutMessage ? <div style={styles.success}>{checkoutMessage}</div> : null}
-        {pageError ? <div style={styles.error}>{pageError}</div> : null}
-        {entitlementsError ? <div style={styles.error}>{entitlementsError}</div> : null}
+        {checkoutMessage ? <div role="status" aria-live="polite" style={styles.success}>{checkoutMessage}</div> : null}
+        {pageError ? <div role="alert" style={styles.error}>{pageError}</div> : null}
+        {entitlementsError ? <div role="alert" style={styles.error}>{entitlementsError}</div> : null}
 
         <div className="owner-subscription-control-note">
           Owner billing controls available here: review current Plan and Status,
@@ -823,6 +865,10 @@ export default function OwnerSubscriptionPage() {
                 <div style={styles.muted}>
                   Stored plan: {entitlements.subscription.storedPlan || "—"}
                 </div>
+                <div style={styles.muted}>Billing interval: {entitlements.subscription.billingInterval || "No paid interval"}</div>
+                <div style={styles.muted}>Current period start: {formatDate(entitlements.subscription.currentPeriodStart)}</div>
+                <div style={styles.muted}>Trial end: {formatDate(entitlements.subscription.trialEnd)}</div>
+                {subscriptionGuidance[entitlements.subscription.status] ? <div style={styles.warningText}>{subscriptionGuidance[entitlements.subscription.status]}</div> : null}
 
                 {entitlements.subscription.storedPlan !==
                 entitlements.subscription.effectivePlan ? (
@@ -852,6 +898,11 @@ export default function OwnerSubscriptionPage() {
                 <div style={styles.muted}>
                   Current period end: {formatDate(entitlements.subscription.currentPeriodEnd)}
                 </div>
+                <div style={{ ...styles.headerControls, marginTop: 12 }}>
+                  <button type="button" style={{ ...styles.button, ...styles.secondaryButton }} disabled={Boolean(switchingPlan) || !entitlements.subscription.stripeCustomerId} onClick={() => void manageBilling()}>Manage Billing</button>
+                  <Link style={{ ...styles.button, ...styles.secondaryButton, textAlign: "center" }} to={`/account/payment-methods?shopId=${encodeURIComponent(selectedShopId)}`}>Payment Methods</Link>
+                  {entitlements.subscription.cancelAtPeriodEnd ? <button type="button" style={{ ...styles.button, ...styles.primaryButton }} disabled={Boolean(switchingPlan)} onClick={() => void resumeSubscription()}>Resume Subscription</button> : isPaidPlanCode(entitlements.subscription.storedPlan) && entitlements.subscription.stripeSubscriptionId ? <button type="button" style={{ ...styles.button, ...styles.secondaryButton }} disabled={Boolean(switchingPlan)} onClick={() => void switchPlan("FREE")}>Cancel at Period End</button> : null}
+                </div>
               </div>
 
               <div style={styles.card}>
@@ -868,6 +919,10 @@ export default function OwnerSubscriptionPage() {
                 <div style={styles.muted}>
                   Listing cap: {formatLimit(entitlements.limits.maxActiveListings)}
                 </div>
+                <div style={styles.muted}>Photos per product: {formatLimit(entitlements.limits.maxItemPhotos)}</div>
+                {entitlements.usage.aiListingGenerations ? <div style={styles.muted}>
+                  AI listing generations: {entitlements.usage.aiListingGenerations.used} / {entitlements.usage.aiListingGenerations.limit} ({entitlements.usage.aiListingGenerations.remaining} remaining)
+                </div> : null}
                 {usagePct !== null ? (
                   <div style={styles.progressWrap}>
                     <div style={styles.progressTrack}>
@@ -961,7 +1016,8 @@ export default function OwnerSubscriptionPage() {
                   !selectedShopId ||
                   active ||
                   Boolean(switchingPlan) ||
-                  entitlementsLoading;
+                  entitlementsLoading ||
+                  (isPaidPlanCode(plan.code) && !(billingInterval === "YEAR" ? plan.stripeYearlyPriceId : plan.stripeMonthlyPriceId));
 
                 const selectedPriceCents =
                   billingInterval === "YEAR"
@@ -1020,6 +1076,8 @@ export default function OwnerSubscriptionPage() {
                     <div style={styles.planMeta}>
                       Listings: {formatLimit(plan.maxActiveListings)}
                     </div>
+                    <div style={styles.planMeta}>Photos per product: {formatLimit(plan.maxItemPhotos)}</div>
+                    <div style={styles.planMeta}>AI generations per month: {formatLimit(plan.maxAiListingGenerationsPerMonth)}</div>
                     <div style={styles.planMeta}>
                       Locations: {formatLimit(plan.maxLocations)}
                     </div>
@@ -1036,6 +1094,7 @@ export default function OwnerSubscriptionPage() {
                       Commission: {formatPercent(plan.commissionBps / 100)}
                     </div>
                     <div style={styles.planMeta}>Analytics: {plan.analyticsLevel}</div>
+                    {isPaidPlanCode(plan.code) && !(billingInterval === "YEAR" ? plan.stripeYearlyPriceId : plan.stripeMonthlyPriceId) ? <div style={styles.warningText}>This billing option is unavailable because its Stripe Price ID is not configured.</div> : null}
 
                     <ul style={styles.featureList}>
                       {plan.features.length > 0 ? (

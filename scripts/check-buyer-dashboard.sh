@@ -13,7 +13,7 @@ mkdir -p "$OUT"
 API_BASE="${API_BASE:-http://127.0.0.1:6002/api}"
 WEB_BASE="${WEB_BASE:-http://127.0.0.1:5176}"
 BUYER_EMAIL="${BUYER_EMAIL:-buyer@pawn.local}"
-BUYER_PASSWORD="${BUYER_PASSWORD:-Buyer123!}"
+BUYER_PASSWORD="${BUYER_PASSWORD:?Required credential is missing}"
 
 echo "===== BUYER / CONSUMER DASHBOARD AUDIT ====="
 echo "Repo: $ROOT"

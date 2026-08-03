@@ -6,6 +6,9 @@ import {
   createStripeRefund,
   getStripeConfig,
   createSubscriptionCheckoutSession,
+  cancelSellerSubscriptionAtPeriodEnd,
+  resumeSellerSubscription,
+  createBuyerSubscriptionCheckoutSession,
   createSettlementPaymentIntent,
 } from "../controllers/stripe.controller.js";
 import { createBillingPortalSession, createPaymentMethodSetupSession, listPaymentMethods, removePaymentMethod, setDefaultPaymentMethod } from "../controllers/paymentMethods.controller.js";
@@ -215,10 +218,36 @@ router.post("/billing-portal", authRequired, requireRole("CONSUMER", "OWNER"), v
 router.post(
   "/checkout/subscription",
   authRequired,
-  requireRole("OWNER", "ADMIN"),
+  requireRole("OWNER", "ADMIN", "SUPER_ADMIN"),
   validateObjectBody,
   normalizeSubscriptionCheckoutBody,
   asyncRoute(createSubscriptionCheckoutSession)
+);
+
+router.post(
+  "/shops/:id/subscription/cancel-at-period-end",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "SUPER_ADMIN"),
+  validateIdParam("id"),
+  validateObjectBody,
+  asyncRoute(cancelSellerSubscriptionAtPeriodEnd),
+);
+
+router.post(
+  "/shops/:id/subscription/resume",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "SUPER_ADMIN"),
+  validateIdParam("id"),
+  validateObjectBody,
+  asyncRoute(resumeSellerSubscription),
+);
+
+router.post(
+  "/checkout/buyer-subscription",
+  authRequired,
+  requireRole("CONSUMER", "ADMIN"),
+  validateObjectBody,
+  asyncRoute(createBuyerSubscriptionCheckoutSession),
 );
 
 /**

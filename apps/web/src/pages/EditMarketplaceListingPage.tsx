@@ -15,6 +15,10 @@ import {
   updateMarketplaceListing,
   type MarketplaceListing,
 } from "../services/marketplaceListings";
+import ProductImageManager from "../components/ProductImageManager";
+import AiListingAssistantPanel from "../components/AiListingAssistantPanel";
+import { getBuyerPlanUsage } from "../services/buyerPlans";
+import { getShopItemPhotoLimit } from "../services/ownerWorkspace";
 
 import "../styles/create-marketplace-listing.css";
 
@@ -26,7 +30,7 @@ function parseImages(value: string) {
         .map((image) => image.trim())
         .filter(Boolean),
     ),
-  ).slice(0, 20);
+  );
 }
 
 function toLocalDateTime(
@@ -131,6 +135,8 @@ export default function EditMarketplaceListingPage() {
     imageUrls,
     setImageUrls,
   ] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [imageLimit, setImageLimit] = useState<number | null>(null);
 
   const [
     allowOffers,
@@ -236,13 +242,10 @@ export default function EditMarketplaceListingPage() {
           ),
         );
 
-        setImageUrls(
-          Array.isArray(
-            found.images,
-          )
-            ? found.images.join("\n")
-            : "",
-        );
+        setImageUrls("");
+        setImages(Array.isArray(found.images) ? [...found.images] : []);
+        if (found.listingType.startsWith("CUSTOMER_")) void getBuyerPlanUsage().then((value) => setImageLimit(value.entitlements.maxSellItemPhotos ?? 30)).catch(() => setImageLimit(6));
+        else if (found.sellerShopId) void getShopItemPhotoLimit(found.sellerShopId).then(setImageLimit).catch((cause) => setError(cause instanceof Error ? cause.message : "Failed to load the seller image limit."));
 
         setAllowOffers(
           found.allowOffers,
@@ -401,10 +404,7 @@ export default function EditMarketplaceListingPage() {
           quantity:
             parsedQuantity,
 
-          images:
-            parseImages(
-              imageUrls,
-            ),
+          images: [...images, ...parseImages(imageUrls)],
 
           allowOffers,
           pickupAvailable,
@@ -533,6 +533,7 @@ export default function EditMarketplaceListingPage() {
         className="create-listing-form"
         onSubmit={handleSubmit}
       >
+        <AiListingAssistantPanel fields={{ title, description, category, condition, price, images }} onApply={(next) => { setTitle(next.title); setDescription(next.description); setCategory(next.category); setCondition(next.condition); }} disabled={submitting} />
         <section className="create-listing-panel">
           <h2>
             Listing details
@@ -556,6 +557,7 @@ export default function EditMarketplaceListingPage() {
               />
             </label>
 
+            {imageLimit === null ? <p role="status">Loading seller image limit…</p> : <ProductImageManager images={images} onChange={setImages} limit={imageLimit} label="Marketplace listing images" disabled={submitting} showUrlOption />}
             <label>
               <span>
                 Category

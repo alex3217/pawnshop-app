@@ -19,6 +19,16 @@
   top: calc(var(--role-setup-viewport-top) + 12px);
 }
 
+/* The closed launcher participates in document flow and therefore cannot
+   obscure page actions. Opening it restores the existing fixed dialog. */
+.role-setup-control:not(.role-setup-control-open) {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  width: fit-content;
+  margin: 12px max(16px, env(safe-area-inset-right, 0px)) 12px auto;
+}
+
 .role-setup-trigger {
   display: inline-flex;
   align-items: center;

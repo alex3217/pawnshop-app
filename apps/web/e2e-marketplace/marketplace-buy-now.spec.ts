@@ -629,9 +629,7 @@ test(
       );
 
     await page
-      .getByLabel(
-        "Password",
-      )
+      .locator("#login-password")
       .fill(
         "Buyer123!",
       );

@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { assertBuyerResourceCapacity } from "../services/buyerEntitlements.service.js";
 
 function sendError(res, error, fallback = "Internal server error") {
   const status =
@@ -9,6 +10,8 @@ function sendError(res, error, fallback = "Internal server error") {
   return res.status(status).json({
     success: false,
     error: error?.message || fallback,
+    ...(error?.code ? { code: error.code } : {}),
+    ...(error?.details ? { details: error.details } : {}),
   });
 }
 
@@ -48,6 +51,8 @@ export async function addSavedSearch(req, res) {
       return res.status(400).json({ success: false, error: "query is required" });
     }
 
+    await assertBuyerResourceCapacity(userId, "savedSearches");
+
     const row = await prisma.savedSearch.create({
       data: {
         userId,
@@ -73,11 +78,23 @@ export async function removeSavedSearch(req, res) {
       return res.status(400).json({ success: false, error: "id is required" });
     }
 
-    await prisma.savedSearch.delete({
-      where: { id },
-    });
+    try {
+      const removed = await prisma.savedSearch.delete({
+        where: { id, userId },
+        select: { id: true },
+      });
 
-    return res.json({ success: true, id });
+      return res.json({ success: true, id: removed.id });
+    } catch (error) {
+      if (error?.code === "P2025") {
+        return res.status(404).json({
+          success: false,
+          error: "Saved search not found",
+        });
+      }
+
+      throw error;
+    }
   } catch (error) {
     return sendError(res, error, "Failed to remove saved search");
   }

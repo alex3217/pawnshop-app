@@ -10,7 +10,7 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 
 const TEST_JWT_SECRET =
-  "pawnloop-marketplace-transactions-tests-only-secret-2026";
+  "test-only-secret";
 
 const TEST_DOMAIN = "@marketplace-transactions.integration.pawnloop.test";
 
@@ -175,7 +175,7 @@ test("direct purchase reserves inventory and cancellation restores it", async ()
   const listing = await prisma.marketplaceListing.create({
     data: {
       sellerUserId: seller.id,
-      listingType: "CUSTOMER_TO_CUSTOMER",
+      listingType: "SHOP_TO_CUSTOMER",
       status: "ACTIVE",
       title: "Integration marketplace item",
       description: "Direct purchase integration test",

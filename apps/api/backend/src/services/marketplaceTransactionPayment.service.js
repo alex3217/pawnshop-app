@@ -122,16 +122,29 @@ function assertTransactionMayBePaid({
     );
   }
 
-  const isListingOriginCustomerSale =
-    transaction.type ===
-      "CUSTOMER_SELL_TO_SHOP" &&
-    Boolean(normalizeId(transaction.listingId));
+  if (
+    transaction.type === "CUSTOMER_SELL_TO_SHOP" ||
+    transaction.listing?.listingType === "CUSTOMER_TO_SHOP"
+  ) {
+    throw httpError(
+      "Customer sell and pawn intake cannot create a retail buyer charge",
+      409,
+      "CUSTOMER_INTAKE_ONLINE_PAYMENT_DISABLED",
+    );
+  }
+
+  if (transaction.listing?.listingType === "CUSTOMER_TO_CUSTOMER") {
+    throw httpError(
+      "Community Marketplace is disabled pending verification, fraud, policy, and legal approval",
+      403,
+      "COMMUNITY_MARKETPLACE_DISABLED",
+    );
+  }
 
   if (
     !SUPPORTED_PAYMENT_TRANSACTION_TYPES.has(
       transaction.type,
-    ) &&
-    !isListingOriginCustomerSale
+    )
   ) {
     throw httpError(
       "Marketplace transaction type is not supported by this payment workflow",
@@ -248,6 +261,7 @@ async function loadPaymentTransaction({
       submissionId: true,
       buyerUserId: true,
       sellerUserId: true,
+      sellerShopId: true,
       type: true,
       status: true,
       totalAmount: true,
@@ -259,6 +273,17 @@ async function loadPaymentTransaction({
           id: true,
           title: true,
           status: true,
+          sellerUserId: true,
+          sellerShopId: true,
+          listingType: true,
+        },
+      },
+      sellerShop: {
+        select: {
+          id: true,
+          ownerId: true,
+          isDeleted: true,
+          stripeConnectAccountId: true,
         },
       },
     },
@@ -415,6 +440,21 @@ export async function createMarketplaceTransactionPaymentIntent({
   const amount =
     validatePaymentAmount(transaction);
 
+  if (!transaction.listing || !["RESERVED", "ACTIVE"].includes(transaction.listing.status)) {
+    throw httpError("Marketplace listing is not reserved for payment", 409, "MARKETPLACE_LISTING_NOT_RESERVED");
+  }
+
+  if (
+    transaction.listing.sellerUserId !== transaction.sellerUserId ||
+    transaction.listing.sellerShopId !== transaction.sellerShopId ||
+    (transaction.sellerShop &&
+      (transaction.sellerShop.isDeleted ||
+        transaction.sellerShop.id !== transaction.sellerShopId ||
+        transaction.sellerShop.ownerId !== transaction.sellerUserId))
+  ) {
+    throw httpError("Marketplace seller ownership changed after reservation", 409, "MARKETPLACE_SELLER_OWNERSHIP_MISMATCH");
+  }
+
   const currency =
     validatePaymentCurrency(transaction);
 
@@ -432,6 +472,17 @@ export async function createMarketplaceTransactionPaymentIntent({
   }
 
   let paymentIntent;
+  const financialSnapshot = metadataObject(transaction.metadata);
+  const platformFeeCents = Number(financialSnapshot.platformFeeCents);
+  const sellerNetCents = Number(financialSnapshot.sellerNetCents);
+
+  if (
+    !Number.isSafeInteger(platformFeeCents) || platformFeeCents < 0 ||
+    !Number.isSafeInteger(sellerNetCents) || sellerNetCents < 0 ||
+    platformFeeCents + sellerNetCents !== amount
+  ) {
+    throw httpError("Marketplace financial snapshot is invalid", 409, "MARKETPLACE_FINANCIAL_SNAPSHOT_INVALID");
+  }
 
   try {
     paymentIntent =
@@ -454,6 +505,15 @@ export async function createMarketplaceTransactionPaymentIntent({
               transaction.buyerUserId,
             sellerUserId:
               transaction.sellerUserId,
+            sellerShopId:
+              transaction.sellerShopId || "",
+            connectedAccountId:
+              transaction.sellerShop?.stripeConnectAccountId || "",
+            chargeModel: "SEPARATE_CHARGE_AND_TRANSFER",
+            platformFeeCents: String(platformFeeCents),
+            sellerNetCents: String(sellerNetCents),
+            sellerPlanCode: String(financialSnapshot.sellerPlanCode || ""),
+            pricingRuleKey: String(financialSnapshot.pricingRuleSnapshot?.key || ""),
             marketplaceTransactionType:
               transaction.type,
           },

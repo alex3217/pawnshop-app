@@ -3,17 +3,27 @@ set -euo pipefail
 
 API="${API:-http://127.0.0.1:6002/api}"
 
+# role-route-credential-contract-v2
+ROLE_ROUTE_PASSWORD="${ROLE_ROUTE_PASSWORD:-}"
+
 BUYER_EMAIL="${BUYER_EMAIL:-buyer@pawn.local}"
-BUYER_PASSWORD="${BUYER_PASSWORD:-Buyer123!}"
+BUYER_PASSWORD="${BUYER_PASSWORD:-$ROLE_ROUTE_PASSWORD}"
 
 OWNER_EMAIL="${OWNER_EMAIL:-owner1@pawn.local}"
-OWNER_PASSWORD="${OWNER_PASSWORD:-Owner123!}"
+OWNER_PASSWORD="${OWNER_PASSWORD:-$ROLE_ROUTE_PASSWORD}"
 
-ADMIN_EMAIL="${ADMIN_EMAIL:-admin1@example.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123!}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin_local@example.com}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-$ROLE_ROUTE_PASSWORD}"
 
-SUPER_ADMIN_EMAIL="${SUPER_ADMIN_EMAIL:-}"
-SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-}"
+SUPER_ADMIN_EMAIL="${SUPER_ADMIN_EMAIL:-admin1@example.com}"
+SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-$ROLE_ROUTE_PASSWORD}"
+
+if [ -z "$BUYER_PASSWORD" ] || \
+   [ -z "$OWNER_PASSWORD" ] || \
+   [ -z "$ADMIN_PASSWORD" ]; then
+  echo "❌ Set ROLE_ROUTE_PASSWORD or the individual role passwords." >&2
+  exit 1
+fi
 
 LAST_BODY="$(mktemp)"
 trap 'rm -f "$LAST_BODY"' EXIT
@@ -108,6 +118,53 @@ login() {
   printf '%s' "$token"
 }
 
+
+assert_role() {
+  local label="$1"
+  local token="$2"
+  local expected_role="$3"
+  local status
+  local actual_role
+
+  status="$(
+    curl -sS \
+      -o "$LAST_BODY" \
+      -w "%{http_code}" \
+      "$API/auth/me" \
+      -H "Authorization: Bearer $token"
+  )"
+
+  if [[ "$status" != 2* ]]; then
+    echo "❌ $label identity check failed: HTTP $status" >&2
+    cat "$LAST_BODY" >&2 || true
+    exit 1
+  fi
+
+  actual_role="$(
+    node -e "
+      const fs = require('fs');
+      const json = JSON.parse(
+        fs.readFileSync('$LAST_BODY', 'utf8') || '{}'
+      );
+      const user =
+        json.user ||
+        json.data?.user ||
+        json.data ||
+        json;
+      process.stdout.write(
+        String(user.role || '')
+      );
+    "
+  )"
+
+  if [ "$actual_role" != "$expected_role" ]; then
+    echo "❌ $label expected role $expected_role but received ${actual_role:-UNKNOWN}" >&2
+    exit 1
+  fi
+
+  pass "$label role is $expected_role"
+}
+
 log "Checking health/public API..."
 request GET "/health"
 request GET "/items?limit=5"
@@ -121,6 +178,10 @@ log "Logging in by role..."
 BUYER_TOKEN="$(login "Buyer" "$BUYER_EMAIL" "$BUYER_PASSWORD")"
 OWNER_TOKEN="$(login "Owner" "$OWNER_EMAIL" "$OWNER_PASSWORD")"
 ADMIN_TOKEN="$(login "Admin" "$ADMIN_EMAIL" "$ADMIN_PASSWORD")"
+
+assert_role "Buyer" "$BUYER_TOKEN" "CONSUMER"
+assert_role "Owner" "$OWNER_TOKEN" "OWNER"
+assert_role "Admin" "$ADMIN_TOKEN" "ADMIN"
 
 log "Buyer route checks..."
 request GET "/auth/me" "$BUYER_TOKEN"
@@ -156,6 +217,7 @@ request GET "/admin/users" "$OWNER_TOKEN" "4"
 log "Super admin route checks..."
 if [ -n "$SUPER_ADMIN_EMAIL" ] && [ -n "$SUPER_ADMIN_PASSWORD" ]; then
   SUPER_ADMIN_TOKEN="$(login "Super admin" "$SUPER_ADMIN_EMAIL" "$SUPER_ADMIN_PASSWORD")"
+  assert_role "Super admin" "$SUPER_ADMIN_TOKEN" "SUPER_ADMIN"
   request GET "/super-admin/overview" "$SUPER_ADMIN_TOKEN"
   request GET "/super-admin/users" "$SUPER_ADMIN_TOKEN"
   request GET "/super-admin/shops" "$SUPER_ADMIN_TOKEN"

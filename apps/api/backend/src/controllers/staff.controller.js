@@ -11,6 +11,7 @@ import {
   assertShopPermission,
   getAccessibleShopScope,
 } from "../services/shopAccess.service.js";
+import { assertCanAddStaffForShop } from "../services/sellerPlan.service.js";
 
 const STAFF_ROLES =
   new Set(SHOP_STAFF_ROLES);
@@ -304,6 +305,9 @@ export async function createStaffMember(req, res) {
       shopId,
       "staff:write",
     );
+
+    const existingStaff = await prisma.staff.findUnique({ where: { shopId_email: { shopId, email } }, select: { id: true } });
+    if (!existingStaff) await assertCanAddStaffForShop(shopId);
 
     const linkedUser = await findUserByEmail(email);
 

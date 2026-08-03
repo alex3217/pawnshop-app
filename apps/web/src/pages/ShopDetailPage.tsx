@@ -1,8 +1,10 @@
-// File: apps/web/src/pages/ShopDetailPage.tsx
-
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getShopItems, type Shop, type ShopItem } from "../services/shops";
+import { getAuthRole, isAuthenticated } from "../services/auth";
+import { followShop, getFollowStatus, unfollowShop, updateFollowPreferences, type ShopFollow } from "../services/customerEngagement";
+import { firstUsableImage } from "../utils/imageUrl";
+import "../styles/shop-detail-readability.css";
 
 function formatPrice(value: string | number) {
   const num = Number(value);
@@ -24,49 +26,18 @@ function toPriceNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getItemStatusTone(status: string): CSSProperties {
+function getItemStatusTone(status: string) {
   const normalized = String(status || "").toUpperCase();
-
-  if (["AVAILABLE", "ACTIVE"].includes(normalized)) {
-    return {
-      color: "#7ef0b3",
-      background: "rgba(46, 204, 113, 0.12)",
-      border: "1px solid rgba(46, 204, 113, 0.24)",
-    };
-  }
-
-  if (["PENDING"].includes(normalized)) {
-    return {
-      color: "#ffd98a",
-      background: "rgba(255, 193, 7, 0.12)",
-      border: "1px solid rgba(255, 193, 7, 0.24)",
-    };
-  }
-
-  if (["SOLD", "INACTIVE", "REMOVED"].includes(normalized)) {
-    return {
-      color: "#ffb2bc",
-      background: "rgba(255, 128, 143, 0.10)",
-      border: "1px solid rgba(255, 128, 143, 0.18)",
-    };
-  }
-
-  return {
-    color: "#c7d2fe",
-    background: "rgba(199, 210, 254, 0.10)",
-    border: "1px solid rgba(199, 210, 254, 0.18)",
-  };
+  if (["AVAILABLE", "ACTIVE"].includes(normalized)) return "available";
+  if (normalized === "PENDING") return "pending";
+  if (["SOLD", "INACTIVE", "REMOVED"].includes(normalized)) return "unavailable";
+  return "neutral";
 }
 
-type SortOption =
-  | "TITLE_ASC"
-  | "PRICE_LOW_HIGH"
-  | "PRICE_HIGH_LOW"
-  | "STATUS_ASC";
+type SortOption = "TITLE_ASC" | "PRICE_LOW_HIGH" | "PRICE_HIGH_LOW" | "STATUS_ASC";
 
 export default function ShopDetailPage() {
   const { id = "" } = useParams();
-
   const [shop, setShop] = useState<Shop | null>(null);
   const [items, setItems] = useState<ShopItem[]>([]);
   const [query, setQuery] = useState("");
@@ -76,515 +47,164 @@ export default function ShopDetailPage() {
   const [sortBy, setSortBy] = useState<SortOption>("TITLE_ASC");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [follow, setFollow] = useState<ShopFollow | null>(null);
+  const [followError, setFollowError] = useState("");
+  const [followSaving, setFollowSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
-      if (!id) {
-        setError("Missing shop id.");
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-
+      if (!id) { setError("Missing shop id."); setLoading(false); return; }
+      setLoading(true); setError(null);
       try {
         const payload = await getShopItems(id);
-        if (!cancelled) {
-          setShop(payload.shop);
-          setItems(payload.items);
-        }
+        if (!cancelled) { setShop(payload.shop); setItems(payload.items); }
       } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load shop.");
-        }
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load shop.");
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
-
     void load();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id]);
 
   useEffect(() => {
-    if (
-      loading ||
-      error ||
-      !shop ||
-      window.location.hash !==
-        "#inventory"
-    ) {
-      return;
-    }
+    if (!shop?.id || !isAuthenticated() || getAuthRole() !== "CONSUMER") return;
+    getFollowStatus(shop.id).then((result) => setFollow(result.follow)).catch((cause) => setFollowError(cause instanceof Error ? cause.message : "Unable to load follow status."));
+  }, [shop?.id]);
 
-    const frame =
-      window.requestAnimationFrame(
-        () => {
-          document
-            .getElementById(
-              "inventory",
-            )
-            ?.scrollIntoView({
-              behavior: "smooth",
-              block: "start",
-            });
-        },
-      );
+  async function startFollowing() {
+    if (!shop) return;
+    if (!isAuthenticated()) { window.location.assign(`/login?returnTo=${encodeURIComponent(window.location.pathname)}`); return; }
+    setFollowSaving(true); setFollowError("");
+    try { setFollow((await followShop(shop.id)).follow); } catch (cause) { setFollowError(cause instanceof Error ? cause.message : "Unable to follow shop."); } finally { setFollowSaving(false); }
+  }
 
-    return () =>
-      window.cancelAnimationFrame(
-        frame,
-      );
-  }, [
-    loading,
-    error,
-    shop,
-  ]);
+  async function stopFollowing() {
+    if (!shop) return; setFollowSaving(true); setFollowError("");
+    try { setFollow((await unfollowShop(shop.id)).follow); } catch (cause) { setFollowError(cause instanceof Error ? cause.message : "Unable to unfollow shop."); } finally { setFollowSaving(false); }
+  }
 
-  const categoryOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        items
-          .map((item) => normalizeLabel(item.category, "Uncategorized"))
-          .filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b));
-  }, [items]);
+  async function changePreference(input: Parameters<typeof updateFollowPreferences>[1]) {
+    if (!shop) return; setFollowSaving(true); setFollowError("");
+    try { setFollow((await updateFollowPreferences(shop.id, input)).follow); } catch (cause) { setFollowError(cause instanceof Error ? cause.message : "Unable to update alerts."); } finally { setFollowSaving(false); }
+  }
 
-  const conditionOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        items
-          .map((item) => normalizeLabel(item.condition, "Condition not listed"))
-          .filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b));
-  }, [items]);
+  useEffect(() => {
+    if (loading || error || !shop || window.location.hash !== "#inventory") return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("inventory")?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, error, shop]);
 
-  const statusOptions = useMemo(() => {
-    return Array.from(
-      new Set(items.map((item) => normalizeLabel(item.status, "UNKNOWN")).filter(Boolean)),
-    ).sort((a, b) => a.localeCompare(b));
-  }, [items]);
+  const categoryOptions = useMemo(() => Array.from(new Set(items.map((item) => normalizeLabel(item.category, "Uncategorized")).filter(Boolean))).sort((a, b) => a.localeCompare(b)), [items]);
+  const conditionOptions = useMemo(() => Array.from(new Set(items.map((item) => normalizeLabel(item.condition, "Condition not listed")).filter(Boolean))).sort((a, b) => a.localeCompare(b)), [items]);
+  const statusOptions = useMemo(() => Array.from(new Set(items.map((item) => normalizeLabel(item.status, "UNKNOWN")).filter(Boolean))).sort((a, b) => a.localeCompare(b)), [items]);
 
   const filteredItems = useMemo(() => {
     const q = normalizeText(query);
-
     const next = items.filter((item) => {
-      const searchable = [
-        item.title,
-        item.description || "",
-        item.category || "",
-        item.condition || "",
-        item.status || "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
+      const searchable = [item.title, item.description || "", item.category || "", item.condition || "", item.status || ""].join(" ").toLowerCase();
       const itemCategory = normalizeLabel(item.category, "Uncategorized");
       const itemCondition = normalizeLabel(item.condition, "Condition not listed");
       const itemStatus = normalizeLabel(item.status, "UNKNOWN");
-
       if (q && !searchable.includes(q)) return false;
       if (categoryFilter !== "ALL" && itemCategory !== categoryFilter) return false;
       if (conditionFilter !== "ALL" && itemCondition !== conditionFilter) return false;
       if (statusFilter !== "ALL" && itemStatus !== statusFilter) return false;
-
       return true;
     });
-
     const sorted = [...next];
-
-    if (sortBy === "PRICE_LOW_HIGH") {
-      sorted.sort((a, b) => toPriceNumber(a.price) - toPriceNumber(b.price));
-    } else if (sortBy === "PRICE_HIGH_LOW") {
-      sorted.sort((a, b) => toPriceNumber(b.price) - toPriceNumber(a.price));
-    } else if (sortBy === "STATUS_ASC") {
-      sorted.sort((a, b) =>
-        normalizeLabel(a.status, "UNKNOWN").localeCompare(
-          normalizeLabel(b.status, "UNKNOWN"),
-        ),
-      );
-    } else {
-      sorted.sort((a, b) => a.title.localeCompare(b.title));
-    }
-
+    if (sortBy === "PRICE_LOW_HIGH") sorted.sort((a, b) => toPriceNumber(a.price) - toPriceNumber(b.price));
+    else if (sortBy === "PRICE_HIGH_LOW") sorted.sort((a, b) => toPriceNumber(b.price) - toPriceNumber(a.price));
+    else if (sortBy === "STATUS_ASC") sorted.sort((a, b) => normalizeLabel(a.status, "UNKNOWN").localeCompare(normalizeLabel(b.status, "UNKNOWN")));
+    else sorted.sort((a, b) => a.title.localeCompare(b.title));
     return sorted;
   }, [items, query, categoryFilter, conditionFilter, statusFilter, sortBy]);
 
-  const stats = useMemo(() => {
-    const totalValue = filteredItems.reduce(
-      (sum, item) => sum + toPriceNumber(item.price),
-      0,
-    );
-
-    return {
-      totalInventory: items.length,
-      matchingInventory: filteredItems.length,
-      totalValue,
-    };
-  }, [items, filteredItems]);
+  const stats = useMemo(() => ({
+    totalInventory: items.length,
+    matchingInventory: filteredItems.length,
+    totalValue: filteredItems.reduce((sum, item) => sum + toPriceNumber(item.price), 0),
+  }), [items, filteredItems]);
 
   function clearFilters() {
-    setQuery("");
-    setCategoryFilter("ALL");
-    setConditionFilter("ALL");
-    setStatusFilter("ALL");
-    setSortBy("TITLE_ASC");
+    setQuery(""); setCategoryFilter("ALL"); setConditionFilter("ALL"); setStatusFilter("ALL"); setSortBy("TITLE_ASC");
   }
 
-  const hasActiveFilters =
-    query.trim() ||
-    categoryFilter !== "ALL" ||
-    conditionFilter !== "ALL" ||
-    statusFilter !== "ALL" ||
-    sortBy !== "TITLE_ASC";
+  const hasActiveFilters = Boolean(query.trim() || categoryFilter !== "ALL" || conditionFilter !== "ALL" || statusFilter !== "ALL" || sortBy !== "TITLE_ASC");
 
-  if (loading) return <div style={styles.card}>Loading shop...</div>;
-  if (error) return <div style={styles.error}>{error}</div>;
-  if (!shop) return <div style={styles.card}>Shop not found.</div>;
+  if (loading) return <main className="shop-detail-page"><div className="shop-detail-state" role="status" aria-live="polite">Loading shop…</div></main>;
+  if (error) return <main className="shop-detail-page"><div className="shop-detail-state shop-detail-error" role="alert">{error}</div></main>;
+  if (!shop) return <main className="shop-detail-page"><div className="shop-detail-state">Shop not found.</div></main>;
 
   return (
-    <div style={styles.page}>
-      <section style={styles.card}>
-        <h2 style={styles.title}>{shop.name}</h2>
-        <p style={styles.meta}>{shop.address || "No address provided"}</p>
-        <p style={styles.meta}>{shop.phone || "No phone provided"}</p>
-        <p style={styles.meta}>{shop.hours || "Hours not listed"}</p>
-        {shop.description ? <p style={styles.description}>{shop.description}</p> : null}
-      </section>
-
-      <section style={styles.filterCard}>
-        <div style={styles.filterTopRow}>
-          <div>
-            <div style={styles.filterTitle}>Filter storefront inventory</div>
-            <div style={styles.filterSubtitle}>
-              Search and sort this shop’s inventory.
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={clearFilters}
-            disabled={!hasActiveFilters}
-            style={{
-              ...styles.clearButton,
-              ...(!hasActiveFilters ? styles.disabledButton : {}),
-            }}
-          >
-            Clear Filters
-          </button>
+    <main className="shop-detail-page">
+      <header className="shop-detail-card shop-detail-header">
+        <div>
+          <p className="shop-detail-eyebrow">Shop storefront</p>
+          <h1>{shop.name}</h1>
+          {shop.description ? <p className="shop-detail-description">{shop.description}</p> : null}
         </div>
+        <dl className="shop-detail-contact-list">
+          <div><dt>Address</dt><dd><address>{shop.address || "No address provided"}</address></dd></div>
+          <div><dt>Phone</dt><dd>{shop.phone ? <a href={`tel:${shop.phone}`}>{shop.phone}</a> : "No phone provided"}</dd></div>
+          <div><dt>Hours</dt><dd>{shop.hours || "Hours not listed"}</dd></div>
+        </dl>
+        <div className="shop-detail-follow-controls">
+          {followError ? <p role="alert" className="shop-detail-error">{followError}</p> : null}
+          {(!isAuthenticated() || getAuthRole() === "CONSUMER") && !follow?.following ? <button type="button" className="shop-detail-primary-button" disabled={followSaving} onClick={() => void startFollowing()}>{followSaving ? "Saving…" : "Follow Shop"}</button> : follow?.following ? <div className="shop-detail-following">
+            <strong>Following</strong><p>Alerts are off until you explicitly select them.</p>
+            <div className="shop-detail-alert-preferences">{([ ["newArrivals", "New arrivals"], ["deals", "Deals"], ["auctions", "Auctions"], ["general", "Shop announcements"] ] as const).map(([key, label]) => <label key={key}><input type="checkbox" checked={follow.preferences[key]} disabled={followSaving} onChange={(event) => void changePreference({ [key]: event.target.checked })} /> <span>{label}</span></label>)}</div>
+            <div className="shop-detail-follow-actions"><button type="button" disabled={followSaving} onClick={() => void changePreference({ paused: !follow.paused })}>{follow.paused ? "Resume alerts" : "Pause alerts"}</button><button type="button" disabled={followSaving} onClick={() => void stopFollowing()}>Unfollow</button></div>
+          </div> : null}
+        </div>
+      </header>
 
-        <div style={styles.filterGrid}>
-          <label style={styles.field}>
-            <span style={styles.label}>Search</span>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search items in this shop..."
-              style={styles.input}
-            />
-          </label>
-
-          <label style={styles.field}>
-            <span style={styles.label}>Category</span>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              style={styles.input}
-            >
-              <option value="ALL">All Categories</option>
-              {categoryOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label style={styles.field}>
-            <span style={styles.label}>Condition</span>
-            <select
-              value={conditionFilter}
-              onChange={(e) => setConditionFilter(e.target.value)}
-              style={styles.input}
-            >
-              <option value="ALL">All Conditions</option>
-              {conditionOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label style={styles.field}>
-            <span style={styles.label}>Status</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={styles.input}
-            >
-              <option value="ALL">All Statuses</option>
-              {statusOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label style={styles.field}>
-            <span style={styles.label}>Sort By</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              style={styles.input}
-            >
-              <option value="TITLE_ASC">Title A–Z</option>
-              <option value="PRICE_LOW_HIGH">Price Low → High</option>
-              <option value="PRICE_HIGH_LOW">Price High → Low</option>
-              <option value="STATUS_ASC">Status</option>
-            </select>
-          </label>
+      <section className="shop-detail-card shop-detail-filters" aria-labelledby="shop-detail-filter-title">
+        <div className="shop-detail-filter-heading">
+          <div><h2 id="shop-detail-filter-title">Filter storefront inventory</h2><p>Search and sort this shop’s inventory.</p></div>
+          <button type="button" onClick={clearFilters} disabled={!hasActiveFilters} className="shop-detail-clear-button">Clear Filters</button>
+        </div>
+        <div className="shop-detail-filter-grid">
+          <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items in this shop..." /></label>
+          <label><span>Category</span><select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option value="ALL">All Categories</option>{categoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+          <label><span>Condition</span><select value={conditionFilter} onChange={(event) => setConditionFilter(event.target.value)}><option value="ALL">All Conditions</option>{conditionOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+          <label><span>Status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ALL">All Statuses</option>{statusOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+          <label><span>Sort By</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value as SortOption)}><option value="TITLE_ASC">Title A–Z</option><option value="PRICE_LOW_HIGH">Price Low → High</option><option value="PRICE_HIGH_LOW">Price High → Low</option><option value="STATUS_ASC">Status</option></select></label>
         </div>
       </section>
 
-      <section style={styles.statsRow}>
-        <div style={styles.statPill}>All items: {stats.totalInventory}</div>
-        <div style={styles.statPill}>Matching: {stats.matchingInventory}</div>
-        <div style={styles.statPill}>
-          Visible value: ${stats.totalValue.toFixed(2)}
-        </div>
-      </section>
+      <dl className="shop-detail-stats" aria-label="Inventory summary">
+        <div><dt>All items</dt><dd>{stats.totalInventory}</dd></div>
+        <div><dt>Matching items</dt><dd>{stats.matchingInventory}</dd></div>
+        <div><dt>Visible inventory value</dt><dd>${stats.totalValue.toFixed(2)}</dd></div>
+      </dl>
 
-      <section
-        id="inventory"
-        style={{
-          ...styles.section,
-          scrollMarginTop: 180,
-        }}
-      >
-        <div style={styles.sectionHeader}>
-          <h3 style={styles.sectionTitle}>Available Inventory</h3>
-          <Link to="/auctions" style={styles.backLink}>
-            Browse Auctions
-          </Link>
-        </div>
-
-        {filteredItems.length === 0 ? (
-          <div style={styles.card}>No items matched this storefront filter.</div>
-        ) : (
-          <div style={styles.grid}>
-            {filteredItems.map((item) => (
-              <article key={item.id} style={styles.card}>
-                <h4 style={styles.itemTitle}>{item.title}</h4>
-                <div style={styles.price}>{formatPrice(item.price)}</div>
-
-                <div style={styles.metaRow}>
-                  <span style={{ ...styles.metaPill, ...getItemStatusTone(item.status) }}>
-                    {item.status}
-                  </span>
-                  <span style={styles.metaPill}>
-                    {normalizeLabel(item.category, "Uncategorized")}
-                  </span>
-                  <span style={styles.metaPill}>
-                    {normalizeLabel(item.condition, "Condition not listed")}
-                  </span>
+      <section id="inventory" className="shop-detail-inventory">
+        <div className="shop-detail-section-heading"><h2>Available Inventory</h2><Link to="/auctions" className="shop-detail-secondary-link">Browse Auctions</Link></div>
+        {filteredItems.length === 0 ? <div className="shop-detail-state">{items.length === 0 ? "This shop has no inventory yet." : "No items matched this storefront filter."}</div> : (
+          <div className="shop-detail-grid">
+            {filteredItems.map((item) => {
+              const imageUrl = firstUsableImage(item.images);
+              return <article key={item.id} className="shop-detail-card shop-detail-item-card">
+                <div className="shop-detail-item-media">{imageUrl ? <img src={imageUrl} alt={item.title} /> : <div className="shop-detail-image-placeholder" role="img" aria-label={`No image available for ${item.title}`}><span aria-hidden="true">◇</span><span>No image available</span></div>}</div>
+                <div className="shop-detail-item-body">
+                  <h3>{item.title}</h3><div className="shop-detail-price">{formatPrice(item.price)}</div>
+                  <div className="shop-detail-badges"><span className={`shop-detail-badge shop-detail-status-${getItemStatusTone(item.status)}`}>{item.status}</span><span className="shop-detail-badge shop-detail-badge-neutral">{normalizeLabel(item.category, "Uncategorized")}</span><span className="shop-detail-badge shop-detail-badge-neutral">{normalizeLabel(item.condition, "Condition not listed")}</span></div>
+                  {item.description ? <p className="shop-detail-item-description">{item.description}</p> : <p className="shop-detail-item-description shop-detail-missing-description">No description provided.</p>}
+                  <div className="shop-detail-item-actions"><Link to={`/items/${item.id}`} className="shop-detail-view-item">View Item</Link></div>
                 </div>
-
-                {item.description ? (
-                  <p style={styles.description}>{item.description}</p>
-                ) : null}
-
-                <div style={styles.itemActions}>
-                  <Link to={`/items/${item.id}`} style={styles.itemLink}>
-                    View Item
-                  </Link>
-                </div>
-              </article>
-            ))}
+              </article>;
+            })}
           </div>
         )}
       </section>
-    </div>
+    </main>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  page: {
-    display: "grid",
-    gap: 20,
-    color: "#eef2ff",
-  },
-  section: {
-    display: "grid",
-    gap: 14,
-  },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  sectionTitle: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 800,
-  },
-  backLink: {
-    textDecoration: "none",
-    color: "#c7d2fe",
-    fontWeight: 700,
-  },
-  card: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 20,
-    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
-  },
-  title: {
-    margin: 0,
-    fontSize: 30,
-    fontWeight: 800,
-  },
-  itemTitle: {
-    margin: "0 0 8px",
-    fontSize: 20,
-    fontWeight: 800,
-  },
-  meta: {
-    color: "#a7b0d8",
-    marginTop: 8,
-  },
-  metaRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    marginTop: 12,
-  },
-  metaPill: {
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: "rgba(110,168,254,0.12)",
-    color: "#cfe0ff",
-    border: "1px solid rgba(110,168,254,0.2)",
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  description: {
-    color: "#d7def7",
-    lineHeight: 1.5,
-  },
-  price: {
-    fontSize: 22,
-    fontWeight: 800,
-    marginTop: 8,
-  },
-  error: {
-    color: "#ff9ead",
-    fontWeight: 700,
-  },
-  grid: {
-    display: "grid",
-    gap: 16,
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  },
-  itemActions: {
-    marginTop: 14,
-  },
-  itemLink: {
-    textDecoration: "none",
-    border: "none",
-    color: "#08111f",
-    background: "#6ea8fe",
-    padding: "10px 14px",
-    borderRadius: 12,
-    fontWeight: 800,
-    display: "inline-block",
-  },
-  filterCard: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 18,
-    padding: 18,
-    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
-    display: "grid",
-    gap: 16,
-  },
-  filterTopRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  filterTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-  },
-  filterSubtitle: {
-    color: "#a7b0d8",
-    fontSize: 14,
-    marginTop: 6,
-  },
-  filterGrid: {
-    display: "grid",
-    gap: 16,
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  },
-  field: {
-    display: "grid",
-    gap: 8,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: "#c7d2fe",
-  },
-  input: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "#0c1330",
-    color: "#eef2ff",
-    padding: "12px 14px",
-  },
-  clearButton: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#eef2ff",
-    padding: "10px 14px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  disabledButton: {
-    opacity: 0.5,
-    cursor: "not-allowed",
-  },
-  statsRow: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  statPill: {
-    padding: "8px 12px",
-    borderRadius: 999,
-    background: "rgba(110,168,254,0.12)",
-    color: "#cfe0ff",
-    border: "1px solid rgba(110,168,254,0.2)",
-    fontSize: 13,
-    fontWeight: 700,
-  },
-};

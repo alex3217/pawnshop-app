@@ -30,6 +30,9 @@ import {
 import {
   syncStripeSubscriptionEvent,
 } from "../services/stripeSubscriptionWebhook.service.js";
+import { createBuyerSubscriptionCheckout } from "../services/buyerSubscriptionCheckout.service.js";
+import { syncBuyerSubscriptionEvent } from "../services/buyerSubscriptionWebhook.service.js";
+import { validateStripeConnectReturnUrl } from "../services/stripeConnect.service.js";
 
 const PI_REUSABLE_STATUSES = new Set([
   "requires_payment_method",
@@ -85,7 +88,7 @@ function getRequestUserId(req) {
 
 function isAdminRequest(req) {
   const user = getRequestUser(req);
-  return String(user.role || "").toUpperCase() === "ADMIN";
+  return ["ADMIN", "SUPER_ADMIN"].includes(String(user.role || "").toUpperCase());
 }
 
 function assertAbsoluteHttpUrl(value, fieldName) {
@@ -292,15 +295,19 @@ export async function createSubscriptionCheckoutSession(req, res) {
         req?.body?.billingInterval || "MONTH"
       );
 
-    const successUrl = assertAbsoluteHttpUrl(
+    const requestedSuccessUrl = validateStripeConnectReturnUrl(
       req?.body?.successUrl,
       "successUrl"
     );
 
-    const cancelUrl = assertAbsoluteHttpUrl(
+    const requestedCancelUrl = validateStripeConnectReturnUrl(
       req?.body?.cancelUrl,
       "cancelUrl"
     );
+    const successUrl = requestedSuccessUrl;
+    const cancelUrl = requestedCancelUrl;
+    const requestId = normalizeId(req.headers["idempotency-key"]);
+    if (!requestId) throw createHttpError("A valid Idempotency-Key header is required.", 400);
 
     if (!shopId || !planCode) {
       return res.status(400).json({
@@ -351,6 +358,7 @@ export async function createSubscriptionCheckoutSession(req, res) {
             },
           },
         },
+        checkoutOptions: { idempotencyKey: `seller-subscription:${shop.id}:${planCode}:${billingInterval}:${requestId}` },
       });
 
     return res.status(201).json({
@@ -371,6 +379,47 @@ export async function createSubscriptionCheckoutSession(req, res) {
       err,
       "Failed to create subscription checkout session"
     );
+  }
+}
+
+async function updateSellerCancellation(req, res, cancelAtPeriodEnd) {
+  try {
+    const shop = await ensureShopAccess(req, req.params?.id);
+    if (!shop.stripeSubscriptionId) throw createHttpError("No Stripe paid subscription is configured for this shop.", 409);
+    const stripe = getStripe();
+    const subscription = await stripe.subscriptions.update(shop.stripeSubscriptionId, { cancel_at_period_end: cancelAtPeriodEnd });
+    if (normalizeId(subscription?.id) !== normalizeId(shop.stripeSubscriptionId) || (shop.stripeCustomerId && normalizeId(subscription?.customer) !== normalizeId(shop.stripeCustomerId))) throw createHttpError("Stripe returned a subscription that does not belong to this shop.", 409);
+    await prisma.pawnShop.update({ where: { id: shop.id }, data: { cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end), subscriptionCurrentPeriodEnd: subscription.current_period_end ? new Date(Number(subscription.current_period_end) * 1000) : shop.subscriptionCurrentPeriodEnd } });
+    return res.json({ success: true, pendingWebhookSync: true, shopId: shop.id, cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end), currentPeriodEnd: subscription.current_period_end ? new Date(Number(subscription.current_period_end) * 1000).toISOString() : shop.subscriptionCurrentPeriodEnd, effectivePlan: shop.subscriptionPlan });
+  } catch (err) {
+    return errorResponse(res, err, cancelAtPeriodEnd ? "Failed to schedule subscription cancellation" : "Failed to resume subscription");
+  }
+}
+
+export async function cancelSellerSubscriptionAtPeriodEnd(req, res) { return updateSellerCancellation(req, res, true); }
+export async function resumeSellerSubscription(req, res) { return updateSellerCancellation(req, res, false); }
+
+export async function createBuyerSubscriptionCheckoutSession(req, res) {
+  try {
+    const userId = getRequestUserId(req);
+    const requestedSuccessUrl = validateStripeConnectReturnUrl(req.body?.successUrl, "successUrl");
+    const requestedCancelUrl = validateStripeConnectReturnUrl(req.body?.cancelUrl, "cancelUrl");
+    const successOrigin = new URL(requestedSuccessUrl).origin;
+    const cancelOrigin = new URL(requestedCancelUrl).origin;
+    const successUrl = `${successOrigin}/buyer/subscription?checkout=success`;
+    const cancelUrl = `${cancelOrigin}/buyer/subscription?checkout=canceled`;
+    const requestId = req.headers["idempotency-key"];
+    if (typeof requestId !== "string") throw createHttpError("A valid Idempotency-Key header is required.", 400);
+    const result = await createBuyerSubscriptionCheckout({
+      userId,
+      input: req.body,
+      successUrl,
+      cancelUrl,
+      requestId,
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (err) {
+    return errorResponse(res, err, "Failed to create buyer subscription checkout session");
   }
 }
 
@@ -568,41 +617,40 @@ export async function handleStripeWebhook(req, res) {
           ? String(session.subscription)
           : null;
 
-        if (shopId && planCode) {
-          let subscriptionStatus = "ACTIVE";
-          let subscriptionCurrentPeriodEnd = null;
-          let cancelAtPeriodEnd = false;
+        if (shopId && planCode && stripeCustomerId && stripeSubscriptionId) {
+          assertPaidSellerPlanCode(planCode);
+          const shop = await prisma.pawnShop.findUnique({
+            where: { id: shopId },
+            select: { id: true, ownerId: true, isDeleted: true, stripeCustomerId: true },
+          });
+          const ownerId = normalizeId(session?.metadata?.ownerId);
+          if (!shop || shop.isDeleted || !ownerId || ownerId !== normalizeId(shop.ownerId)) {
+            throw new Error("Stripe seller Checkout metadata does not identify an authorized shop owner");
+          }
+          if (shop.stripeCustomerId && normalizeId(shop.stripeCustomerId) !== stripeCustomerId) {
+            throw new Error("Stripe seller Checkout customer does not belong to the selected shop");
+          }
 
-          if (stripeSubscriptionId) {
-            try {
-              const subscription = await stripe.subscriptions.retrieve(
-                stripeSubscriptionId
-              );
-              subscriptionStatus = mapStripeSubscriptionStatus(subscription?.status);
-              subscriptionCurrentPeriodEnd = unixToIsoOrNull(
-                subscription?.current_period_end
-              );
-              cancelAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
-            } catch (err) {
-              console.warn(
-                "[stripe.webhook] failed to retrieve subscription after checkout.session.completed",
-                {
-                  stripeSubscriptionId,
-                  message: err?.message || String(err),
-                }
-              );
-            }
+          const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+          const subscriptionMetadata = subscription?.metadata || {};
+          if (
+            normalizeId(subscription?.customer) !== stripeCustomerId ||
+            normalizeId(subscriptionMetadata.shopId) !== shopId ||
+            normalizeId(subscriptionMetadata.ownerId) !== ownerId ||
+            normalizePlanCode(subscriptionMetadata.planCode) !== planCode
+          ) {
+            throw new Error("Stripe seller subscription ownership verification failed");
           }
 
           await prisma.pawnShop.update({
             where: { id: shopId },
             data: {
               subscriptionPlan: planCode,
-              subscriptionStatus,
+              subscriptionStatus: mapStripeSubscriptionStatus(subscription?.status),
               stripeCustomerId,
               stripeSubscriptionId,
-              subscriptionCurrentPeriodEnd,
-              cancelAtPeriodEnd,
+              subscriptionCurrentPeriodEnd: unixToIsoOrNull(subscription?.current_period_end),
+              cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
             },
           });
         }
@@ -615,6 +663,8 @@ export async function handleStripeWebhook(req, res) {
       case "invoice.paid":
       case "invoice.payment_succeeded":
       case "invoice.payment_failed": {
+        const buyerResult = await syncBuyerSubscriptionEvent({ event, prismaClient: prisma });
+        if (buyerResult.handled) break;
         await syncStripeSubscriptionEvent({ event, prismaClient: prisma });
         break;
       }

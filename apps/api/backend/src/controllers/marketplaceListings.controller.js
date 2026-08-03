@@ -3,6 +3,8 @@ import {
   claimCustomerItemIntakeLink,
   loadCustomerItemIntakeForLinkage,
 } from "../services/itemIntake.service.js";
+import { assertBuyerSellingCapacity } from "../services/buyerEntitlements.service.js";
+import { assertSellerItemPhotoCapacity } from "../services/sellerPlan.service.js";
 
 const LISTING_TYPES = new Set([
   "CUSTOMER_TO_CUSTOMER",
@@ -85,7 +87,9 @@ function sendError(res, error, fallback = "Internal server error") {
           fallback,
 
     ...(
-      error?.linkageCode
+      ["BUYER_PLAN_LIMIT_REACHED", "SELLER_PLAN_LIMIT_REACHED"].includes(error?.code)
+        ? { code: error.code, details: error.details }
+        : error?.linkageCode
         ? {
             code:
               error.linkageCode,
@@ -151,8 +155,7 @@ function normalizeImages(value) {
 
   return value
     .map(normalizeString)
-    .filter(Boolean)
-    .slice(0, 20);
+    .filter(Boolean);
 }
 
 function normalizePagination(query = {}) {
@@ -498,6 +501,13 @@ export async function createMarketplaceListing(req, res) {
       sellerShopId,
     });
 
+    if (CUSTOMER_LISTING_TYPES.has(listingType)) {
+      await assertBuyerSellingCapacity(sellerUserId, {
+        resources: ["activeMarketplaceListings", "monthlyMarketplaceListings"],
+        photoCount: Array.isArray(req.body?.images) ? req.body.images.length : 0,
+      });
+    }
+
     if (
       intakeId &&
       !CUSTOMER_LISTING_TYPES.has(
@@ -522,6 +532,7 @@ export async function createMarketplaceListing(req, res) {
           sellerUserId,
         role,
       });
+      await assertSellerItemPhotoCapacity(sellerShopId, Array.isArray(req.body?.images) ? req.body.images.length : 0);
     }
 
     if (itemId) {
@@ -895,6 +906,10 @@ export async function updateMarketplaceListing(req, res) {
 
     const data = buildListingWriteData(req.body, existing);
     assertRequiredListingData(data, existing);
+    if (Array.isArray(data.images)) {
+      if (CUSTOMER_LISTING_TYPES.has(existing.listingType)) await assertBuyerSellingCapacity(userId, { photoCount: data.images.length });
+      if (SHOP_LISTING_TYPES.has(existing.listingType) && existing.sellerShopId) await assertSellerItemPhotoCapacity(existing.sellerShopId, data.images.length);
+    }
 
     const listing = await prisma.marketplaceListing.update({
       where: {

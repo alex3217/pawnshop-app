@@ -16,6 +16,7 @@ const ALLOWED_SUBSCRIPTION_STATUSES = new Set([
   "ACTIVE",
   "TRIALING",
   "PAST_DUE",
+  "UNPAID",
   "INCOMPLETE",
   "INCOMPLETE_EXPIRED",
   "CANCELED",
@@ -168,7 +169,7 @@ router.get("/seller-plans", asyncRoute(listAvailableSellerPlans));
 router.get(
   "/shops/:id/entitlements",
   authRequired,
-  requireRole("OWNER", "ADMIN"),
+  requireRole("OWNER", "ADMIN", "SUPER_ADMIN"),
   validateShopIdParam,
   asyncRoute(getShopEntitlements)
 );
@@ -177,13 +178,11 @@ router.get(
  * Owner/Admin
  * PATCH /api/shops/:id/subscription
  *
- * Manual plan assignment/update endpoint used by the owner subscription page.
- * This supports FREE / PRO / PREMIUM / ULTRA flows until Stripe checkout
- * and webhook automation fully own the subscription lifecycle.
+ * Manual administrative correction endpoint. Owner subscription changes flow
+ * through Stripe Checkout, cancellation, resume, and webhook confirmation.
  *
  * Access:
- * - OWNER: their own shop only
- * - ADMIN: any shop
+ * - ADMIN / SUPER_ADMIN: any shop, subject to controller auditing
  *
  * Final authorization and plan validation should still be enforced
  * in the controller/service layer.
@@ -191,7 +190,7 @@ router.get(
 router.patch(
   "/shops/:id/subscription",
   authRequired,
-  requireRole("OWNER", "ADMIN"),
+  requireRole("ADMIN", "SUPER_ADMIN"),
   validateShopIdParam,
   normalizeSellerPlanPatchBody,
   asyncRoute(adminSetShopPlan)

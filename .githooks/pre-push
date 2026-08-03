@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+zero=0000000000000000000000000000000000000000
+remote_name="${1:-origin}"
+destination_namespace="refs/secret-scan-pre-push/$$/"
+destination_history_loaded=0
+
+cleanup_destination_refs() {
+  git for-each-ref --format='delete %(refname)' "$destination_namespace" \
+    | git update-ref --stdin >/dev/null 2>&1 || true
+}
+trap cleanup_destination_refs EXIT
+
+require_destination_history() {
+  if [ "$destination_history_loaded" -eq 1 ]; then
+    return 0
+  fi
+  if ! git fetch --no-tags "$remote_name" \
+    "+refs/heads/*:${destination_namespace}*" >/dev/null 2>&1; then
+    printf 'pre-push secret scan could not obtain the required destination history\n' >&2
+    return 1
+  fi
+  destination_history_loaded=1
+}
+
+require_remote_commit() {
+  local remote_ref="$1"
+  local remote_sha="$2"
+  if git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    return 0
+  fi
+  git fetch --no-tags "$remote_name" "$remote_ref" >/dev/null 2>&1 || true
+  if ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    printf 'pre-push secret scan could not obtain the required remote history\n' >&2
+    return 1
+  fi
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "${local_sha:-}" ] || continue
+  [ "$local_sha" != "$zero" ] || continue
+
+  if [ "$remote_sha" = "$zero" ]; then
+    require_destination_history
+    while IFS= read -r commit; do
+      [ -n "$commit" ] || continue
+      if parent="$(git rev-parse --verify "$commit^" 2>/dev/null)"; then
+        base="$parent"
+      else
+        base=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+      fi
+      node scripts/secret-scan.mjs --range "$base..$commit"
+    done < <(git rev-list --reverse "$local_sha" --not --glob="${destination_namespace}*")
+  else
+    require_remote_commit "$remote_ref" "$remote_sha"
+    node scripts/secret-scan.mjs --range "$remote_sha..$local_sha"
+  fi
+done
