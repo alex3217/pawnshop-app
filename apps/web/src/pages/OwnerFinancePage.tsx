@@ -967,7 +967,7 @@ export default function OwnerFinancePage() {
               </div>
             </div>
 
-            <div className="owner-finance-table-wrap">
+            <div className="owner-finance-table-wrap" tabIndex={0} aria-label="Ledger activity table">
               <table>
                 <thead>
                   <tr>
@@ -1167,7 +1167,7 @@ export default function OwnerFinancePage() {
               </div>
             </div>
 
-            <div className="owner-finance-table-wrap">
+            <div className="owner-finance-table-wrap" tabIndex={0} aria-label="Payout history table">
               <table>
                 <thead>
                   <tr>
@@ -1254,7 +1254,7 @@ export default function OwnerFinancePage() {
               Bank payout status comes directly from Stripe. One bank payout can include
               funds from multiple transfers.
             </p>
-            <div className="owner-finance-table-wrap">
+            <div className="owner-finance-table-wrap" tabIndex={0} aria-label="Payout ledger table">
               <table>
                 <thead>
                   <tr>
