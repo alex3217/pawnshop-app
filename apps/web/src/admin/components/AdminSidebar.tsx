@@ -109,13 +109,9 @@ function SidebarLink({
       className={({ isActive: navIsActive }) => navClass(navIsActive || isActive)}
       style={{
         textDecoration: "none",
-        color: isActive ? "#ffffff" : "#dbeafe",
         border: isActive
           ? "1px solid rgba(129, 140, 248, 0.72)"
           : "1px solid rgba(255,255,255,0.1)",
-        background: isActive
-          ? "rgba(99,102,241,0.24)"
-          : "rgba(255,255,255,0.045)",
         borderRadius: 12,
         padding: "10px 12px",
         fontWeight: 800,
@@ -196,8 +192,10 @@ export default function AdminSidebar() {
         }}
       >
         <div
+          className="admin-sidebar__eyebrow"
           style={{
-            fontSize: 11,
+            fontSize: 12,
+            lineHeight: 1.4,
             fontWeight: 900,
             letterSpacing: "0.12em",
             textTransform: "uppercase",
@@ -258,6 +256,7 @@ export default function AdminSidebar() {
                 {group.title}
               </div>
               <div
+                className="admin-sidebar__group-description"
                 style={{
                   color: "#64748b",
                   fontSize: 12,
@@ -304,6 +303,7 @@ export default function AdminSidebar() {
               Other Tools
             </div>
             <div
+              className="admin-sidebar__group-description"
               style={{
                 color: "#64748b",
                 fontSize: 12,

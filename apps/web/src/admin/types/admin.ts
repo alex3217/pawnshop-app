@@ -27,11 +27,15 @@ export type AdminNavKey =
   | "superAdminGrowth"
   | "superAdminGrowthLeads"
   | "superAdminSellerPlans"
+  | "superAdminSellerSubscriptions"
   | "superAdminBuyerPlans"
   | "superAdminBuyerSubscriptions"
   | "superAdminSettlements"
+  | "superAdminPricing"
   | "superAdminRevenue"
   | "superAdminAudit"
+  | "superAdminSystem"
+  | "superAdminTraining"
   | "superAdminSettings";
 
 export type AdminPermission =

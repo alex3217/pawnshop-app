@@ -268,12 +268,26 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     permissions: ["admin:orders:read"],
     group: "super-admin-billing",
   }),
+  route({
+    key: "superAdminPricing",
+    path: "/super-admin/pricing",
+    label: "Pricing Catalog",
+    permissions: ["admin:subscriptions:read"],
+    group: "super-admin-billing",
+  }),
 
   route({
     key: "superAdminAudit",
     path: "/super-admin/audit",
     label: "Audit Logs",
     permissions: ["admin:audit:read"],
+    group: "super-admin-governance",
+  }),
+  route({
+    key: "superAdminTraining",
+    path: "/super-admin/training",
+    label: "Training Content",
+    permissions: ["admin:settings:read"],
     group: "super-admin-governance",
   }),
 

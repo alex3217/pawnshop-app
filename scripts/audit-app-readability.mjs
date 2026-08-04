@@ -89,7 +89,7 @@ if (CREDENTIALS.superAdmin) {
     { role: "superAdmin", name: "super-admin-pricing", path: "/super-admin/pricing" },
     { role: "superAdmin", name: "super-admin-revenue", path: "/super-admin/revenue" },
     { role: "superAdmin", name: "super-admin-audit", path: "/super-admin/audit" },
-    { role: "superAdmin", name: "super-admin-system-health", path: "/super-admin/system-health" },
+    { role: "superAdmin", name: "super-admin-system", path: "/super-admin/system" },
   );
 }
 

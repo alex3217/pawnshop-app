@@ -6,7 +6,7 @@ import {
   type AdminUserRow,
 } from "../services/adminApi";
 
-const PLAN_OPTIONS = ["FREE", "PRO", "PREMIUM"];
+const PLAN_OPTIONS = ["FREE", "PRO", "PREMIUM", "ULTRA"];
 const STATUS_OPTIONS = [
   "ACTIVE",
   "TRIALING",
