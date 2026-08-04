@@ -113,3 +113,80 @@ test("requires confirmed payment and enforces ordered fulfillment", async () => 
   assert.equal((await prisma.settlement.findUnique({ where: { id: charged.id } })).fulfillmentStatus, "COMPLETED");
   assert.equal(await prisma.superAdminAuditLog.count({ where: { targetId: charged.id } }), 3);
 });
+
+test("fulfillment audit redacts the note while preserving the persisted settlement note", async () => {
+  const note = "client_secret=secret; token=token; password=password; credential=credential; authorization=Bearer value; cookie=cookie; requestBody=body; paymentMethod=pm";
+  const settlement = await createSettlement("fulfillment-note-redaction", {
+    status: "CHARGED", stripePaymentIntent: "pi_note_redaction", chargedAt: new Date(),
+  });
+
+  await runFulfillmentTransition({
+    settlementId: settlement.id,
+    toStatus: "READY_FOR_PICKUP",
+    note,
+    actor: { id: "owner-note-redaction", role: "OWNER" },
+  });
+
+  const persisted = await prisma.settlement.findUnique({ where: { id: settlement.id } });
+  const audits = await prisma.superAdminAuditLog.findMany({ where: { targetId: settlement.id } });
+  assert.equal(persisted.fulfillmentNote, note);
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].action, "SETTLEMENT_FULFILLMENT_TRANSITION");
+  assert.deepEqual(audits[0].metadata, {
+    from: "PAYMENT_PENDING",
+    to: "READY_FOR_PICKUP",
+    noteProvided: true,
+  });
+  assert.doesNotMatch(JSON.stringify(audits[0].metadata), /client_secret|secret|token|password|credential|authorization|cookie|requestBody|paymentMethod|Bearer/);
+});
+
+test("fulfillment audit failure rolls back the note and status mutation", async () => {
+  const settlement = await createSettlement("fulfillment-audit-rollback", {
+    status: "CHARGED", stripePaymentIntent: "pi_fulfillment_rollback", chargedAt: new Date(),
+  });
+  const failingClient = {
+    $transaction: (callback, options) => prisma.$transaction(async (tx) => callback({
+      ...tx,
+      $queryRaw: tx.$queryRaw.bind(tx),
+      settlement: tx.settlement,
+      superAdminAuditLog: { create: async () => { throw new Error("audit unavailable"); } },
+    }), options),
+  };
+
+  await assert.rejects(
+    runFulfillmentTransition({
+      settlementId: settlement.id,
+      toStatus: "READY_FOR_PICKUP",
+      note: "must roll back",
+      prismaClient: failingClient,
+    }),
+    /audit unavailable/,
+  );
+  const persisted = await prisma.settlement.findUnique({ where: { id: settlement.id } });
+  assert.equal(persisted.fulfillmentStatus, "PAYMENT_PENDING");
+  assert.equal(persisted.fulfillmentNote, null);
+  assert.equal(await prisma.superAdminAuditLog.count({ where: { targetId: settlement.id } }), 0);
+});
+
+test("illegal and stale fulfillment transitions do not mutate or audit", async () => {
+  const settlement = await createSettlement("fulfillment-illegal-stale", {
+    status: "CHARGED", stripePaymentIntent: "pi_fulfillment_illegal", chargedAt: new Date(),
+  });
+  await assert.rejects(
+    runFulfillmentTransition({ settlementId: settlement.id, toStatus: "COMPLETED", note: "illegal" }),
+    /cannot move from PAYMENT_PENDING to COMPLETED/,
+  );
+  await assert.rejects(
+    runFulfillmentTransition({
+      settlementId: settlement.id,
+      toStatus: "READY_FOR_PICKUP",
+      expectedStatus: "SHIPPED",
+      note: "stale",
+    }),
+    (error) => error.code === "STALE_FULFILLMENT_STATE",
+  );
+  const persisted = await prisma.settlement.findUnique({ where: { id: settlement.id } });
+  assert.equal(persisted.fulfillmentStatus, "PAYMENT_PENDING");
+  assert.equal(persisted.fulfillmentNote, null);
+  assert.equal(await prisma.superAdminAuditLog.count({ where: { targetId: settlement.id } }), 0);
+});

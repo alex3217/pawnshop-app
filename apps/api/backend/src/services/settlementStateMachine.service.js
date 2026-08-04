@@ -205,7 +205,7 @@ export async function runFulfillmentTransition({
       settlementId,
       from,
       to: target,
-      metadata: { note },
+      metadata: { noteProvided: note !== undefined },
     }));
     return settlement;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
