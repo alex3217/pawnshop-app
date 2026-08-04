@@ -14,6 +14,11 @@ import {
   forgotPassword,
   resetPassword,
 } from "../controllers/auth.controller.js";
+import {
+  beginMfaEnrollment,
+  confirmEnrollment,
+  getMfaEnrollmentStatus,
+} from "../controllers/mfaEnrollment.controller.js";
 
 const router = Router();
 
@@ -57,6 +62,41 @@ router.get("/me", authRequired, asyncRoute(me));
  */
 router.post("/refresh", authRequired, asyncRoute(refresh));
 
+function enrollmentLimiter(name) {
+  return function applyEnrollmentLimiter(req, res, next) {
+    const limiter = req.app.locals.authRateLimiters?.[name];
+    if (typeof limiter !== "function") {
+      return res.status(503).json({
+        success: false,
+        error: "Authentication protection is temporarily unavailable",
+        requestId: req.requestId,
+      });
+    }
+    return limiter(req, res, next);
+  };
+}
+
+router.get(
+  "/mfa/status",
+  authRequired,
+  requireRole("SUPER_ADMIN"),
+  asyncRoute(getMfaEnrollmentStatus),
+);
+router.post(
+  "/mfa/enrollment",
+  authRequired,
+  requireRole("SUPER_ADMIN"),
+  enrollmentLimiter("mfaEnrollmentStart"),
+  asyncRoute(beginMfaEnrollment),
+);
+router.post(
+  "/mfa/enrollment/confirm",
+  authRequired,
+  requireRole("SUPER_ADMIN"),
+  enrollmentLimiter("mfaEnrollmentConfirm"),
+  asyncRoute(confirmEnrollment),
+);
+
 /**
  * Super Admin only
  * POST /api/auth/super-admin/users
@@ -79,6 +119,9 @@ export const AUTH_ROUTE_MAP = Object.freeze({
   me: "GET /api/auth/me",
   refresh: "POST /api/auth/refresh",
   createSuperAdminUser: "POST /api/auth/super-admin/users",
+  mfaStatus: "GET /api/auth/mfa/status",
+  mfaEnrollmentStart: "POST /api/auth/mfa/enrollment",
+  mfaEnrollmentConfirm: "POST /api/auth/mfa/enrollment/confirm",
 });
 
 export default router;

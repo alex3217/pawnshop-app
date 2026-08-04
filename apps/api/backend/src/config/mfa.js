@@ -61,6 +61,12 @@ export function loadMfaConfig(env = process.env) {
       5,
       5,
     ),
+    enrollmentTtlSeconds: positiveInteger(
+      "MFA_ENROLLMENT_TTL_SECONDS",
+      env.MFA_ENROLLMENT_TTL_SECONDS,
+      600,
+      3600,
+    ),
     totpPeriodSeconds: 30,
     totpSkewSeconds: 30,
     recoveryCodeCount: 10,

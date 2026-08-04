@@ -1,5 +1,12 @@
 import crypto from "node:crypto";
 import { ipKeyGenerator } from "express-rate-limit";
+import { prisma } from "../lib/prisma.js";
+import { createMfaAuditEvent } from "../services/mfaAudit.service.js";
+
+const MFA_ENROLLMENT_LIMITS = Object.freeze({
+  start: 3,
+  confirm: 5,
+});
 
 const PUBLIC_AUTH_PATHS = new Map([
   ["/auth/register", "register"],
@@ -102,6 +109,7 @@ async function applyLimit({
   layer,
   req,
   res,
+  onExceeded,
 }) {
   let result;
   try {
@@ -132,6 +140,24 @@ async function applyLimit({
   });
 
   if (result.count > limit) {
+    if (onExceeded) {
+      try {
+        await onExceeded();
+      } catch (error) {
+        console.error("[auth.rateLimit] audit failure", {
+          requestId: req.requestId,
+          policy,
+          layer,
+          name: error?.name || "Error",
+        });
+        res.status(503).json({
+          success: false,
+          error: "Authentication protection is temporarily unavailable",
+          requestId: req.requestId,
+        });
+        return false;
+      }
+    }
     res.setHeader("Retry-After", String(retryAfter));
     res.status(429).json({
       success: false,
@@ -148,11 +174,41 @@ export function createAuthRateLimiters({
   config,
   store,
   now = Date.now,
+  auditMfaRateLimit,
 } = {}) {
   const effectiveStore = store || new MemoryRateLimitStore({ now });
+  const recordMfaRateLimit = auditMfaRateLimit || (async ({ req, purpose }) => {
+    await prisma.$transaction((tx) => createMfaAuditEvent(tx, {
+      event: "RATE_LIMIT_ENFORCED",
+      actorId: req.user.sub,
+      actorEmail: req.user.email,
+      actorRole: req.user.role,
+      targetUserId: req.user.sub,
+      requestId: req.requestId || null,
+      ipAddress: req.ip || null,
+      userAgent: req.get("user-agent") || null,
+      success: false,
+      metadata: {
+        outcome: "enforced",
+        reason: "rate_limited",
+        ...(purpose ? { purpose } : {}),
+      },
+    }));
+  });
   if (!config?.enabled) {
     const pass = (_req, _res, next) => next();
-    return { beforeBody: pass, afterBody: pass, store: effectiveStore };
+    const unavailable = (req, res) => res.status(503).json({
+      success: false,
+      error: "Authentication protection is temporarily unavailable",
+      requestId: req.requestId,
+    });
+    return {
+      beforeBody: pass,
+      afterBody: pass,
+      mfaEnrollmentStart: unavailable,
+      mfaEnrollmentConfirm: unavailable,
+      store: effectiveStore,
+    };
   }
 
   const beforeBody = async (req, res, next) => {
@@ -238,5 +294,41 @@ export function createAuthRateLimiters({
     return next();
   };
 
-  return { beforeBody, afterBody, store: effectiveStore };
+  function enrollmentLimiter({ policy, limit, purpose }) {
+    return async (req, res, next) => {
+      const allowed = await applyLimit({
+        config,
+        store: effectiveStore,
+        now,
+        limit,
+        policy,
+        layer: "authenticated-user-ip",
+        key: hmacKey(config.keySecret, {
+          policy,
+          layer: "authenticated-user-ip",
+          parts: [req.user.sub, ipKeyGenerator(req.ip, 56)],
+        }),
+        req,
+        res,
+        onExceeded: () => recordMfaRateLimit({ req, purpose }),
+      });
+      if (allowed) return next();
+      return undefined;
+    };
+  }
+
+  return {
+    beforeBody,
+    afterBody,
+    mfaEnrollmentStart: enrollmentLimiter({
+      policy: "mfa-enrollment-start",
+      limit: MFA_ENROLLMENT_LIMITS.start,
+    }),
+    mfaEnrollmentConfirm: enrollmentLimiter({
+      policy: "mfa-enrollment-confirm",
+      limit: MFA_ENROLLMENT_LIMITS.confirm,
+      purpose: "ENROLLMENT_CONFIRMATION",
+    }),
+    store: effectiveStore,
+  };
 }
