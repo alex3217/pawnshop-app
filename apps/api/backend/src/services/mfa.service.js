@@ -52,16 +52,25 @@ export async function startMfaEnrollment({
     if (existing?.enabledAt) {
       throw mfaError("MFA_ALREADY_ENABLED", "MFA is already enabled");
     }
+    if (existing) {
+      await tx.userMfaRecoveryCode.updateMany({
+        where: {
+          credentialId: existing.id,
+          consumedAt: null,
+          invalidatedAt: null,
+        },
+        data: { invalidatedAt: now },
+      });
+    }
     const stored = existing
       ? await tx.userMfaCredential.update({
         where: { id: existing.id },
         data: {
-        encryptedTotpSecret,
-        enrollmentStartedAt: now,
-        enabledAt: null,
-        lastAcceptedTotpCounter: null,
-        recoveryCodesGeneratedAt: null,
-        recoveryCodes: { deleteMany: {} },
+          encryptedTotpSecret,
+          enrollmentStartedAt: now,
+          enabledAt: null,
+          lastAcceptedTotpCounter: null,
+          recoveryCodesGeneratedAt: null,
         },
       })
       : await tx.userMfaCredential.create({
@@ -127,7 +136,10 @@ export async function regenerateMfaRecoveryCodes({
   await prismaClient.$transaction(async (tx) => {
     await lockCredential(tx, credentialId);
     const credential = await tx.userMfaCredential.findUnique({ where: { id: credentialId } });
-    await tx.userMfaRecoveryCode.deleteMany({ where: { credentialId } });
+    await tx.userMfaRecoveryCode.updateMany({
+      where: { credentialId, consumedAt: null, invalidatedAt: null },
+      data: { invalidatedAt: now },
+    });
     await tx.userMfaRecoveryCode.createMany({
       data: digests.map((codeDigest) => ({ credentialId, codeDigest, batchId })),
     });
@@ -155,12 +167,17 @@ export async function consumeMfaRecoveryCode({
   const codeDigest = digestMfaValue(code, encryptionKey);
   return prismaClient.$transaction(async (tx) => {
     const rows = await tx.$queryRaw`
-      SELECT "id", "codeDigest", "consumedAt" FROM "UserMfaRecoveryCode"
+      SELECT "id", "codeDigest", "consumedAt", "invalidatedAt" FROM "UserMfaRecoveryCode"
       WHERE "credentialId" = ${credentialId} AND "codeDigest" = ${codeDigest}
       FOR UPDATE
     `;
     const stored = rows[0];
-    if (!stored || stored.consumedAt || !matchesMfaDigest(code, stored.codeDigest, encryptionKey)) {
+    if (
+      !stored
+      || stored.consumedAt
+      || stored.invalidatedAt
+      || !matchesMfaDigest(code, stored.codeDigest, encryptionKey)
+    ) {
       throw mfaError("MFA_CODE_INVALID", "MFA code is invalid");
     }
     const credential = await tx.userMfaCredential.findUnique({ where: { id: credentialId } });

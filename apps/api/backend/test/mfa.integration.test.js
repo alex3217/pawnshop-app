@@ -110,6 +110,142 @@ test("recovery codes persist only digests and concurrent consumption succeeds on
   );
 });
 
+test("regeneration invalidates old recovery codes, preserves history, and issues ten active codes", async () => {
+  const { credential } = await startMfaEnrollment({ userId: user.id, encryptionKey });
+  const oldCodes = await regenerateMfaRecoveryCodes({ credentialId: credential.id, encryptionKey });
+  const oldRows = await prisma.userMfaRecoveryCode.findMany({
+    where: { credentialId: credential.id },
+  });
+  const regeneratedAt = new Date("2031-01-01T00:00:00.000Z");
+  const newCodes = await regenerateMfaRecoveryCodes({
+    credentialId: credential.id,
+    encryptionKey,
+    now: regeneratedAt,
+  });
+  const allRows = await prisma.userMfaRecoveryCode.findMany({
+    where: { credentialId: credential.id },
+  });
+
+  assert.equal(allRows.length, 20);
+  const oldIds = new Set(oldRows.map(({ id }) => id));
+  const preserved = allRows.filter(({ id }) => oldIds.has(id));
+  assert.equal(preserved.length, 10);
+  assert.equal(preserved.every(({ consumedAt }) => consumedAt === null), true);
+  assert.equal(
+    preserved.every(({ invalidatedAt }) => invalidatedAt?.getTime() === regeneratedAt.getTime()),
+    true,
+  );
+  assert.equal(allRows.filter(({ consumedAt, invalidatedAt }) => (
+    consumedAt === null && invalidatedAt === null
+  )).length, 10);
+  await assert.rejects(
+    consumeMfaRecoveryCode({
+      code: oldCodes[0], credentialId: credential.id, encryptionKey,
+    }),
+    (error) => error.code === "MFA_CODE_INVALID",
+  );
+  await consumeMfaRecoveryCode({
+    code: newCodes[0], credentialId: credential.id, encryptionKey,
+  });
+  await assert.rejects(
+    consumeMfaRecoveryCode({
+      code: newCodes[0], credentialId: credential.id, encryptionKey,
+    }),
+    (error) => error.code === "MFA_CODE_INVALID",
+  );
+
+  const serializedPersistence = JSON.stringify(allRows);
+  const serializedAudits = JSON.stringify(await prisma.superAdminAuditLog.findMany({
+    where: { targetId: user.id },
+  }));
+  for (const code of [...oldCodes, ...newCodes]) {
+    assert.equal(serializedPersistence.includes(code), false);
+    assert.equal(serializedAudits.includes(code), false);
+  }
+});
+
+test("restarting incomplete enrollment invalidates prior recovery codes without deleting them", async () => {
+  const first = await startMfaEnrollment({ userId: user.id, encryptionKey });
+  const codes = await regenerateMfaRecoveryCodes({
+    credentialId: first.credential.id,
+    encryptionKey,
+  });
+  const oldRows = await prisma.userMfaRecoveryCode.findMany({
+    where: { credentialId: first.credential.id },
+  });
+  const restartedAt = new Date("2031-02-01T00:00:00.000Z");
+  const restarted = await startMfaEnrollment({
+    userId: user.id,
+    encryptionKey,
+    now: restartedAt,
+  });
+  const storedRows = await prisma.userMfaRecoveryCode.findMany({
+    where: { credentialId: first.credential.id },
+  });
+
+  assert.equal(restarted.credential.id, first.credential.id);
+  assert.deepEqual(storedRows.map(({ id }) => id).sort(), oldRows.map(({ id }) => id).sort());
+  assert.equal(storedRows.every(({ consumedAt }) => consumedAt === null), true);
+  assert.equal(
+    storedRows.every(({ invalidatedAt }) => invalidatedAt?.getTime() === restartedAt.getTime()),
+    true,
+  );
+  await assert.rejects(
+    consumeMfaRecoveryCode({
+      code: codes[0], credentialId: first.credential.id, encryptionKey,
+    }),
+    (error) => error.code === "MFA_CODE_INVALID",
+  );
+});
+
+test("audit failure rolls back recovery-code invalidation, replacement, and credential mutation", async () => {
+  const { credential } = await startMfaEnrollment({ userId: user.id, encryptionKey });
+  const oldCodes = await regenerateMfaRecoveryCodes({ credentialId: credential.id, encryptionKey });
+  const beforeCredential = await prisma.userMfaCredential.findUnique({
+    where: { id: credential.id },
+  });
+  const beforeRows = await prisma.userMfaRecoveryCode.findMany({
+    where: { credentialId: credential.id },
+    orderBy: { id: "asc" },
+  });
+  const failingAuditClient = {
+    $transaction(callback, options) {
+      return prisma.$transaction((tx) => callback(new Proxy(tx, {
+        get(target, property) {
+          if (property === "superAdminAuditLog") {
+            return { create: async () => { throw new Error("audit unavailable"); } };
+          }
+          return Reflect.get(target, property);
+        },
+      })), options);
+    },
+  };
+
+  await assert.rejects(
+    regenerateMfaRecoveryCodes({
+      credentialId: credential.id,
+      encryptionKey,
+      prismaClient: failingAuditClient,
+      now: new Date("2031-03-01T00:00:00.000Z"),
+    }),
+    /audit unavailable/,
+  );
+  const afterCredential = await prisma.userMfaCredential.findUnique({
+    where: { id: credential.id },
+  });
+  const afterRows = await prisma.userMfaRecoveryCode.findMany({
+    where: { credentialId: credential.id },
+    orderBy: { id: "asc" },
+  });
+  assert.equal(afterCredential.recoveryCodesGeneratedAt.getTime(), (
+    beforeCredential.recoveryCodesGeneratedAt.getTime()
+  ));
+  assert.deepEqual(afterRows, beforeRows);
+  await consumeMfaRecoveryCode({
+    code: oldCodes[0], credentialId: credential.id, encryptionKey,
+  });
+});
+
 test("challenges are purpose/authVersion bound, attempt limited, expiring, and single-use", async () => {
   const now = new Date("2030-01-01T00:00:00.000Z");
   const first = await createMfaChallenge({

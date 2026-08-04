@@ -87,24 +87,24 @@ model User {
 }
 
 model PaymentMethodConsent {
-  id                String   @id @default(cuid())
-  idempotencyKey    String   @unique
-  userId            String
-  shopId            String?
-  stripeCustomerId  String
-  stripeCheckoutSessionId String? @unique
-  stripeSetupIntentId String? @unique
-  stripeMandateId   String?
-  paymentMethodId   String?
-  termsVersion      String
-  consentText       String
-  consentedAt       DateTime
-  ipAddress         String?
-  userAgent         String?
-  status            String   @default("PENDING")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                      String   @id @default(cuid())
+  idempotencyKey          String   @unique
+  userId                  String
+  shopId                  String?
+  stripeCustomerId        String
+  stripeCheckoutSessionId String?  @unique
+  stripeSetupIntentId     String?  @unique
+  stripeMandateId         String?
+  paymentMethodId         String?
+  termsVersion            String
+  consentText             String
+  consentedAt             DateTime
+  ipAddress               String?
+  userAgent               String?
+  status                  String   @default("PENDING")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([shopId, createdAt])
@@ -219,41 +219,42 @@ model UserMfaCredential {
   id                       String                @id @default(cuid())
   userId                   String                @unique
   encryptedTotpSecret      String
-  enrollmentStartedAt      DateTime                    @default(now())
+  enrollmentStartedAt      DateTime              @default(now())
   enabledAt                DateTime?
   lastAcceptedTotpCounter  Int?
   recoveryCodesGeneratedAt DateTime?
-  createdAt                DateTime                    @default(now())
-  updatedAt                DateTime                    @updatedAt
-  user                     User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  user                     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   recoveryCodes            UserMfaRecoveryCode[]
 
   @@index([enabledAt])
 }
 
 model UserMfaRecoveryCode {
-  id           String            @id @default(cuid())
-  credentialId String
-  codeDigest   String                  @unique
-  batchId      String
-  consumedAt   DateTime?
-  createdAt    DateTime                @default(now())
-  credential   UserMfaCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  id            String            @id @default(cuid())
+  credentialId  String
+  codeDigest    String            @unique
+  batchId       String
+  consumedAt    DateTime?
+  invalidatedAt DateTime?
+  createdAt     DateTime          @default(now())
+  credential    UserMfaCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
 
-  @@index([credentialId, batchId, consumedAt])
+  @@index([credentialId, batchId, consumedAt, invalidatedAt])
 }
 
 model MfaChallenge {
   id                String              @id @default(cuid())
   userId            String
-  credentialDigest  String                        @unique
+  credentialDigest  String              @unique
   purpose           MfaChallengePurpose
   expiresAt         DateTime
   attemptsRemaining Int
   consumedAt        DateTime?
   authVersion       Int
-  createdAt         DateTime                      @default(now())
-  user              User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime            @default(now())
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, purpose, consumedAt, expiresAt])
   @@index([expiresAt])
