@@ -210,7 +210,9 @@ export function createApp(options = {}) {
     config: authRateLimitConfig,
     store: options.authRateLimitStore,
     now: options.now,
+    auditMfaRateLimit: options.auditMfaRateLimit,
   });
+  app.locals.authRateLimiters = authRateLimiters;
 
   const serviceName = process.env.APP_NAME || "pawnloop-api";
   const env = process.env.APP_ENV || process.env.NODE_ENV || "development";

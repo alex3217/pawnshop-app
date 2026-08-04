@@ -19,9 +19,29 @@ function mfaError(code, message) {
   return error;
 }
 
+function invalidEnrollmentError() {
+  return mfaError("MFA_ENROLLMENT_INVALID", "MFA enrollment confirmation is invalid");
+}
+
+function requireEnrollmentTtl(enrollmentTtlSeconds) {
+  if (
+    !Number.isSafeInteger(enrollmentTtlSeconds)
+    || enrollmentTtlSeconds < 1
+    || enrollmentTtlSeconds > 3600
+  ) {
+    throw new Error("MFA enrollment TTL must be between 1 and 3600 seconds");
+  }
+}
+
 function auditContext(targetUserId, audit = {}) {
   const { actorId, actorEmail, actorRole, requestId, ipAddress, userAgent } = audit || {};
   return { actorId, actorEmail, actorRole, requestId, ipAddress, userAgent, targetUserId };
+}
+
+async function lockMfaEnrollmentUser(tx, userId) {
+  await tx.$executeRaw`
+    SELECT pg_advisory_xact_lock(hashtextextended(${userId}, 0))
+  `;
 }
 
 async function lockCredential(tx, credentialId) {
@@ -36,15 +56,19 @@ async function lockCredential(tx, credentialId) {
 export async function startMfaEnrollment({
   userId,
   encryptionKey,
+  enrollmentTtlSeconds = 600,
   audit,
   prismaClient = prisma,
   now = new Date(),
 }) {
-  const secret = createTotpSecret();
-  const encryptedTotpSecret = encryptTotpSecret(secret, encryptionKey);
-  const credential = await prismaClient.$transaction(async (tx) => {
+  requireEnrollmentTtl(enrollmentTtlSeconds);
+  return prismaClient.$transaction(async (tx) => {
+    await lockMfaEnrollmentUser(tx, userId);
     const rows = await tx.$queryRaw`
-      SELECT "id", "enabledAt" FROM "UserMfaCredential"
+      SELECT "id", "userId", "encryptedTotpSecret", "enrollmentStartedAt",
+             "enabledAt", "lastAcceptedTotpCounter", "recoveryCodesGeneratedAt",
+             "createdAt", "updatedAt"
+      FROM "UserMfaCredential"
       WHERE "userId" = ${userId}
       FOR UPDATE
     `;
@@ -52,38 +76,139 @@ export async function startMfaEnrollment({
     if (existing?.enabledAt) {
       throw mfaError("MFA_ALREADY_ENABLED", "MFA is already enabled");
     }
-    if (existing) {
-      await tx.userMfaRecoveryCode.updateMany({
-        where: {
-          credentialId: existing.id,
-          consumedAt: null,
-          invalidatedAt: null,
-        },
-        data: { invalidatedAt: now },
-      });
+    const enrollmentExpiresAt = existing?.enrollmentStartedAt
+      ? existing.enrollmentStartedAt.getTime() + enrollmentTtlSeconds * 1000
+      : 0;
+    const pendingEnrollmentIsValid = Boolean(existing) && now.getTime() < enrollmentExpiresAt;
+    let secret;
+    let stored;
+    if (pendingEnrollmentIsValid) {
+      secret = decryptTotpSecret(existing.encryptedTotpSecret, encryptionKey);
+      stored = existing;
+    } else {
+      secret = createTotpSecret();
+      const encryptedTotpSecret = encryptTotpSecret(secret, encryptionKey);
+      if (existing) {
+        await tx.userMfaRecoveryCode.updateMany({
+          where: {
+            credentialId: existing.id,
+            consumedAt: null,
+            invalidatedAt: null,
+          },
+          data: { invalidatedAt: now },
+        });
+      }
+      stored = existing
+        ? await tx.userMfaCredential.update({
+          where: { id: existing.id },
+          data: {
+            encryptedTotpSecret,
+            enrollmentStartedAt: now,
+            enabledAt: null,
+            lastAcceptedTotpCounter: null,
+            recoveryCodesGeneratedAt: null,
+          },
+        })
+        : await tx.userMfaCredential.create({
+          data: { userId, encryptedTotpSecret, enrollmentStartedAt: now },
+        });
     }
-    const stored = existing
-      ? await tx.userMfaCredential.update({
-        where: { id: existing.id },
-        data: {
-          encryptedTotpSecret,
-          enrollmentStartedAt: now,
-          enabledAt: null,
-          lastAcceptedTotpCounter: null,
-          recoveryCodesGeneratedAt: null,
-        },
-      })
-      : await tx.userMfaCredential.create({
-        data: { userId, encryptedTotpSecret, enrollmentStartedAt: now },
-      });
     await createMfaAuditEvent(tx, {
       event: "ENROLLMENT_STARTED",
       ...auditContext(userId, audit),
       metadata: { outcome: "started" },
     });
-    return stored;
+    return { credential: stored, secret };
   });
-  return { credential, secret };
+}
+
+export async function confirmMfaEnrollment({
+  userId,
+  token,
+  encryptionKey,
+  enrollmentTtlSeconds = 600,
+  epochSeconds = Math.floor(Date.now() / 1000),
+  audit,
+  prismaClient = prisma,
+  now = new Date(epochSeconds * 1000),
+}) {
+  requireEnrollmentTtl(enrollmentTtlSeconds);
+
+  return prismaClient.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw`
+      SELECT "id", "userId", "encryptedTotpSecret", "enrollmentStartedAt",
+             "enabledAt", "lastAcceptedTotpCounter"
+      FROM "UserMfaCredential"
+      WHERE "userId" = ${userId}
+      FOR UPDATE
+    `;
+    const credential = rows[0];
+    const enrollmentExpiresAt = credential?.enrollmentStartedAt
+      ? credential.enrollmentStartedAt.getTime() + enrollmentTtlSeconds * 1000
+      : 0;
+    if (!credential || credential.enabledAt || now.getTime() >= enrollmentExpiresAt) {
+      throw invalidEnrollmentError();
+    }
+
+    const secret = decryptTotpSecret(credential.encryptedTotpSecret, encryptionKey);
+    const verified = await verifyTotpCode({
+      secret,
+      token,
+      epochSeconds,
+      lastAcceptedCounter: credential.lastAcceptedTotpCounter,
+    });
+    if (!verified.valid) throw invalidEnrollmentError();
+
+    const recoveryCodes = generateRecoveryCodes(10);
+    const batchId = crypto.randomUUID();
+    const recoveryCodeRows = recoveryCodes.map((code) => ({
+      credentialId: credential.id,
+      codeDigest: digestMfaValue(code, encryptionKey),
+      batchId,
+    }));
+
+    await tx.userMfaRecoveryCode.updateMany({
+      where: { credentialId: credential.id, consumedAt: null, invalidatedAt: null },
+      data: { invalidatedAt: now },
+    });
+    await tx.userMfaRecoveryCode.createMany({ data: recoveryCodeRows });
+    const enabledCredential = await tx.userMfaCredential.update({
+      where: { id: credential.id },
+      data: {
+        enabledAt: now,
+        lastAcceptedTotpCounter: verified.counter,
+        recoveryCodesGeneratedAt: now,
+      },
+    });
+    await createMfaAuditEvent(tx, {
+      event: "MFA_ENABLED",
+      ...auditContext(userId, audit),
+      metadata: {
+        outcome: "enabled",
+        purpose: "ENROLLMENT_CONFIRMATION",
+        recoveryCodeCount: 10,
+      },
+    });
+    return { credential: enabledCredential, recoveryCodes };
+  });
+}
+
+export async function recordMfaEnrollmentFailure({
+  userId,
+  reason = "invalid_code",
+  audit,
+  prismaClient = prisma,
+}) {
+  return prismaClient.$transaction((tx) => createMfaAuditEvent(tx, {
+    event: "CHALLENGE_FAILED",
+    ...auditContext(userId, audit),
+    success: false,
+    metadata: {
+      outcome: "failed",
+      reason,
+      purpose: "ENROLLMENT_CONFIRMATION",
+    },
+  }));
 }
 
 export async function acceptMfaTotp({
