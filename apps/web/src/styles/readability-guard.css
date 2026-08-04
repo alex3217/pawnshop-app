@@ -208,6 +208,34 @@ button:not(:disabled) {
   border: 1px solid rgba(148, 163, 184, 0.34) !important;
 }
 
+aside.admin-sidebar .admin-sidebar__link {
+  background: rgba(255, 255, 255, 0.045);
+  color: #dbeafe;
+}
+
+aside.admin-sidebar .admin-sidebar__link:hover {
+  background: #334155;
+  border-color: #93c5fd !important;
+  color: #ffffff;
+}
+
+aside.admin-sidebar .admin-sidebar__link:focus-visible {
+  outline: 3px solid #fbbf24;
+  outline-offset: 2px;
+}
+
+aside.admin-sidebar .admin-sidebar__link--active,
+aside.admin-sidebar .admin-sidebar__link[aria-current="page"] {
+  background: #3730a3;
+  color: #ffffff;
+}
+
+:root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link:hover {
+  background: #334155 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
 :root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link span,
 :root:not([data-theme="dark"]) aside.admin-sidebar .admin-sidebar__link svg {
   color: #f8fafc !important;

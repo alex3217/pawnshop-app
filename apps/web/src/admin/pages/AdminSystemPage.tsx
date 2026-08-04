@@ -6,7 +6,7 @@ export default function AdminSystemPage() {
       eyebrow="Admin system"
       title="System health and platform status"
       description="Monitor API health, configuration readiness, and operational status before running deeper audits."
-      primaryAction={{ label: "Open Super Admin health", to: "/super-admin/system-health" }}
+      primaryAction={{ label: "Open Super Admin health", to: "/super-admin/system" }}
       metrics={[
         { label: "API health", value: "Checked", note: "Uses the live health endpoint." },
         { label: "Auth wiring", value: "Verified", note: "Dev-safe checks validate auth files and proxy wiring." },
@@ -23,7 +23,7 @@ export default function AdminSystemPage() {
         "Keep non-PawnShop ports stopped during PawnShop-only audits.",
       ]}
       links={[
-        { label: "Super Admin system", to: "/super-admin/system-health" },
+        { label: "Super Admin system", to: "/super-admin/system" },
         { label: "Settings", to: "/admin/settings" },
         { label: "Audit", to: "/admin/audit" },
       ]}
