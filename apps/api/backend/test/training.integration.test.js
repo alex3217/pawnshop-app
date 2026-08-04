@@ -5,7 +5,7 @@ import request from "supertest";
 
 const secret = "training-integration-secret-not-for-production";
 const suffix = "@training.integration.test";
-let app; let prisma; let admin; let consumer; let otherConsumer; let owner;
+let app; let prisma; let admin; let consumer; let otherConsumer; let owner; let runTrainingAuditTransaction; let updateTrainingContent;
 const auth = (user) => `Bearer ${jwt.sign({ sub: user.id, email: user.email, role: user.role, authVersion: 0 }, secret)}`;
 
 before(async () => {
@@ -13,6 +13,8 @@ before(async () => {
   const url = new URL(process.env.DATABASE_URL || "");
   assert.ok(["127.0.0.1", "localhost"].includes(url.hostname)); assert.equal(url.pathname, "/pawnshop_test");
   ({ prisma } = await import("../src/lib/prisma.js"));
+  ({ runTrainingAuditTransaction } = await import("../src/controllers/training.controller.js"));
+  ({ updateTrainingContent } = await import("../src/services/training.service.js"));
   const { createApp } = await import("../src/app.js"); app = createApp();
   admin = await prisma.user.create({ data: { name: "Training Admin", email: `admin${suffix}`, password: "test-only", role: "SUPER_ADMIN", emailVerifiedAt: new Date() } });
   consumer = await prisma.user.create({ data: { name: "Training Consumer", email: `consumer${suffix}`, password: "test-only", role: "CONSUMER", emailVerifiedAt: new Date() } });
@@ -106,4 +108,60 @@ test("valid lifecycle publication remains atomic and unpublished content may bec
 
   const video = await create(base("valid-lifecycle-video", { type: "VIDEO", videoUrl: "https://vimeo.com/987654321", steps: [] }));
   assert.equal((await lifecycle(video.body.item.id, "PUBLISHED")).status, 200);
+});
+
+test("step replacement and type changes reconcile only the target lesson", async () => {
+  const target = await create(base("bounded-step-target", {
+    steps: [{ title: "Old one", body: "First old step." }, { title: "Old two", body: "Second old step." }],
+  }));
+  const neighbor = await create(base("bounded-step-neighbor", {
+    steps: [{ title: "Neighbor one", body: "Keep this step." }, { title: "Neighbor two", body: "Keep this too." }],
+  }));
+  assert.equal(target.status, 201); assert.equal(neighbor.status, 201);
+
+  const replaced = await edit(target.body.item.id, {
+    steps: [{ title: "New first", body: "Stored first." }, { title: "New second", body: "Stored second." }, { title: "New third", body: "Stored third." }],
+  });
+  assert.equal(replaced.status, 200);
+  assert.deepEqual(replaced.body.item.steps.map(({ position, title }) => ({ position, title })), [
+    { position: 1, title: "New first" }, { position: 2, title: "New second" }, { position: 3, title: "New third" },
+  ]);
+  const untouched = await prisma.trainingTutorialStep.findMany({ where: { contentId: neighbor.body.item.id }, orderBy: { position: "asc" } });
+  assert.deepEqual(untouched.map(({ position, title }) => ({ position, title })), [
+    { position: 1, title: "Neighbor one" }, { position: 2, title: "Neighbor two" },
+  ]);
+
+  const converted = await edit(target.body.item.id, { type: "VIDEO", videoUrl: "https://vimeo.com/123456789" });
+  assert.equal(converted.status, 200); assert.equal(converted.body.item.steps.length, 0);
+  assert.equal(await prisma.trainingTutorialStep.count({ where: { contentId: target.body.item.id } }), 0);
+  assert.equal(await prisma.trainingTutorialStep.count({ where: { contentId: neighbor.body.item.id } }), 2);
+});
+
+test("failed audit rolls back bounded content and step replacement", async () => {
+  const created = await create(base("bounded-step-rollback", {
+    steps: [{ title: "Original", body: "Must survive rollback." }],
+  }));
+  assert.equal(created.status, 201);
+  const id = created.body.item.id;
+  const auditBefore = await prisma.superAdminAuditLog.count({ where: { targetId: id, success: true } });
+  const failingDb = {
+    $transaction: (callback) => prisma.$transaction((tx) => callback(new Proxy(tx, {
+      get(target, property) {
+        if (property === "superAdminAuditLog") return { create: async () => { throw new Error("audit unavailable"); } };
+        return target[property];
+      },
+    }))),
+  };
+  const req = { user: admin, method: "PATCH", originalUrl: `/api/training/admin/${id}`, requestId: "bounded-rollback" };
+  await assert.rejects(
+    runTrainingAuditTransaction(req, "TRAINING_CONTENT_UPDATED", id, (tx) => updateTrainingContent(admin, id, {
+      title: "Should roll back",
+      steps: [{ title: "Replacement one", body: "Should roll back." }, { title: "Replacement two", body: "Should also roll back." }],
+    }, tx), failingDb),
+    /audit unavailable/,
+  );
+  const unchanged = await prisma.trainingContent.findUnique({ where: { id }, include: { steps: { orderBy: { position: "asc" } } } });
+  assert.equal(unchanged.title, "bounded step rollback");
+  assert.deepEqual(unchanged.steps.map(({ position, title }) => ({ position, title })), [{ position: 1, title: "Original" }]);
+  assert.equal(await prisma.superAdminAuditLog.count({ where: { targetId: id, success: true } }), auditBefore);
 });

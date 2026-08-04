@@ -168,6 +168,12 @@ function nestedWrites(data) {
   return { data, audiences, steps };
 }
 
+async function removeOwnedChildren(model, contentId, children) {
+  for (const child of children) {
+    await model.delete({ where: { id: child.id, contentId } });
+  }
+}
+
 export async function createTrainingContent(actor, input, db = prisma) {
   const normalized = normalizeInput(input);
   const { data, audiences, steps } = nestedWrites(normalized);
@@ -177,21 +183,30 @@ export async function createTrainingContent(actor, input, db = prisma) {
 }
 
 export async function updateTrainingContent(actor, id, input, db = prisma) {
-  const existing = await db.trainingContent.findUnique({ where: { id }, include: { audiences: true, steps: { orderBy: { position: "asc" } } } });
-  if (!existing) throw problem("Training content not found.", 404);
-  if (existing.status === "ARCHIVED") throw problem("Archived content cannot be edited.", 409);
   const normalized = normalizeInput(input, true);
-  const { data, audiences, steps } = nestedWrites(normalized);
-  const finalState = {
-    ...existing,
-    ...data,
-    audiences: audiences ?? existing.audiences,
-    steps: steps ?? existing.steps,
-  };
-  if (existing.status === "PUBLISHED") validatePublishedTrainingContent(finalState);
+  const { data, audiences, steps: requestedSteps } = nestedWrites(normalized);
   const update = async (tx) => {
-    if (audiences) { await tx.trainingAudience.deleteMany({ where: { contentId: id } }); data.audiences = { create: audiences.map((role) => ({ role })) }; }
-    if (steps) { await tx.trainingTutorialStep.deleteMany({ where: { contentId: id } }); data.steps = { create: steps }; }
+    const existing = await tx.trainingContent.findUnique({ where: { id }, include: { audiences: true, steps: { orderBy: { position: "asc" } } } });
+    if (!existing) throw problem("Training content not found.", 404);
+    if (existing.status === "ARCHIVED") throw problem("Archived content cannot be edited.", 409);
+    const steps = data.type === "VIDEO" && existing.type !== "VIDEO" && requestedSteps === undefined
+      ? []
+      : requestedSteps;
+    const finalState = {
+      ...existing,
+      ...data,
+      audiences: audiences ?? existing.audiences,
+      steps: steps ?? existing.steps,
+    };
+    if (existing.status === "PUBLISHED") validatePublishedTrainingContent(finalState);
+    if (audiences) {
+      await removeOwnedChildren(tx.trainingAudience, id, existing.audiences);
+      data.audiences = { create: audiences.map((role) => ({ role })) };
+    }
+    if (steps) {
+      await removeOwnedChildren(tx.trainingTutorialStep, id, existing.steps);
+      data.steps = { create: steps };
+    }
     return tx.trainingContent.update({ where: { id }, data: { ...data, updatedByUserId: actor.id }, include: { audiences: true, steps: { orderBy: { position: "asc" } } } });
   };
   return db === prisma ? prisma.$transaction(update) : update(db);
