@@ -185,15 +185,21 @@
   padding-left: 20px;
 }
 
-.register-submit {
+.register-page .register-form .register-submit {
   min-height: 50px;
   border: 0;
   border-radius: 12px;
   padding: 12px 18px;
   background: #4f46e5;
-  color: #ffffff;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   font-weight: 900;
   cursor: pointer;
+}
+
+.register-submit:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 3px;
 }
 
 .register-submit:hover:not(:disabled) {
