@@ -1,515 +1,300 @@
-// File: apps/web/src/admin/pages/AdminSubscriptionsPage.tsx
-
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { adminApi, type AdminShopRow, type SellerPlanSummary } from "../services/adminApi";
+import {
+  adminApi,
+  type AdminShopRow,
+  type PaginationMeta,
+  type SellerPlanSummary,
+} from "../services/adminApi";
 import "../../styles/admin-subscriptions-readability.css";
 
-type AdminSubscriptionRecord = {
+const SELLER_PLANS = ["FREE", "PRO", "PREMIUM", "ULTRA"] as const;
+const SELLER_STATUSES = ["UNKNOWN", "ACTIVE", "TRIALING", "PAST_DUE", "INCOMPLETE", "INCOMPLETE_EXPIRED", "CANCELED", "PAUSED"] as const;
+const SHOP_PAGE_LIMIT = 25;
+const MONTHLY_INTERVALS = new Set(["MONTHLY", "MONTH"]);
+const YEARLY_INTERVALS = new Set(["YEARLY", "YEAR"]);
+const ACTIVE_RENEWAL_STATUSES = new Set(["ACTIVE", "TRIALING"]);
+const INACTIVE_RENEWAL_STATUSES = new Set(["CANCELED", "UNPAID", "INCOMPLETE_EXPIRED"]);
+
+type SellerSubscription = {
   id: string;
   shopName: string;
   ownerName: string;
+  ownerEmail: string;
   plan: string;
   status: string;
   interval: string;
   currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean | null;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
-  ownerEmail: string;
-  updatedAt: string | null;
-  cancelAtPeriodEnd: boolean;
-  billingMethodPresent: boolean;
-  billingMethodStatus: string;
-  billingMethodLabel: string;
-  connectState: string;
-  connectPayoutsEnabled: boolean;
 };
 
-function formatDate(value: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString();
+type Criteria = { q: string; plan: string; status: string };
+
+type AdminSubscriptionApiRow = {
+  id?: string;
+  shopId?: string;
+  shopName?: string | null;
+  ownerName?: string | null;
+  ownerEmail?: string | null;
+  plan?: string | null;
+  subscriptionPlan?: string | null;
+  status?: string | null;
+  subscriptionStatus?: string | null;
+  interval?: string | null;
+  billingInterval?: string | null;
+  currentPeriodEnd?: string | null;
+  subscriptionCurrentPeriodEnd?: string | null;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+};
+
+function normalized(value: unknown, fallback: string) {
+  return String(value || fallback).trim().toUpperCase() || fallback;
 }
 
-function money(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
-}
-
-function normalizePlan(value: string | null | undefined) {
-  return String(value || "FREE").trim().toUpperCase();
-}
-
-function normalizeStatus(value: string | null | undefined) {
-  const normalized = String(value || "UNKNOWN").trim().toUpperCase();
-  return normalized || "UNKNOWN";
-}
-
-function normalizeSubscription(
-  shop: AdminShopRow,
-  index: number,
-): AdminSubscriptionRecord {
+function mapSubscription(shop: AdminShopRow, index: number): SellerSubscription {
   return {
-    id: String(shop.id || `subscription-${index}`),
+    id: String(shop.id || `seller-subscription-${index}`),
     shopName: String(shop.name || `Shop ${index + 1}`),
-    ownerName: String(shop.ownerName || shop.ownerEmail || "Unknown owner"),
+    ownerName: String(shop.ownerName || "Unknown owner"),
     ownerEmail: String(shop.ownerEmail || ""),
-    plan: normalizePlan(shop.subscriptionPlan),
-    status: normalizeStatus(shop.subscriptionStatus),
-    interval: String(shop.subscriptionBillingInterval || "MONTHLY").toUpperCase(),
+    plan: normalized(shop.subscriptionPlan, "FREE"),
+    status: normalized(shop.subscriptionStatus, "UNKNOWN"),
+    interval: normalized(shop.subscriptionBillingInterval, "UNKNOWN"),
     currentPeriodEnd: shop.subscriptionCurrentPeriodEnd || null,
+    cancelAtPeriodEnd: typeof shop.cancelAtPeriodEnd === "boolean" ? shop.cancelAtPeriodEnd : null,
     stripeCustomerId: shop.stripeCustomerId || null,
     stripeSubscriptionId: shop.stripeSubscriptionId || null,
-    updatedAt: shop.updatedAt || null,
-    cancelAtPeriodEnd: Boolean(shop.cancelAtPeriodEnd),
-    billingMethodPresent: Boolean(shop.billingMethodPresent),
-    billingMethodStatus: String(shop.billingMethodStatus || "NOT_CONFIGURED"),
-    billingMethodLabel: shop.billingMethodPresent ? `${shop.billingMethodBrand || "METHOD"} •••• ${shop.billingMethodLast4 || "----"}` : "Missing",
-    connectState: String(shop.connectState || "NOT_STARTED"),
-    connectPayoutsEnabled: Boolean(shop.connectPayoutsEnabled),
   };
 }
 
-function sortSubscriptions(items: AdminSubscriptionRecord[]) {
-  return [...items].sort((a, b) => {
-    const aTime = a.currentPeriodEnd ? new Date(a.currentPeriodEnd).getTime() : 0;
-    const bTime = b.currentPeriodEnd ? new Date(b.currentPeriodEnd).getTime() : 0;
-    return bTime - aTime;
-  });
+function formatDate(value: string | null) {
+  if (!value) return "Not available";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Not available" : date.toLocaleDateString();
 }
 
-async function fetchAdminSubscriptions(
-  superAdmin: boolean,
-  signal?: AbortSignal,
-): Promise<AdminSubscriptionRecord[]> {
-  const shops = superAdmin
-    ? (await adminApi.getSuperAdminShopsPaged({ limit: 250 }, signal)).rows
-    : await adminApi.getShops(signal);
-  return sortSubscriptions(shops.map(normalizeSubscription));
+function formatPrice(cents: number, interval: string) {
+  const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+  return `${amount}/${YEARLY_INTERVALS.has(interval) ? "year" : "month"}`;
+}
+
+function getPlanPrice(plan: SellerPlanSummary | undefined, interval: string) {
+  if (!plan) return null;
+  const value = MONTHLY_INTERVALS.has(interval)
+    ? plan.monthlyPriceCents
+    : YEARLY_INTERVALS.has(interval)
+      ? plan.yearlyPriceCents
+      : null;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function renewalLabel(subscription: SellerSubscription) {
+  if (INACTIVE_RENEWAL_STATUSES.has(subscription.status)) return "Inactive";
+  if (subscription.plan === "FREE" && !subscription.stripeSubscriptionId) return "Not applicable";
+  if (!SELLER_PLANS.includes(subscription.plan as (typeof SELLER_PLANS)[number]) || subscription.plan === "FREE") return "Unavailable";
+  if (!subscription.stripeSubscriptionId || !ACTIVE_RENEWAL_STATUSES.has(subscription.status) || subscription.cancelAtPeriodEnd === null) return "Unavailable";
+  return subscription.cancelAtPeriodEnd ? "Cancels at period end" : "Renews";
+}
+
+function validatePagination(pagination: PaginationMeta | null, requestedPage: number) {
+  if (!pagination) throw new Error("Seller subscription pagination metadata is invalid.");
+  const { page, limit, total, totalPages, hasNextPage, hasPreviousPage } = pagination;
+  const expectedTotalPages = Number.isSafeInteger(total) && total >= 0
+    ? Math.max(Math.ceil(total / SHOP_PAGE_LIMIT), 1)
+    : -1;
+  if (
+    page !== requestedPage ||
+    limit !== SHOP_PAGE_LIMIT ||
+    !Number.isSafeInteger(total) || total < 0 ||
+    !Number.isSafeInteger(totalPages) || totalPages !== expectedTotalPages ||
+    page > totalPages ||
+    hasNextPage !== (page < totalPages) ||
+    hasPreviousPage !== (page > 1)
+  ) throw new Error("Seller subscription pagination metadata is invalid.");
+  return pagination;
 }
 
 export default function AdminSubscriptionsPage() {
   const superAdmin = useLocation().pathname.startsWith("/super-admin");
-  const [subscriptions, setSubscriptions] = useState<AdminSubscriptionRecord[]>(
-    [],
-  );
-  const [sellerPlans, setSellerPlans] = useState<SellerPlanSummary[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SellerSubscription[]>([]);
+  const [plans, setPlans] = useState<SellerPlanSummary[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
+  const [draftQuery, setDraftQuery] = useState("");
+  const [criteria, setCriteria] = useState<Criteria>({ q: "", plan: "ALL", status: "ALL" });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [planFilter, setPlanFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [query, setQuery] = useState("");
-  const [intervalFilter, setIntervalFilter] = useState("ALL");
-  const [stripeFilter, setStripeFilter] = useState("ALL");
-  const [connectFilter, setConnectFilter] = useState("ALL");
+  const [refreshWarning, setRefreshWarning] = useState("");
+  const requestRef = useRef<{ generation: number; controller: AbortController } | null>(null);
+  const recoveryRefreshRef = useRef(false);
 
-  const load = useCallback(
-    async (
-      mode: "initial" | "refresh" = "initial",
-      signal?: AbortSignal,
-    ) => {
-      if (mode === "refresh") setRefreshing(true);
-      else setLoading(true);
-
+  const load = useCallback(async (refresh = false) => {
+    requestRef.current?.controller.abort();
+    const generation = (requestRef.current?.generation || 0) + 1;
+    const controller = new AbortController();
+    requestRef.current = { generation, controller };
+    if (refresh) {
+      setRefreshing(true);
+      setRefreshWarning("");
+    } else {
+      setRefreshing(false);
+      setLoading(true);
       setError("");
-
-      try {
-        const [data, planRows] = await Promise.all([fetchAdminSubscriptions(superAdmin, signal), superAdmin ? adminApi.getSellerPlans(signal) : Promise.resolve([])]);
-        setSubscriptions(data);
-        setSellerPlans(planRows);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(
-          err instanceof Error ? err.message : "Failed to load subscriptions.",
-        );
-      } finally {
-        if (mode === "refresh") setRefreshing(false);
+    }
+    let recoveryScheduled = false;
+    try {
+      const query = {
+        page,
+        limit: SHOP_PAGE_LIMIT,
+        isDeleted: false,
+        ...(criteria.q ? { q: criteria.q } : {}),
+        ...(criteria.plan !== "ALL" ? { subscriptionPlan: criteria.plan } : {}),
+        ...(criteria.status !== "ALL" ? { subscriptionStatus: criteria.status } : {}),
+      };
+      const [result, planRows] = await Promise.all([
+        superAdmin
+          ? adminApi.getSuperAdminShopsPaged(query, controller.signal)
+          : adminApi.request<{ success: boolean; subscriptions?: AdminSubscriptionApiRow[] }>("/admin/subscriptions", { signal: controller.signal }).then((payload) => ({
+              rows: (payload.subscriptions || []).map((subscription, index): AdminShopRow => ({
+                id: String(subscription.id || subscription.shopId || `admin-subscription-${index}`),
+                name: String(subscription.shopName || `Shop ${index + 1}`),
+                ownerName: subscription.ownerName,
+                ownerEmail: subscription.ownerEmail,
+                subscriptionPlan: subscription.subscriptionPlan ?? subscription.plan,
+                subscriptionStatus: subscription.subscriptionStatus ?? subscription.status,
+                subscriptionBillingInterval: subscription.billingInterval ?? subscription.interval,
+                subscriptionCurrentPeriodEnd: subscription.subscriptionCurrentPeriodEnd ?? subscription.currentPeriodEnd,
+                stripeCustomerId: subscription.stripeCustomerId,
+                stripeSubscriptionId: subscription.stripeSubscriptionId,
+                isDeleted: false,
+              })),
+              pagination: null,
+            })),
+        superAdmin ? adminApi.getSellerPlans(controller.signal) : Promise.resolve([]),
+      ]);
+      if (requestRef.current?.generation !== generation) return;
+      const metadata = result.pagination;
+      const rows = result.rows;
+      const canRecoverInvalidPage = metadata &&
+        metadata.page === page &&
+        metadata.limit === SHOP_PAGE_LIMIT &&
+        Number.isSafeInteger(metadata.total) && metadata.total >= 0 &&
+        Number.isSafeInteger(metadata.totalPages) &&
+        metadata.totalPages === Math.max(Math.ceil(metadata.total / SHOP_PAGE_LIMIT), 1) &&
+        metadata.hasNextPage === false &&
+        metadata.hasPreviousPage === (page > 1) &&
+        page > metadata.totalPages;
+      if (superAdmin && metadata && canRecoverInvalidPage) {
+        const fallbackPage = metadata.totalPages;
+        recoveryRefreshRef.current = refresh;
+        recoveryScheduled = true;
+        setPage(fallbackPage);
+        return;
+      } else if (superAdmin) {
+        validatePagination(metadata, page);
+      }
+      if (requestRef.current?.generation !== generation) return;
+      setSubscriptions(rows.filter((shop) => shop.isDeleted !== true).map(mapSubscription));
+      setPagination(metadata);
+      setPlans(planRows);
+      setRefreshWarning("");
+    } catch (cause) {
+      if (controller.signal.aborted || requestRef.current?.generation !== generation) return;
+      const message = cause instanceof Error ? cause.message : "Failed to load seller subscriptions.";
+      if (refresh) setRefreshWarning(message);
+      else setError(message);
+    } finally {
+      if (requestRef.current?.generation === generation && !recoveryScheduled) {
+        if (refresh) setRefreshing(false);
         else setLoading(false);
       }
-    },
-    [superAdmin],
-  );
+    }
+  }, [criteria, page, superAdmin]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void load("initial", controller.signal);
-    return () => controller.abort();
+    const refresh = recoveryRefreshRef.current;
+    recoveryRefreshRef.current = false;
+    void load(refresh);
+    return () => requestRef.current?.controller.abort();
   }, [load]);
 
-  const filtered = useMemo(() => {
-    return subscriptions.filter((item) => {
-      const planOk = planFilter === "ALL" || item.plan === planFilter;
-      const statusOk = statusFilter === "ALL" || item.status === statusFilter;
-      const intervalOk = intervalFilter === "ALL" || item.interval === intervalFilter;
-      const stripeOk = stripeFilter === "ALL" || (stripeFilter === "READY" && item.billingMethodPresent && item.billingMethodStatus === "READY") || (stripeFilter === "MISSING" && !item.billingMethodPresent) || (stripeFilter === "EXPIRED" && item.billingMethodStatus === "EXPIRED") || (stripeFilter === "SYNC_FAILED" && item.billingMethodStatus === "SYNC_FAILED");
-      const connectOk = connectFilter === "ALL" || (connectFilter === "INCOMPLETE" && ["NOT_STARTED", "SETUP_INCOMPLETE", "RESTRICTED"].includes(item.connectState)) || (connectFilter === "PAYOUTS_DISABLED" && !item.connectPayoutsEnabled) || item.connectState === connectFilter;
-      const q = query.trim().toLowerCase();
-      const searchOk = !q || [item.id, item.shopName, item.ownerName, item.ownerEmail, item.stripeCustomerId, item.stripeSubscriptionId].join(" ").toLowerCase().includes(q);
-      return planOk && statusOk && intervalOk && stripeOk && connectOk && searchOk;
-    });
-  }, [connectFilter, intervalFilter, planFilter, query, statusFilter, stripeFilter, subscriptions]);
+  const visibleSubscriptions = useMemo(() => {
+    if (superAdmin) return subscriptions;
+    const search = criteria.q.toLowerCase();
+    return subscriptions.filter((item) =>
+      (criteria.plan === "ALL" || item.plan === criteria.plan) &&
+      (criteria.status === "ALL" || item.status === criteria.status) &&
+      (!search || [item.id, item.shopName, item.ownerName, item.ownerEmail, item.stripeCustomerId, item.stripeSubscriptionId]
+        .filter(Boolean).join(" ").toLowerCase().includes(search))
+    );
+  }, [criteria, subscriptions, superAdmin]);
+  const planByCode = useMemo(() => new Map(plans.map((plan) => [plan.code, plan])), [plans]);
+  const pageSummary = useMemo(() => ({
+    nonFree: visibleSubscriptions.filter((item) => item.plan !== "FREE").length,
+    attention: visibleSubscriptions.filter((item) => ["PAST_DUE", "INCOMPLETE", "INCOMPLETE_EXPIRED", "UNPAID"].includes(item.status)).length,
+    canceling: visibleSubscriptions.filter((item) => renewalLabel(item) === "Cancels at period end").length,
+  }), [visibleSubscriptions]);
 
-  const summary = useMemo(() => {
-    const byPlan = subscriptions.reduce<Record<string, number>>((acc, item) => {
-      acc[item.plan] = (acc[item.plan] || 0) + 1;
-      return acc;
-    }, {});
+  function applyCriteria(next: Criteria) {
+    setPage(1);
+    setCriteria(next);
+  }
 
-    const planByCode = new Map(sellerPlans.map((plan) => [plan.code, plan]));
-    const mrrCents = subscriptions.filter((item) => ["ACTIVE", "TRIALING"].includes(item.status)).reduce((sum, item) => { const plan = planByCode.get(item.plan); return sum + (item.interval === "YEARLY" || item.interval === "YEAR" ? Math.round(Number(plan?.yearlyPriceCents || 0) / 12) : Number(plan?.monthlyPriceCents || 0)); }, 0);
-    return {
-      total: subscriptions.length,
-      active: subscriptions.filter((item) => item.status === "ACTIVE").length,
-      free: byPlan.FREE || 0,
-      paid: subscriptions.filter((item) => item.plan !== "FREE").length,
-      pastDue: subscriptions.filter((item) => item.status === "PAST_DUE").length,
-      trialing: subscriptions.filter((item) => item.status === "TRIALING").length,
-      paused: subscriptions.filter((item) => item.status === "PAUSED").length,
-      canceling: subscriptions.filter((item) => item.cancelAtPeriodEnd).length,
-      canceled: subscriptions.filter((item) => item.status === "CANCELED").length,
-      incomplete: subscriptions.filter((item) => item.status.startsWith("INCOMPLETE")).length,
-      stripeFailures: subscriptions.filter((item) => item.plan !== "FREE" && !item.stripeSubscriptionId).length,
-      mrrCents,
-    };
-  }, [sellerPlans, subscriptions]);
+  function submitSearch(event: FormEvent) {
+    event.preventDefault();
+    applyCriteria({ ...criteria, q: draftQuery.trim() });
+  }
 
-  const availablePlans = useMemo(
-    () => ["ALL", ...Array.from(new Set(subscriptions.map((item) => item.plan)))],
-    [subscriptions],
-  );
+  function clearFilters() {
+    setDraftQuery("");
+    applyCriteria({ q: "", plan: "ALL", status: "ALL" });
+  }
 
-  const availableStatuses = useMemo(
-    () => [
-      "ALL",
-      ...Array.from(new Set(subscriptions.map((item) => item.status))),
-    ],
-    [subscriptions],
-  );
+  return <div className="seller-subscriptions-page">
+    <header className="seller-subscriptions-hero">
+      <div><p className="seller-subscriptions-eyebrow">{superAdmin ? "Plans & Billing · Seller" : "Admin · Seller"}</p><h1>{superAdmin ? "Seller Subscriptions" : "Seller Subscriptions & Plans"}</h1><p>Shop billing records are separate from buyer memberships. Review the seller plan, lifecycle status, renewal timing, and administrative Stripe references.</p></div>
+      <div className="seller-subscriptions-actions">{superAdmin && <Link className="btn btn-secondary" to="/super-admin/plans/seller">Seller Plan Control</Link>}{superAdmin && <Link className="btn btn-secondary" to="/super-admin/buyer-subscriptions">Buyer Subscriptions</Link>}<button className="btn btn-secondary" type="button" disabled={loading || refreshing} onClick={() => void load(true)}>{refreshing ? "Refreshing…" : "Refresh"}</button></div>
+    </header>
 
-  return (
-    <div className="admin-subscriptions-readability" style={styles.page}>
-      <div style={styles.hero}>
-        <div>
-          <div style={styles.eyebrow}>{superAdmin ? "Plans & Billing · Seller" : "Admin"}</div>
-          <h1 style={styles.title}>{superAdmin ? "Seller Subscriptions" : "Subscriptions"}</h1>
-          <p style={styles.subtitle}>
-            Monitor seller plan coverage, billing status, Stripe references, and
-            renewal timing.
-          </p>
-        </div>
+    <section className="seller-subscriptions-summary" aria-label="Seller subscription summary">
+      <div><span>Total matching sellers</span><strong>{superAdmin ? pagination?.total ?? 0 : visibleSubscriptions.length}</strong></div>
+      <div><span>This page · Non-free</span><strong>{pageSummary.nonFree}</strong></div>
+      <div><span>This page · Needs attention</span><strong>{pageSummary.attention}</strong></div>
+      {superAdmin
+        ? <div><span>This page · Canceling</span><strong>{pageSummary.canceling}</strong></div>
+        : <div><span>Cancellation state</span><strong>Not available</strong></div>}
+    </section>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {superAdmin ? <><Link className="btn btn-secondary" to="/super-admin/plans/seller">Seller Plan Control</Link><Link className="btn btn-secondary" to="/super-admin/revenue">Revenue</Link><Link className="btn btn-secondary" to="/super-admin/audit?q=SELLER_PLAN">Billing audit</Link></> : null}
-        <button
-          type="button"
-          onClick={() => void load("refresh")}
-          disabled={loading || refreshing}
-          style={{
-            ...styles.actionButton,
-            ...(loading || refreshing ? styles.actionButtonDisabled : {}),
-          }}
-        >
-          {refreshing ? "Refreshing..." : "Refresh"}
-        </button></div>
-      </div>
+    <form className="seller-subscriptions-filters" aria-label="Seller subscription filters" onSubmit={submitSearch}>
+      <label>Search<input value={draftQuery} onChange={(event) => setDraftQuery(event.target.value)} placeholder={superAdmin ? "Shop, owner, email, address, or Stripe ID" : "Shop, owner, email, or Stripe ID"} /></label>
+      <button className="btn btn-secondary" type="submit">Search</button>
+      <label>Seller plan<select value={criteria.plan} onChange={(event) => applyCriteria({ ...criteria, plan: event.target.value })}><option value="ALL">All plans</option>{SELLER_PLANS.map((plan) => <option key={plan}>{plan}</option>)}</select></label>
+      <label>Status<select value={criteria.status} onChange={(event) => applyCriteria({ ...criteria, status: event.target.value })}><option value="ALL">All statuses</option>{SELLER_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label>
+      <button className="btn btn-secondary" type="button" onClick={clearFilters} disabled={!draftQuery && !criteria.q && criteria.plan === "ALL" && criteria.status === "ALL"}>Clear filters</button>
+    </form>
 
-      <div style={styles.statsGrid}>
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Total subscriptions</div>
-          <div style={styles.statValue}>{summary.total}</div>
-        </div>
-        {superAdmin ? <><div style={styles.statCard}><div style={styles.statLabel}>Trialing / canceling</div><div style={styles.statValue}>{summary.trialing} / {summary.canceling}</div></div><div style={styles.statCard}><div style={styles.statLabel}>Paused / canceled</div><div style={styles.statValue}>{summary.paused} / {summary.canceled}</div></div><div style={styles.statCard}><div style={styles.statLabel}>Incomplete / sync failures</div><div style={styles.statValue}>{summary.incomplete} / {summary.stripeFailures}</div></div><div style={styles.statCard}><div style={styles.statLabel}>Seller MRR / ARR</div><div style={styles.statValue}>{money(summary.mrrCents)} / {money(summary.mrrCents * 12)}</div></div></> : null}
+    {refreshWarning && <div className="seller-subscriptions-warning" role="alert"><strong>Refresh failed.</strong><span>{refreshWarning} Existing subscription data is still shown.</span><button className="btn btn-secondary" type="button" onClick={() => void load(true)}>Retry refresh</button></div>}
+    {error && <div className="seller-subscriptions-error" role="alert"><strong>Unable to load seller subscriptions.</strong><span>{error}</span><button className="btn btn-secondary" type="button" onClick={() => void load(false)}>Try again</button></div>}
+    {loading ? <div className="seller-subscriptions-state" role="status">Loading seller subscriptions…</div> : !error && visibleSubscriptions.length === 0 ? <div className="seller-subscriptions-state"><strong>No matching seller subscriptions</strong><span>Clear or change the current filters, or try again later.</span>{(criteria.q || criteria.plan !== "ALL" || criteria.status !== "ALL") && <button className="btn btn-secondary" type="button" onClick={clearFilters}>Clear filters</button>}</div> : null}
 
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Active</div>
-          <div style={styles.statValue}>{summary.active}</div>
-        </div>
+    {!loading && !error && visibleSubscriptions.length > 0 && <section className="seller-subscriptions-list" aria-label={`${visibleSubscriptions.length} seller subscriptions on this page`}>
+      {visibleSubscriptions.map((subscription) => {
+        const cents = getPlanPrice(planByCode.get(subscription.plan), subscription.interval);
+        return <article className="seller-subscription-card" key={subscription.id}>
+          <div className="seller-subscription-heading"><div><h2>{subscription.shopName}</h2><p>{subscription.ownerName}{subscription.ownerEmail ? ` · ${subscription.ownerEmail}` : ""}</p></div><span className="seller-subscription-status">{subscription.status}</span></div>
+          <dl><div><dt>Seller plan</dt><dd>{subscription.plan}</dd></div><div><dt>Price</dt><dd>{cents === null ? "Not available" : formatPrice(cents, subscription.interval)}</dd></div><div><dt>Billing interval</dt><dd>{subscription.interval}</dd></div><div><dt>Current period ends</dt><dd>{formatDate(subscription.currentPeriodEnd)}</dd></div><div><dt>Renewal</dt><dd>{renewalLabel(subscription)}</dd></div><div><dt>Trial</dt><dd>{subscription.status === "TRIALING" ? "Trialing · end date unavailable" : "Not trialing"}</dd></div></dl>
+          {superAdmin && <details><summary>Administrative identifiers</summary><dl><div><dt>Stripe customer</dt><dd>{subscription.stripeCustomerId || "Not linked"}</dd></div><div><dt>Stripe subscription</dt><dd>{subscription.stripeSubscriptionId || "Not linked"}</dd></div></dl></details>}
+          {superAdmin && <p className="seller-subscription-lifecycle-note">Cancellation and renewal changes require a separate Stripe-backed seller lifecycle endpoint and are read-only here.</p>}
+          <div className="seller-subscriptions-actions">{superAdmin && <Link className="btn btn-secondary" to={`/super-admin/shops?q=${encodeURIComponent(subscription.shopName)}`}>Open shop</Link>}{superAdmin && <Link className="btn btn-secondary" to={`/super-admin/audit?q=${encodeURIComponent(subscription.id)}`}>Audit history</Link>}</div>
+        </article>;
+      })}
+    </section>}
 
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Free plans</div>
-          <div style={styles.statValue}>{summary.free}</div>
-        </div>
-
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Paid plans</div>
-          <div style={styles.statValue}>{summary.paid}</div>
-        </div>
-
-        <div style={styles.statCard}>
-          <div style={styles.statLabel}>Past due</div>
-          <div style={styles.statValue}>{summary.pastDue}</div>
-        </div>
-      </div>
-
-      <div style={styles.filterCard}>
-        <label style={styles.filterLabel}>Search<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Shop, owner, email, subscription, or Stripe customer" style={styles.select} /></label>
-        <label style={styles.filterLabel}>
-          Plan
-          <select
-            value={planFilter}
-            onChange={(event) => setPlanFilter(event.target.value)}
-            style={styles.select}
-          >
-            {availablePlans.map((plan) => (
-              <option key={plan} value={plan}>
-                {plan}
-              </option>
-            ))}
-          </select>
-        </label>
-        {superAdmin ? <><label style={styles.filterLabel}>Interval<select value={intervalFilter} onChange={(event) => setIntervalFilter(event.target.value)} style={styles.select}><option>ALL</option><option>MONTHLY</option><option>YEARLY</option></select></label><label style={styles.filterLabel}>Billing method<select value={stripeFilter} onChange={(event) => setStripeFilter(event.target.value)} style={styles.select}><option>ALL</option><option>READY</option><option>MISSING</option><option>EXPIRED</option><option>SYNC_FAILED</option></select></label><label style={styles.filterLabel}>Connect status<select value={connectFilter} onChange={(event) => setConnectFilter(event.target.value)} style={styles.select}><option>ALL</option><option>INCOMPLETE</option><option>PAYOUTS_DISABLED</option><option>PAYOUTS_ENABLED</option></select></label></> : null}
-
-        <label style={styles.filterLabel}>
-          Status
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            style={styles.select}
-          >
-            {availableStatuses.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {loading ? (
-        <div style={styles.stateCard}>Loading subscriptions...</div>
-      ) : error ? (
-        <div style={styles.errorCard}>
-          <div style={styles.emptyTitle}>Unable to load subscriptions</div>
-          <p style={styles.emptyText}>{error}</p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div style={styles.stateCard}>
-          <div style={styles.emptyTitle}>No subscriptions found</div>
-          <p style={styles.emptyText}>
-            No subscriptions matched the current filters.
-          </p>
-        </div>
-      ) : (
-        <div style={styles.list}>
-          {filtered.map((subscription) => (
-            <article key={subscription.id} style={styles.card}>
-              <div style={styles.cardHeader}>
-                <div>
-                  <h2 style={styles.cardTitle}>{subscription.shopName}</h2>
-                  <div style={styles.metaRow}>
-                    <span>{subscription.ownerName}</span>
-                    <span>•</span>
-                    <span>{subscription.interval}</span>
-                  </div>
-                </div>
-
-                <div style={styles.statusPill}>{subscription.status}</div>
-              </div>
-              {superAdmin ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}><details><summary className="btn btn-secondary">Open details</summary><div className="mt-2 rounded-xl border p-3 text-sm">{subscription.ownerName} ({subscription.ownerEmail}) · {subscription.plan} · {subscription.status}<br />Stripe subscription: {subscription.stripeSubscriptionId || "Not linked"}<br />Stripe customer: {subscription.stripeCustomerId || "Not linked"}</div></details><Link className="btn btn-secondary" to={`/super-admin/shops?q=${encodeURIComponent(subscription.shopName)}`}>View shop and owner</Link><Link className="btn btn-secondary" to={`/super-admin/shops?q=${encodeURIComponent(subscription.shopName)}`}>Manage subscription</Link><Link className="btn btn-secondary" to={`/super-admin/audit?q=${encodeURIComponent(subscription.id)}`}>Audit history</Link></div> : null}
-
-              <div style={styles.detailGrid}>
-                <div>
-                  <div style={styles.detailLabel}>Plan</div>
-                  <div style={styles.detailValue}>{subscription.plan}</div>
-                </div>
-
-                <div>
-                  <div style={styles.detailLabel}>Current period end</div>
-                  <div style={styles.detailValue}>
-                    {formatDate(subscription.currentPeriodEnd)}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={styles.detailLabel}>Stripe customer</div>
-                  <div style={styles.detailValue}>
-                    {subscription.stripeCustomerId || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={styles.detailLabel}>Stripe subscription</div>
-                  <div style={styles.detailValue}>
-                    {subscription.stripeSubscriptionId || "—"}
-                  </div>
-                </div>
-                {superAdmin ? <><div><div style={styles.detailLabel}>Billing method</div><div style={styles.detailValue}>{subscription.billingMethodLabel} · {subscription.billingMethodStatus}</div></div><div><div style={styles.detailLabel}>Connect payouts</div><div style={styles.detailValue}>{subscription.connectState} · {subscription.connectPayoutsEnabled ? "Enabled" : "Disabled"}</div></div></> : null}
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+    {!loading && !error && pagination && <nav className="seller-subscriptions-pagination" aria-label="Seller subscription pages"><button className="btn btn-secondary" type="button" disabled={!pagination.hasPreviousPage} onClick={() => setPage((value) => Math.max(value - 1, 1))}>Previous</button><span aria-live="polite">Page {pagination.page} of {pagination.totalPages}</span><button className="btn btn-secondary" type="button" disabled={!pagination.hasNextPage} onClick={() => setPage((value) => value + 1)}>Next</button></nav>}
+  </div>;
 }
-
-const styles: Record<string, CSSProperties> = {
-  page: { display: "grid", gap: 20 },
-  hero: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  eyebrow: {
-    fontSize: 12,
-    fontWeight: 800,
-    letterSpacing: "0.1em",
-    textTransform: "uppercase",
-    opacity: 0.72,
-    marginBottom: 8,
-  },
-  title: {
-    margin: 0,
-    fontSize: "clamp(2rem, 4vw, 2.6rem)",
-    fontWeight: 900,
-  },
-  subtitle: {
-    margin: "10px 0 0",
-    maxWidth: 760,
-    color: "rgba(238,242,255,0.78)",
-    lineHeight: 1.6,
-  },
-  actionButton: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#eef2ff",
-    borderRadius: 12,
-    padding: "10px 14px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  actionButtonDisabled: {
-    opacity: 0.6,
-    cursor: "not-allowed",
-  },
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 16,
-  },
-  statCard: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    borderRadius: 18,
-    padding: 18,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: "rgba(238,242,255,0.7)",
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 900,
-  },
-  filterCard: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    borderRadius: 18,
-    padding: 16,
-  },
-  filterLabel: {
-    display: "grid",
-    gap: 8,
-    fontSize: 13,
-    fontWeight: 800,
-    color: "rgba(238,242,255,0.78)",
-  },
-  select: {
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(15,23,42,0.9)",
-    color: "#eef2ff",
-    borderRadius: 12,
-    padding: "10px 12px",
-  },
-  stateCard: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    borderRadius: 18,
-    padding: 22,
-  },
-  errorCard: {
-    border: "1px solid rgba(255,120,120,0.25)",
-    background: "rgba(255,120,120,0.09)",
-    color: "#ffd4d4",
-    borderRadius: 18,
-    padding: 22,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 800,
-    marginBottom: 8,
-  },
-  emptyText: {
-    margin: 0,
-    color: "rgba(238,242,255,0.76)",
-  },
-  list: {
-    display: "grid",
-    gap: 16,
-  },
-  card: {
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    borderRadius: 18,
-    padding: 20,
-    display: "grid",
-    gap: 18,
-  },
-  cardHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  cardTitle: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 800,
-  },
-  metaRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    marginTop: 8,
-    color: "rgba(238,242,255,0.72)",
-    fontSize: 14,
-  },
-  statusPill: {
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    padding: "10px 14px",
-    background: "rgba(34,197,94,0.18)",
-    border: "1px solid rgba(74,222,128,0.3)",
-    fontWeight: 900,
-  },
-  detailGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 14,
-  },
-  detailLabel: {
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(238,242,255,0.6)",
-    marginBottom: 6,
-  },
-  detailValue: {
-    fontSize: 15,
-    fontWeight: 700,
-    overflowWrap: "anywhere",
-  },
-};

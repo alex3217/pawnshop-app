@@ -195,6 +195,31 @@ function buildSearchFilter(fields, value) {
   };
 }
 
+function buildShopSearchFilter(value) {
+  const search = normalizeString(value);
+  if (!search) return undefined;
+
+  const contains = { contains: search, mode: "insensitive" };
+  return {
+    OR: [
+      { name: contains },
+      { address: contains },
+      { stripeCustomerId: contains },
+      { stripeSubscriptionId: contains },
+      {
+        owner: {
+          is: {
+            OR: [
+              { name: contains },
+              { email: contains },
+            ],
+          },
+        },
+      },
+    ],
+  };
+}
+
 function normalizeBuyerPlanCode(value, fallback = "FREE") {
   const planCode = normalizeUpper(value, fallback);
   const allowedPlanCodes = BUYER_PLAN_CODES;
@@ -1375,11 +1400,14 @@ export async function listSuperAdminShops(req, res) {
     const { page, limit, skip } = paginationFromQuery(req.query);
     const deleted = normalizeBoolean(req.query?.isDeleted);
     const plan = normalizeUpper(req.query?.subscriptionPlan);
-    const searchFilter = buildSearchFilter(["name", "address"], req.query?.q);
+    const rawStatus = normalizeString(req.query?.subscriptionStatus);
+    const status = rawStatus ? normalizeSubscriptionStatus(rawStatus) : "";
+    const searchFilter = buildShopSearchFilter(req.query?.q);
 
     const where = {
       ...(typeof deleted === "boolean" ? { isDeleted: deleted } : {}),
       ...(plan ? { subscriptionPlan: plan } : {}),
+      ...(status ? { subscriptionStatus: status } : {}),
       ...(searchFilter || {}),
     };
 
@@ -1387,7 +1415,7 @@ export async function listSuperAdminShops(req, res) {
       prisma.pawnShop.count({ where }),
       prisma.pawnShop.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip,
         take: limit,
         include: {

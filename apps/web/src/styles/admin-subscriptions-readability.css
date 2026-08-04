@@ -1,196 +1,43 @@
-/* Admin Subscriptions readability patch.
-   Imported only by AdminSubscriptionsPage.tsx.
-   Light-mode focused because dark mode is already low failure. */
-
-:root:not([data-theme="dark"]) .page-card .section-title,
-:root:not([data-theme="dark"]) .page-card .toolbar .section-title,
-:root:not([data-theme="dark"]) .page-card h1,
-:root:not([data-theme="dark"]) .page-card h2,
-:root:not([data-theme="dark"]) .page-card h3,
-:root:not([data-theme="dark"]) .page-card strong,
-:root:not([data-theme="dark"]) .admin-table strong {
-  color: #0f172a !important;
+.seller-subscriptions-page { display: grid; min-width: 0; max-width: 100%; gap: 1.25rem; color: var(--foreground); }
+.seller-subscriptions-hero { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.seller-subscriptions-hero > div:first-child { max-width: 48rem; }
+.seller-subscriptions-hero h1 { margin: 0; font-size: clamp(2rem, 5vw, 2.75rem); }
+.seller-subscriptions-hero p { line-height: 1.6; color: var(--muted-foreground); }
+.seller-subscriptions-eyebrow { margin: 0 0 .35rem; font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.seller-subscriptions-actions { display: flex; min-width: 0; flex-wrap: wrap; gap: .625rem; }
+.seller-subscriptions-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+.seller-subscriptions-summary > div, .seller-subscriptions-filters, .seller-subscription-card, .seller-subscriptions-state, .seller-subscriptions-error, .seller-subscriptions-warning { border: 1px solid var(--border); border-radius: 1rem; background: var(--background); padding: 1rem; }
+.seller-subscriptions-summary span, .seller-subscription-card dt { color: var(--muted-foreground); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.seller-subscriptions-summary strong { display: block; margin-top: .3rem; font-size: 1.75rem; }
+.seller-subscriptions-filters { display: grid; grid-template-columns: minmax(14rem, 2fr) repeat(2, minmax(10rem, 1fr)) auto; align-items: end; gap: .75rem; }
+.seller-subscriptions-filters label { display: grid; gap: .35rem; font-size: .85rem; font-weight: 700; }
+.seller-subscriptions-filters input, .seller-subscriptions-filters select { min-height: 44px; width: 100%; border: 1px solid var(--border); border-radius: .65rem; background: var(--background); color: var(--foreground); padding: .6rem .75rem; }
+.seller-subscriptions-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.seller-subscription-card { display: grid; min-width: 0; gap: 1rem; }
+.seller-subscription-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.seller-subscription-heading h2 { margin: 0; font-size: 1.25rem; }
+.seller-subscription-heading p { margin: .35rem 0 0; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.seller-subscription-status { border: 1px solid var(--border); border-radius: 999px; padding: .4rem .65rem; font-size: .75rem; font-weight: 800; }
+.seller-subscription-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin: 0; }
+.seller-subscription-card dd { margin: .2rem 0 0; font-weight: 700; overflow-wrap: anywhere; }
+.seller-subscription-card details { border-top: 1px solid var(--border); padding-top: .8rem; }
+.seller-subscription-card summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+.seller-subscriptions-state { display: grid; gap: .5rem; color: var(--muted-foreground); }
+.seller-subscriptions-state strong { color: var(--foreground); font-size: 1.1rem; }
+.seller-subscription-lifecycle-note { margin: 0; color: var(--muted-foreground); font-size: .875rem; line-height: 1.5; }
+.seller-subscriptions-error, .seller-subscriptions-warning { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.seller-subscriptions-error { border-color: #dc2626; }
+.seller-subscriptions-warning { border-color: #d97706; }
+.seller-subscriptions-error span, .seller-subscriptions-warning span { flex: 1 1 16rem; }
+.seller-subscriptions-pagination { display: flex; min-width: 0; align-items: center; justify-content: center; flex-wrap: wrap; gap: .75rem; }
+.seller-subscriptions-pagination span { font-weight: 700; }
+@media (max-width: 800px) { .seller-subscriptions-summary, .seller-subscriptions-list { grid-template-columns: 1fr 1fr; } .seller-subscriptions-filters { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) {
+  .admin-layout:has(.seller-subscriptions-page) > div { padding-inline: 12px !important; }
+  .admin-layout:has(.seller-subscriptions-page) .admin-layout__header { flex-wrap: wrap; min-width: 0; }
+  .admin-layout:has(.seller-subscriptions-page) > div > div:has(> aside.admin-sidebar) { flex-direction: column; min-width: 0; }
+  .admin-layout:has(.seller-subscriptions-page) aside.admin-sidebar { position: static !important; width: 100% !important; min-width: 0 !important; max-height: none !important; padding-right: 0 !important; }
+  .admin-layout:has(.seller-subscriptions-page) main { width: 100%; min-width: 0; }
+  .seller-subscriptions-summary, .seller-subscriptions-list, .seller-subscriptions-filters, .seller-subscription-card dl { grid-template-columns: minmax(0, 1fr); }
+  .seller-subscriptions-actions, .seller-subscriptions-actions .btn { width: 100%; box-sizing: border-box; }
 }
-
-:root:not([data-theme="dark"]) .page-card .section-subtitle,
-:root:not([data-theme="dark"]) .page-card .toolbar .section-subtitle,
-:root:not([data-theme="dark"]) .page-card p,
-:root:not([data-theme="dark"]) .page-card span,
-:root:not([data-theme="dark"]) .page-card label,
-:root:not([data-theme="dark"]) .admin-muted,
-:root:not([data-theme="dark"]) .admin-muted.small,
-:root:not([data-theme="dark"]) .admin-table .admin-muted,
-:root:not([data-theme="dark"]) .admin-table .admin-muted.small {
-  color: #334155 !important;
-}
-
-:root:not([data-theme="dark"]) .admin-control-input,
-:root:not([data-theme="dark"]) .admin-control-textarea,
-:root:not([data-theme="dark"]) .admin-control-bar input,
-:root:not([data-theme="dark"]) .admin-control-bar textarea,
-:root:not([data-theme="dark"]) .admin-control-bar select {
-  background: #ffffff !important;
-  color: #0f172a !important;
-  border-color: #64748b !important;
-}
-
-:root:not([data-theme="dark"]) .admin-control-input::placeholder,
-:root:not([data-theme="dark"]) .admin-control-textarea::placeholder,
-:root:not([data-theme="dark"]) .admin-control-bar input::placeholder,
-:root:not([data-theme="dark"]) .admin-control-bar textarea::placeholder {
-  color: #475569 !important;
-  opacity: 1 !important;
-}
-
-:root:not([data-theme="dark"]) .admin-table th,
-:root:not([data-theme="dark"]) .admin-table td {
-  color: #0f172a !important;
-}
-
-:root:not([data-theme="dark"]) .admin-table .admin-muted {
-  color: #334155 !important;
-}
-
-:root:not([data-theme="dark"]) .admin-table .admin-muted.small {
-  color: #475569 !important;
-}
-
-:root:not([data-theme="dark"]) .admin-table tbody tr {
-  background: #ffffff;
-}
-
-:root:not([data-theme="dark"]) .admin-table tbody tr:nth-child(even) {
-  background: #f8fafc;
-}
-
-:root:not([data-theme="dark"]) .super-admin-row-actions .btn.btn-secondary,
-:root:not([data-theme="dark"]) .admin-table .btn.btn-secondary,
-:root:not([data-theme="dark"]) .btn.btn-secondary,
-:root:not([data-theme="dark"]) button.btn.btn-secondary,
-:root:not([data-theme="dark"]) a.btn.btn-secondary {
-  background: #ffffff !important;
-  border: 1px solid #64748b !important;
-  color: #0f172a !important;
-  font-weight: 800;
-}
-
-:root:not([data-theme="dark"]) .btn.btn-primary,
-:root:not([data-theme="dark"]) button.btn.btn-primary,
-:root:not([data-theme="dark"]) a.btn.btn-primary {
-  background: #1d4ed8 !important;
-  border-color: #1d4ed8 !important;
-  color: #ffffff !important;
-  font-weight: 800;
-}
-
-:root:not([data-theme="dark"]) .badge,
-:root:not([data-theme="dark"]) .pill,
-:root:not([data-theme="dark"]) .tag,
-:root:not([data-theme="dark"]) .status,
-:root:not([data-theme="dark"]) [class*="badge"],
-:root:not([data-theme="dark"]) [class*="pill"],
-:root:not([data-theme="dark"]) [class*="status"] {
-  color: #0f172a !important;
-  background: #e2e8f0;
-  border-color: #94a3b8;
-  font-weight: 800;
-}
-
-/* Dark mode: only strengthen placeholders. */
-:root[data-theme="dark"] .admin-control-input::placeholder,
-:root[data-theme="dark"] .admin-control-textarea::placeholder,
-:root[data-theme="dark"] .admin-control-bar input::placeholder,
-:root[data-theme="dark"] .admin-control-bar textarea::placeholder,
-.dark .admin-control-input::placeholder,
-.dark .admin-control-textarea::placeholder,
-.dark .admin-control-bar input::placeholder,
-.dark .admin-control-bar textarea::placeholder {
-  color: #cbd5e1 !important;
-  opacity: 1 !important;
-}
-
-/* Admin Subscriptions readability polish.
-   Scoped to the subscriptions page plus admin sidebar surfaces shown on that route. */
-
-:root:not([data-theme="dark"]) .admin-subscriptions-readability,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability [style*="rgba"],
-:root:not([data-theme="dark"]) .admin-subscriptions-readability [style*="linear-gradient"] {
-  background-color: #0f172a !important;
-  color: #f8fafc !important;
-}
-
-:root:not([data-theme="dark"]) .admin-subscriptions-readability h1,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability h2,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability h3,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability strong,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability b,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability .section-title,
-:root:not([data-theme="dark"]) .admin-sidebar .section-title {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-}
-
-:root:not([data-theme="dark"]) .admin-subscriptions-readability p,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability span,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability small,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability label,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability div,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability .section-subtitle,
-:root:not([data-theme="dark"]) .admin-sidebar,
-:root:not([data-theme="dark"]) .admin-sidebar p,
-:root:not([data-theme="dark"]) .admin-sidebar span,
-:root:not([data-theme="dark"]) .admin-sidebar div,
-:root:not([data-theme="dark"]) .admin-sidebar .section-subtitle {
-  color: #e2e8f0 !important;
-  -webkit-text-fill-color: #e2e8f0 !important;
-}
-
-:root:not([data-theme="dark"]) .admin-subscriptions-readability button,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability .btn,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability a {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  background-color: #1d4ed8 !important;
-  border-color: #93c5fd !important;
-  font-weight: 800 !important;
-}
-
-:root:not([data-theme="dark"]) .admin-subscriptions-readability select,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability input,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability textarea {
-  background-color: #020617 !important;
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
-  border-color: #94a3b8 !important;
-}
-
-:root:not([data-theme="dark"]) .admin-subscriptions-readability input::placeholder,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability textarea::placeholder {
-  color: #cbd5e1 !important;
-  opacity: 1 !important;
-}
-
-:root:not([data-theme="dark"]) .admin-subscriptions-readability table,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability thead,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability tbody,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability tr,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability td,
-:root:not([data-theme="dark"]) .admin-subscriptions-readability th {
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
-}
-
-/* Admin Subscriptions shell tap-target polish.
-   Keeps shell Home/Admin links above tiny-control thresholds only on Admin Subscriptions. */
-body:has(.admin-subscriptions-readability) a[href="/"],
-body:has(.admin-subscriptions-readability) a[href="/admin"] {
-  min-height: 44px !important;
-  min-width: 44px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 10px 12px !important;
-  box-sizing: border-box !important;
-  line-height: 1.15 !important;
-}
-/* END Admin Subscriptions shell tap-target polish. */
