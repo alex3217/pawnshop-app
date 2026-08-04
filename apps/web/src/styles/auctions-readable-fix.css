@@ -35,6 +35,12 @@
   text-transform: uppercase;
 }
 
+.auctions-kicker,
+.auctions-role-eyebrow {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .auctions-header h1,
 .auctions-role-panel h2,
 .auctions-state-card h2,
@@ -146,9 +152,20 @@
   border-color: #3b82f6;
 }
 
-.auction-status-tab.active {
+.auction-status-tab:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 3px;
+}
+
+.auction-status-tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.auctions-page .auctions-status-tabs .auction-status-tab.active {
   border-color: #2563eb;
-  color: #ffffff;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   background: #2563eb;
 }
 
@@ -391,8 +408,12 @@
   background: #1e293b;
 }
 
-:root[data-theme="dark"] .auction-status-tab.active {
-  color: #ffffff;
+:root[data-theme="dark"]
+  .auctions-page
+  .auctions-status-tabs
+  .auction-status-tab.active {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   background: #4f46e5;
 }
 
@@ -638,4 +659,3 @@
     order: -1;
   }
 }
-
