@@ -1258,12 +1258,25 @@ body:not(.dark) .locator-use-location-readable::before {
 }
 /* END final Item Locator forced visible use-location label. */
 
-/* Mobile Item Locator: compact vertical rhythm, readable heading, and cards
-   that grow to fit their secondary labels. */
-.site-main .item-locator-page .locator-hero h1 {
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+/* Item Locator headings must opt out of the global gradient text treatment.
+   Keep these selectors page-scoped and theme-aware so the light hero and
+   empty-state cards never inherit a forced white text fill. */
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-hero h1,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-empty h2,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-error h2 {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
 }
+
+:root[data-theme="dark"] .site-main .item-locator-page .locator-hero h1,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-empty h2,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-error h2 {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+/* Mobile Item Locator: compact vertical rhythm and cards that grow to fit
+   their secondary labels. */
 
 @media (max-width: 767px) {
   .item-locator-page {

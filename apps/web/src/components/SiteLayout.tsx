@@ -1,6 +1,6 @@
 // File: apps/web/src/components/SiteLayout.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   getAuthRole,
@@ -210,6 +210,7 @@ function getWorkspaceLabel(
 }
 
 export default function SiteLayout() {
+  const mobileMenuRef = useRef<HTMLDetailsElement>(null);
   const navigate = useNavigate();
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -523,13 +524,18 @@ export default function SiteLayout() {
                 </>
               )}
 
-              <details className="site-mobile-menu">
+              <details ref={mobileMenuRef} className="site-mobile-menu">
                 <summary aria-label="Toggle navigation menu">
                   <span aria-hidden="true">☰</span>
                   <span>Menu</span>
                 </summary>
                 <div className="site-mobile-menu-panel">
-                  <nav aria-label="Mobile navigation">
+                  <nav
+                    aria-label="Mobile navigation"
+                    onClick={() => {
+                      if (mobileMenuRef.current) mobileMenuRef.current.open = false;
+                    }}
+                  >
                     {primaryLinks
                       .filter((item) => item.to !== "/login" && item.to !== "/register")
                       .map((item) => (
