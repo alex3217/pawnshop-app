@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 import { createSettlementCreditLedgerEntry } from "../services/payouts/settlementLedger.service.js";
 import { assertPaidSellerPlanCode } from "../config/sellerPlans.js";
@@ -30,6 +31,14 @@ import {
 import {
   syncStripeSubscriptionEvent,
 } from "../services/stripeSubscriptionWebhook.service.js";
+import {
+  persistSettlementOperationAudit,
+  runLockedSettlementTransition,
+  runSettlementTransition,
+  settlementActorFromRequest,
+  SettlementTransitionError,
+  withLockedSettlement,
+} from "../services/settlementStateMachine.service.js";
 
 const PI_REUSABLE_STATUSES = new Set([
   "requires_payment_method",
@@ -53,6 +62,26 @@ function errorResponse(res, err, fallback = "Internal Server Error") {
       ? { details: err.details }
       : {}),
   });
+}
+
+export function settlementPaymentIntentErrorResponse(res, err) {
+  let serialized = "";
+  try {
+    serialized = JSON.stringify({
+      message: err?.message,
+      code: err?.code,
+      details: err?.details,
+      raw: err?.raw,
+    });
+  } catch {
+    serialized = "sensitive-uninspectable-error";
+  }
+  const sensitive = /client.?secret|authorization|credential|password|request.?body|secret|token/i
+    .test(serialized);
+  if (String(err?.type || "").startsWith("Stripe") || sensitive) {
+    return res.status(502).json({ error: "Failed to create settlement payment intent" });
+  }
+  return errorResponse(res, err, "Failed to create settlement payment intent");
 }
 
 function createHttpError(message, statusCode = 500, details = undefined) {
@@ -85,7 +114,7 @@ function getRequestUserId(req) {
 
 function isAdminRequest(req) {
   const user = getRequestUser(req);
-  return String(user.role || "").toUpperCase() === "ADMIN";
+  return ["ADMIN", "SUPER_ADMIN"].includes(String(user.role || "").toUpperCase());
 }
 
 function assertAbsoluteHttpUrl(value, fieldName) {
@@ -112,10 +141,6 @@ function unixToIsoOrNull(value) {
   const seconds = Number(value);
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
   return new Date(seconds * 1000).toISOString();
-}
-
-function isFinalPaymentIntentStatus(status) {
-  return ["succeeded", "canceled"].includes(String(status || ""));
 }
 
 function mapShopSubscriptionUpdateFromStripeSubscription(
@@ -216,53 +241,146 @@ async function ensureStripeCustomerForShop(stripe, shop) {
   return stripeCustomerId;
 }
 
-async function tryReuseSettlementPaymentIntent(stripe, settlement) {
-  const existingPaymentIntentId = normalizeId(settlement?.stripePaymentIntent);
-  if (!existingPaymentIntentId) return null;
-
-  try {
-    const existingIntent = await stripe.paymentIntents.retrieve(
-      existingPaymentIntentId
-    );
-
-    if (!existingIntent) return null;
-
-    if (existingIntent.status === "succeeded") {
-      await prisma.settlement.update({
-        where: { id: settlement.id },
-        data: {
-          status: "CHARGED",
-          stripePaymentIntent: String(existingIntent.id),
-        },
-      });
-
-      return {
-        reused: true,
-        finalized: true,
-        paymentIntent: existingIntent,
-      };
-    }
-
-    if (PI_REUSABLE_STATUSES.has(existingIntent.status)) {
-      return {
-        reused: true,
-        finalized: false,
-        paymentIntent: existingIntent,
-      };
-    }
-
-    if (isFinalPaymentIntentStatus(existingIntent.status)) {
-      return null;
-    }
-
-    return {
-      reused: true,
-      finalized: false,
-      paymentIntent: existingIntent,
-    };
-  } catch {
-    return null;
+export function buildSettlementPaymentIntentIdempotencyKey(
+  settlementId,
+  replacedPaymentIntentId = null,
+) {
+  const safeSettlementId = normalizeId(settlementId);
+  if (!safeSettlementId) throw createHttpError("Missing settlement id", 400);
+  if (!replacedPaymentIntentId) {
+    return `settlement-payment-intent:v2:${safeSettlementId}:initial`;
   }
+  const replacementDigest = createHash("sha256")
+    .update(normalizeId(replacedPaymentIntentId))
+    .digest("hex");
+  return `settlement-payment-intent:v2:${safeSettlementId}:replace:${replacementDigest}`;
+}
+
+function settlementPaymentIntentParams(settlement, amount) {
+  return {
+    amount,
+    currency: getStripeCurrency(),
+    automatic_payment_methods: { enabled: true },
+    metadata: {
+      settlementId: settlement.id,
+      auctionId: String(settlement.auctionId || ""),
+      offerId: String(settlement.offerId || ""),
+      winnerUserId: String(settlement.winnerUserId || ""),
+    },
+  };
+}
+
+export async function createOrReuseLockedSettlementPaymentIntent({
+  tx,
+  stripe,
+  settlement,
+  actor,
+  reconcileSucceeded,
+}) {
+  const settlementStatus = normalizePlanCode(settlement.status);
+  if (settlementStatus === "CHARGED") {
+    throw createHttpError("Settlement already charged", 400);
+  }
+  if (!["PENDING", "FAILED"].includes(settlementStatus)) {
+    throw createHttpError("Settlement cannot accept a payment intent", 409);
+  }
+  const amount = toAmountCents(settlement.finalPrice);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw createHttpError("Settlement amount must be greater than zero", 400);
+  }
+
+  const existingId = normalizeId(settlement.stripePaymentIntent);
+  let existingIntent = null;
+  if (existingId) {
+    existingIntent = await stripe.paymentIntents.retrieve(existingId);
+    if (!existingIntent) {
+      throw createHttpError("Stored settlement PaymentIntent was not found", 409);
+    }
+    if (existingIntent.status === "succeeded") {
+      if (reconcileSucceeded) {
+        await reconcileSucceeded({ tx, settlement, paymentIntent: existingIntent, actor });
+      } else {
+        const chargedAt = new Date();
+        await runLockedSettlementTransition({
+          tx,
+          current: settlement,
+          toStatus: "CHARGED",
+          action: "SETTLEMENT_PAYMENT_RECONCILED",
+          actor,
+          metadata: { paymentIntentId: String(existingIntent.id) },
+          data: {
+            stripePaymentIntent: String(existingIntent.id),
+            chargedAt,
+            failedAt: null,
+            failureMessage: null,
+          },
+          sideEffect: (lockedTx) => createSettlementCreditLedgerEntry({
+            settlementId: settlement.id,
+            availableAt: chargedAt,
+            prismaClient: lockedTx,
+          }),
+        });
+      }
+      return { paymentIntent: existingIntent, reused: true, finalized: true };
+    }
+    if (
+      PI_REUSABLE_STATUSES.has(existingIntent.status) ||
+      existingIntent.status === "requires_capture"
+    ) {
+      // Preserve the established checkout semantics for active states,
+      // including requires_capture, while never creating a second intent.
+      return { paymentIntent: existingIntent, reused: true, finalized: false };
+    }
+    if (existingIntent.status !== "canceled") {
+      throw createHttpError("Stored settlement PaymentIntent is not reusable", 409);
+    }
+  }
+
+  const replacedPaymentIntentId = existingIntent?.status === "canceled"
+    ? String(existingIntent.id)
+    : null;
+  const paymentIntent = await stripe.paymentIntents.create(
+    settlementPaymentIntentParams(settlement, amount),
+    {
+      idempotencyKey: buildSettlementPaymentIntentIdempotencyKey(
+        settlement.id,
+        replacedPaymentIntentId,
+      ),
+    },
+  );
+  await tx.settlement.update({
+    where: { id: settlement.id },
+    data: { stripePaymentIntent: paymentIntent.id },
+  });
+  await persistSettlementOperationAudit(tx, {
+    actor,
+    action: replacedPaymentIntentId
+      ? "SETTLEMENT_PAYMENT_INTENT_REPLACED"
+      : "SETTLEMENT_PAYMENT_INTENT_ATTACHED",
+    settlementId: settlement.id,
+    from: settlement.status,
+    to: settlement.status,
+    metadata: {
+      paymentIntentId: paymentIntent.id,
+      replacedPaymentIntentId,
+      amountCents: amount,
+      currency: getStripeCurrency(),
+    },
+  });
+  return { paymentIntent, reused: false, finalized: false };
+}
+
+export function settlementPaymentIntentResponse(result) {
+  const intent = result.paymentIntent;
+  return {
+    success: true,
+    paymentIntentId: intent.id,
+    clientSecret: intent.client_secret || null,
+    amount: intent.amount,
+    currency: intent.currency,
+    reused: result.reused,
+    ...(result.finalized ? { settlementStatus: "CHARGED" } : {}),
+  };
 }
 
 export async function getStripeConfig(_req, res) {
@@ -379,72 +497,23 @@ export async function createSettlementPaymentIntent(req, res) {
     getRequestUser(req);
 
     const settlementId = normalizeId(req?.params?.id);
-    const settlement = await ensureSettlementAccess(req, settlementId);
-
-    if (String(settlement.status || "").toUpperCase() === "CHARGED") {
-      return res.status(400).json({ error: "Settlement already charged" });
-    }
+    await ensureSettlementAccess(req, settlementId);
 
     const stripe = getStripe();
-    const reused = await tryReuseSettlementPaymentIntent(stripe, settlement);
-
-    if (reused?.paymentIntent) {
-      const intent = reused.paymentIntent;
-
-      if (reused.finalized) {
-        return res.status(200).json({
-          success: true,
-          paymentIntentId: intent.id,
-          clientSecret: intent.client_secret || null,
-          amount: intent.amount,
-          currency: intent.currency,
-          reused: true,
-          settlementStatus: "CHARGED",
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        paymentIntentId: intent.id,
-        clientSecret: intent.client_secret || null,
-        amount: intent.amount,
-        currency: intent.currency,
-        reused: true,
-      });
-    }
-
-    const amount = toAmountCents(settlement.finalPrice);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw createHttpError("Settlement amount must be greater than zero", 400);
-    }
-
-    const intent = await stripe.paymentIntents.create({
-      amount,
-      currency: getStripeCurrency(),
-      automatic_payment_methods: { enabled: true },
-      metadata: {
-        settlementId: settlement.id,
-        auctionId: String(settlement.auctionId || ""),
-        offerId: String(settlement.offerId || ""),
-        winnerUserId: String(settlement.winnerUserId || ""),
-      },
+    const result = await withLockedSettlement({
+      settlementId,
+      operation: (tx, settlement) => createOrReuseLockedSettlementPaymentIntent({
+        tx,
+        stripe,
+        settlement,
+        actor: settlementActorFromRequest(req),
+      }),
     });
-
-    await prisma.settlement.update({
-      where: { id: settlement.id },
-      data: { stripePaymentIntent: intent.id },
-    });
-
-    return res.status(201).json({
-      success: true,
-      paymentIntentId: intent.id,
-      clientSecret: intent.client_secret,
-      amount,
-      currency: getStripeCurrency(),
-      reused: false,
-    });
+    return res
+      .status(result.reused ? 200 : 201)
+      .json(settlementPaymentIntentResponse(result));
   } catch (err) {
-    return errorResponse(res, err, "Failed to create settlement payment intent");
+    return settlementPaymentIntentErrorResponse(res, err);
   }
 }
 
@@ -643,25 +712,21 @@ export async function handleStripeWebhook(req, res) {
           );
 
         if (settlementId) {
-          await prisma.$transaction(async (tx) => {
-            const chargedAt = new Date();
-
-            await tx.settlement.update({
-              where: { id: settlementId },
-              data: {
-                status: "CHARGED",
-                stripePaymentIntent: String(pi.id),
-                chargedAt,
-                failedAt: null,
-                failureMessage: null,
-              },
-            });
-
-            await createSettlementCreditLedgerEntry({
-              settlementId,
-              availableAt: chargedAt,
-              prismaClient: tx,
-            });
+          const chargedAt = new Date();
+          await runSettlementTransition({
+            settlementId,
+            toStatus: "CHARGED",
+            action: "SETTLEMENT_PAYMENT_SUCCEEDED",
+            ignoreFromStatuses: ["CHARGED", "DISPUTED", "REFUNDED", "CANCELED"],
+            actor: { role: "STRIPE", path: "/webhooks/stripe" },
+            metadata: { stripeEventId: event.id, paymentIntentId: String(pi.id) },
+            data: { stripePaymentIntent: String(pi.id), chargedAt, failedAt: null, failureMessage: null },
+            validateCurrent: (current) => {
+              if (current.stripePaymentIntent && current.stripePaymentIntent !== String(pi.id)) {
+                throw new SettlementTransitionError("Stripe PaymentIntent does not match settlement.", 409, "PAYMENT_INTENT_MISMATCH");
+              }
+            },
+            sideEffect: (tx) => createSettlementCreditLedgerEntry({ settlementId, availableAt: chargedAt, prismaClient: tx }),
           });
         }
 
@@ -692,16 +757,22 @@ export async function handleStripeWebhook(req, res) {
           );
 
         if (settlementId) {
-          await prisma.settlement.update({
-            where: { id: settlementId },
+          await runSettlementTransition({
+            settlementId,
+            toStatus: "FAILED",
+            action: "SETTLEMENT_PAYMENT_FAILED",
+            ignoreFromStatuses: ["CHARGED", "DISPUTED", "REFUNDED", "CANCELED"],
+            actor: { role: "STRIPE", path: "/webhooks/stripe" },
+            metadata: { stripeEventId: event.id, paymentIntentId: String(pi.id) },
             data: {
-              status: "FAILED",
-              stripePaymentIntent: String(pi.id),
-              failedAt: new Date(),
-              failureMessage:
-                pi?.last_payment_error?.message ||
-                pi?.last_payment_error?.decline_code ||
-                "Payment failed",
+              stripePaymentIntent: String(pi.id), failedAt: new Date(),
+              failureMessage: String(pi?.last_payment_error?.decline_code || "Payment failed").slice(0, 200),
+            },
+            validateCurrent: (current) => {
+              if (current.stripePaymentIntent && current.stripePaymentIntent !== String(pi.id)) {
+                return false;
+              }
+              return true;
             },
           });
         }

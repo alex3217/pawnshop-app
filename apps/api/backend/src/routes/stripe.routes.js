@@ -232,7 +232,7 @@ router.post(
 router.post(
   "/payment-intents/settlements/:id",
   authRequired,
-  requireRole("CONSUMER", "ADMIN"),
+  requireRole("CONSUMER", "ADMIN", "SUPER_ADMIN"),
   validateIdParam("id"),
   validateObjectBody,
   normalizeSettlementPaymentIntentBody,
