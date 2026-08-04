@@ -1257,3 +1257,74 @@ body:not(.dark) .locator-use-location-readable::before {
   -webkit-text-fill-color: #ffffff !important;
 }
 /* END final Item Locator forced visible use-location label. */
+
+/* Mobile Item Locator: compact vertical rhythm, readable heading, and cards
+   that grow to fit their secondary labels. */
+.site-main .item-locator-page .locator-hero h1 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+@media (max-width: 767px) {
+  .item-locator-page {
+    min-height: 0;
+    padding: 12px !important;
+  }
+
+  .locator-hero {
+    gap: 16px;
+    margin-bottom: 12px;
+    padding: 18px !important;
+    border-radius: 20px !important;
+  }
+
+  .locator-hero h1 {
+    margin: 12px 0 8px;
+    font-size: clamp(30px, 9.5vw, 40px) !important;
+    line-height: 1.02;
+  }
+
+  .locator-hero p {
+    line-height: 1.5;
+  }
+
+  .locator-search-row {
+    margin-top: 16px;
+    padding: 6px;
+  }
+
+  .locator-hero-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px;
+  }
+
+  .locator-hero-panel div {
+    min-height: 0;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .locator-hero-panel strong {
+    margin: 6px 0 4px;
+    font-size: 22px;
+  }
+
+  .locator-discovery-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .locator-discovery-strip a {
+    min-width: 0;
+    min-height: 76px;
+    padding: 12px;
+    overflow: visible;
+    border-radius: 16px;
+    overflow-wrap: anywhere;
+  }
+
+  .locator-discovery-strip span {
+    line-height: 1.3;
+  }
+}

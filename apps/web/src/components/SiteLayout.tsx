@@ -506,6 +506,76 @@ export default function SiteLayout() {
                 </>
               )}
             </div>
+
+            <div className="site-mobile-actions">
+              {role ? (
+                <Link to={dashboardHref} className="site-mobile-account-link">
+                  Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link to="/login" className="site-mobile-account-link">
+                    Login
+                  </Link>
+                  <Link to="/register" className="site-mobile-account-link site-mobile-account-link--primary">
+                    Register
+                  </Link>
+                </>
+              )}
+
+              <details className="site-mobile-menu">
+                <summary aria-label="Toggle navigation menu">
+                  <span aria-hidden="true">☰</span>
+                  <span>Menu</span>
+                </summary>
+                <div className="site-mobile-menu-panel">
+                  <nav aria-label="Mobile navigation">
+                    {primaryLinks
+                      .filter((item) => item.to !== "/login" && item.to !== "/register")
+                      .map((item) => (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          end={item.end}
+                          className={({ isActive }) =>
+                            isActive
+                              ? "site-mobile-menu-link active"
+                              : "site-mobile-menu-link"
+                          }
+                        >
+                          {item.label}
+                        </NavLink>
+                      ))}
+                    {workspaceLinks.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) =>
+                          isActive
+                            ? "site-mobile-menu-link active"
+                            : "site-mobile-menu-link"
+                        }
+                      >
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </nav>
+                  <button
+                    type="button"
+                    className="site-mobile-theme-toggle"
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  >
+                    {theme === "dark" ? "Use light theme" : "Use dark theme"}
+                  </button>
+                  {role ? (
+                    <button type="button" className="site-mobile-logout" onClick={handleLogout}>
+                      Logout
+                    </button>
+                  ) : null}
+                </div>
+              </details>
+            </div>
           </div>
 
           <nav
