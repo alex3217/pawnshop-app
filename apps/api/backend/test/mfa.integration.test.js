@@ -164,7 +164,45 @@ test("regeneration invalidates old recovery codes, preserves history, and issues
   }
 });
 
-test("restarting incomplete enrollment invalidates prior recovery codes without deleting them", async () => {
+test("restarting a valid pending enrollment reuses its persisted secret without mutation", async () => {
+  const first = await startMfaEnrollment({ userId: user.id, encryptionKey });
+  const codes = await regenerateMfaRecoveryCodes({
+    credentialId: first.credential.id,
+    encryptionKey,
+  });
+  const restarted = await startMfaEnrollment({
+    userId: user.id,
+    encryptionKey,
+    now: new Date(first.credential.enrollmentStartedAt.getTime() + 30_000),
+  });
+  const stored = await prisma.userMfaCredential.findUnique({
+    where: { id: first.credential.id },
+  });
+
+  assert.equal(restarted.credential.id, first.credential.id);
+  assert.equal(restarted.secret, first.secret);
+  assert.equal(restarted.credential.encryptedTotpSecret, first.credential.encryptedTotpSecret);
+  assert.equal(
+    restarted.credential.enrollmentStartedAt.getTime(),
+    first.credential.enrollmentStartedAt.getTime(),
+  );
+  assert.equal(stored.encryptedTotpSecret, first.credential.encryptedTotpSecret);
+  assert.equal(await prisma.userMfaRecoveryCode.count({
+    where: {
+      credentialId: first.credential.id,
+      consumedAt: null,
+      invalidatedAt: null,
+    },
+  }), 10);
+  assert.equal(await prisma.superAdminAuditLog.count({
+    where: { targetId: user.id, action: "MFA_ENROLLMENT_STARTED", success: true },
+  }), 2);
+  await consumeMfaRecoveryCode({
+    code: codes[0], credentialId: first.credential.id, encryptionKey,
+  });
+});
+
+test("restarting an expired enrollment replaces its secret and invalidates prior recovery codes", async () => {
   const first = await startMfaEnrollment({ userId: user.id, encryptionKey });
   const codes = await regenerateMfaRecoveryCodes({
     credentialId: first.credential.id,
@@ -184,6 +222,8 @@ test("restarting incomplete enrollment invalidates prior recovery codes without 
   });
 
   assert.equal(restarted.credential.id, first.credential.id);
+  assert.notEqual(restarted.secret, first.secret);
+  assert.equal(restarted.credential.enrollmentStartedAt.getTime(), restartedAt.getTime());
   assert.deepEqual(storedRows.map(({ id }) => id).sort(), oldRows.map(({ id }) => id).sort());
   assert.equal(storedRows.every(({ consumedAt }) => consumedAt === null), true);
   assert.equal(
