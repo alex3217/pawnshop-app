@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { calculateSettlementRevenueContext } from "../services/revenue/settlementRevenueAdapter.service.js";
+import { persistSettlementOperationAudit } from "../services/settlementStateMachine.service.js";
 
 const SAFE_SHOP_SELECT = {
   id: true,
@@ -136,18 +137,10 @@ async function upsertSettlementForAcceptedOffer(tx, offer, amount) {
     revenueCalculatedAt: new Date(revenue.pricingRuleSnapshot.calculatedAt),
   };
 
-  return tx.settlement.upsert({
-    where: { offerId: offer.id },
-    update: {
-      winnerUserId: offer.buyerId,
-      finalPrice,
-      currency: "USD",
-      status: "PENDING",
-      failedAt: null,
-      failureMessage: null,
-      ...revenueData,
-    },
-    create: {
+  const existing = await tx.settlement.findUnique({ where: { offerId: offer.id } });
+  if (existing) return existing;
+  const settlement = await tx.settlement.create({
+    data: {
       offerId: offer.id,
       winnerUserId: offer.buyerId,
       finalPrice,
@@ -156,6 +149,15 @@ async function upsertSettlementForAcceptedOffer(tx, offer, amount) {
       ...revenueData,
     },
   });
+  await persistSettlementOperationAudit(tx, {
+    actor: { role: "SYSTEM", path: "offer-acceptance" },
+    action: "OFFER_SETTLEMENT_CREATED",
+    settlementId: settlement.id,
+    from: "ABSENT",
+    to: "PENDING",
+    metadata: { offerId: offer.id, winnerUserId: offer.buyerId },
+  });
+  return settlement;
 }
 
 async function getBuyerOfferOrThrow(offerId, buyerId) {

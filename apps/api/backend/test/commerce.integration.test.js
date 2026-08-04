@@ -1309,21 +1309,17 @@ test(
       status: "CHARGED",
     });
 
-    assert.equal(
-      charged.status,
-      201,
-      JSON.stringify(charged.body),
-    );
+    assert.equal(charged.status, 409, JSON.stringify(charged.body));
+    assert.match(charged.body.error, /must begin in PENDING/);
 
-    assert.equal(
-      charged.body.settlement.status,
-      "CHARGED",
-    );
-
-    assert.equal(
-      charged.body.settlement.finalAmountCents,
-      11000,
-    );
+    await prisma.settlement.update({
+      where: { id: settlementId },
+      data: {
+        status: "CHARGED",
+        stripePaymentIntent: `pi_commerce_confirmed_${settlementId}`,
+        chargedAt: new Date(),
+      },
+    });
 
     const unrelatedFulfillment =
       await authorize(
@@ -1376,6 +1372,12 @@ test(
         .fulfilledAt,
       null,
     );
+
+    const pickedUp = await authorize(
+      request(app).patch(`/api/settlements/${settlementId}/fulfillment`),
+      owner.token,
+    ).send({ fulfillmentStatus: "PICKED_UP" });
+    assert.equal(pickedUp.status, 200, JSON.stringify(pickedUp.body));
 
     const completed = await authorize(
       request(app).patch(

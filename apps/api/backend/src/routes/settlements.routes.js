@@ -13,9 +13,9 @@ import {
 
 const router = Router();
 
-const BUYER_ROLES = ["CONSUMER", "OWNER", "ADMIN"];
-const FULFILLMENT_ROLES = ["OWNER", "ADMIN"];
-const ADMIN_ROLES = ["ADMIN"];
+const BUYER_ROLES = ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"];
+const FULFILLMENT_ROLES = ["OWNER", "ADMIN", "SUPER_ADMIN"];
+const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"];
 const ID_MAX_LENGTH = 128;
 
 function asyncRoute(handler) {

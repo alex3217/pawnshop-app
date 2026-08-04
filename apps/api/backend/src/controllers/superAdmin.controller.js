@@ -20,6 +20,10 @@ import {
   runGovernedShopMutation,
   runGovernedUserMutation,
 } from "../services/superAdminAudit.service.js";
+import {
+  runSettlementTransition,
+  settlementActorFromRequest,
+} from "../services/settlementStateMachine.service.js";
 
 
 const USER_ROLE_CODES = new Set(["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
@@ -41,6 +45,7 @@ const SETTLEMENT_STATUSES = new Set([
   "FAILED",
   "CANCELED",
   "REFUNDED",
+  "DISPUTED",
 ]);
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -1828,43 +1833,31 @@ export async function updateSuperAdminSettlement(req, res) {
 
     if (!body) throw badRequest("Request body must be a JSON object.");
 
-    const update = {};
-
-    if (body.status !== undefined) {
-      update.status = normalizeSettlementStatus(body.status);
-    }
-
-    if (body.currency !== undefined) {
-      update.currency = normalizeUpper(body.currency, "USD");
-    }
-
-    if (body.finalAmountCents !== undefined) {
-      const cents = Number(body.finalAmountCents);
-      if (!Number.isFinite(cents) || cents < 0) {
-        throw badRequest("finalAmountCents must be a non-negative number.");
-      }
-      update.finalPrice = cents / 100;
-    }
-
-    if (body.stripePaymentIntent !== undefined) {
-      update.stripePaymentIntent = normalizeNullableString(body.stripePaymentIntent);
-    }
-
-    if (Object.keys(update).length === 0) {
+    if (body.status === undefined) {
       throw badRequest("No valid settlement updates provided.");
     }
-
-    await requireSettlement(id);
-
-    const updated = await prisma.settlement.update({
-      where: { id },
-      data: update,
-      include: {
-        winner: {
-          select: { id: true, name: true, email: true },
-        },
-        auction: true,
+    if (body.currency !== undefined || body.finalAmountCents !== undefined || body.stripePaymentIntent !== undefined) {
+      throw badRequest("Settlement financial fields are immutable after creation.");
+    }
+    const targetStatus = normalizeSettlementStatus(body.status);
+    if (targetStatus !== "CANCELED") {
+      throw badRequest("Only cancellation is available as a manual settlement transition.");
+    }
+    await runSettlementTransition({
+      settlementId: id,
+      toStatus: targetStatus,
+      expectedStatus: body.expectedStatus,
+      action: "SUPER_ADMIN_SETTLEMENT_TRANSITION",
+      actor: settlementActorFromRequest(req),
+      validateCurrent: (current) => {
+        if (current.stripePaymentIntent) {
+          throw badRequest("A settlement with a PaymentIntent cannot be canceled manually.");
+        }
       },
+    });
+    const updated = await prisma.settlement.findUnique({
+      where: { id },
+      include: { winner: { select: { id: true, name: true, email: true } }, auction: true },
     });
 
     return res.json({

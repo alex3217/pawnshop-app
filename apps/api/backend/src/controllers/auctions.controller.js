@@ -2,6 +2,7 @@
 
 import { prisma } from "../lib/prisma.js";
 import { calculateSettlementRevenueContext } from "../services/revenue/settlementRevenueAdapter.service.js";
+import { persistSettlementOperationAudit } from "../services/settlementStateMachine.service.js";
 import {
   assertShopPermission,
   getAccessibleShopScope,
@@ -713,32 +714,36 @@ async function upsertSettlementForEndedAuction(auctionId) {
     revenueCalculatedAt: new Date(revenue.pricingRuleSnapshot.calculatedAt),
   };
 
-  const settlement = await prisma.settlement.upsert({
-    where: { auctionId },
-    update: {
-      winnerUserId: topBid.userId,
-      finalPrice,
-      currency: "USD",
-      ...revenueData,
-    },
-    create: {
-      auctionId,
-      winnerUserId: topBid.userId,
-      finalPrice,
-      currency: "USD",
-      status: "PENDING",
-      stripePaymentIntent: null,
-      ...revenueData,
-    },
-    include: {
-      auction: {
-        include: {
-          item: true,
-          shop: true,
-        },
+  const settlement = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Auction" WHERE "id" = ${auctionId} FOR UPDATE`;
+    const existing = await tx.settlement.findUnique({ where: { auctionId } });
+    if (existing) {
+      return tx.settlement.findUnique({
+        where: { id: existing.id },
+        include: { auction: { include: { item: true, shop: true } }, winner: true },
+      });
+    }
+    const created = await tx.settlement.create({
+      data: {
+        auctionId, winnerUserId: topBid.userId, finalPrice, currency: "USD",
+        status: "PENDING", stripePaymentIntent: null, ...revenueData,
       },
-      winner: true,
-    },
+      include: {
+        auction: {
+          include: { item: true, shop: true },
+        },
+        winner: true,
+      },
+    });
+    await persistSettlementOperationAudit(tx, {
+      actor: { role: "SYSTEM", path: "auction-settlement" },
+      action: "AUCTION_SETTLEMENT_CREATED",
+      settlementId: created.id,
+      from: "ABSENT",
+      to: "PENDING",
+      metadata: { auctionId, winnerUserId: topBid.userId },
+    });
+    return created;
   });
 
   return { settlement, reason: "CREATED_OR_UPDATED" };

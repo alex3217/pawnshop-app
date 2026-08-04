@@ -1,6 +1,12 @@
 // File: apps/api/backend/src/controllers/settlements.controller.js
 
 import { prisma } from "../lib/prisma.js";
+import {
+  persistSettlementOperationAudit,
+  runFulfillmentTransition,
+  settlementActorFromRequest,
+  SettlementTransitionError,
+} from "../services/settlementStateMachine.service.js";
 
 function sendError(res, error, fallbackMessage = "Internal server error") {
   const status =
@@ -237,7 +243,7 @@ async function assertSettlementReadableByUser(settlement, req) {
     throw notFound("Settlement not found.");
   }
 
-  if (role === "ADMIN") return;
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return;
 
   if (role === "CONSUMER") {
     if (settlement.winnerUserId !== userId) {
@@ -247,12 +253,9 @@ async function assertSettlementReadableByUser(settlement, req) {
   }
 
   if (role === "OWNER") {
-    const ownerId =
-      settlement.auction?.shop?.ownerId ||
-      settlement.offer?.ownerId ||
-      settlement.offer?.item?.shop?.ownerId;
+    const ownerId = settlement.auction?.shop?.ownerId || settlement.offer?.item?.shop?.ownerId;
 
-    if (ownerId !== userId) {
+    if (ownerId !== userId || (settlement.offer && settlement.offer.ownerId !== userId)) {
       throw forbidden("You do not have access to this settlement.");
     }
     return;
@@ -272,7 +275,7 @@ export async function listMySettlements(req, res) {
 
     let settlements = [];
 
-    if (role === "ADMIN") {
+    if (role === "ADMIN" || role === "SUPER_ADMIN") {
       settlements = await getAllSettlementsWithRelations();
     } else if (role === "CONSUMER") {
       settlements = await getAllSettlementsWithRelations({
@@ -283,7 +286,7 @@ export async function listMySettlements(req, res) {
       const ownerSettlementWhere = {
         OR: [
           ...(auctionIds.length ? [{ auctionId: { in: auctionIds } }] : []),
-          { offer: { ownerId: userId } },
+          { offer: { ownerId: userId, item: { shop: { ownerId: userId, isDeleted: false } } } },
         ],
       };
 
@@ -332,7 +335,7 @@ export async function getSettlementByAuctionId(req, res) {
 
 export async function listAllSettlementsForAdmin(req, res) {
   try {
-    if (req?.user?.role !== "ADMIN") {
+    if (!["ADMIN", "SUPER_ADMIN"].includes(req?.user?.role)) {
       throw forbidden();
     }
 
@@ -345,7 +348,7 @@ export async function listAllSettlementsForAdmin(req, res) {
 
 export async function createOrFinalizeSettlement(req, res) {
   try {
-    if (req?.user?.role !== "ADMIN") {
+    if (!["ADMIN", "SUPER_ADMIN"].includes(req?.user?.role)) {
       throw forbidden();
     }
 
@@ -372,6 +375,9 @@ export async function createOrFinalizeSettlement(req, res) {
     if (!auction) {
       throw notFound("Auction not found.");
     }
+    if (normalizeStatus(auction.status) !== "ENDED") {
+      throw badRequest("Only ended auctions can create settlements.");
+    }
 
     const topBid = auction.bids?.[0] || null;
     const winnerId =
@@ -382,42 +388,58 @@ export async function createOrFinalizeSettlement(req, res) {
         "winnerId is required when the auction has no bids to infer a winner.",
       );
     }
+    if (topBid?.userId && winnerId !== topBid.userId) {
+      throw badRequest("winnerId must match the auction's winning bid.");
+    }
 
+    const winningBidAmountCents = Number.isFinite(Number(topBid?.amount))
+      ? Math.round(Number(topBid.amount) * 100)
+      : 0;
     const finalAmountCents =
-      toCents(req.body?.finalAmountCents) || toCents(topBid?.amount) || 0;
+      toCents(req.body?.finalAmountCents) || winningBidAmountCents || 0;
 
     if (!finalAmountCents) {
       throw badRequest(
         "finalAmountCents is required when it cannot be inferred from the top bid.",
       );
     }
+    if (winningBidAmountCents && finalAmountCents !== winningBidAmountCents) {
+      throw badRequest("finalAmountCents must match the auction's winning bid.");
+    }
 
+    const requestedStatus = normalizeSettlementStatus(req.body?.status || "PENDING");
+    if (requestedStatus !== "PENDING") {
+      throw new SettlementTransitionError(
+        "Administrative settlement creation must begin in PENDING; payment confirmation is handled by Stripe.",
+      );
+    }
+    if (normalizeString(req.body?.stripePaymentIntent)) {
+      throw badRequest("stripePaymentIntent cannot be assigned manually.");
+    }
     const data = {
       winnerUserId: winnerId,
       finalPrice: toDecimalPrice(finalAmountCents),
       currency: normalizeCurrency(req.body?.currency || "USD"),
-      status: normalizeSettlementStatus(req.body?.status || "CHARGED"),
-      stripePaymentIntent:
-        normalizeString(req.body?.stripePaymentIntent) || null,
+      status: "PENDING",
+      stripePaymentIntent: null,
     };
 
-    const settlement = await prisma.settlement.upsert({
-      where: { auctionId },
-      update: data,
-      create: {
-        auctionId,
-        ...data,
-      },
-      include: {
-        auction: {
-          include: {
-            item: true,
-            shop: true,
-          },
-        },
-        winner: true,
-      },
+    const createdId = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Auction" WHERE "id" = ${auctionId} FOR UPDATE`;
+      const existing = await tx.settlement.findUnique({ where: { auctionId } });
+      if (existing) throw new SettlementTransitionError("Settlement already exists.", 409, "SETTLEMENT_ALREADY_EXISTS");
+      const created = await tx.settlement.create({ data: { auctionId, ...data } });
+      await persistSettlementOperationAudit(tx, {
+        actor: settlementActorFromRequest(req),
+        action: "SETTLEMENT_CREATED",
+        settlementId: created.id,
+        from: "ABSENT",
+        to: "PENDING",
+        metadata: { auctionId, winnerUserId: winnerId, finalAmountCents, currency: data.currency },
+      });
+      return created.id;
     });
+    const settlement = await getSettlementWithRelations({ id: createdId });
 
     return res.status(201).json({
       success: true,
@@ -437,7 +459,7 @@ export async function updateSettlementFulfillment(req, res) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
-    if (role !== "OWNER" && role !== "ADMIN") {
+    if (!["OWNER", "ADMIN", "SUPER_ADMIN"].includes(role)) {
       throw forbidden("Only owners or admins can update fulfillment.");
     }
 
@@ -448,10 +470,6 @@ export async function updateSettlementFulfillment(req, res) {
 
     const settlement = await getSettlementWithRelations({ id });
     await assertSettlementReadableByUser(settlement, req);
-
-    if (normalizeStatus(settlement.status) !== "CHARGED") {
-      throw badRequest("Only charged settlements can be fulfilled.");
-    }
 
     const fulfillmentStatus = normalizeFulfillmentStatus(req.body?.fulfillmentStatus || req.body?.status);
     if (!FULFILLMENT_STATUSES.has(fulfillmentStatus)) {
@@ -465,19 +483,14 @@ export async function updateSettlementFulfillment(req, res) {
         ? normalizeString(req.body.fulfillmentNote, null)
         : undefined;
 
-    const shouldSetFulfilledAt = ["PICKED_UP", "SHIPPED", "COMPLETED"].includes(
-      fulfillmentStatus,
-    );
-
-    const updated = await prisma.settlement.update({
-      where: { id },
-      data: {
-        fulfillmentStatus,
-        ...(fulfillmentNote !== undefined ? { fulfillmentNote } : {}),
-        fulfilledAt: shouldSetFulfilledAt ? new Date() : null,
-      },
-      include: settlementInclude(),
+    await runFulfillmentTransition({
+      settlementId: id,
+      toStatus: fulfillmentStatus,
+      expectedStatus: req.body?.expectedFulfillmentStatus,
+      note: fulfillmentNote,
+      actor: settlementActorFromRequest(req),
     });
+    const updated = await getSettlementWithRelations({ id });
 
     return res.json({
       success: true,
