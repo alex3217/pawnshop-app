@@ -142,6 +142,7 @@ const SUPER_ADMIN_PRIMARY_NAV: NavItem[] = [
 ];
 
 const SUPER_ADMIN_SECONDARY_NAV: NavItem[] = [
+  { to: "/super-admin/training", label: "Training Content" },
   { to: "/super-admin/plans/seller", label: "Seller Plans" },
   { to: "/super-admin/seller-subscriptions", label: "Seller Subscriptions" },
   { to: "/super-admin/plans/buyer", label: "Buyer Plans" },
@@ -324,6 +325,7 @@ export default function SiteLayout() {
     ]);
 
     const workspace = dedupeNav([
+      ...(role ? [{ to: "/knowledge", label: "Knowledge Center" }] : []),
       ...(showBuyerLinks ? BUYER_SECONDARY_NAV : []),
       ...(showStaffAuctionLinks
         ? STAFF_AUCTION_NAV
@@ -353,6 +355,7 @@ export default function SiteLayout() {
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
       ...(showGuestLinks ? GUEST_NAV : []),
+      ...(role ? [{ to: "/knowledge", label: "Knowledge Center" }] : []),
       { to: "/terms", label: "Terms of Service" },
       { to: "/privacy", label: "Privacy Policy" },
     ]);

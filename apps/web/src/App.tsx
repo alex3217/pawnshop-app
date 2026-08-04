@@ -202,6 +202,9 @@ const ScanConsolePage = lazyPage(() => import("./pages/ScanConsolePage"));
 const ShopDetailPage = lazyPage(() => import("./pages/ShopDetailPage"));
 const ShopsPage = lazyPage(() => import("./pages/ShopsPage"));
 const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
+const KnowledgeCenterPage = lazyPage(() => import("./pages/KnowledgeCenterPage"));
+const KnowledgeLessonPage = lazyPage(() => import("./pages/KnowledgeLessonPage"));
+const SuperAdminTrainingPage = lazyPage(() => import("./admin/pages/SuperAdminTrainingPage"));
 
 function RouteFallback() {
   return (
@@ -322,6 +325,10 @@ const offerRoutes: RouteConfig[] = [
   { path: "/offers", element: <OffersPage /> },
 ];
 const paymentMethodRoutes: RouteConfig[] = [{ path: "/account/payment-methods", element: <PaymentMethodsPage /> }];
+const knowledgeRoutes: RouteConfig[] = [
+  { path: "/knowledge", element: <KnowledgeCenterPage /> },
+  { path: "/knowledge/:slug", element: <KnowledgeLessonPage /> },
+];
 
 const ownerRoutes: RouteConfig[] = [
   { path: "/owner", element: <OwnerDashboardPage /> },
@@ -423,6 +430,7 @@ const superAdminRoutes: RouteConfig[] = [
   { path: "audit", element: <SuperAdminAuditPage /> },
   { path: "system", element: <SuperAdminSystemHealthPage /> },
   { path: "platform-settings", element: <SuperAdminPlatformSettingsPage /> },
+  { path: "training", element: <SuperAdminTrainingPage /> },
   {
     path: "settings",
     element: <Navigate to="/super-admin/platform-settings" replace />,
@@ -483,6 +491,7 @@ export default function App() {
           )}
           {renderRouteGroup(offerRoutes, "offers", OFFER_ROLES)}
           {renderRouteGroup(paymentMethodRoutes, "payment-methods", ["CONSUMER", "OWNER"])}
+          {renderRouteGroup(knowledgeRoutes, "knowledge", ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"])}
         </Route>
 
         <Route element={<RequireRole allowed={ADMIN_ROLES} />}>

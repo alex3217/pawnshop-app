@@ -36,6 +36,7 @@ import aiRoutes from "./routes/ai.routes.js";
 import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes.js";
 import ownerApplicationsRoutes from "./routes/ownerApplications.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
+import trainingRoutes from "./routes/training.routes.js";
 import { prisma } from "./lib/prisma.js";
 import {
   loadAuthRateLimitConfig,
@@ -392,6 +393,7 @@ export function createApp(options = {}) {
   mountApi(app, "/auth", authRoutes);
   mountApi(app, "/owner-applications", ownerApplicationsRoutes);
   mountApi(app, "/notifications", notificationsRoutes);
+  mountApi(app, "/training", trainingRoutes);
   mountApi(app, "/shops", shopRoutes);
   mountApi(app, "/locations", locationsRoutes);
   mountApi(app, "/items", itemRoutes);
