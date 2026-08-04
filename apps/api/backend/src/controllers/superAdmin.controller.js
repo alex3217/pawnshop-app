@@ -15,6 +15,11 @@ import { getSellerPlanCodes } from "../config/sellerPlans.js";
 import {
   executeBuyerSubscriptionLifecycle,
 } from "../services/buyerSubscriptionLifecycle.service.js";
+import {
+  runGovernedCreateMutation,
+  runGovernedShopMutation,
+  runGovernedUserMutation,
+} from "../services/superAdminAudit.service.js";
 
 
 const USER_ROLE_CODES = new Set(["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
@@ -575,11 +580,11 @@ export async function updateSuperAdminUser(req, res) {
       update.authVersion = { increment: 1 };
     }
 
-    await requireUser(userId);
-
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: update,
+    const updated = await runGovernedUserMutation({
+      req,
+      targetUserId: userId,
+      update,
+      action: "UPDATE_USER_GOVERNANCE",
     });
 
     return res.json({
@@ -720,53 +725,34 @@ export async function createSuperAdminShop(req, res) {
       });
     }
 
-    const shop = await prisma.pawnShop.create({
-      data: {
-        ownerId,
-        name,
-        address,
-        phone,
-        description,
-        hours,
-        subscriptionPlan,
-        subscriptionStatus,
-        isDeleted: false,
-      },
-      select: {
-        id: true,
-        name: true,
-        address: true,
-        phone: true,
-        description: true,
-        hours: true,
-        ownerId: true,
-        subscriptionPlan: true,
-        subscriptionStatus: true,
-        subscriptionCurrentPeriodEnd: true,
-        cancelAtPeriodEnd: true,
-        stripeCustomerId: true,
-        stripeSubscriptionId: true,
-        createdAt: true,
-        updatedAt: true,
-        isDeleted: true,
-      },
-    });
-
-    const shopRow = toSuperAdminShopRow(shop, owner);
-
-    await writeSuperAdminGovernanceAudit(req, {
+    const shop = await runGovernedCreateMutation({
+      req,
       action: "CREATE_SHOP",
       targetType: "SHOP",
-      targetId: shop.id,
-      statusCode: 201,
-      metadata: {
-        shopName: shop.name,
+      create: (tx) => tx.pawnShop.create({
+        data: {
+          ownerId, name, address, phone, description, hours,
+          subscriptionPlan, subscriptionStatus, isDeleted: false,
+        },
+        select: {
+          id: true, name: true, address: true, phone: true,
+          description: true, hours: true, ownerId: true,
+          subscriptionPlan: true, subscriptionStatus: true,
+          subscriptionCurrentPeriodEnd: true, cancelAtPeriodEnd: true,
+          stripeCustomerId: true, stripeSubscriptionId: true,
+          createdAt: true, updatedAt: true, isDeleted: true,
+        },
+      }),
+      metadata: (created) => ({
+        shopName: created.name,
         ownerId,
         ownerEmail: owner.email,
         subscriptionPlan,
         subscriptionStatus,
-      },
+      }),
     });
+
+    const shopRow = toSuperAdminShopRow(shop, owner);
 
     return res.status(201).json({
       success: true,
@@ -848,9 +834,11 @@ export async function reassignSuperAdminShopOwner(req, res) {
       });
     }
 
-    const updated = await prisma.pawnShop.update({
-      where: { id: shopId },
-      data: { ownerId },
+    const updated = await runGovernedShopMutation({
+      req,
+      targetShopId: shopId,
+      update: { ownerId },
+      action: "REASSIGN_SHOP_OWNER",
       select: {
         id: true,
         name: true,
@@ -869,22 +857,15 @@ export async function reassignSuperAdminShopOwner(req, res) {
         updatedAt: true,
         isDeleted: true,
       },
-    });
-
-    const shopRow = toSuperAdminShopRow(updated, owner);
-
-    await writeSuperAdminGovernanceAudit(req, {
-      action: "REASSIGN_SHOP_OWNER",
-      targetType: "SHOP",
-      targetId: shopId,
-      statusCode: 200,
-      metadata: {
-        shopName: updated.name,
+      metadata: (saved) => ({
+        shopName: saved.name,
         previousOwnerId: shop.ownerId,
         newOwnerId: ownerId,
         newOwnerEmail: owner.email,
-      },
+      }),
     });
+
+    const shopRow = toSuperAdminShopRow(updated, owner);
 
     return res.json({
       success: true,
@@ -1473,11 +1454,11 @@ export async function updateSuperAdminShop(req, res) {
       throw badRequest("No valid shop updates provided.");
     }
 
-    await requireShop(shopId);
-
-    const updated = await prisma.pawnShop.update({
-      where: { id: shopId },
-      data: update,
+    const updated = await runGovernedShopMutation({
+      req,
+      targetShopId: shopId,
+      update,
+      action: "UPDATE_SHOP_GOVERNANCE",
       include: {
         owner: {
           select: { id: true, name: true, email: true },
