@@ -81,6 +81,7 @@ model User {
   pawnShopLeadImports             PawnShopLeadImport[]             @relation("PawnShopLeadImportCreator")
   pawnShopLeadSuppressions        PawnShopLeadSuppression[]        @relation("PawnShopLeadSuppressionCreator")
   paymentMethodConsents           PaymentMethodConsent[]
+  trainingProgress                TrainingProgress[]
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -1657,6 +1658,92 @@ model SuperAdminAuditLog {
   @@index([action, createdAt])
   @@index([targetType, targetId])
   @@index([success, createdAt])
+}
+
+enum TrainingContentStatus {
+  DRAFT
+  PUBLISHED
+  UNPUBLISHED
+  ARCHIVED
+}
+
+enum TrainingContentType {
+  VIDEO
+  TUTORIAL
+}
+
+enum TrainingDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model TrainingContent {
+  id              String                 @id @default(cuid())
+  slug            String                 @unique
+  title           String
+  summary         String
+  category        String
+  type            TrainingContentType
+  status          TrainingContentStatus  @default(DRAFT)
+  difficulty      TrainingDifficulty     @default(BEGINNER)
+  durationSeconds Int?
+  videoUrl        String?
+  featured        Boolean                @default(false)
+  required        Boolean                @default(false)
+  sortOrder       Int                    @default(0)
+  publishedAt     DateTime?
+  archivedAt      DateTime?
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  audiences       TrainingAudience[]
+  steps           TrainingTutorialStep[]
+  progress        TrainingProgress[]
+
+  @@index([status, sortOrder, createdAt])
+  @@index([category, status])
+  @@index([featured, status, sortOrder])
+}
+
+model TrainingAudience {
+  id        String          @id @default(cuid())
+  contentId String
+  role      Role
+  content   TrainingContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, role])
+  @@index([role, contentId])
+}
+
+model TrainingTutorialStep {
+  id        String          @id @default(cuid())
+  contentId String
+  position  Int
+  title     String
+  body      String
+  content   TrainingContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, position])
+  @@index([contentId, position])
+}
+
+model TrainingProgress {
+  id                    String          @id @default(cuid())
+  userId                String
+  contentId             String
+  resumePositionSeconds Int             @default(0)
+  completedAt           DateTime?
+  lastViewedAt          DateTime        @default(now())
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content               TrainingContent @relation(fields: [contentId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, contentId])
+  @@index([userId, completedAt, updatedAt])
+  @@index([contentId, completedAt])
 }
 
 enum StaffRole {

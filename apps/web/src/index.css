@@ -79,6 +79,25 @@ a:hover {
   color: var(--text-strong);
 }
 
+.training-shell { width: min(1120px, calc(100% - 2rem)); margin: 2rem auto 5rem; display: grid; gap: 1.5rem; }
+.training-shell header, .training-shell section, .training-card, .training-admin-list article, .training-preview { padding: 1.25rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-elevated); }
+.training-kicker { color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.training-filters, .training-admin-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .8rem; align-items: end; }
+.training-admin-form label { display: grid; gap: .35rem; }
+.training-wide { grid-column: 1 / -1; }
+.training-shell input, .training-shell select, .training-shell textarea, .training-shell button { min-height: 42px; padding: .6rem .75rem; color: var(--text); background: var(--bg-soft); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.training-shell textarea { min-height: 110px; resize: vertical; }
+.training-shell button { cursor: pointer; font-weight: 700; }
+.training-shell button:disabled { cursor: not-allowed; opacity: .55; }
+.training-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+.training-badges, .training-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.training-badges span { padding: .2rem .55rem; border-radius: 999px; background: var(--surface-strong); color: var(--accent); font-size: .78rem; font-weight: 700; }
+.training-error { padding: 1rem; border: 1px solid var(--danger); border-radius: var(--radius-sm); color: var(--danger); }
+.training-empty { padding: 2rem; text-align: center; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); }
+.training-steps { display: grid; gap: 1rem; padding-left: 1.5rem; }
+.training-admin-list { display: grid; gap: .8rem; }
+@media (max-width: 640px) { .training-shell { width: min(100% - 1rem, 1120px); } .training-admin-form { grid-template-columns: 1fr; } }
+
 button,
 input,
 select,
