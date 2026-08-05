@@ -822,7 +822,7 @@ test("verified consumers cannot create privileged users", async () => {
 
 test("verified super admins can create privileged users", async () => {
   const superAdminPassword = "SuperAdmin123!";
-  await prisma.user.create({
+  const superAdmin = await prisma.user.create({
     data: {
       name: "Integration Super Admin",
       email: email("super-admin"),
@@ -856,4 +856,24 @@ test("verified super admins can create privileged users", async () => {
   assert.ok(stored);
   assert.equal(stored.role, "ADMIN");
   assert.equal("password" in response.body.user, false);
+
+  const audits = await prisma.superAdminAuditLog.findMany({
+    where: {
+      action: "SUPER_ADMIN_CREATE_USER",
+      targetType: "USER",
+      targetId: stored.id,
+    },
+  });
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].targetId, stored.id);
+  assert.equal(audits[0].actorId, superAdmin.id);
+  assert.equal(audits[0].actorRole, "SUPER_ADMIN");
+  assert.equal(audits[0].action, "SUPER_ADMIN_CREATE_USER");
+  assert.equal(audits[0].targetType, "USER");
+  assert.equal(audits[0].metadata.email, email("created-admin"));
+  assert.equal(audits[0].metadata.role, "ADMIN");
+  assert.doesNotMatch(
+    JSON.stringify(audits),
+    /CreatedAdmin123!|password/i,
+  );
 });

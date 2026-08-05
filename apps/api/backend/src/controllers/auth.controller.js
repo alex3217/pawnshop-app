@@ -20,6 +20,7 @@ import {
   isInviteEnforcementEnabled,
   redeemInviteInTransaction,
 } from "../services/betaInvite.service.js";
+import { runGovernedCreateMutation } from "../services/superAdminAudit.service.js";
 
 const PUBLIC_ALLOWED_ROLES = new Set(["CONSUMER", "OWNER"]);
 
@@ -696,16 +697,26 @@ export async function createSuperAdminUser(req, res) {
 
     const hash = await bcrypt.hash(password, 12);
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hash,
-        role: roleCheck.role,
-        isActive:
-          typeof rawBody.isActive === "boolean" ? rawBody.isActive : true,
-        emailVerifiedAt: new Date(),
-      },
+    const user = await runGovernedCreateMutation({
+      req,
+      action: "SUPER_ADMIN_CREATE_USER",
+      targetType: "USER",
+      create: (tx) => tx.user.create({
+        data: {
+          name,
+          email,
+          password: hash,
+          role: roleCheck.role,
+          isActive:
+            typeof rawBody.isActive === "boolean" ? rawBody.isActive : true,
+          emailVerifiedAt: new Date(),
+        },
+      }),
+      metadata: (created) => ({
+        email: created.email,
+        role: created.role,
+        isActive: created.isActive,
+      }),
     });
 
     return res.status(201).json({
