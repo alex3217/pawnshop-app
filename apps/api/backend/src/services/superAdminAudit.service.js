@@ -312,6 +312,39 @@ export async function runGovernedCreateMutation({
   });
 }
 
+export async function runGovernedItemMutation({
+  req,
+  action,
+  targetItemId,
+  mutation,
+  metadata,
+  statusCode = 200,
+  prismaClient = prisma,
+}) {
+  requireGovernanceActor(req);
+
+  return prismaClient.$transaction(async (tx) => {
+    const item = await mutation(tx);
+
+    if (!tx.superAdminAuditLog?.create) {
+      throw new Error("Super Admin audit persistence is unavailable.");
+    }
+
+    await tx.superAdminAuditLog.create({
+      data: auditData(req, {
+        action,
+        targetType: "ITEM",
+        targetId: targetItemId || item.id,
+        statusCode,
+        metadata: typeof metadata === "function" ? metadata(item) : metadata,
+      }),
+    });
+
+    req.skipPersistedSuperAdminAudit = true;
+    return item;
+  });
+}
+
 function getActor(req) {
   const user = req.user || {};
 

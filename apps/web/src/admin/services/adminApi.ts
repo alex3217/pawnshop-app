@@ -1042,7 +1042,7 @@ export const adminApi = {
 
   getItems: async (signal?: AbortSignal): Promise<AdminItemRow[]> => {
     const payload = await adminRequest<PagedListResponse<AdminItemRow>>(
-      "/admin/items",
+      "/admin/items?all=true",
       { signal }
     );
     return normalizeList(payload);
