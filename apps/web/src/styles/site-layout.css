@@ -15,6 +15,17 @@
   backdrop-filter: blur(18px);
 }
 
+.site-environment-indicator {
+  padding: 6px 16px;
+  background: #7c2d12;
+  color: #ffffff;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+}
+
 .site-header-inner {
   max-width: 1440px;
   margin: 0 auto;

@@ -24,12 +24,8 @@ export const DEFAULT_FOUNDING_SHOP_PROGRAM: FoundingShopProgramSettings = {
   subtitle: "We help pawn shops build inventory before buyer traffic scales.",
 };
 
-function apiBase() {
-  const raw =
-    import.meta.env.VITE_API_BASE_URL ||
-    import.meta.env.VITE_API_BASE ||
-    "/api";
-  return String(raw).replace(/\/+$/, "");
+export function buildFoundingShopProgramUrl(apiBase = API_BASE) {
+  return `${apiBase.replace(/\/+$/, "")}/platform-settings/founding-shop-program`;
 }
 
 function toBoolean(value: unknown, fallback: boolean) {
@@ -74,7 +70,7 @@ export async function getFoundingShopProgramSettings(
 ): Promise<FoundingShopProgramSettings> {
   try {
     const response = await fetch(
-      `${apiBase()}/platform-settings/founding-shop-program`,
+      buildFoundingShopProgramUrl(),
       { signal },
     );
 
@@ -86,3 +82,4 @@ export async function getFoundingShopProgramSettings(
     return DEFAULT_FOUNDING_SHOP_PROGRAM;
   }
 }
+import { API_BASE } from "../config";

@@ -43,6 +43,7 @@ import {
   loadTrustProxyConfig,
 } from "./config/authRateLimit.js";
 import { createAuthRateLimiters } from "./middleware/authRateLimit.js";
+import { createCorsOptions, loadCorsPolicy } from "./config/cors.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -83,15 +84,6 @@ function isFrontendAssetRequest(req) {
   );
 }
 
-function parseAllowedOrigins(...values) {
-  return new Set(
-    values
-      .flatMap((value) => String(value || "").split(","))
-      .map((value) => value.trim())
-      .filter(Boolean)
-  );
-}
-
 function normalizeMountPath(path) {
   const trimmed = String(path || "").trim();
   if (!trimmed || trimmed === "/") return "/";
@@ -109,30 +101,6 @@ function mountApi(app, path, router) {
 
   app.use(normalizedPath, router);
   app.use(`/api${normalizedPath}`, router);
-}
-
-function createCorsOptions(allowedOrigins) {
-  return {
-    origin(origin, cb) {
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.size === 0) return cb(null, true);
-      if (allowedOrigins.has(origin)) return cb(null, true);
-
-      const err = new Error(`CORS blocked: ${origin}`);
-      err.statusCode = 403;
-      return cb(err);
-    },
-    credentials: true,
-    optionsSuccessStatus: 204,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-Requested-With",
-      "X-Request-Id",
-      "Stripe-Signature",
-    ],
-  };
 }
 
 function requestIdMiddleware(req, res, next) {
@@ -231,12 +199,7 @@ export function createApp(options = {}) {
     configuredReadinessTimeoutMs > 0
       ? configuredReadinessTimeoutMs
       : 5000;
-  const allowedOrigins = parseAllowedOrigins(
-    process.env.CORS_ORIGINS,
-    process.env.CORS_ORIGIN,
-    process.env.FRONTEND_URL,
-    process.env.WEB_URL
-  );
+  const corsPolicy = loadCorsPolicy(process.env);
 
   const frontendHosts = parseFrontendHosts(process.env.FRONTEND_HOSTS);
   const webBuildAvailable =
@@ -263,7 +226,7 @@ export function createApp(options = {}) {
     })
   );
 
-  const corsOptions = createCorsOptions(allowedOrigins);
+  const corsOptions = createCorsOptions(corsPolicy);
   app.use(cors(corsOptions));
   app.options(/.*/, cors(corsOptions));
 
