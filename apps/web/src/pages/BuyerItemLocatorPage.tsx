@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getMarketplaceItemsPaged, type Item } from "../services/items";
 import { addToWatchlist } from "../services/watchlist";
@@ -163,11 +163,13 @@ function LocatorMap({
   userPoint,
   selectedItemId,
   setSelectedItemId,
+  marketplaceHref,
 }: {
   items: Item[];
   userPoint: GeoPoint | null;
   selectedItemId: string | null;
   setSelectedItemId: (id: string) => void;
+  marketplaceHref: string;
 }) {
   const mapItems = items.slice(0, 8);
 
@@ -200,12 +202,20 @@ function LocatorMap({
           <span>
             Pins show where matching items are available by shop using saved shop coordinates when available.
           </span>
-          <Link to="/marketplace">Open marketplace</Link>
+          <Link to={marketplaceHref}>Open marketplace</Link>
         </div>
       </div>
     </section>
   );
 }
+
+type ItemLocatorSearchState =
+  | "idle"
+  | "loading"
+  | "success"
+  | "no-inventory"
+  | "no-nearby-results"
+  | "error";
 
 export default function BuyerItemLocatorPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -224,10 +234,19 @@ export default function BuyerItemLocatorPage() {
   const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [radius, setRadius] = useState(initialRadius);
-  const [loading, setLoading] = useState(false);
+  const [searchState, setSearchState] = useState<ItemLocatorSearchState>(
+    initialQuery.trim() ? "loading" : "idle",
+  );
+  const [hasSearched, setHasSearched] = useState(Boolean(initialQuery.trim()));
+  const [lastSearchedQuery, setLastSearchedQuery] = useState(initialQuery.trim());
+  const [searchAttempt, setSearchAttempt] = useState(initialQuery.trim() ? 1 : 0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [watchingItemId, setWatchingItemId] = useState<string | null>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const loading = searchState === "loading";
 
   const radiusMiles = Number(radius) || 25;
 
@@ -316,48 +335,72 @@ export default function BuyerItemLocatorPage() {
   }, [rankedItems, userPoint]);
 
   useEffect(() => {
-    if (!appliedQuery.trim()) {
+    if (!appliedQuery.trim() || searchAttempt === 0) {
       setItems([]);
       setTotalItems(0);
       setSelectedItemId(null);
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
 
     async function load() {
-      setLoading(true);
+      setSearchState("loading");
       setError(null);
+      setItems([]);
+      setTotalItems(0);
+      setSelectedItemId(null);
 
       try {
-        const result = await getMarketplaceItemsPaged({
-          query: appliedQuery,
-          sort: "newest",
-        });
+        const result = await getMarketplaceItemsPaged(
+          {
+            query: appliedQuery,
+            sort: "newest",
+          },
+          controller.signal,
+        );
 
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setItems(result.items);
           setTotalItems(result.total);
           setSelectedItemId(result.items[0]?.id || null);
+          const hasNearbyItems = !userPoint || result.items.some((item) => {
+            const distance = itemDistanceMiles(item, userPoint);
+            return distance === null || distance <= radiusMiles;
+          });
+          setSearchState(
+            result.items.length === 0
+              ? "no-inventory"
+              : hasNearbyItems
+                ? "success"
+                : "no-nearby-results",
+          );
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setItems([]);
           setTotalItems(0);
           setSelectedItemId(null);
           setError(err instanceof Error ? err.message : "Failed to locate items.");
+          setSearchState("error");
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     }
 
     void load();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [appliedQuery]);
+  }, [appliedQuery, radiusMiles, searchAttempt, userPoint]);
+
+  useEffect(() => {
+    if (!hasSearched || searchState === "idle" || searchState === "loading") return;
+
+    window.requestAnimationFrame(() => {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [hasSearched, searchAttempt, searchState]);
 
   async function handleWatchItem(item: Item) {
     if (!item.id || watchingItemId) return;
@@ -381,7 +424,15 @@ export default function BuyerItemLocatorPage() {
 
     const nextQuery = query.trim();
     setAppliedQuery(nextQuery);
+    setLastSearchedQuery(nextQuery);
+    setHasSearched(true);
+    setSearchAttempt((attempt) => attempt + 1);
     setError(null);
+    setNotice(null);
+    setSearchState("loading");
+    setItems([]);
+    setTotalItems(0);
+    setSelectedItemId(null);
 
     const nextParams = new URLSearchParams();
 
@@ -392,6 +443,40 @@ export default function BuyerItemLocatorPage() {
 
     nextParams.set("radius", radius);
     setSearchParams(nextParams, { replace: false });
+  }
+
+  function retrySearch() {
+    if (!appliedQuery.trim() || loading) return;
+    setSearchState("loading");
+    setError(null);
+    setNotice(null);
+    setItems([]);
+    setTotalItems(0);
+    setSelectedItemId(null);
+    setSearchAttempt((attempt) => attempt + 1);
+  }
+
+  function clearSearch() {
+    setQuery("");
+    setAppliedQuery("");
+    setLastSearchedQuery("");
+    setHasSearched(false);
+    setSearchAttempt(0);
+    setItems([]);
+    setTotalItems(0);
+    setSelectedItemId(null);
+    setError(null);
+    setNotice(null);
+    setSearchState("idle");
+
+    setSearchParams(new URLSearchParams(), { replace: false });
+    window.requestAnimationFrame(() => searchInputRef.current?.focus());
+  }
+
+  function increaseRadius() {
+    const radii = ["10", "25", "50", "100"];
+    const currentIndex = radii.indexOf(radius);
+    handleRadiusChange(radii[Math.min(currentIndex + 1, radii.length - 1)] || "100");
   }
 
   function handleRadiusChange(nextRadius: string) {
@@ -449,6 +534,7 @@ export default function BuyerItemLocatorPage() {
 
           <form className="locator-search-row" onSubmit={handleSubmit}>
             <input
+              ref={searchInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search item keyword..."
@@ -467,6 +553,35 @@ export default function BuyerItemLocatorPage() {
               Use location
             </button>
           </form>
+
+          {hasSearched ? (
+            <div
+              ref={resultsRef}
+              className={searchState === "error" ? "locator-search-status error" : "locator-search-status"}
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span>
+                {searchState === "loading"
+                  ? `Searching PawnLoop inventory for “${lastSearchedQuery}”…`
+                  : searchState === "error"
+                    ? `We could not complete the search. ${error || "Please try again."}`
+                    : searchState === "no-inventory"
+                      ? `No pawnshops currently have “${lastSearchedQuery}” available.`
+                      : searchState === "no-nearby-results"
+                        ? `No matching “${lastSearchedQuery}” listings were found within ${radius} miles.`
+                        : searchState === "success"
+                          ? `Found ${rankedItems.length} matching item${rankedItems.length === 1 ? "" : "s"} from ${groupedByShop.length} pawnshop${groupedByShop.length === 1 ? "" : "s"}.`
+                          : ""}
+              </span>
+              {searchState === "error" ? (
+                <button type="button" onClick={retrySearch} disabled={loading}>
+                  Retry
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {locationMessage ? <div className="locator-message">{locationMessage}</div> : null}
           {notice ? <div className="locator-message">{notice}</div> : null}
@@ -511,7 +626,7 @@ export default function BuyerItemLocatorPage() {
         </Link>
       </section>
 
-      {!appliedQuery ? (
+      {!hasSearched ? (
         <section className="locator-empty">
           <h2>Search for an item to locate it</h2>
           <p>
@@ -519,24 +634,35 @@ export default function BuyerItemLocatorPage() {
             or anything buyers commonly look for across pawnshops.
           </p>
         </section>
-      ) : error ? (
+      ) : searchState === "error" ? (
         <section className="locator-error">
           <h2>Item locator could not load</h2>
           <p>{error}</p>
         </section>
-      ) : loading ? (
+      ) : searchState === "loading" ? (
         <section className="locator-loading-grid">
           {Array.from({ length: 6 }).map((_, index) => (
             <div key={index} className="locator-skeleton" />
           ))}
         </section>
-      ) : rankedItems.length === 0 ? (
+      ) : searchState === "no-inventory" || searchState === "no-nearby-results" ? (
         <section className="locator-empty">
-          <h2>No shops currently show that item</h2>
+          <h2>
+            {searchState === "no-inventory"
+              ? `No pawnshops currently have “${lastSearchedQuery}” available.`
+              : `No matching “${lastSearchedQuery}” listings were found within ${radius} miles.`}
+          </h2>
           <p>
             Try a broader keyword or save this search so you can track when shops add matching inventory.
           </p>
-          <Link to={locatorHandoffHref("/saved-searches")}>Go to saved searches</Link>
+          <div className="locator-empty-actions">
+            {searchState === "no-nearby-results" && radius !== "100" ? (
+              <button type="button" onClick={increaseRadius}>Increase radius</button>
+            ) : null}
+            <Link to={locatorHandoffHref("/marketplace")}>Browse Marketplace</Link>
+            <Link to={locatorHandoffHref("/saved-searches")}>Save this search</Link>
+            <button type="button" onClick={clearSearch}>Clear search</button>
+          </div>
         </section>
       ) : (
         <section className="locator-results-layout">
@@ -546,7 +672,7 @@ export default function BuyerItemLocatorPage() {
                 <span>Results</span>
                 <h2>Matching items for “{appliedQuery}”</h2>
               </div>
-              <Link to={`/marketplace?search=${encodeURIComponent(appliedQuery)}`}>
+              <Link to={locatorHandoffHref("/marketplace")}>
                 Open in marketplace
               </Link>
             </div>
@@ -572,6 +698,7 @@ export default function BuyerItemLocatorPage() {
               userPoint={userPoint}
               selectedItemId={selectedItemId}
               setSelectedItemId={setSelectedItemId}
+              marketplaceHref={locatorHandoffHref("/marketplace")}
             />
 
             <div className="locator-shop-panel">
