@@ -24,23 +24,23 @@ test("development and test allow an empty origin allowlist", () => {
 test("staging and production reject an empty origin allowlist", () => {
   assert.throws(
     () => assertDeployedCorsConfiguration({ APP_ENV: "staging" }),
-    /allowlist is required/,
+    /origin allowlist is required/,
   );
   assert.throws(
     () => assertDeployedCorsConfiguration({ NODE_ENV: "production" }),
-    /allowlist is required/,
+    /origin allowlist is required/,
   );
 });
 
-test("production allows valid HTTPS origins", () => {
+test("deployed environments allow valid HTTPS origins", () => {
   assert.deepEqual(
     [
       ...assertDeployedCorsConfiguration({
-        NODE_ENV: "production",
-        CORS_ORIGIN: "https://single.example",
+        APP_ENV: "staging",
+        CORS_ORIGIN: "https://pawnloop-frontend.pages.dev",
       }),
     ],
-    ["https://single.example"],
+    ["https://pawnloop-frontend.pages.dev"],
   );
 
   const origins = assertDeployedCorsConfiguration({
@@ -84,8 +84,25 @@ test("deployed environments reject a literal wildcard", () => {
         NODE_ENV: "staging",
         CORS_ORIGIN: "*",
       }),
-    /wildcards are not allowed/,
+    /Wildcards are not allowed/,
   );
+});
+
+test("deployed environments reject wildcard hostnames", () => {
+  for (const origin of [
+    "https://*.example.com",
+    "https://api.*.example.com",
+  ]) {
+    assert.throws(
+      () =>
+        assertDeployedCorsConfiguration({
+          APP_ENV: "staging",
+          CORS_ORIGIN: origin,
+        }),
+      /wildcard hostnames/,
+      origin,
+    );
+  }
 });
 
 test("deployed environments reject malformed and non-browser URLs", () => {
@@ -100,7 +117,7 @@ test("deployed environments reject malformed and non-browser URLs", () => {
           APP_ENV: "staging",
           CORS_ORIGIN: origin,
         }),
-      /Invalid deployed CORS origin/,
+      /valid absolute HTTP or HTTPS origin|paths, queries/,
       origin,
     );
   }
@@ -121,10 +138,26 @@ test("deployed environments reject URL components beyond an origin", () => {
           APP_ENV: "staging",
           CORS_ORIGIN: origin,
         }),
-      /Invalid deployed CORS origin/,
+      /paths, queries, fragments, credentials/,
       origin,
     );
   }
+});
+
+test("configuration errors do not echo credential values", () => {
+  const password = "cors-password-must-stay-private-7d2f";
+
+  assert.throws(
+    () =>
+      assertDeployedCorsConfiguration({
+        APP_ENV: "staging",
+        CORS_ORIGIN: `https://user:${password}@example.com`,
+      }),
+    (error) => {
+      assert.doesNotMatch(error.message, new RegExp(password));
+      return true;
+    },
+  );
 });
 
 test("production requires HTTPS and gives lookalike hosts no exemption", () => {
@@ -185,7 +218,11 @@ test("a deployed configuration failure exits before server startup", () => {
   const output = `${result.stdout}\n${result.stderr}`;
 
   assert.notEqual(result.status, 0, output);
-  assert.match(output, /wildcards are not allowed/);
+  assert.match(output, /Wildcards are not allowed/);
+  assert.match(
+    output,
+    /CORS_ORIGINS, CORS_ORIGIN, FRONTEND_URL, or WEB_URL must contain explicit approved HTTP\(S\) origins/,
+  );
   assert.doesNotMatch(output, /API running|Failed to initialize socket server/);
   assert.doesNotMatch(output, new RegExp(unrelatedSecret));
 });
