@@ -17,6 +17,7 @@ import type {
 import {
   shopHasPermission,
 } from "../services/shopAccess";
+import "../styles/create-auction-page.css";
 
 type FormState = {
   itemId: string;
@@ -239,9 +240,9 @@ export default function CreateAuctionPage() {
   }
 
   return (
-    <div className="page-stack">
-      <div className="page-card" style={{ display: "grid", gap: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+    <div className="page-stack create-auction-page">
+      <div className="page-card create-auction-card" style={{ display: "grid", gap: 16 }}>
+        <div className="create-auction-header">
           <div>
             <h1 style={{ margin: 0 }}>Create Auction</h1>
             <p className="muted" style={{ margin: "6px 0 0" }}>
@@ -249,7 +250,7 @@ export default function CreateAuctionPage() {
             </p>
           </div>
 
-          <Link className="btn" to="/owner/auctions">
+          <Link className="btn create-auction-secondary-link" to="/owner/auctions">
             Shop Auctions
           </Link>
         </div>
@@ -365,7 +366,7 @@ export default function CreateAuctionPage() {
             </label>
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div className="create-auction-form-actions">
             <button
               className="btn btn-primary"
               type="submit"
@@ -376,21 +377,21 @@ export default function CreateAuctionPage() {
 
             {canOpenOwnerInventory ? (
               <Link
-                className="btn"
+                className="btn create-auction-secondary-link"
                 to="/owner/inventory"
               >
                 Go to Inventory
               </Link>
             ) : (
               <Link
-                className="btn"
+                className="btn create-auction-secondary-link"
                 to="/owner/auctions"
               >
                 Back to Shop Auctions
               </Link>
             )}
 
-            <Link className="btn" to="/auctions">
+            <Link className="btn create-auction-secondary-link" to="/auctions">
               View Auctions
             </Link>
           </div>
