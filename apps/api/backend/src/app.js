@@ -43,6 +43,7 @@ import {
   loadTrustProxyConfig,
 } from "./config/authRateLimit.js";
 import { createAuthRateLimiters } from "./middleware/authRateLimit.js";
+import { createCorsOriginHandler, parseAllowedOrigins } from "./cors.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -83,15 +84,6 @@ function isFrontendAssetRequest(req) {
   );
 }
 
-function parseAllowedOrigins(...values) {
-  return new Set(
-    values
-      .flatMap((value) => String(value || "").split(","))
-      .map((value) => value.trim())
-      .filter(Boolean)
-  );
-}
-
 function normalizeMountPath(path) {
   const trimmed = String(path || "").trim();
   if (!trimmed || trimmed === "/") return "/";
@@ -113,15 +105,7 @@ function mountApi(app, path, router) {
 
 function createCorsOptions(allowedOrigins) {
   return {
-    origin(origin, cb) {
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.size === 0) return cb(null, true);
-      if (allowedOrigins.has(origin)) return cb(null, true);
-
-      const err = new Error(`CORS blocked: ${origin}`);
-      err.statusCode = 403;
-      return cb(err);
-    },
+    origin: createCorsOriginHandler(allowedOrigins),
     credentials: true,
     optionsSuccessStatus: 204,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -231,12 +215,7 @@ export function createApp(options = {}) {
     configuredReadinessTimeoutMs > 0
       ? configuredReadinessTimeoutMs
       : 5000;
-  const allowedOrigins = parseAllowedOrigins(
-    process.env.CORS_ORIGINS,
-    process.env.CORS_ORIGIN,
-    process.env.FRONTEND_URL,
-    process.env.WEB_URL
-  );
+  const allowedOrigins = parseAllowedOrigins(process.env);
 
   const frontendHosts = parseFrontendHosts(process.env.FRONTEND_HOSTS);
   const webBuildAvailable =

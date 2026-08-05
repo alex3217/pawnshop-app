@@ -1,14 +1,19 @@
 import { Server } from "socket.io";
+import { createCorsOriginHandler, parseAllowedOrigins } from "../cors.js";
 
 let io;
+
+export function createSocketCorsOptions(env = process.env) {
+  return {
+    origin: createCorsOriginHandler(parseAllowedOrigins(env)),
+    credentials: true,
+  };
+}
 
 export function initSocket(httpServer) {
   io = new Server(httpServer, {
     path: "/socket.io",
-    cors: {
-      origin: process.env.CORS_ORIGIN || "*",
-      credentials: true,
-    },
+    cors: createSocketCorsOptions(process.env),
   });
 
   io.on("connection", (socket) => {
