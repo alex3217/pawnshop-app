@@ -1375,11 +1375,31 @@ export async function listSuperAdminShops(req, res) {
     const { page, limit, skip } = paginationFromQuery(req.query);
     const deleted = normalizeBoolean(req.query?.isDeleted);
     const plan = normalizeUpper(req.query?.subscriptionPlan);
-    const searchFilter = buildSearchFilter(["name", "address"], req.query?.q);
+    const status = normalizeUpper(req.query?.subscriptionStatus);
+    const search = normalizeString(req.query?.q);
+
+    if (req.query?.isDeleted !== undefined && typeof deleted !== "boolean") {
+      throw badRequest("isDeleted must be a boolean.");
+    }
+    if (plan) normalizeSellerPlanCode(plan);
+    if (status) normalizeSubscriptionStatus(status);
+
+    const searchFilter = search
+      ? {
+          OR: [
+            ...["id", "name", "address", "phone"].map((field) => ({
+              [field]: { contains: search, mode: "insensitive" },
+            })),
+            { owner: { is: { name: { contains: search, mode: "insensitive" } } } },
+            { owner: { is: { email: { contains: search, mode: "insensitive" } } } },
+          ],
+        }
+      : undefined;
 
     const where = {
       ...(typeof deleted === "boolean" ? { isDeleted: deleted } : {}),
       ...(plan ? { subscriptionPlan: plan } : {}),
+      ...(status ? { subscriptionStatus: status } : {}),
       ...(searchFilter || {}),
     };
 
@@ -1420,10 +1440,20 @@ export async function updateSuperAdminShop(req, res) {
 
     if (!body) throw badRequest("Request body must be a JSON object.");
 
-    const billingOverrideRequested = ["subscriptionPlan", "subscriptionStatus", "subscriptionCurrentPeriodEnd", "cancelAtPeriodEnd"].some((key) => body[key] !== undefined);
-    if (billingOverrideRequested && !normalizeString(body.reason)) throw badRequest("A reason is required for billing overrides.");
+    const billingFields = ["subscriptionPlan", "subscriptionStatus", "subscriptionCurrentPeriodEnd", "cancelAtPeriodEnd"];
+    const profileFields = ["name", "address", "phone", "description", "hours"];
+    const billingOverrideRequested = billingFields.some((key) => body[key] !== undefined);
+    const reason = normalizeString(body.reason);
+    if (billingOverrideRequested && !reason) throw badRequest("A reason is required for billing overrides.");
 
     const update = {};
+
+    for (const field of profileFields) {
+      if (body[field] === undefined) continue;
+      const value = normalizeNullableString(body[field]);
+      if (field === "name" && !value) throw badRequest("Shop name is required.");
+      update[field] = value;
+    }
 
     if (body.isDeleted !== undefined) {
       const normalized = normalizeBoolean(body.isDeleted);
@@ -1459,6 +1489,39 @@ export async function updateSuperAdminShop(req, res) {
       throw badRequest("No valid shop updates provided.");
     }
 
+    const existing = await prisma.pawnShop.findUnique({
+      where: { id: shopId },
+      select: {
+        id: true, name: true, address: true, phone: true, description: true,
+        hours: true, isDeleted: true, subscriptionPlan: true,
+        subscriptionStatus: true, subscriptionCurrentPeriodEnd: true,
+        cancelAtPeriodEnd: true,
+      },
+    });
+    if (!existing) throw notFound("Shop not found.");
+
+    const changedFields = Object.keys(update).filter((field) => {
+      const before = existing[field];
+      const after = update[field];
+      if (before instanceof Date || after instanceof Date) {
+        return toIsoOrNull(before) !== toIsoOrNull(after);
+      }
+      return before !== after;
+    });
+    if (changedFields.length === 0) throw badRequest("Shop update does not change any values.");
+
+    const hasProfile = changedFields.some((field) => profileFields.includes(field));
+    const hasBilling = changedFields.some((field) => billingFields.includes(field));
+    const hasAccess = changedFields.includes("isDeleted");
+    const changeType = [hasProfile, hasBilling, hasAccess].filter(Boolean).length > 1
+      ? "MIXED"
+      : hasBilling
+        ? "BILLING_OVERRIDE"
+        : hasAccess
+          ? update.isDeleted ? "ACCESS_DISABLE" : "ACCESS_RESTORE"
+          : "PROFILE";
+    const auditValue = (value) => value instanceof Date ? value.toISOString() : value ?? null;
+
     const updated = await runGovernedShopMutation({
       req,
       targetShopId: shopId,
@@ -1469,6 +1532,15 @@ export async function updateSuperAdminShop(req, res) {
           select: { id: true, name: true, email: true },
         },
       },
+      metadata: (saved) => ({
+        shopId,
+        shopName: saved.name,
+        changeType,
+        changedFields,
+        ...(hasBilling ? { reason } : {}),
+        before: Object.fromEntries(changedFields.map((field) => [field, auditValue(existing[field])])),
+        after: Object.fromEntries(changedFields.map((field) => [field, auditValue(saved[field])])),
+      }),
     });
 
     return res.json({
