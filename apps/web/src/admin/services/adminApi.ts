@@ -204,6 +204,22 @@ export type AdminShopRow = {
   isDeleted?: boolean;
 };
 
+export type UpdateSuperAdminShopInput = Partial<
+  Pick<
+    AdminShopRow,
+    | "name"
+    | "address"
+    | "phone"
+    | "description"
+    | "hours"
+    | "isDeleted"
+    | "subscriptionPlan"
+    | "subscriptionStatus"
+    | "subscriptionCurrentPeriodEnd"
+    | "cancelAtPeriodEnd"
+  >
+> & { reason?: string };
+
 export type AdminAuctionRow = {
   id: string;
   itemId?: string | null;
@@ -1112,7 +1128,7 @@ export const adminApi = {
 
   updateSuperAdminShop: (
     id: string,
-    input: Partial<AdminShopRow>,
+    input: UpdateSuperAdminShopInput,
     signal?: AbortSignal
   ) =>
     patchJson<{ success: boolean; shop: AdminShopRow }>(
