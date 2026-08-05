@@ -245,8 +245,20 @@ export default function BuyerItemLocatorPage() {
   const [watchingItemId, setWatchingItemId] = useState<string | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchRequestRef = useRef(0);
 
   const loading = searchState === "loading";
+  const canClearSearch = Boolean(
+    query
+      || appliedQuery.trim()
+      || hasSearched
+      || items.length
+      || totalItems
+      || selectedItemId
+      || error
+      || notice
+      || searchState !== "idle",
+  );
 
   const radiusMiles = Number(radius) || 25;
 
@@ -343,6 +355,7 @@ export default function BuyerItemLocatorPage() {
     }
 
     const controller = new AbortController();
+    const requestId = ++searchRequestRef.current;
 
     async function load() {
       setSearchState("loading");
@@ -360,7 +373,7 @@ export default function BuyerItemLocatorPage() {
           controller.signal,
         );
 
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && requestId === searchRequestRef.current) {
           setItems(result.items);
           setTotalItems(result.total);
           setSelectedItemId(result.items[0]?.id || null);
@@ -377,7 +390,7 @@ export default function BuyerItemLocatorPage() {
           );
         }
       } catch (err) {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && requestId === searchRequestRef.current) {
           setItems([]);
           setTotalItems(0);
           setSelectedItemId(null);
@@ -457,6 +470,7 @@ export default function BuyerItemLocatorPage() {
   }
 
   function clearSearch() {
+    searchRequestRef.current += 1;
     setQuery("");
     setAppliedQuery("");
     setLastSearchedQuery("");
@@ -469,7 +483,9 @@ export default function BuyerItemLocatorPage() {
     setNotice(null);
     setSearchState("idle");
 
-    setSearchParams(new URLSearchParams(), { replace: false });
+    const nextParams = new URLSearchParams();
+    nextParams.set("radius", radius);
+    setSearchParams(nextParams, { replace: false });
     window.requestAnimationFrame(() => searchInputRef.current?.focus());
   }
 
@@ -549,6 +565,16 @@ export default function BuyerItemLocatorPage() {
             </select>
 
             <button type="submit" disabled={!query.trim() || loading}>{loading ? "Locating..." : "Locate item"}</button>
+            <button
+              type="button"
+              className="locator-clear-button"
+              onClick={clearSearch}
+              disabled={!canClearSearch}
+              aria-label="Clear search"
+              title="Clear search"
+            >
+              Clear
+            </button>
             <button type="button" className="secondary locator-action-force-label locator-use-location-readable" onClick={handleUseLocation} data-label="Use location" aria-label="Use location" title="Use location">
               Use location
             </button>
@@ -661,7 +687,6 @@ export default function BuyerItemLocatorPage() {
             ) : null}
             <Link to={locatorHandoffHref("/marketplace")}>Browse Marketplace</Link>
             <Link to={locatorHandoffHref("/saved-searches")}>Save this search</Link>
-            <button type="button" onClick={clearSearch}>Clear search</button>
           </div>
         </section>
       ) : (

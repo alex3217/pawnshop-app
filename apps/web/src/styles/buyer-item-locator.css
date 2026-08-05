@@ -83,7 +83,7 @@
 
 .locator-search-row {
   display: grid;
-  grid-template-columns: 1fr 130px auto auto;
+  grid-template-columns: minmax(0, 1fr) 130px auto auto auto;
   gap: 10px;
   margin-top: 24px;
   padding: 8px;
@@ -93,6 +93,8 @@
 
 .locator-search-row input,
 .locator-search-row select {
+  box-sizing: border-box;
+  min-width: 0;
   min-height: 52px;
   border: 0;
   outline: 0;
@@ -117,6 +119,54 @@
 .locator-search-row button.secondary {
   background: #eef2ff;
   color: #312e81;
+}
+
+.locator-search-row .locator-clear-button {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.locator-search-row .locator-clear-button:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.locator-search-row button:focus-visible {
+  outline: 3px solid #a5b4fc;
+  outline-offset: 2px;
+}
+
+.locator-search-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+:root[data-theme="dark"] .locator-search-row .locator-clear-button {
+  border-color: #64748b;
+  background: #334155;
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .locator-search-row .locator-clear-button:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #475569;
+  color: #fff;
+}
+
+:root:not([data-theme="dark"]) .locator-hero .locator-search-row .locator-clear-button {
+  border: 1px solid #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero .locator-search-row .locator-clear-button:hover:not(:disabled) {
+  border-color: #94a3b8 !important;
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
 }
 
 .locator-message {
