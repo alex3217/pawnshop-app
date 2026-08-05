@@ -35,8 +35,8 @@ const rules = [
       canFeatureListings: false,
       analyticsLevel: "none",
       features: [
-        "Up to 20 active listings after trial",
-        "50 active listings during trial",
+        "Up to 20 active products",
+        "50 active products during trial",
         "Basic shop profile",
         "Standard support",
       ],
