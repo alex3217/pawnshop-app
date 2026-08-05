@@ -16,6 +16,8 @@ import ScrollToTopButton from "./ScrollToTopButton";
 import NavigationTour from "./onboarding/NavigationTour";
 import RoleSetupChecklist from "./onboarding/RoleSetupChecklist";
 import NotificationCenter from "./NotificationCenter";
+import { ENVIRONMENT } from "../config";
+import EnvironmentIndicator from "./EnvironmentIndicator.mjs";
 import "../styles/site-layout.css";
 
 type NavItem = {
@@ -435,6 +437,7 @@ export default function SiteLayout() {
   return (
     <div className="site-shell">
       <header className="site-header">
+        <EnvironmentIndicator environment={ENVIRONMENT} />
         <div className="site-header-inner">
           <div className="site-top-row">
             <Link

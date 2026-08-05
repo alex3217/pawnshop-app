@@ -172,6 +172,97 @@ Required frontend envs are documented in:
 
     apps/web/.env.example
 
+## Frontend and CORS Environment Contract
+
+The table below is the source of truth for deployed web/API targeting. Provider
+settings must be scoped to the named provider environment; do not use a shared
+Cloudflare value for Preview and Production.
+
+| Provider environment | Deployment variable | API origin | API path | Socket.IO origin | Socket.IO path | Backend preview policy |
+| --- | --- | --- | --- | --- | --- | --- |
+| Local Vite development | `VITE_DEPLOY_ENV=development` | Vite proxy via `VITE_API_TARGET` | `/api` | browser origin/Vite proxy | `/socket.io` | Not applicable |
+| Cloudflare Preview | `VITE_DEPLOY_ENV=preview` | `VITE_API_ORIGIN=https://pawnshop-staging-api.onrender.com` | `VITE_API_BASE=/api` | `VITE_SOCKET_URL=https://pawnshop-staging-api.onrender.com` | `VITE_SOCKET_PATH=/socket.io` | Not applicable |
+| Cloudflare Production | `VITE_DEPLOY_ENV=production` | `VITE_API_ORIGIN=https://api.pawnloop.com` | `VITE_API_BASE=/api` | `VITE_SOCKET_URL=https://api.pawnloop.com` | `VITE_SOCKET_PATH=/socket.io` | Not applicable |
+| Render staging | `APP_ENV=staging` | Staging service itself | `/api` | Staging service itself | `/socket.io` | `CORS_ALLOW_PAWNLOOP_PREVIEWS=true`; retain exact `CORS_ORIGINS` |
+| Render production | `APP_ENV=production` | Production service itself | `/api` | Production service itself | `/socket.io` | `CORS_ALLOW_PAWNLOOP_PREVIEWS` absent or `false`; retain production exact origins |
+
+`VITE_API_BASE_URL` remains a supported alias for `VITE_API_BASE`, but new
+provider configuration should use `VITE_API_BASE`. The build rejects unknown or
+missing deployed modes, Preview/Production API crossover, and a Socket.IO origin
+that disagrees with the required API target. Every deployed build requires
+`VITE_SOCKET_PATH=/socket.io` exactly; missing, duplicated, trailing, absolute,
+or otherwise malformed Socket.IO paths fail validation. Preview builds display
+`PREVIEW · STAGING DATA`, staging builds display `STAGING · STAGING DATA`, and
+production never displays an environment indicator.
+
+On staging only, enabling the preview policy accepts HTTPS origins whose parsed
+hostname is exactly one valid DNS branch label followed by
+`.pawnloop-frontend.pages.dev`. Exact configured origins remain accepted.
+Production ignores an accidentally enabled preview flag. Origin-less health and
+server requests remain supported, and credentialed CORS always echoes a verified
+origin rather than `*`.
+
+### One-time provider correction and verification
+
+1. After merging, set the Cloudflare Pages `pawnloop-frontend` Preview and
+   Production variables exactly as shown in the table. Remove conflicting
+   environment-scoped values rather than retaining two API-selection systems.
+2. Set Render staging to `APP_ENV=staging` and
+   `CORS_ALLOW_PAWNLOOP_PREVIEWS=true`, preserving its intentional exact origins.
+   Future PawnLoop branch aliases require no individual CORS entry.
+3. Set Render production to `APP_ENV=production` and remove or set
+   `CORS_ALLOW_PAWNLOOP_PREVIEWS=false`. Preserve the existing PawnLoop production
+   origins.
+4. Deploy Render staging first, then run the credential-free CORS smoke check:
+
+       node scripts/check-preview-cors-smoke.mjs
+
+5. Build and deploy a Cloudflare Preview, confirm the environment indicator is
+   visible, and verify its build contract locally with:
+
+       VITE_DEPLOY_ENV=preview VITE_API_ORIGIN=https://pawnshop-staging-api.onrender.com VITE_API_BASE=/api VITE_SOCKET_URL=https://pawnshop-staging-api.onrender.com VITE_SOCKET_PATH=/socket.io npm run build:web
+
+6. Deploy Cloudflare Production only after the Preview check passes. Production
+   API/Render changes are not required by this repository correction unless its
+   current `APP_ENV` or preview flag disagrees with the table.
+
+The smoke command makes unauthenticated health and OPTIONS requests only. It
+requires HTTP 200 from both health endpoints, an exact HTTP 204 credentialed
+staging preflight that echoes the representative Preview origin, and a deliberate
+HTTP 403 Production preflight rejection with no Preview ACAO. Timeouts, network
+errors, unhealthy services, unexpected routes/statuses, and Production 5xx/200
+responses fail rather than masquerading as CORS rejection. It sends and prints no
+credentials or tokens. Keep this post-deployment; ordinary PR CI must not depend
+on Render availability.
+
+To validate the caller's current deployment variables without inspecting a
+minified bundle, export the complete environment row from the table and run
+`node scripts/check-deployment-environment.mjs`. Run the matrix regression tests with
+`node --test apps/web/test/environment-contract.test.mjs
+apps/web/test/environment-contract-consumption.test.mjs
+apps/web/test/environment-indicator.runtime.test.mjs
+scripts/test-deployment-environment-cli.mjs`. These exercise the source contract
+and CLI failure behavior directly.
+
+Rollback in reverse order: restore the last known-good Cloudflare Production
+deployment if it changed, restore the last known-good Preview deployment, then
+restore the last known-good Render staging deploy. Restore the previous provider
+variables only if they are known safe; never restore a Preview production-API
+target or enable preview origins on production. Repeat health and CORS smoke
+checks after rollback. Database rollback or migration is not part of this change.
+
+### Staging QA users
+
+No safe staging-only QA bootstrap currently exists. `seed-admin.mjs` is
+idempotent but has development fallback credentials and no staging-only guard;
+`seed-dev-demo-data.mjs` contains development demo identities and passwords.
+Neither may be run against staging. Establishing a staging-only, idempotent
+bootstrap that requires secret environment variables and refuses non-staging
+databases is a separate reviewed follow-up. Until then, rotate or create QA users
+through the normal authorized account/admin workflow and the approved secret
+manager; never store or paste passwords in Git, documentation, tickets, logs, or
+command output.
+
 ## Stripe Webhook
 
 Local API route:
