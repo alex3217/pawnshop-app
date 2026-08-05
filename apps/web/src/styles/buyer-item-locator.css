@@ -83,7 +83,7 @@
 
 .locator-search-row {
   display: grid;
-  grid-template-columns: 1fr 130px auto auto;
+  grid-template-columns: minmax(0, 1fr) 130px auto auto auto;
   gap: 10px;
   margin-top: 24px;
   padding: 8px;
@@ -93,6 +93,8 @@
 
 .locator-search-row input,
 .locator-search-row select {
+  box-sizing: border-box;
+  min-width: 0;
   min-height: 52px;
   border: 0;
   outline: 0;
@@ -119,6 +121,54 @@
   color: #312e81;
 }
 
+.locator-search-row .locator-clear-button {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.locator-search-row .locator-clear-button:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.locator-search-row button:focus-visible {
+  outline: 3px solid #a5b4fc;
+  outline-offset: 2px;
+}
+
+.locator-search-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+:root[data-theme="dark"] .locator-search-row .locator-clear-button {
+  border-color: #64748b;
+  background: #334155;
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .locator-search-row .locator-clear-button:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #475569;
+  color: #fff;
+}
+
+:root:not([data-theme="dark"]) .locator-hero .locator-search-row .locator-clear-button {
+  border: 1px solid #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+}
+
+:root:not([data-theme="dark"]) .locator-hero .locator-search-row .locator-clear-button:hover:not(:disabled) {
+  border-color: #94a3b8 !important;
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
 .locator-message {
   width: fit-content;
   margin-top: 14px;
@@ -128,6 +178,39 @@
   color: #dbeafe;
   font-size: 13px;
   font-weight: 800;
+}
+
+.locator-search-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  border: 1px solid rgba(165, 180, 252, 0.4);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(30, 41, 59, 0.92);
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.45;
+  scroll-margin-top: 96px;
+}
+
+.locator-search-status.error {
+  border-color: rgba(252, 165, 165, 0.55);
+  background: rgba(69, 10, 10, 0.92);
+}
+
+.locator-search-status button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 950;
+  cursor: pointer;
 }
 
 .locator-hero-panel {
@@ -550,6 +633,34 @@
   font-weight: 950;
 }
 
+.locator-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.locator-empty-actions a,
+.locator-empty-actions button {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0;
+  border: 0;
+  border-radius: 15px;
+  padding: 12px 16px;
+  background: #0f172a;
+  color: #fff;
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.locator-empty-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .locator-loading-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -604,6 +715,34 @@
   .locator-map-stage {
     min-height: 560px;
   }
+
+  .locator-search-status {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .locator-empty-actions,
+  .locator-empty-actions a,
+  .locator-empty-actions button {
+    width: 100%;
+  }
+
+  .locator-empty-actions a,
+  .locator-empty-actions button {
+    justify-content: center;
+  }
+}
+
+:root:not([data-theme="dark"]) .locator-search-status {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  color: #1e1b4b;
+}
+
+:root:not([data-theme="dark"]) .locator-search-status.error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #7f1d1d;
 }
 
 /* ===== FINAL ITEM LOCATOR LIGHT MODE FIX ===== */
@@ -1257,3 +1396,121 @@ body:not(.dark) .locator-use-location-readable::before {
   -webkit-text-fill-color: #ffffff !important;
 }
 /* END final Item Locator forced visible use-location label. */
+
+/* Item Locator titles must opt out of the shared gradient text treatment.
+   Set both text color channels because WebKit text fill does not reliably
+   follow a later color declaration. */
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-hero h1,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-hero h1 *,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-section-title h2,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-section-title h2 *,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-heading h3,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-heading h3 *,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-heading strong,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-empty h2,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-empty h2 *,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-error h2,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-error h2 * {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  background-image: none !important;
+}
+
+:root[data-theme="dark"] .site-main .item-locator-page .locator-hero h1,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-hero h1 *,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-section-title h2,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-section-title h2 *,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-heading h3,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-heading h3 *,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-heading strong,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-empty h2,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-empty h2 *,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-error h2,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-error h2 * {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  background-image: none !important;
+}
+
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-section-title > div > span,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-image > span,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-image > b {
+  color: #4338ca !important;
+  -webkit-text-fill-color: #4338ca !important;
+  background-image: none !important;
+}
+
+:root[data-theme="dark"] .site-main .item-locator-page .locator-section-title > div > span,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-image > span,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-image > b {
+  color: #c7d2fe !important;
+  -webkit-text-fill-color: #c7d2fe !important;
+  background-image: none !important;
+}
+
+/* Mobile Item Locator: compact vertical rhythm and cards that grow to fit
+   their secondary labels. */
+
+@media (max-width: 767px) {
+  .item-locator-page {
+    min-height: 0;
+    padding: 12px !important;
+  }
+
+  .locator-hero {
+    gap: 16px;
+    margin-bottom: 12px;
+    padding: 18px !important;
+    border-radius: 20px !important;
+  }
+
+  .locator-hero h1 {
+    margin: 12px 0 8px;
+    font-size: clamp(30px, 9.5vw, 40px) !important;
+    line-height: 1.02;
+  }
+
+  .locator-hero p {
+    line-height: 1.5;
+  }
+
+  .locator-search-row {
+    margin-top: 16px;
+    padding: 6px;
+  }
+
+  .locator-hero-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px;
+  }
+
+  .locator-hero-panel div {
+    min-height: 0;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .locator-hero-panel strong {
+    margin: 6px 0 4px;
+    font-size: 22px;
+  }
+
+  .locator-discovery-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .locator-discovery-strip a {
+    min-width: 0;
+    min-height: 76px;
+    padding: 12px;
+    overflow: visible;
+    border-radius: 16px;
+    overflow-wrap: anywhere;
+  }
+
+  .locator-discovery-strip span {
+    line-height: 1.3;
+  }
+}

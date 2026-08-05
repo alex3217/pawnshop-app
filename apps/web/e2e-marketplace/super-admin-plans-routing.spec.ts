@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/plans/seller")) return route.fulfill({ contentType: "application/json", body: JSON.stringify({ plans: [
-      { code: "FREE", label: "Free", monthlyPriceCents: 0, yearlyPriceCents: 0, maxActiveListings: 25, trialMaxActiveListings: 50, status: "ACTIVE", stripeSyncStatus: "NOT_REQUIRED" },
+      { code: "FREE", label: "Free", monthlyPriceCents: 0, yearlyPriceCents: 0, maxActiveListings: 20, trialMaxActiveListings: 50, status: "ACTIVE", stripeSyncStatus: "NOT_REQUIRED" },
       { code: "PRO", label: "Pro", monthlyPriceCents: 4900, yearlyPriceCents: 49000, status: "ACTIVE", stripeSyncStatus: "CONFIGURED" },
       { code: "PREMIUM", label: "Premium", monthlyPriceCents: 14900, yearlyPriceCents: 149000, status: "ACTIVE", stripeSyncStatus: "CONFIGURED" },
       { code: "ULTRA", label: "Ultra", monthlyPriceCents: 29900, yearlyPriceCents: 299000, status: "ACTIVE", stripeSyncStatus: "CONFIGURED" },

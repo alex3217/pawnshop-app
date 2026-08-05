@@ -1,6 +1,6 @@
 // File: apps/web/src/components/SiteLayout.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   getAuthRole,
@@ -212,6 +212,7 @@ function getWorkspaceLabel(
 }
 
 export default function SiteLayout() {
+  const mobileMenuRef = useRef<HTMLDetailsElement>(null);
   const navigate = useNavigate();
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -508,6 +509,81 @@ export default function SiteLayout() {
                   </Link>
                 </>
               )}
+            </div>
+
+            <div className="site-mobile-actions">
+              {role ? (
+                <Link to={dashboardHref} className="site-mobile-account-link">
+                  Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link to="/login" className="site-mobile-account-link">
+                    Login
+                  </Link>
+                  <Link to="/register" className="site-mobile-account-link site-mobile-account-link--primary">
+                    Register
+                  </Link>
+                </>
+              )}
+
+              <details ref={mobileMenuRef} className="site-mobile-menu">
+                <summary aria-label="Toggle navigation menu">
+                  <span aria-hidden="true">☰</span>
+                  <span>Menu</span>
+                </summary>
+                <div className="site-mobile-menu-panel">
+                  <nav
+                    aria-label="Mobile navigation"
+                    onClick={() => {
+                      if (mobileMenuRef.current) mobileMenuRef.current.open = false;
+                    }}
+                  >
+                    {primaryLinks
+                      .filter((item) => item.to !== "/login" && item.to !== "/register")
+                      .map((item) => (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          end={item.end}
+                          className={({ isActive }) =>
+                            isActive
+                              ? "site-mobile-menu-link active"
+                              : "site-mobile-menu-link"
+                          }
+                        >
+                          {item.label}
+                        </NavLink>
+                      ))}
+                    {workspaceLinks.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) =>
+                          isActive
+                            ? "site-mobile-menu-link active"
+                            : "site-mobile-menu-link"
+                        }
+                      >
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </nav>
+                  <button
+                    type="button"
+                    className="site-mobile-theme-toggle"
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  >
+                    {theme === "dark" ? "Use light theme" : "Use dark theme"}
+                  </button>
+                  {role ? (
+                    <button type="button" className="site-mobile-logout" onClick={handleLogout}>
+                      Logout
+                    </button>
+                  ) : null}
+                </div>
+              </details>
             </div>
           </div>
 
