@@ -60,10 +60,26 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     const getEmptyRequestCount = await mockItemSearch(page);
 
-    await page.goto("/buyer/item-locator?q=camera&query=camera&radius=25");
+    await page.goto("/buyer/item-locator?radius=50");
+    const search = page.getByLabel("Search item keyword");
+    const clear = page.getByRole("button", { name: "Clear search" });
+
+    await expect(clear).toBeVisible();
+    await expect(clear).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Clear search" })).toHaveCount(1);
+
+    await search.fill("draft search");
+    await expect(clear).toBeEnabled();
+    await clear.click();
+    await expect(search).toHaveValue("");
+    await expect(search).toBeFocused();
+    await expect(page).toHaveURL(/\/buyer\/item-locator\?radius=50$/);
+    await expect(clear).toBeDisabled();
+
+    await search.fill("camera");
+    await page.getByRole("button", { name: "Locate item" }).click();
     await expect(page.locator(".locator-result-card")).toHaveCount(1);
 
-    const search = page.getByLabel("Search item keyword");
     await search.fill("missing zeppelin");
     await page.getByRole("button", { name: "Locate item" }).click();
 
@@ -72,40 +88,57 @@ for (const viewport of [
       "Searching PawnLoop inventory for “missing zeppelin”…",
     );
     await expect(page.locator(".locator-result-card")).toHaveCount(0);
+    await expect(clear).toBeEnabled();
+    await clear.click();
+    await expect(status).toHaveCount(0);
+    await expect(page.locator(".locator-result-card")).toHaveCount(0);
+    await page.waitForTimeout(350);
+    await expect(page.locator(".locator-result-card")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Search for an item to locate it" })).toBeVisible();
+    await expect(search).toHaveValue("");
+    await expect(search).toBeFocused();
+    await expect(page).toHaveURL(/\/buyer\/item-locator\?radius=50$/);
+
+    await search.fill("missing zeppelin");
+    await page.getByRole("button", { name: "Locate item" }).click();
     await expect(status).toContainText(
       "No pawnshops currently have “missing zeppelin” available.",
     );
     await expect(status).toBeInViewport();
-    expect(getEmptyRequestCount()).toBe(1);
+    expect(getEmptyRequestCount()).toBe(2);
 
     const marketplace = page.getByRole("link", { name: "Browse Marketplace" });
     const saveSearch = page.getByRole("link", { name: "Save this search" });
     await expect(page.getByRole("button", { name: "Increase radius" })).toHaveCount(0);
     await expect(marketplace).toHaveAttribute(
       "href",
-      "/marketplace?q=missing+zeppelin&query=missing+zeppelin&radius=25",
+      "/marketplace?q=missing+zeppelin&query=missing+zeppelin&radius=50",
     );
     await expect(saveSearch).toHaveAttribute(
       "href",
-      "/saved-searches?q=missing+zeppelin&query=missing+zeppelin&radius=25",
+      "/saved-searches?q=missing+zeppelin&query=missing+zeppelin&radius=50",
     );
 
     await page.getByRole("button", { name: "Locate item" }).click();
     await expect(status).toContainText(
       "Searching PawnLoop inventory for “missing zeppelin”…",
     );
-    await expect.poll(getEmptyRequestCount).toBe(2);
+    await expect.poll(getEmptyRequestCount).toBe(3);
     await expect(status).toContainText(
       "No pawnshops currently have “missing zeppelin” available.",
     );
     await expect(page.locator(".locator-result-card")).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Clear search" }).click();
+    await clear.click();
     await expect(page.getByRole("heading", { name: "Search for an item to locate it" })).toBeVisible();
     await expect(status).toHaveCount(0);
     await expect(search).toHaveValue("");
     await expect(search).toBeFocused();
-    await expect(page).toHaveURL(/\/buyer\/item-locator$/);
+    await expect(page).toHaveURL(/\/buyer\/item-locator\?radius=50$/);
+    const url = new URL(page.url());
+    expect(url.searchParams.has("q")).toBe(false);
+    expect(url.searchParams.has("query")).toBe(false);
+    expect(url.searchParams.get("radius")).toBe("50");
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
