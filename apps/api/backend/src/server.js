@@ -8,6 +8,7 @@ import { createServer } from "http";
 
 import { createApp } from "./app.js";
 import { initSocket } from "./realtime/socket.js";
+import { assertDeployedCorsConfiguration } from "./cors.js";
 import {
   startAuctionScheduler,
   stopAuctionScheduler,
@@ -131,6 +132,8 @@ function startSchedulersOnce() {
 }
 
 loadEnvFiles();
+
+assertDeployedCorsConfiguration(process.env);
 
 const PORT = resolvePort(process.env.PORT, process.env.PAWN_PORT, 6001);
 const HOST = process.env.HOST || "0.0.0.0";
