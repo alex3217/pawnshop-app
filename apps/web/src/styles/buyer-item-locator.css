@@ -1258,21 +1258,55 @@ body:not(.dark) .locator-use-location-readable::before {
 }
 /* END final Item Locator forced visible use-location label. */
 
-/* Item Locator headings must opt out of the global gradient text treatment.
-   Keep these selectors page-scoped and theme-aware so the light hero and
-   empty-state cards never inherit a forced white text fill. */
+/* Item Locator titles must opt out of the shared gradient text treatment.
+   Set both text color channels because WebKit text fill does not reliably
+   follow a later color declaration. */
 :root:not([data-theme="dark"]) .site-main .item-locator-page .locator-hero h1,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-hero h1 *,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-section-title h2,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-section-title h2 *,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-heading h3,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-heading h3 *,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-heading strong,
 :root:not([data-theme="dark"]) .site-main .item-locator-page .locator-empty h2,
-:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-error h2 {
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-empty h2 *,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-error h2,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-error h2 * {
   color: #0f172a !important;
   -webkit-text-fill-color: #0f172a !important;
+  background-image: none !important;
 }
 
 :root[data-theme="dark"] .site-main .item-locator-page .locator-hero h1,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-hero h1 *,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-section-title h2,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-section-title h2 *,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-heading h3,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-heading h3 *,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-heading strong,
 :root[data-theme="dark"] .site-main .item-locator-page .locator-empty h2,
-:root[data-theme="dark"] .site-main .item-locator-page .locator-error h2 {
+:root[data-theme="dark"] .site-main .item-locator-page .locator-empty h2 *,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-error h2,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-error h2 * {
   color: #f8fafc !important;
   -webkit-text-fill-color: #f8fafc !important;
+  background-image: none !important;
+}
+
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-section-title > div > span,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-image > span,
+:root:not([data-theme="dark"]) .site-main .item-locator-page .locator-result-image > b {
+  color: #4338ca !important;
+  -webkit-text-fill-color: #4338ca !important;
+  background-image: none !important;
+}
+
+:root[data-theme="dark"] .site-main .item-locator-page .locator-section-title > div > span,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-image > span,
+:root[data-theme="dark"] .site-main .item-locator-page .locator-result-image > b {
+  color: #c7d2fe !important;
+  -webkit-text-fill-color: #c7d2fe !important;
+  background-image: none !important;
 }
 
 /* Mobile Item Locator: compact vertical rhythm and cards that grow to fit
