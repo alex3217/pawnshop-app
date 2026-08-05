@@ -11,6 +11,14 @@ const LOCAL_DEVELOPMENT_HOSTNAMES = new Set([
   "127.0.0.1",
   "[::1]",
 ]);
+const DEPLOYED_CORS_CONFIGURATION_HELP =
+  "CORS_ORIGINS, CORS_ORIGIN, FRONTEND_URL, or WEB_URL must contain explicit approved HTTP(S) origins.";
+
+function invalidDeployedCorsConfiguration(reason) {
+  return new Error(
+    `[config] Invalid deployed CORS configuration: ${reason} ${DEPLOYED_CORS_CONFIGURATION_HELP}`,
+  );
+}
 
 export function parseAllowedOrigins(env = process.env) {
   return new Set(
@@ -32,8 +40,8 @@ export function assertDeployedCorsConfiguration(env = process.env) {
   const allowedOrigins = parseAllowedOrigins(env);
 
   if (allowedOrigins.size === 0) {
-    throw new Error(
-      "[config] A CORS origin allowlist is required in deployed environments.",
+    throw invalidDeployedCorsConfiguration(
+      "An origin allowlist is required in staging and production.",
     );
   }
 
@@ -41,8 +49,8 @@ export function assertDeployedCorsConfiguration(env = process.env) {
 
   for (const origin of allowedOrigins) {
     if (origin === "*") {
-      throw new Error(
-        '[config] Invalid deployed CORS origin "*": wildcards are not allowed.',
+      throw invalidDeployedCorsConfiguration(
+        "Wildcards are not allowed.",
       );
     }
 
@@ -51,12 +59,15 @@ export function assertDeployedCorsConfiguration(env = process.env) {
     try {
       parsed = new URL(origin);
     } catch {
-      throw new Error(`[config] Invalid deployed CORS origin: ${origin}`);
+      throw invalidDeployedCorsConfiguration(
+        "Every entry must be a valid absolute HTTP or HTTPS origin.",
+      );
     }
 
     const isCanonicalBrowserOrigin =
       (parsed.protocol === "http:" || parsed.protocol === "https:") &&
       Boolean(parsed.hostname) &&
+      !parsed.hostname.includes("*") &&
       parsed.username === "" &&
       parsed.password === "" &&
       parsed.pathname === "/" &&
@@ -65,18 +76,20 @@ export function assertDeployedCorsConfiguration(env = process.env) {
       origin === parsed.origin;
 
     if (!isCanonicalBrowserOrigin) {
-      throw new Error(`[config] Invalid deployed CORS origin: ${origin}`);
+      throw invalidDeployedCorsConfiguration(
+        "Entries cannot include paths, queries, fragments, credentials, or wildcard hostnames.",
+      );
     }
 
     if (isProduction && LOCAL_DEVELOPMENT_HOSTNAMES.has(parsed.hostname)) {
-      throw new Error(
-        `[config] Production CORS origins cannot use localhost or loopback hosts: ${origin}`,
+      throw invalidDeployedCorsConfiguration(
+        "Production origins cannot use localhost or loopback hosts.",
       );
     }
 
     if (isProduction && parsed.protocol !== "https:") {
-      throw new Error(
-        `[config] Production CORS origins must use HTTPS: ${origin}`,
+      throw invalidDeployedCorsConfiguration(
+        "Production origins must use HTTPS.",
       );
     }
   }
