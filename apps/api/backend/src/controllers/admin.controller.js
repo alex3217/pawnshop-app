@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { validatePassword } from "../services/passwordPolicy.service.js";
 import {
   runGovernedCreateMutation,
+  runGovernedItemMutation,
   runGovernedShopMutation,
   runGovernedUserMutation,
 } from "../services/superAdminAudit.service.js";
@@ -482,39 +483,38 @@ export async function createAdminItem(req, res) {
       pawnShopId: shopId,
     };
 
-    let item;
-
-    try {
-      item = await prisma.item.create({
-        data: createData,
-        include: { shop: true },
-      });
-    } catch (error) {
-      const message = String(error?.message || "");
-
-      if (!message.includes("Unknown argument `pawnShopId`")) {
-        throw error;
-      }
-
-      const fallbackData = { ...createData };
-      delete fallbackData.pawnShopId;
-      fallbackData.shopId = shopId;
-
-      item = await prisma.item.create({
-        data: fallbackData,
-        include: { shop: true },
-      });
-    }
-
-    await writeAdminActionAudit(req, {
+    const item = await runGovernedCreateMutation({
+      req,
       action: "ADMIN_CREATE_ITEM",
       targetType: "ITEM",
-      targetId: item.id,
-      metadata: {
-        title: item.title,
-        shopId,
-        status: item.status,
+      create: async (tx) => {
+        try {
+          return await tx.item.create({
+            data: createData,
+            include: { shop: true },
+          });
+        } catch (error) {
+          const message = String(error?.message || "");
+
+          if (!message.includes("Unknown argument `pawnShopId`")) {
+            throw error;
+          }
+
+          const fallbackData = { ...createData };
+          delete fallbackData.pawnShopId;
+          fallbackData.shopId = shopId;
+
+          return tx.item.create({
+            data: fallbackData,
+            include: { shop: true },
+          });
+        }
       },
+      metadata: (created) => ({
+        title: created.title,
+        shopId,
+        status: created.status,
+      }),
     });
 
     return res.status(201).json({
@@ -551,37 +551,39 @@ export async function updateAdminItem(req, res) {
       }
     }
 
-    let item;
-
-    try {
-      item = await prisma.item.update({
-        where: { id },
-        data,
-        include: { shop: true },
-      });
-    } catch (error) {
-      const message = String(error?.message || "");
-
-      if (!data.pawnShopId || !message.includes("Unknown argument `pawnShopId`")) {
-        throw error;
-      }
-
-      const fallbackData = { ...data };
-      fallbackData.shopId = fallbackData.pawnShopId;
-      delete fallbackData.pawnShopId;
-
-      item = await prisma.item.update({
-        where: { id },
-        data: fallbackData,
-        include: { shop: true },
-      });
-    }
-
-    await writeAdminActionAudit(req, {
+    const item = await runGovernedItemMutation({
+      req,
       action: "ADMIN_UPDATE_ITEM",
-      targetType: "ITEM",
-      targetId: item.id,
+      targetItemId: id,
       metadata: data,
+      mutation: async (tx) => {
+        try {
+          return await tx.item.update({
+            where: { id },
+            data,
+            include: { shop: true },
+          });
+        } catch (error) {
+          const message = String(error?.message || "");
+
+          if (
+            !data.pawnShopId ||
+            !message.includes("Unknown argument `pawnShopId`")
+          ) {
+            throw error;
+          }
+
+          const fallbackData = { ...data };
+          fallbackData.shopId = fallbackData.pawnShopId;
+          delete fallbackData.pawnShopId;
+
+          return tx.item.update({
+            where: { id },
+            data: fallbackData,
+            include: { shop: true },
+          });
+        }
+      },
     });
 
     return res.json({
@@ -646,9 +648,15 @@ export async function adminListItems(req, res) {
 export async function softDeleteItem(req, res) {
   try {
     const { id } = req.params;
-    const item = await prisma.item.update({
-      where: { id },
-      data: { isDeleted: true },
+    const item = await runGovernedItemMutation({
+      req,
+      action: "MODERATE_ITEM_REMOVE",
+      targetItemId: id,
+      metadata: { moderationType: "soft_delete" },
+      mutation: (tx) => tx.item.update({
+        where: { id },
+        data: { isDeleted: true },
+      }),
     });
 
     return res.json({ ok: true, id: item.id, isDeleted: item.isDeleted });
@@ -660,9 +668,15 @@ export async function softDeleteItem(req, res) {
 export async function restoreItem(req, res) {
   try {
     const { id } = req.params;
-    const item = await prisma.item.update({
-      where: { id },
-      data: { isDeleted: false },
+    const item = await runGovernedItemMutation({
+      req,
+      action: "MODERATE_ITEM_RESTORE",
+      targetItemId: id,
+      metadata: { moderationType: "restore" },
+      mutation: (tx) => tx.item.update({
+        where: { id },
+        data: { isDeleted: false },
+      }),
     });
 
     return res.json({ ok: true, id: item.id, isDeleted: item.isDeleted });
