@@ -16,6 +16,7 @@ import ScrollToTopButton from "./ScrollToTopButton";
 import NavigationTour from "./onboarding/NavigationTour";
 import RoleSetupChecklist from "./onboarding/RoleSetupChecklist";
 import NotificationCenter from "./NotificationCenter";
+import { BUYER_NAVIGATION } from "../navigation/buyerNavigation";
 import "../styles/site-layout.css";
 
 type NavItem = {
@@ -51,29 +52,7 @@ const PUBLIC_NAV: NavItem[] = [
   { to: "/auctions", label: "Auctions" },
 ];
 
-const BUYER_PRIMARY_NAV: NavItem[] = [
-  { to: "/my-bids", label: "My Bids" },
-  { to: "/my-wins", label: "My Wins" },
-  {
-    to: "/marketplace/purchases",
-    label: "My Purchases",
-  },
-  {
-    to: "/marketplace/listings/mine",
-    label: "My Listings",
-  },
-  {
-    to: "/marketplace/listings/new",
-    label: "Create Listing",
-  },
-  { to: "/offers", label: "Offers" },
-];
-
-const BUYER_SECONDARY_NAV: NavItem[] = [
-  { to: "/account/payment-methods", label: "Payment Methods" },
-  { to: "/watchlist", label: "Watchlist" },
-  { to: "/saved-searches", label: "Saved Searches" },
-];
+const BUYER_ACCOUNT_NAV: NavItem[] = [...BUYER_NAVIGATION];
 
 const STAFF_AUCTION_NAV: NavItem[] = [
   {
@@ -211,6 +190,8 @@ function getWorkspaceLabel(
 
 export default function SiteLayout() {
   const mobileMenuRef = useRef<HTMLDetailsElement>(null);
+  const primaryMoreMenuRef = useRef<HTMLDetailsElement>(null);
+  const workspaceMenuRef = useRef<HTMLDetailsElement>(null);
   const navigate = useNavigate();
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -226,6 +207,44 @@ export default function SiteLayout() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("pawnloop-theme-v2", theme);
   }, [theme]);
+
+  useEffect(() => {
+    const menus = [mobileMenuRef, primaryMoreMenuRef, workspaceMenuRef];
+    const closeMenus = (except?: HTMLDetailsElement) => {
+      for (const menu of menus) {
+        if (menu.current && menu.current !== except) menu.current.open = false;
+      }
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      for (const menu of menus) {
+        if (menu.current?.open && !menu.current.contains(target)) {
+          menu.current.open = false;
+        }
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const openMenu = menus.find((menu) => menu.current?.open)?.current;
+      if (!openMenu) return;
+      openMenu.open = false;
+      openMenu.querySelector<HTMLElement>("summary")?.focus();
+    };
+    const onToggle = (event: Event) => {
+      const menu = event.target;
+      if (menu instanceof HTMLDetailsElement && menu.open) closeMenus(menu);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    for (const menu of menus) menu.current?.addEventListener("toggle", onToggle);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      for (const menu of menus) menu.current?.removeEventListener("toggle", onToggle);
+    };
+  }, []);
 
   const role = getAuthRole();
 
@@ -318,7 +337,6 @@ export default function SiteLayout() {
   } = useMemo(() => {
     const primary = dedupeNav([
       ...PUBLIC_NAV,
-      ...(showBuyerLinks ? BUYER_PRIMARY_NAV : []),
       ...(showOwnerLinks ? OWNER_PRIMARY_NAV.slice(0, 2) : []),
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV.slice(0, 1) : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
@@ -326,8 +344,8 @@ export default function SiteLayout() {
     ]);
 
     const workspace = dedupeNav([
-      ...(role ? [{ to: "/knowledge", label: "Knowledge Center" }] : []),
-      ...(showBuyerLinks ? BUYER_SECONDARY_NAV : []),
+      ...(showBuyerLinks ? BUYER_ACCOUNT_NAV : []),
+      ...(!showBuyerLinks && role ? [{ to: "/knowledge", label: "Knowledge Center" }] : []),
       ...(showStaffAuctionLinks
         ? STAFF_AUCTION_NAV
         : []),
@@ -344,8 +362,7 @@ export default function SiteLayout() {
 
     const footer = dedupeNav([
       ...PUBLIC_NAV,
-      ...(showBuyerLinks ? BUYER_PRIMARY_NAV : []),
-      ...(showBuyerLinks ? BUYER_SECONDARY_NAV : []),
+      ...(showBuyerLinks ? BUYER_ACCOUNT_NAV : []),
       ...(showStaffAuctionLinks
         ? STAFF_AUCTION_NAV
         : []),
@@ -356,7 +373,7 @@ export default function SiteLayout() {
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
       ...(showGuestLinks ? GUEST_NAV : []),
-      ...(role ? [{ to: "/knowledge", label: "Knowledge Center" }] : []),
+      ...(!showBuyerLinks && role ? [{ to: "/knowledge", label: "Knowledge Center" }] : []),
       { to: "/terms", label: "Terms of Service" },
       { to: "/privacy", label: "Privacy Policy" },
     ]);
@@ -394,8 +411,7 @@ export default function SiteLayout() {
   const footerGroups = useMemo<FooterGroup[]>(() => {
     const explorePaths = new Set(PUBLIC_NAV.map((item) => item.to));
     const accountPaths = new Set([
-      ...BUYER_PRIMARY_NAV,
-      ...BUYER_SECONDARY_NAV,
+      ...BUYER_ACCOUNT_NAV,
       ...GUEST_NAV,
     ].map((item) => item.to));
     const legalPaths = new Set(["/terms", "/privacy"]);
@@ -611,7 +627,7 @@ export default function SiteLayout() {
             ))}
 
             {compactPrimaryLinks.length > 0 ? (
-              <details className="site-primary-more-menu">
+              <details ref={primaryMoreMenuRef} className="site-primary-more-menu">
                 <summary className="site-primary-more-trigger">
                   <span>More</span>
                   <span aria-hidden="true">⌄</span>
@@ -639,6 +655,7 @@ export default function SiteLayout() {
 
           {workspaceLinks.length > 0 ? (
             <details
+              ref={workspaceMenuRef}
               className="site-workspace-menu"
               data-tour="workspace-menu"
             >
