@@ -1,53 +1,68 @@
-const raw = String(process.env.DATABASE_URL || "").trim();
+import { pathToFileURL } from "node:url";
 
-if (!raw) {
-  console.error("❌ DATABASE_URL is required for integration tests");
-  process.exit(1);
-}
+export const APPROVED_TEST_DATABASE = "pawnshop_test";
+const APPROVED_LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-let parsed;
+export function validateTestDatabaseEnvironment(env = process.env) {
+  const errors = [];
+  const raw = String(env.DATABASE_URL || "").trim();
 
-try {
-  parsed = new URL(raw);
-} catch {
-  console.error("❌ DATABASE_URL is not a valid URL");
-  process.exit(1);
-}
+  if (env.NODE_ENV !== "test") errors.push("NODE_ENV must be test");
+  if (env.APP_ENV !== "test") errors.push("APP_ENV must be test");
 
-const databaseName = decodeURIComponent(
-  parsed.pathname.replace(/^\/+/, ""),
-);
-
-const errors = [];
-
-if (process.env.NODE_ENV !== "test") {
-  errors.push(`NODE_ENV must be test, received ${process.env.NODE_ENV}`);
-}
-
-if (process.env.APP_ENV !== "test") {
-  errors.push(`APP_ENV must be test, received ${process.env.APP_ENV}`);
-}
-
-if (databaseName !== "pawnshop_test") {
-  errors.push(
-    `Database must be pawnshop_test, received ${databaseName || "(empty)"}`,
-  );
-}
-
-if (errors.length > 0) {
-  console.error("❌ Refusing to run database integration tests");
-  for (const error of errors) {
-    console.error(`- ${error}`);
+  let parsed;
+  if (!raw) {
+    errors.push("DATABASE_URL is required");
+  } else {
+    try {
+      parsed = new URL(raw);
+    } catch {
+      errors.push("DATABASE_URL must be a valid PostgreSQL URL");
+    }
   }
-  process.exit(1);
+
+  let databaseName = "";
+  if (parsed) {
+    if (!new Set(["postgres:", "postgresql:"]).has(parsed.protocol)) {
+      errors.push("DATABASE_URL must use PostgreSQL");
+    }
+
+    if (!APPROVED_LOOPBACK_HOSTS.has(parsed.hostname)) {
+      errors.push("DATABASE_URL hostname must be an approved loopback host");
+    }
+
+    try {
+      databaseName = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+    } catch {
+      errors.push("DATABASE_URL database name is malformed");
+    }
+
+    if (databaseName !== APPROVED_TEST_DATABASE) {
+      errors.push(`Database name must be ${APPROVED_TEST_DATABASE}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Refusing database integration tests: ${errors.join("; ")}`);
+  }
+
+  return {
+    host: parsed.hostname,
+    port: parsed.port || "5432",
+    database: databaseName,
+  };
 }
 
-console.log({
-  host: parsed.hostname,
-  port: parsed.port || "5432",
-  database: databaseName,
-  nodeEnv: process.env.NODE_ENV,
-  appEnv: process.env.APP_ENV,
-});
+export function main(env = process.env) {
+  try {
+    const target = validateTestDatabaseEnvironment(env);
+    console.log(`Test database safety guard passed for ${target.host}:${target.port}/${target.database}.`);
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+}
 
-console.log("✅ Test database safety guard passed");
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main(process.env);
+}
