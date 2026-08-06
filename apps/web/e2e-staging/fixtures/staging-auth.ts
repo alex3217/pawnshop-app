@@ -36,7 +36,7 @@ export async function performBuyerLogin(page: Page) {
     waitUntil: "domcontentloaded",
   });
   await page.getByLabel("Email address").fill(credentials.email);
-  await page.getByLabel("Password").fill(credentials.password);
+  await page.getByLabel("Password", { exact: true }).fill(credentials.password);
   await page.getByRole("button", { name: /sign in/i }).click();
 
   await expect(page).toHaveURL(/\/buyer\/dashboard\/?$/);

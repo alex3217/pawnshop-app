@@ -1,4 +1,4 @@
-const DEFAULT_FRONTEND_ORIGIN = "https://pawnloop-frontend.pages.dev";
+const DEFAULT_FRONTEND_ORIGIN = "https://staging.pawnloop-frontend.pages.dev";
 const DEFAULT_API_ORIGIN = "https://pawnshop-staging-api.onrender.com";
 
 export function canonicalHttpsOrigin(name: string, fallback: string) {
