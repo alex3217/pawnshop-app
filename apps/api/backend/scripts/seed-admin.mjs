@@ -2,11 +2,12 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { validatePassword } from "../src/services/passwordPolicy.service.js";
+import { assertAdminSeedAllowed } from "./lib/seed-environment-guard.mjs";
 
+const { password: PASSWORD } = assertAdminSeedAllowed(process.env);
 const prisma = new PrismaClient();
 
 const EMAIL = process.env.ADMIN_SEED_EMAIL || "admin1@example.com";
-const PASSWORD = process.env.ADMIN_SEED_PASSWORD || "PawnLoop-Dev-Admin-2026!";
 const NAME = process.env.ADMIN_SEED_NAME || "Admin";
 const ROLE_PREFERRED = process.env.ADMIN_SEED_ROLE || "ADMIN";
 

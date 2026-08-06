@@ -2,7 +2,9 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { validatePassword } from "../src/services/passwordPolicy.service.js";
 import { PrismaClient, Prisma } from "@prisma/client";
+import { assertDevDemoSeedAllowed } from "./lib/seed-environment-guard.mjs";
 
+assertDevDemoSeedAllowed(process.env);
 const prisma = new PrismaClient();
 
 const now = new Date();
