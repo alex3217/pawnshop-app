@@ -8,6 +8,9 @@ export const buyerReadOnlyRoutes = [
   { path: "/my-bids", label: "bids" },
   { path: "/my-wins", label: "wins" },
   { path: "/marketplace/purchases", label: "purchases" },
+  { path: "/marketplace/listings/mine", label: "buyer listings" },
+  { path: "/account/payment-methods", label: "payment methods" },
+  { path: "/knowledge", label: "knowledge center" },
 ] as const;
 
 export const buyerForbiddenRoutes = ["/owner", "/admin"] as const;
