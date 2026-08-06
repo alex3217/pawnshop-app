@@ -275,11 +275,7 @@ export function startMarketplaceReservationScheduler({
     return schedulerTimer;
   }
 
-  if (
-    process.env
-      .MARKETPLACE_RESERVATION_SCHEDULER_ENABLED ===
-    "false"
-  ) {
+  if (process.env.MARKETPLACE_RESERVATION_SCHEDULER_ENABLED !== "true") {
     logMessage(
       logger,
       "log",
