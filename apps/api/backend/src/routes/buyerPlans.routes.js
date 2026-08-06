@@ -8,6 +8,9 @@ import {
   upsertMyBuyerSubscription,
   cancelMyBuyerSubscription,
   adminListBuyerSubscriptions,
+  getMyBuyerPlanUsage,
+  scheduleMyBuyerSubscriptionCancellation,
+  resumeMyBuyerSubscription,
 } from "../controllers/buyerPlans.controller.js";
 
 const router = Router();
@@ -147,6 +150,13 @@ router.get(
   asyncRoute(getMyBuyerSubscription),
 );
 
+router.get(
+  "/buyer-plans/mine/usage",
+  authRequired,
+  requireRole(...BUYER_ROLES),
+  asyncRoute(getMyBuyerPlanUsage),
+);
+
 /**
  * Buyer/Admin
  * PUT /api/buyer-plans/mine
@@ -184,8 +194,22 @@ router.patch(
 router.delete(
   "/buyer-plans/mine",
   authRequired,
-  requireRole(...BUYER_ROLES),
+  requireRole(...ADMIN_ROLES),
   asyncRoute(cancelMyBuyerSubscription),
+);
+
+router.post(
+  "/buyer-plans/mine/cancel-at-period-end",
+  authRequired,
+  requireRole(...BUYER_ROLES),
+  asyncRoute(scheduleMyBuyerSubscriptionCancellation),
+);
+
+router.post(
+  "/buyer-plans/mine/resume",
+  authRequired,
+  requireRole(...BUYER_ROLES),
+  asyncRoute(resumeMyBuyerSubscription),
 );
 
 /**
@@ -204,9 +228,12 @@ router.get(
 export const BUYER_PLAN_ROUTE_MAP = Object.freeze({
   listPlans: "GET /api/buyer-plans",
   mine: "GET /api/buyer-plans/mine",
+  usage: "GET /api/buyer-plans/mine/usage",
   updatePut: "PUT /api/buyer-plans/mine",
   updatePatch: "PATCH /api/buyer-plans/mine",
   cancel: "DELETE /api/buyer-plans/mine",
+  cancelAtPeriodEnd: "POST /api/buyer-plans/mine/cancel-at-period-end",
+  resume: "POST /api/buyer-plans/mine/resume",
   adminList: "GET /api/buyer-plans/subscriptions",
 });
 
