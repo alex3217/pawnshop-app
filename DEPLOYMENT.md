@@ -172,6 +172,35 @@ Required frontend envs are documented in:
 
     apps/web/.env.example
 
+### Frontend deployment environment contract
+
+Deployed web builds must set a complete, matching target contract. Production
+uses `VITE_DEPLOY_ENV=production` with `VITE_API_ORIGIN` and `VITE_SOCKET_URL`
+set to `https://api.pawnloop.com`. Preview and staging use their matching mode
+with both origins set to `https://pawnshop-staging-api.onrender.com`. Every
+deployed build must use `VITE_API_BASE=/api` and
+`VITE_SOCKET_PATH=/socket.io`; conflicting aliases, cross-environment targets,
+and malformed paths fail the build. Preview and staging builds display a visible
+staging-data indicator; production does not.
+
+There is no implicit deployment fallback. `npm --prefix apps/web run build`
+requires the complete explicit contract in local shells, generic CI, Cloudflare
+Pages (`CF_PAGES`), and every other build environment. Missing variables fail in
+the build wrapper before TypeScript or Vite starts.
+
+Validate a complete environment row with
+`node scripts/check-deployment-environment.mjs`. Run the offline contract suite
+with `node --test apps/web/test/environment-contract.test.mjs
+apps/web/test/environment-contract-consumption.test.mjs
+apps/web/test/environment-indicator.runtime.test.mjs
+scripts/test-deployment-environment-cli.mjs`.
+
+Cloudflare Preview and Production variables must be configured in their
+respective provider environments after review. Keep the backend's exact deployed
+CORS allowlist and startup validation in place; this frontend contract does not
+enable wildcard preview origins or change the dedicated authenticated staging
+frontend target.
+
 ## Stripe Webhook
 
 Local API route:

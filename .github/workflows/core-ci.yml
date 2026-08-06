@@ -50,8 +50,44 @@ jobs:
       - name: Frontend lint
         run: npm --prefix apps/web run lint
 
+      - name: Deployment environment contract tests
+        run: node --test apps/web/test/build-environment.test.mjs apps/web/test/environment-contract.test.mjs apps/web/test/environment-contract-consumption.test.mjs apps/web/test/environment-indicator.runtime.test.mjs scripts/test-deployment-environment-cli.mjs
+
+      - name: Validate Production deployment target
+        run: node scripts/check-deployment-environment.mjs
+        env:
+          VITE_DEPLOY_ENV: production
+          VITE_API_ORIGIN: https://api.pawnloop.com
+          VITE_API_BASE: /api
+          VITE_SOCKET_URL: https://api.pawnloop.com
+          VITE_SOCKET_PATH: /socket.io
+
       - name: Frontend production build
         run: npm run build:web
+        env:
+          VITE_DEPLOY_ENV: production
+          VITE_API_ORIGIN: https://api.pawnloop.com
+          VITE_API_BASE: /api
+          VITE_SOCKET_URL: https://api.pawnloop.com
+          VITE_SOCKET_PATH: /socket.io
+
+      - name: Validate Preview deployment target
+        run: node scripts/check-deployment-environment.mjs
+        env:
+          VITE_DEPLOY_ENV: preview
+          VITE_API_ORIGIN: https://pawnshop-staging-api.onrender.com
+          VITE_API_BASE: /api
+          VITE_SOCKET_URL: https://pawnshop-staging-api.onrender.com
+          VITE_SOCKET_PATH: /socket.io
+
+      - name: Frontend preview build contract
+        run: npm run build:web
+        env:
+          VITE_DEPLOY_ENV: preview
+          VITE_API_ORIGIN: https://pawnshop-staging-api.onrender.com
+          VITE_API_BASE: /api
+          VITE_SOCKET_URL: https://pawnshop-staging-api.onrender.com
+          VITE_SOCKET_PATH: /socket.io
 
       - name: Generate and validate Prisma client
         working-directory: apps/api/backend
@@ -149,3 +185,6 @@ jobs:
 
       - name: Run backend automated tests
         run: npm --prefix apps/api/backend run test:all
+
+      - name: Run focused HTTP and Socket.IO CORS policy tests
+        run: node --test --test-concurrency=1 apps/api/backend/test/app.contract.test.js apps/api/backend/test/socketCors.test.js apps/api/backend/test/deployedCorsRuntimeGuard.test.js
