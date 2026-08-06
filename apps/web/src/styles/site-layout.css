@@ -1497,10 +1497,35 @@
   border-color: rgba(79, 70, 229, 0.4);
 }
 
+.site-workspace-trigger:focus-visible,
+.site-workspace-menu-link:focus-visible,
+.site-mobile-menu :is(summary, a, button):focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.45);
+  outline-offset: 2px;
+}
+
+.site-workspace-menu:has(.active) .site-workspace-trigger {
+  border-color: #4f46e5;
+  background: #eef2ff;
+  color: #312e81;
+}
+
 .site-workspace-menu[open] .site-workspace-trigger {
   color: #ffffff;
   background: #4f46e5;
   border-color: #4f46e5;
+}
+
+.site-workspace-trigger:active {
+  transform: translateY(1px);
+}
+
+.site-workspace-trigger[aria-disabled="true"],
+.site-workspace-menu-link[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 1;
+  background: #e2e8f0;
+  color: #64748b;
 }
 
 .site-workspace-panel {

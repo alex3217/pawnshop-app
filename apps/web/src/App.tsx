@@ -13,6 +13,7 @@ import RequireApprovedOwner from "./components/RequireApprovedOwner";
 import RequireShopCapability from "./components/RequireShopCapability";
 import SiteLayout from "./components/SiteLayout";
 import type { Role } from "./services/auth";
+import { BUYER_PATHS } from "./navigation/buyerNavigation";
 
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
@@ -261,7 +262,7 @@ function renderRouteGroup(
 const publicRoutes: RouteConfig[] = [
   { index: true, element: <HomePage /> },
   { path: "/buyer", element: <Navigate to="/buyer/dashboard" replace /> },
-  { path: "/buyer/dashboard", element: <BuyerDashboardPage /> },
+  { path: BUYER_PATHS.dashboard, element: <BuyerDashboardPage /> },
   { path: "/buyer/item-locator", element: <BuyerItemLocatorPage /> },
   { path: "/buyer/sell-item", element: <BuyerSellItemPage /> },
   { path: "/terms", element: <TermsPage /> },
@@ -287,20 +288,20 @@ const publicRoutes: RouteConfig[] = [
 ];
 
 const consumerRoutes: RouteConfig[] = [
-  { path: "/my-bids", element: <MyBidsPage /> },
+  { path: BUYER_PATHS.bids, element: <MyBidsPage /> },
   { path: "/bids", element: <Navigate to="/my-bids" replace /> },
-  { path: "/my-wins", element: <MyWinsPage /> },
-  { path: "/watchlist", element: <WatchlistPage /> },
-  { path: "/saved-searches", element: <SavedSearchesPage /> },
+  { path: BUYER_PATHS.wins, element: <MyWinsPage /> },
+  { path: BUYER_PATHS.watchlist, element: <WatchlistPage /> },
+  { path: BUYER_PATHS.savedSearches, element: <SavedSearchesPage /> },
 ];
 
 const marketplaceTransactionRoutes: RouteConfig[] = [
   {
-    path: "/marketplace/listings/mine",
+    path: BUYER_PATHS.listings,
     element: <MarketplaceSellerListingsPage />,
   },
   {
-    path: "/marketplace/listings/new",
+    path: BUYER_PATHS.createListing,
     element: <CreateMarketplaceListingPage />,
   },
   {
@@ -308,7 +309,7 @@ const marketplaceTransactionRoutes: RouteConfig[] = [
     element: <EditMarketplaceListingPage />,
   },
   {
-    path: "/marketplace/purchases",
+    path: BUYER_PATHS.purchases,
     element: <BuyerPurchasesPage />,
   },
   {
@@ -322,11 +323,11 @@ const marketplaceTransactionRoutes: RouteConfig[] = [
 ];
 
 const offerRoutes: RouteConfig[] = [
-  { path: "/offers", element: <OffersPage /> },
+  { path: BUYER_PATHS.offers, element: <OffersPage /> },
 ];
-const paymentMethodRoutes: RouteConfig[] = [{ path: "/account/payment-methods", element: <PaymentMethodsPage /> }];
+const paymentMethodRoutes: RouteConfig[] = [{ path: BUYER_PATHS.paymentMethods, element: <PaymentMethodsPage /> }];
 const knowledgeRoutes: RouteConfig[] = [
-  { path: "/knowledge", element: <KnowledgeCenterPage /> },
+  { path: BUYER_PATHS.knowledge, element: <KnowledgeCenterPage /> },
   { path: "/knowledge/:slug", element: <KnowledgeLessonPage /> },
 ];
 
