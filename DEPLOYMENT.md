@@ -135,7 +135,7 @@ workflow compares hostnames without printing credentials or the URL.
 
 ### Production
 
-Do not deploy production until production env, database backup, Stripe webhook, and rollback are verified.
+Do not deploy production until production env, a fresh manifest-validated database backup, Stripe webhook, and rollback are verified. Follow `docs/production-backup-recovery-runbook-v1.md`; backup and restore commands require explicit environment, approved hostname, and database selections.
 
     npm run pm2:prod
     npm run check:deploy:prod
