@@ -92,5 +92,10 @@ apps/**/.env.*
 # Generated local audit reports
 audit-results/
 
+# Authenticated staging Playwright artifacts (may contain sensitive session data)
+apps/web/e2e-staging/.auth/
+apps/web/.playwright/staging-results/
+apps/web/.playwright/staging-report/
+
 .env.production
 **/.env.production

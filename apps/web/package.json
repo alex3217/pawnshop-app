@@ -18,7 +18,10 @@
     "test:marketplace-seller-listings": "playwright test marketplace-seller-listings.spec.ts --config playwright.marketplace.config.ts",
     "test:scanner-marketplace-listing-entry": "playwright test scanner-marketplace-listing-entry.spec.ts --config playwright.marketplace.config.ts",
     "test:customer-scan-marketplace-listing": "playwright test customer-scan-marketplace-listing.spec.ts --config playwright.marketplace.config.ts",
-    "test:item-locator-empty-results": "playwright test item-locator-empty-results.spec.ts --config playwright.marketplace.config.ts"
+    "test:item-locator-empty-results": "playwright test item-locator-empty-results.spec.ts --config playwright.marketplace.config.ts",
+    "test:staging:list": "playwright test --config playwright.staging.config.ts --list",
+    "test:staging:buyer": "playwright test --config playwright.staging.config.ts --project buyer-readonly",
+    "test:staging:readonly": "playwright test --config playwright.staging.config.ts --grep @readonly"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",
