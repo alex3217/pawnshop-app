@@ -39,6 +39,53 @@ test("secure setup requires explicit future-charge consent", async ({ page }) =>
   await expect(page.getByText("No payment methods saved")).toBeVisible();
 });
 
+test("payment methods retains production gutters and responsive control alignment", async ({ page }) => {
+  await page.route("**/api/stripe/payment-methods", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        methods: [],
+        defaultPaymentMethodId: null,
+        syncStatus: "NOT_CONFIGURED",
+      }),
+    }),
+  );
+
+  await page.setViewportSize({ width: 1728, height: 1000 });
+  await page.goto("/account/payment-methods");
+
+  const pageShell = page.locator(".payment-methods-page");
+  const desktopBox = await pageShell.boundingBox();
+  expect(desktopBox).not.toBeNull();
+  expect(desktopBox!.x).toBeGreaterThanOrEqual(16);
+  expect(desktopBox!.width).toBeLessThanOrEqual(1180);
+  expect(desktopBox!.x).toBeCloseTo((1728 - desktopBox!.width) / 2, 0);
+
+  const consent = page.locator(".payment-methods-consent");
+  const checkbox = consent.getByRole("checkbox");
+  const consentBox = await consent.boundingBox();
+  const checkboxBox = await checkbox.boundingBox();
+  expect(consentBox).not.toBeNull();
+  expect(checkboxBox).not.toBeNull();
+  expect(checkboxBox!.x).toBeGreaterThan(consentBox!.x);
+  expect(checkboxBox!.x).toBeLessThan(consentBox!.x + 64);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileBox = await pageShell.boundingBox();
+  expect(mobileBox).not.toBeNull();
+  expect(mobileBox!.x).toBeGreaterThanOrEqual(8);
+  expect(mobileBox!.x + mobileBox!.width).toBeLessThanOrEqual(382);
+
+  const primaryAction = page.getByRole("button", { name: "Add or replace payment method" });
+  const portalAction = page.getByRole("button", { name: "Open Stripe billing portal" });
+  const primaryBox = await primaryAction.boundingBox();
+  const portalBox = await portalAction.boundingBox();
+  expect(primaryBox).not.toBeNull();
+  expect(portalBox).not.toBeNull();
+  expect(primaryBox!.width).toBeCloseTo(portalBox!.width, 0);
+});
+
 test("setup cancellation is visible and Stripe lookalike redirects are rejected", async ({ page }) => {
   await page.route("**/api/stripe/payment-methods", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ success: true, methods: [], defaultPaymentMethodId: null, syncStatus: "NOT_CONFIGURED" }) }));
   await page.route("**/api/stripe/payment-methods/setup-session", (route) => route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ success: true, sessionId: "cs_test", url: "https://maliciousstripe.com/setup" }) }));
