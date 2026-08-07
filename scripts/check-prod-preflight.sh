@@ -46,15 +46,23 @@ fi
 echo "✅ Production DB is separate from dev/staging."
 
 LATEST_PROD_BACKUP="$(
-  find backups/db -type f -name ".env.production.*.dump" -size +1k -print 2>/dev/null | sort | tail -1
+  find backups/db -type f -name "pawnloop-production-*.dump" -size +0c -print 2>/dev/null | sort | tail -1
 )"
 
 if [ -z "$LATEST_PROD_BACKUP" ]; then
-  echo "No non-empty production DB backup found. Run: npm run db:backup:prod" >&2
+  echo "No non-empty production DB backup found. Run the explicit npm run db:backup command documented in the recovery runbook." >&2
   exit 1
 fi
 
-echo "✅ Latest production backup found: $LATEST_PROD_BACKUP"
+LATEST_PROD_MANIFEST="$LATEST_PROD_BACKUP.manifest.json"
+node scripts/lib/database-recovery-safety.mjs validate \
+  --backup "$LATEST_PROD_BACKUP" \
+  --manifest "$LATEST_PROD_MANIFEST" \
+  --environment production \
+  --max-age-hours "${BACKUP_MAX_AGE_HOURS:-36}" >/dev/null
+pg_restore --list "$LATEST_PROD_BACKUP" >/dev/null
+
+echo "✅ Latest production backup manifest, freshness, checksum, and archive validated: $LATEST_PROD_BACKUP"
 
 npm run check:static-safety
 npm run build:web
