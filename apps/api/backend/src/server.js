@@ -8,7 +8,7 @@ import { createServer } from "http";
 
 import { createApp } from "./app.js";
 import { initSocket } from "./realtime/socket.js";
-import { assertDeployedCorsConfiguration } from "./cors.js";
+import { validateCurrentDeployedEnvironment } from "./config/deployedEnvironment.js";
 import {
   startAuctionScheduler,
   stopAuctionScheduler,
@@ -75,10 +75,7 @@ function shouldStartAuctionScheduler() {
     return false;
   }
 
-  if (
-    process.env.AUCTION_SCHEDULER_ENABLED ===
-    "false"
-  ) {
+  if (process.env.AUCTION_SCHEDULER_ENABLED !== "true") {
     console.log(
       "[scheduler] Auction scheduler disabled by env.",
     );
@@ -98,11 +95,7 @@ function shouldStartMarketplaceReservationScheduler() {
     return false;
   }
 
-  if (
-    process.env
-      .MARKETPLACE_RESERVATION_SCHEDULER_ENABLED ===
-    "false"
-  ) {
+  if (process.env.MARKETPLACE_RESERVATION_SCHEDULER_ENABLED !== "true") {
     console.log(
       "[scheduler] Marketplace reservation scheduler disabled by env.",
     );
@@ -133,7 +126,7 @@ function startSchedulersOnce() {
 
 loadEnvFiles();
 
-assertDeployedCorsConfiguration(process.env);
+const deployedConfiguration = validateCurrentDeployedEnvironment(process.env);
 
 const PORT = resolvePort(process.env.PORT, process.env.PAWN_PORT, 6001);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -152,6 +145,14 @@ try {
 
 server.listen(PORT, HOST, () => {
   console.log(`✅ API running: http://localhost:${PORT}`);
+  if (deployedConfiguration) {
+    console.log("[config] Deployed backend contract validated.", {
+      environment: deployedConfiguration.environment,
+      service: deployedConfiguration.service,
+      revision: deployedConfiguration.revision,
+      schedulerOwner: deployedConfiguration.schedulerOwner,
+    });
+  }
   startSchedulersOnce();
 });
 
