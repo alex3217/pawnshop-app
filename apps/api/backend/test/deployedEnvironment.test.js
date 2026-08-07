@@ -8,49 +8,13 @@ import {
   validateCurrentDeployedEnvironment,
   validateDeployedEnvironment,
 } from "../src/config/deployedEnvironment.js";
+import {
+  deployedSecretValues as secretValues,
+  validDeployedEnvironment as validEnvironment,
+} from "./helpers/deployedEnvironment.fixture.js";
 
 const backendRoot = new URL("..", import.meta.url);
 const repositoryRoot = new URL("../../../..", import.meta.url);
-const secretValues = [
-  "synthetic-jwt-secret-at-least-thirty-two-characters",
-  "synthetic-integration-key-at-least-thirty-two-characters",
-  "sk_live_synthetic_never_real", "whsec_synthetic_platform_never_real",
-  "whsec_synthetic_connect_never_real", "re_synthetic_never_real",
-  "postgresql://synthetic:synthetic@prod-db.invalid/pawnloop",
-];
-
-function validEnvironment(environment) {
-  const production = environment === "production";
-  return {
-    APP_NAME: "pawnloop-api", APP_ENV: environment, NODE_ENV: environment,
-    APP_VERSION: "git-0123456789abcdef", PORT: production ? "6001" : "6003",
-    API_ORIGIN: production ? "https://api.pawnloop.invalid" : "https://api.staging.invalid",
-    FRONTEND_URL: production ? "https://pawnloop.invalid" : "https://web.staging.invalid",
-    WEB_URL: production ? "https://pawnloop.invalid" : "https://web.staging.invalid",
-    CORS_ORIGIN: production ? "https://pawnloop.invalid" : "https://web.staging.invalid",
-    CORS_ORIGINS: production ? "https://pawnloop.invalid,https://www.pawnloop.invalid" : "https://web.staging.invalid",
-    DATABASE_URL: production ? secretValues[6] : "postgresql://synthetic:synthetic@staging-db.invalid/pawnloop_staging",
-    PRODUCTION_DATABASE_HOST: production ? "prod-db.invalid" : undefined,
-    STAGING_DATABASE_HOST: production ? undefined : "staging-db.invalid",
-    JWT_SECRET: secretValues[0], INTEGRATION_CREDENTIAL_ENCRYPTION_KEY: secretValues[1],
-    STRIPE_SECRET_KEY: production ? secretValues[2] : "sk_test_synthetic_never_real",
-    STRIPE_PUBLISHABLE_KEY: production ? "pk_live_synthetic_never_real" : "pk_test_synthetic_never_real",
-    STRIPE_WEBHOOK_SECRET: secretValues[3], STRIPE_CONNECT_ENABLED: "true",
-    STRIPE_CONNECT_WEBHOOK_SECRET: secretValues[4], EMAIL_PROVIDER: "resend",
-    EMAIL_FROM: "PawnLoop <no-reply@pawnloop.invalid>", RESEND_API_KEY: secretValues[5],
-    RESEND_API_TIMEOUT_MS: "10000", TRUST_PROXY: "1",
-    INVITE_ONLY_REGISTRATION_ENABLED: "true", AUTH_RATE_LIMIT_ENABLED: "true",
-    AUTH_RATE_LIMIT_WINDOW_MS: "900000", AUTH_RATE_LIMIT_IP_MAX: "30",
-    AUTH_RATE_LIMIT_SENSITIVE_IP_MAX: "10", AUTH_RATE_LIMIT_IDENTIFIER_MAX: "20",
-    AUTH_RATE_LIMIT_COMBINED_MAX: "5", MFA_MODE: "disabled",
-    AUCTION_SCHEDULER_ENABLED: "false", AUCTION_SCHEDULER_INTERVAL_MS: "5000",
-    AUCTION_SCHEDULER_BATCH_SIZE: "50", MARKETPLACE_RESERVATION_SCHEDULER_ENABLED: "false",
-    MARKETPLACE_RESERVATION_SCHEDULER_INTERVAL_MS: "60000",
-    MARKETPLACE_RESERVATION_SCHEDULER_BATCH_SIZE: "50",
-    MARKETPLACE_RESERVATION_TTL_MINUTES: "30", SCHEDULER_OWNER: "disabled",
-    READINESS_TIMEOUT_MS: "5000",
-  };
-}
 
 test("complete staging and production environments return sanitized metadata", () => {
   for (const environment of ["staging", "production"]) {
