@@ -2,18 +2,27 @@
 set -euo pipefail
 
 API="${API:-http://127.0.0.1:6002/api}"
+DEMO_USERS_JSON="$(node apps/api/backend/scripts/resolve-dev-demo-users.mjs)"
 
-BUYER_EMAIL="${BUYER_EMAIL:-buyer@pawn.local}"
-BUYER_PASSWORD="${BUYER_PASSWORD:-Buyer123!}"
+credential() {
+  local role="$1"
+  local field="$2"
+  DEMO_USERS_JSON="$DEMO_USERS_JSON" ROLE="$role" FIELD="$field" node -e '
+    const users = JSON.parse(process.env.DEMO_USERS_JSON);
+    const user = users.find((entry) => entry.key === process.env.ROLE);
+    if (!user) process.exit(1);
+    process.stdout.write(String(user[process.env.FIELD] || ""));
+  '
+}
 
-OWNER_EMAIL="${OWNER_EMAIL:-owner1@pawn.local}"
-OWNER_PASSWORD="${OWNER_PASSWORD:-Owner123!}"
-
-ADMIN_EMAIL="${ADMIN_EMAIL:-admin1@example.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-Admin123!}"
-
-SUPER_ADMIN_EMAIL="${SUPER_ADMIN_EMAIL:-}"
-SUPER_ADMIN_PASSWORD="${SUPER_ADMIN_PASSWORD:-}"
+BUYER_EMAIL="$(credential buyer email)"
+BUYER_PASSWORD="$(credential buyer password)"
+OWNER_EMAIL="$(credential owner email)"
+OWNER_PASSWORD="$(credential owner password)"
+ADMIN_EMAIL="$(credential admin email)"
+ADMIN_PASSWORD="$(credential admin password)"
+SUPER_ADMIN_EMAIL="$(credential superAdmin email)"
+SUPER_ADMIN_PASSWORD="$(credential superAdmin password)"
 
 LAST_BODY="$(mktemp)"
 trap 'rm -f "$LAST_BODY"' EXIT
