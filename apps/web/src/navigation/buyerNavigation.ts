@@ -20,6 +20,7 @@ export const BUYER_NAVIGATION = [
   { to: "/marketplace/listings/mine", label: "My Listings" },
   { to: "/marketplace/listings/new", label: "Create Listing" },
   { to: "/account/payment-methods", label: "Payment Methods" },
+  { to: "/buyer/subscription", label: "Buyer Subscription" },
   { to: "/knowledge", label: "Knowledge Center" },
 ] as const satisfies readonly BuyerNavigationItem[];
 
@@ -34,5 +35,6 @@ export const BUYER_PATHS = {
   listings: "/marketplace/listings/mine",
   createListing: "/marketplace/listings/new",
   paymentMethods: "/account/payment-methods",
+  subscription: "/buyer/subscription",
   knowledge: "/knowledge",
 } as const;

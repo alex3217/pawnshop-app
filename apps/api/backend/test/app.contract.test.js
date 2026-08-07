@@ -294,13 +294,17 @@ test("an unapproved browser origin is rejected", async () => {
 });
 
 test("protected buyer routes reject missing tokens", async () => {
-  const response = await request(app)
-    .get("/api/watchlist/mine")
-    .expect(401);
-
-  assert.deepEqual(response.body, {
-    error: "Unauthorized",
-  });
+  for (const [method, path] of [
+    ["get", "/api/watchlist/mine"],
+    ["get", "/api/buyer-plans/mine/usage"],
+    ["post", "/api/stripe/checkout/buyer-subscription"],
+    ["post", "/api/stripe/billing-portal"],
+    ["post", "/api/buyer-plans/mine/cancel-at-period-end"],
+    ["post", "/api/buyer-plans/mine/resume"],
+  ]) {
+    const response = await request(app)[method](path).send({}).expect(401);
+    assert.deepEqual(response.body, { error: "Unauthorized" }, `${method.toUpperCase()} ${path}`);
+  }
 });
 
 test("protected routes reject invalid bearer tokens", async () => {

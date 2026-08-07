@@ -30,6 +30,7 @@ model User {
   Bid                             Bid[]
   bidArchives                     BidArchive[]
   buyerSubscription               BuyerSubscription?
+  buyerSubscriptionEvents         BuyerSubscriptionEvent[]
   inventoryImportJobs             InventoryImportJob[]             @relation("UserInventoryImportJobs")
   inventoryIntegrations           InventoryIntegration[]           @relation("UserInventoryIntegrations")
   buyerOffers                     Offer[]                          @relation("OfferBuyer")
@@ -262,29 +263,54 @@ model MfaChallenge {
 }
 
 model BuyerSubscription {
-  id                      String                  @id @default(cuid())
-  userId                  String                  @unique
-  plan                    BuyerSubscriptionPlan   @default(FREE)
-  status                  BuyerSubscriptionStatus @default(ACTIVE)
+  id                      String                   @id @default(cuid())
+  userId                  String                   @unique
+  plan                    BuyerSubscriptionPlan    @default(FREE)
+  status                  BuyerSubscriptionStatus  @default(ACTIVE)
   billingInterval         BillingInterval?
   currentPeriodStart      DateTime?
   currentPeriodEnd        DateTime?
   startedAt               DateTime?
   canceledAt              DateTime?
   trialEndsAt             DateTime?
-  cancelAtPeriodEnd       Boolean                 @default(false)
+  cancelAtPeriodEnd       Boolean                  @default(false)
   stripeCustomerId        String?
-  stripeSubscriptionId    String?                 @unique
+  stripeSubscriptionId    String?                  @unique
   stripePriceId           String?
   stripeLatestInvoiceId   String?
   stripeCheckoutSessionId String?
-  createdAt               DateTime                @default(now())
-  updatedAt               DateTime                @updatedAt
-  user                    User                    @relation(fields: [userId], references: [id])
+  stripeEventCreatedAt    DateTime?
+  stripeEventId           String?
+  stripeEventType         String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  user                    User                     @relation(fields: [userId], references: [id])
+  events                  BuyerSubscriptionEvent[]
 
   @@index([plan, status])
   @@index([status, currentPeriodEnd])
+  @@index([stripeEventCreatedAt])
   @@index([createdAt])
+}
+
+model BuyerSubscriptionEvent {
+  id                   String                  @id @default(cuid())
+  stripeEventId        String                  @unique
+  buyerSubscriptionId  String
+  userId               String
+  eventType            String
+  stripeEventCreatedAt DateTime
+  normalizedStatus     BuyerSubscriptionStatus
+  plan                 BuyerSubscriptionPlan
+  billingInterval      BillingInterval?
+  applied              Boolean
+  reasonCode           String
+  createdAt            DateTime                @default(now())
+  buyerSubscription    BuyerSubscription       @relation(fields: [buyerSubscriptionId], references: [id], onDelete: Restrict)
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([buyerSubscriptionId, stripeEventCreatedAt, id])
+  @@index([userId, createdAt])
 }
 
 model PawnShop {

@@ -197,6 +197,7 @@ const OwnerSubscriptionPage = lazyPage(() =>
   import("./pages/OwnerSubscriptionPage"),
 );
 const PaymentMethodsPage = lazyPage(() => import("./pages/PaymentMethodsPage"));
+const BuyerSubscriptionPage = lazyPage(() => import("./pages/BuyerSubscriptionPage"));
 const RegisterPage = lazyPage(() => import("./pages/RegisterPage"));
 const SavedSearchesPage = lazyPage(() => import("./pages/SavedSearchesPage"));
 const ScanConsolePage = lazyPage(() => import("./pages/ScanConsolePage"));
@@ -288,6 +289,7 @@ const publicRoutes: RouteConfig[] = [
 ];
 
 const consumerRoutes: RouteConfig[] = [
+  { path: BUYER_PATHS.subscription, element: <BuyerSubscriptionPage /> },
   { path: BUYER_PATHS.bids, element: <MyBidsPage /> },
   { path: "/bids", element: <Navigate to="/my-bids" replace /> },
   { path: BUYER_PATHS.wins, element: <MyWinsPage /> },
