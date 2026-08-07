@@ -19,7 +19,7 @@ export function isRetryableBuyerTransactionError(error) {
 
 export async function acquireBuyerTransactionLock(transaction, lockKey) {
   await transaction.$queryRaw`
-    SELECT pg_advisory_xact_lock(hashtextextended(${String(lockKey)}, 0))
+    SELECT pg_advisory_xact_lock(hashtextextended(${String(lockKey)}, 0))::text
   `;
 }
 
