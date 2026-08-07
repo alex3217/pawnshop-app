@@ -135,7 +135,61 @@ workflow compares hostnames without printing credentials or the URL.
 
 ### Production
 
-Do not deploy production until production env, database backup, Stripe webhook, and rollback are verified.
+Do not deploy production until production env, a fresh manifest-validated database backup, Stripe webhook, and rollback are verified. Follow `docs/production-backup-recovery-runbook-v1.md`; backup and restore commands require explicit environment, approved hostname, and database selections.
+
+Production process startup and `check:prod-preflight` use the same backend
+deployed-environment validator. Validation occurs before the HTTP server listens.
+The contract requires:
+
+- `APP_ENV=production`, `NODE_ENV=production`, `APP_NAME=pawnloop-api`, and an
+  immutable non-secret `APP_VERSION` or Git revision;
+- canonical HTTPS `API_ORIGIN`, frontend/web origins, and exact HTTP/Socket.IO
+  CORS allowlists;
+- PostgreSQL `DATABASE_URL` whose hostname exactly matches the non-secret
+  hostname-only `PRODUCTION_DATABASE_HOST`, and whose database name is not a
+  local, development, test, or staging name;
+- strong JWT and integration-credential encryption secrets;
+- live-mode platform Stripe keys and platform webhook signing secret, plus the
+  separate Connect webhook signing secret whenever `STRIPE_CONNECT_ENABLED=true`;
+- complete explicit Resend or SMTP configuration;
+- `TRUST_PROXY=1`, explicit invite-only/public registration mode, enabled and
+  fully configured authentication rate limiting, and an explicit MFA mode;
+- explicit boolean scheduler flags, interval/batch settings, readiness timeout,
+  and `SCHEDULER_OWNER`.
+
+`SCHEDULER_OWNER=disabled` requires both API scheduler flags to be false.
+`api-single-instance` permits enabled jobs only while exactly one API process owns
+them. `dedicated-worker` requires both API flags false. This contract does not
+make multi-instance scheduling safe: multiple instances still require a dedicated
+worker or a reviewed distributed lease.
+
+Buyer subscription Price IDs are intentionally not part of this shared production
+startup contract while Buyer Subscription Management V1 converges separately.
+Its final deployment contract must be integrated as an independently reviewed
+feature gate; do not infer subscription readiness from backend startup success.
+
+Before deployment, record variable-name pass/fail state only, approved database
+hostname, revision, Stripe mode, Connect enabled state, email provider, MFA mode,
+invite mode, rate-limit enabled state, scheduler owner/flags, Render instance
+count, Render deploy ID, and health/readiness results. Never record environment
+values, connection strings, credentials, tokens, signing secrets, or passwords.
+
+Production backend variable classification:
+
+| Classification | Variables |
+|---|---|
+| Required in staging and production | `APP_NAME`, `APP_ENV`, `NODE_ENV`, `APP_VERSION`, `PORT`, `API_ORIGIN`, `FRONTEND_URL`, `WEB_URL`, `CORS_ORIGIN`, `CORS_ORIGINS`, `DATABASE_URL`, `JWT_SECRET`, `INTEGRATION_CREDENTIAL_ENCRYPTION_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_ENABLED`, `EMAIL_PROVIDER`, `EMAIL_FROM`, `TRUST_PROXY`, `INVITE_ONLY_REGISTRATION_ENABLED`, all five `AUTH_RATE_LIMIT_*` values, `MFA_MODE`, both scheduler booleans, both scheduler interval/batch pairs, `MARKETPLACE_RESERVATION_TTL_MINUTES`, `SCHEDULER_OWNER`, and `READINESS_TIMEOUT_MS` |
+| Production-only | `PRODUCTION_DATABASE_HOST`; live-mode Stripe keys |
+| Staging-only | `STAGING_DATABASE_HOST`; test-mode Stripe keys; existing staging subscription Price-ID integration checks |
+| Conditionally required | `STRIPE_CONNECT_WEBHOOK_SECRET` when Connect is enabled; `RESEND_API_KEY` and timeout for Resend; SMTP host/port/secure/user/password/timeouts for SMTP; `MFA_ENCRYPTION_KEY` when MFA is optional or required |
+| Optional with safe defaults | request body limits, webhook body limit, JWT/token TTLs, email-action TTLs, Stripe currency, payout minimum, AI helper settings, `HOST`, `PAWN_PORT`, frontend static-serving settings; these do not bypass the deployed contract |
+| Prohibited in deployed validation | unsafe validation/database escape hatches and local staging validation mode; production also rejects local/loopback hosts, non-HTTPS origins, non-live Stripe mode, and local/test/staging/development database names |
+
+Secret values include database connection strings, JWT/auth secrets, encryption
+keys, Stripe secret/signing keys, provider credentials, tokens, and passwords.
+Origins, approved database hostnames, revision, modes, booleans, numeric limits,
+and scheduler ownership are non-secret, but evidence should still contain only
+the minimum operational metadata listed above.
 
     npm run pm2:prod
     npm run check:deploy:prod

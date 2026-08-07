@@ -2,6 +2,13 @@ const mode = process.argv[2] || "deployed";
 const env = process.env;
 const errors = [];
 
+if (mode === "deployed") {
+  const { validateDeployedEnvironment } = await import(
+    "../../apps/api/backend/src/config/deployedEnvironment.js"
+  );
+  validateDeployedEnvironment(env, { environment: "staging" });
+}
+
 const required = [
   "APP_NAME", "APP_ENV", "NODE_ENV", "PORT", "DATABASE_URL",
   "JWT_SECRET", "INTEGRATION_CREDENTIAL_ENCRYPTION_KEY",

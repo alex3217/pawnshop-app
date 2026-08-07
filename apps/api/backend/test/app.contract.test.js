@@ -70,6 +70,7 @@ before(async () => {
     NODE_ENV: "test",
     APP_ENV: "test",
     APP_NAME: "pawnloop-api-test",
+    APP_VERSION: "test-revision-0001",
     JWT_SECRET: TEST_JWT_SECRET,
     CORS_ORIGINS: "https://allowed.example",
     AUCTION_SCHEDULER_ENABLED: "false",
@@ -141,6 +142,7 @@ for (const path of [
     assert.equal(response.body.success, true);
     assert.equal(response.body.service, "pawnloop-api-test");
     assert.equal(response.body.env, "test");
+    assert.equal(response.body.revision, "test-revision-0001");
 
     assert.equal(
       Number.isNaN(Date.parse(response.body.ts)),
@@ -153,10 +155,8 @@ for (const path of [
       true,
     );
 
-    assert.equal(
-      typeof response.body.memory,
-      "object",
-    );
+    assert.equal(response.body.pid, undefined);
+    assert.equal(response.body.memory, undefined);
 
     assert.equal(
       response.headers["cache-control"],

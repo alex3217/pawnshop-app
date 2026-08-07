@@ -7,6 +7,7 @@ import {
   assertDeployedCorsConfiguration,
   parseAllowedOrigins,
 } from "../src/cors.js";
+import { validDeployedEnvironment } from "./helpers/deployedEnvironment.fixture.js";
 
 const serverPath = fileURLToPath(new URL("../src/server.js", import.meta.url));
 
@@ -205,12 +206,8 @@ test("a deployed configuration failure exits before server startup", () => {
     encoding: "utf8",
     env: {
       ...process.env,
-      APP_ENV: "production",
-      NODE_ENV: "production",
+      ...validDeployedEnvironment("production"),
       CORS_ORIGINS: "*",
-      CORS_ORIGIN: "",
-      FRONTEND_URL: "",
-      WEB_URL: "",
       UNRELATED_SECRET: unrelatedSecret,
     },
     timeout: 15_000,
@@ -218,11 +215,9 @@ test("a deployed configuration failure exits before server startup", () => {
   const output = `${result.stdout}\n${result.stderr}`;
 
   assert.notEqual(result.status, 0, output);
-  assert.match(output, /Wildcards are not allowed/);
-  assert.match(
-    output,
-    /CORS_ORIGINS, CORS_ORIGIN, FRONTEND_URL, or WEB_URL must contain explicit approved HTTP\(S\) origins/,
-  );
+  assert.match(output, /CORS_ORIGINS must contain canonical non-local HTTPS origin values/);
+  assert.match(output, /deployed HTTP and Socket.IO CORS allowlist is invalid/);
+  assert.doesNotMatch(output, /APP_NAME is required|DATABASE_URL is required|JWT_SECRET is required/);
   assert.doesNotMatch(output, /API running|Failed to initialize socket server/);
   assert.doesNotMatch(output, new RegExp(unrelatedSecret));
 });
