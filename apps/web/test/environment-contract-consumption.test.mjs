@@ -1524,23 +1524,28 @@ test("founding-shop service consumes the authoritative Preview staging API_BASE"
   const source = readFileSync(new URL("../src/services/foundingShopProgram.ts", import.meta.url), "utf8");
   assert.match(source, /import \{ API_BASE \} from "\.\.\/config"/);
   assert.match(source, /buildFoundingShopProgramUrl\(apiBase = API_BASE\)/);
-  const vite = await createServer({
-    root: new URL("../", import.meta.url).pathname,
-    configFile: false,
-    logLevel: "silent",
-    server: { middlewareMode: true },
-    define: {
-      "import.meta.env.DEV": "false",
-      "import.meta.env.VITE_DEPLOY_ENV": JSON.stringify("preview"),
-      "import.meta.env.VITE_API_ORIGIN": JSON.stringify("https://pawnshop-staging-api.onrender.com"),
-      "import.meta.env.VITE_API_BASE": JSON.stringify("/api"),
-      "import.meta.env.VITE_SOCKET_URL": JSON.stringify("https://pawnshop-staging-api.onrender.com"),
-      "import.meta.env.VITE_SOCKET_PATH": JSON.stringify("/socket.io"),
-    },
-  });
+  const priorApiPathAlias = process.env.VITE_API_BASE_URL;
+  process.env.VITE_API_BASE_URL = "/parent-environment-must-not-leak";
+  let vite;
   const originalFetch = globalThis.fetch;
   let requestedUrl = "";
   try {
+    vite = await createServer({
+      root: new URL("../", import.meta.url).pathname,
+      configFile: false,
+      envFile: false,
+      logLevel: "silent",
+      server: { middlewareMode: true },
+      define: {
+        "import.meta.env.DEV": "false",
+        "import.meta.env.VITE_DEPLOY_ENV": JSON.stringify("preview"),
+        "import.meta.env.VITE_API_ORIGIN": JSON.stringify("https://pawnshop-staging-api.onrender.com"),
+        "import.meta.env.VITE_API_BASE": JSON.stringify("/api"),
+        "import.meta.env.VITE_API_BASE_URL": JSON.stringify("/api"),
+        "import.meta.env.VITE_SOCKET_URL": JSON.stringify("https://pawnshop-staging-api.onrender.com"),
+        "import.meta.env.VITE_SOCKET_PATH": JSON.stringify("/socket.io"),
+      },
+    });
     const module = await vite.ssrLoadModule("/src/services/foundingShopProgram.ts");
     globalThis.fetch = async (url) => {
       requestedUrl = String(url);
@@ -1553,6 +1558,8 @@ test("founding-shop service consumes the authoritative Preview staging API_BASE"
     assert.equal(requestedUrl, "https://pawnshop-staging-api.onrender.com/api/platform-settings/founding-shop-program");
   } finally {
     globalThis.fetch = originalFetch;
-    await vite.close();
+    if (priorApiPathAlias === undefined) delete process.env.VITE_API_BASE_URL;
+    else process.env.VITE_API_BASE_URL = priorApiPathAlias;
+    if (vite) await vite.close();
   }
 });

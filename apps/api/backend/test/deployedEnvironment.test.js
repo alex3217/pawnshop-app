@@ -16,6 +16,49 @@ import {
 const backendRoot = new URL("..", import.meta.url);
 const repositoryRoot = new URL("../../../..", import.meta.url);
 
+const SAFE_CHILD_ENVIRONMENT_NAMES = [
+  "PATH", "Path", "HOME", "SystemRoot", "ComSpec", "PATHEXT",
+  "TEMP", "TMP", "TMPDIR",
+];
+
+function isolatedPreflightEnvironment(fixture) {
+  const env = {};
+  for (const name of SAFE_CHILD_ENVIRONMENT_NAMES) {
+    if (process.env[name] !== undefined) env[name] = process.env[name];
+  }
+  return {
+    ...env,
+    PROD_ENV_FILE: fixture,
+    PRODUCTION_PREFLIGHT_VALIDATE_ONLY: "1",
+  };
+}
+
+function withConflictingParentEnvironment(callback) {
+  const conflicts = {
+    APP_NAME: "parent-conflict",
+    FRONTEND_URL: "http://parent-conflict.invalid",
+    WEB_URL: "http://parent-conflict.invalid",
+    CORS_ORIGIN: "http://parent-conflict.invalid",
+    CORS_ORIGINS: "http://parent-conflict.invalid",
+    DATABASE_URL: "postgresql://parent-conflict.invalid/parent_conflict",
+    PRODUCTION_DATABASE_HOST: "different-parent-conflict.invalid",
+    STRIPE_SECRET_KEY: "sk_test_parent_conflict",
+    STRIPE_PUBLISHABLE_KEY: "pk_test_parent_conflict",
+  };
+  const prior = Object.fromEntries(
+    Object.keys(conflicts).map((name) => [name, process.env[name]]),
+  );
+  Object.assign(process.env, conflicts);
+  try {
+    return callback();
+  } finally {
+    for (const [name, value] of Object.entries(prior)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+}
+
 test("complete staging and production environments return sanitized metadata", () => {
   for (const environment of ["staging", "production"]) {
     const metadata = validateDeployedEnvironment(validEnvironment(environment), { environment });
@@ -191,19 +234,24 @@ for (const [appEnvironment, nodeEnvironment] of [
 }
 
 test("production preflight propagates shared validator failure without network work", () => {
-  const result = spawnSync("bash", ["scripts/check-prod-preflight.sh"], {
-    cwd: repositoryRoot,
-    env: { ...process.env, PROD_ENV_FILE: "scripts/test/fixtures/production-invalid.env", PRODUCTION_PREFLIGHT_VALIDATE_ONLY: "1" },
-    encoding: "utf8", timeout: 10_000,
+  const result = withConflictingParentEnvironment(() => {
+    return spawnSync("bash", ["scripts/check-prod-preflight.sh"], {
+      cwd: repositoryRoot,
+      env: isolatedPreflightEnvironment("scripts/test/fixtures/production-invalid.env"),
+      encoding: "utf8", timeout: 10_000,
+    });
   });
   assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}${result.stderr}`, /APP_VERSION is required/);
 });
 
 test("production preflight accepts a synthetic valid contract without network work", () => {
-  const result = spawnSync("bash", ["scripts/check-prod-preflight.sh"], {
-    cwd: repositoryRoot,
-    env: { ...process.env, PROD_ENV_FILE: "scripts/test/fixtures/production-valid.env", PRODUCTION_PREFLIGHT_VALIDATE_ONLY: "1" },
-    encoding: "utf8", timeout: 10_000,
+  const result = withConflictingParentEnvironment(() => {
+    return spawnSync("bash", ["scripts/check-prod-preflight.sh"], {
+      cwd: repositoryRoot,
+      env: isolatedPreflightEnvironment("scripts/test/fixtures/production-valid.env"),
+      encoding: "utf8", timeout: 10_000,
+    });
   });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
