@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROD_ENV="apps/api/backend/.env.production"
+PROD_ENV="${PROD_ENV_FILE:-apps/api/backend/.env.production}"
 DEV_ENV="apps/api/backend/.env.development"
 STAGING_ENV="apps/api/backend/.env.staging"
 
@@ -10,72 +10,12 @@ if [ ! -f "$PROD_ENV" ]; then
   exit 1
 fi
 
-node --env-file="$PROD_ENV" - <<'NODE'
-const required = [
-  "APP_ENV",
-  "NODE_ENV",
-  "PORT",
-  "PAWN_PORT",
-  "DATABASE_URL",
-  "JWT_SECRET",
-  "STRIPE_SECRET_KEY",
-  "STRIPE_WEBHOOK_SECRET",
-  "STRIPE_PUBLISHABLE_KEY",
-  "CORS_ORIGINS",
-  "FRONTEND_URL",
-];
+node --env-file="$PROD_ENV" scripts/validate-backend-environment.mjs production
 
-const missing = required.filter((key) => !(process.env[key] || "").trim());
-
-if (missing.length) {
-  console.error("Missing production env vars:");
-  for (const key of missing) console.error(`- ${key}`);
-  process.exit(1);
-}
-
-const placeholders = Object.entries(process.env).filter(([key, value]) => {
-  if (!required.includes(key)) return false;
-  return /replace_me|your_|changeme|placeholder/i.test(String(value || ""));
-});
-
-if (placeholders.length) {
-  console.error("Production env has placeholder values:");
-  for (const [key] of placeholders) console.error(`- ${key}`);
-  process.exit(1);
-}
-
-if (String(process.env.APP_ENV) !== "production") {
-  console.error("APP_ENV must be production.");
-  process.exit(1);
-}
-
-if (String(process.env.NODE_ENV) !== "production") {
-  console.error("NODE_ENV must be production.");
-  process.exit(1);
-}
-
-if (String(process.env.PORT) !== "6001" || String(process.env.PAWN_PORT) !== "6001") {
-  console.error("Production must use PORT=6001 and PAWN_PORT=6001.");
-  process.exit(1);
-}
-
-if (!String(process.env.STRIPE_SECRET_KEY || "").startsWith("sk_live_")) {
-  console.error("Production STRIPE_SECRET_KEY must be a live key starting with sk_live_.");
-  process.exit(1);
-}
-
-if (!String(process.env.STRIPE_PUBLISHABLE_KEY || "").startsWith("pk_live_")) {
-  console.error("Production STRIPE_PUBLISHABLE_KEY must be a live key starting with pk_live_.");
-  process.exit(1);
-}
-
-if (!String(process.env.STRIPE_WEBHOOK_SECRET || "").startsWith("whsec_")) {
-  console.error("Production STRIPE_WEBHOOK_SECRET must start with whsec_.");
-  process.exit(1);
-}
-
-console.log("✅ Production env required values are present.");
-NODE
+if [ "${PRODUCTION_PREFLIGHT_VALIDATE_ONLY:-0}" = "1" ]; then
+  echo "✅ Synthetic production contract validation passed; network, database, backup, and build checks were skipped."
+  exit 0
+fi
 
 normalize_db() {
   local env_file="$1"

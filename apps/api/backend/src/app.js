@@ -157,10 +157,9 @@ function createHealthPayload(serviceName, env) {
     success: true,
     service: serviceName,
     env,
+    revision: process.env.APP_VERSION || null,
     ts: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),
-    pid: process.pid,
-    memory: process.memoryUsage(),
   };
 }
 
