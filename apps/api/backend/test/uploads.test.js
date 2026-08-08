@@ -3,9 +3,15 @@ import test, { before, beforeEach } from "node:test";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import sharp from "sharp";
+import { EventEmitter } from "node:events";
+import { Readable } from "node:stream";
+import { createAggregateMemoryStorage } from "../src/middleware/aggregateMemoryStorage.js";
+import { createUploadProtection } from "../src/middleware/uploadProtection.js";
+import { HARD_UPLOAD_LIMITS, loadUploadLimits } from "../src/config/uploads.js";
+import { createS3UploadStorage } from "../src/services/uploadStorage.service.js";
 
 const SECRET = "upload-tests-only-secret-at-least-thirty-two-characters";
-const limits = Object.freeze({ maxFileBytes: 2048, maxFiles: 3, maxAggregateBytes: 4096, maxWidth: 100, maxHeight: 100, maxPixels: 10_000 });
+const limits = Object.freeze({ maxFileBytes: 2048, maxFiles: 3, maxAggregateBytes: 4096, maxWidth: 100, maxHeight: 100, maxPixels: 10_000, rateLimitWindowMs: 60_000, rateLimitUserMax: 100, rateLimitIpMax: 100, maxConcurrent: 4, storageTimeoutMs: 50 });
 const users = new Map([
   ["owner", { id: "owner", email: "owner@upload.test", role: "OWNER", isActive: true, authVersion: 0 }],
   ["buyer", { id: "buyer", email: "buyer@upload.test", role: "CONSUMER", isActive: true, authVersion: 0 }],
@@ -19,6 +25,8 @@ let prisma;
 let stored;
 let deleted;
 let putFailureAt;
+let deleteFailure;
+let warnings;
 let png;
 
 function token(id) {
@@ -53,8 +61,9 @@ before(async () => {
         if (putFailureAt === stored.length) throw new Error("provider secret detail");
         return { url: `https://assets.example.test/${input.key}` };
       },
-      async delete(input) { deleted.push(input); },
+      async delete(input) { deleted.push(input); if (deleteFailure) throw new Error("private provider cleanup detail"); },
     },
+    uploadLogger: { warn(message, details) { warnings.push({ message, details }); } },
   });
 });
 
@@ -62,6 +71,8 @@ beforeEach(() => {
   stored = [];
   deleted = [];
   putFailureAt = 0;
+  deleteFailure = false;
+  warnings = [];
 });
 
 test("upload router is mounted once at the frontend API path", async () => {
@@ -148,6 +159,60 @@ test("partial bulk provider failure removes objects created in the request", asy
   await upload("/api/uploads/bulk").field("kind", "SHOP_BANNER").field("shopId", "shop").attach("images", png, { filename: "1.png", contentType: "image/png" }).attach("images", png, { filename: "2.png", contentType: "image/png" }).expect(502);
   assert.equal(deleted.length, 1);
   assert.equal(deleted[0].key, stored[0].key);
+});
+
+test("cleanup failures are sanitized and observable without replacing the original response", async () => {
+  putFailureAt = 2;
+  deleteFailure = true;
+  const response = await upload("/api/uploads/bulk").field("kind", "SHOP_BANNER").field("shopId", "shop").attach("images", png, { filename: "1.png", contentType: "image/png" }).attach("images", png, { filename: "2.png", contentType: "image/png" }).expect(502);
+  assert.equal(response.body.error, "Image storage is temporarily unavailable");
+  assert.deepEqual(warnings, [{ message: "[uploads] durable cleanup incomplete", details: { requestId: warnings[0].details.requestId, cleanupFailureCount: 1 } }]);
+  assert.equal(JSON.stringify(warnings).includes("private provider"), false);
+  assert.equal(JSON.stringify(warnings).includes("uploads/"), false);
+});
+
+test("aggregate storage rejects while receiving and does not retain the overflowing file", async () => {
+  const storage = createAggregateMemoryStorage(5);
+  const req = {};
+  const stream = Readable.from([Buffer.from("1234"), Buffer.from("5678")]);
+  const result = await new Promise((resolve) => storage._handleFile(req, { stream }, (error, file) => resolve({ error, file })));
+  assert.equal(result.error?.statusCode, 413);
+  assert.equal(result.file, undefined);
+  assert.equal(req.uploadIncomingBytes > 5, true);
+});
+
+test("immutable upload ceilings and limit relationships fail closed", () => {
+  for (const [key, maximum] of Object.entries(HARD_UPLOAD_LIMITS)) {
+    const envName = ({ maxFileBytes: "UPLOAD_MAX_FILE_BYTES", maxFiles: "UPLOAD_MAX_FILES", maxAggregateBytes: "UPLOAD_MAX_AGGREGATE_BYTES", maxWidth: "UPLOAD_MAX_WIDTH", maxHeight: "UPLOAD_MAX_HEIGHT", maxPixels: "UPLOAD_MAX_PIXELS", rateLimitWindowMs: "UPLOAD_RATE_LIMIT_WINDOW_MS", rateLimitUserMax: "UPLOAD_RATE_LIMIT_USER_MAX", rateLimitIpMax: "UPLOAD_RATE_LIMIT_IP_MAX", maxConcurrent: "UPLOAD_MAX_CONCURRENT", storageTimeoutMs: "UPLOAD_STORAGE_TIMEOUT_MS" })[key];
+    assert.throws(() => loadUploadLimits({ [envName]: String(maximum + 1) }), /immutable safety ceiling/);
+  }
+  assert.throws(() => loadUploadLimits({ UPLOAD_MAX_FILE_BYTES: "100", UPLOAD_MAX_AGGREGATE_BYTES: "99" }), /at least/);
+  assert.throws(() => loadUploadLimits({ UPLOAD_MAX_WIDTH: "10", UPLOAD_MAX_HEIGHT: "10", UPLOAD_MAX_PIXELS: "101" }), /WIDTH.*HEIGHT/);
+});
+
+test("upload protection enforces user, IP, and bounded concurrency without a queue", () => {
+  const protection = createUploadProtection({ limits: { ...limits, rateLimitUserMax: 1, rateLimitIpMax: 2, maxConcurrent: 1 }, now: () => 100 });
+  const next = () => {};
+  function response() { const value = new EventEmitter(); value.headers = {}; value.setHeader = (k, v) => { value.headers[k] = v; }; value.status = (status) => { value.statusCode = status; return value; }; value.json = (body) => { value.body = body; return value; }; return value; }
+  const req = { user: { sub: "u1" }, ip: "127.0.0.1" };
+  protection.rateLimit(req, response(), next);
+  const userLimited = response(); protection.rateLimit(req, userLimited, next); assert.equal(userLimited.statusCode, 429);
+  const secondUser = response(); protection.rateLimit({ user: { sub: "u2" }, ip: "127.0.0.1" }, secondUser, next); assert.equal(secondUser.statusCode, undefined);
+  const ipLimited = response(); protection.rateLimit({ user: { sub: "u3" }, ip: "127.0.0.1" }, ipLimited, next); assert.equal(ipLimited.statusCode, 429);
+  const held = response(); protection.concurrency(req, held, next);
+  const capacity = response(); protection.concurrency(req, capacity, next); assert.equal(capacity.statusCode, 503); assert.equal(protection.active, 1);
+  held.emit("finish"); assert.equal(protection.active, 0);
+});
+
+test("S3-compatible writes and deletes abort after the configured timeout", async () => {
+  const client = { send(_command, { abortSignal }) { return new Promise((_resolve, reject) => abortSignal.addEventListener("abort", () => reject(abortSignal.reason), { once: true })); } };
+  const storage = createS3UploadStorage({ enabled: true, endpoint: "https://storage.example.test", region: "auto", forcePathStyle: false, accessKeyId: "test", secretAccessKey: "test", bucket: "test", publicBaseUrl: "https://assets.example.test", limits: { ...limits, storageTimeoutMs: 5 } }, { client });
+  async function expectTimeout(operation) {
+    const keepAlive = setTimeout(() => {}, 1_000);
+    try { await assert.rejects(operation(), /abort|timeout/i); } finally { clearTimeout(keepAlive); }
+  }
+  await expectTimeout(() => storage.put({ key: "uploads/test.png", body: png, contentType: "image/png" }));
+  await expectTimeout(() => storage.delete({ key: "uploads/test.png" }));
 });
 
 test("admin uploads still require a real target and receive no arbitrary path control", async () => {

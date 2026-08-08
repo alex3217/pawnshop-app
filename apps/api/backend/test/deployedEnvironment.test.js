@@ -289,3 +289,12 @@ test("health and readiness expose revision without process internals", async () 
     if (prior === undefined) delete process.env.APP_VERSION; else process.env.APP_VERSION = prior;
   }
 });
+
+test("deployed upload limits reject unsafe ceilings and relationships", () => {
+  const overCeiling = validEnvironment("production");
+  overCeiling.UPLOAD_MAX_CONCURRENT = "5";
+  assert.throws(() => validateDeployedEnvironment(overCeiling, { environment: "production" }), /UPLOAD_MAX_CONCURRENT/);
+  const invalidAggregate = validEnvironment("production");
+  invalidAggregate.UPLOAD_MAX_AGGREGATE_BYTES = "1";
+  assert.throws(() => validateDeployedEnvironment(invalidAggregate, { environment: "production" }), /UPLOAD_MAX_AGGREGATE_BYTES must be at least/);
+});

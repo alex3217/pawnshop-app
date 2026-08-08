@@ -1,0 +1,3 @@
+ALTER TABLE "PawnShop"
+ADD COLUMN "logoUrl" TEXT,
+ADD COLUMN "bannerUrl" TEXT;

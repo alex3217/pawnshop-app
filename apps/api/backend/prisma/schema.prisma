@@ -325,6 +325,8 @@ model PawnShop {
   phone                              String?
   description                        String?
   hours                              String?
+  logoUrl                            String?
+  bannerUrl                          String?
   ownerId                            String
   isDeleted                          Boolean                          @default(false)
   createdAt                          DateTime                         @default(now())

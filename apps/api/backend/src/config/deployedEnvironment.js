@@ -191,10 +191,29 @@ function validateScheduler(env, violations) {
 
 function validateDurableUploads(env, violations) {
   const enabled = parseExplicitBoolean(env, "DURABLE_UPLOADS_ENABLED", violations);
-  for (const name of [
-    "UPLOAD_MAX_FILE_BYTES", "UPLOAD_MAX_FILES", "UPLOAD_MAX_AGGREGATE_BYTES",
-    "UPLOAD_MAX_WIDTH", "UPLOAD_MAX_HEIGHT", "UPLOAD_MAX_PIXELS",
-  ]) positiveInteger(env, name, violations);
+  const uploadMaximums = {
+    UPLOAD_MAX_FILE_BYTES: 10 * 1024 * 1024,
+    UPLOAD_MAX_FILES: 10,
+    UPLOAD_MAX_AGGREGATE_BYTES: 50 * 1024 * 1024,
+    UPLOAD_MAX_WIDTH: 12_000,
+    UPLOAD_MAX_HEIGHT: 12_000,
+    UPLOAD_MAX_PIXELS: 40_000_000,
+    UPLOAD_RATE_LIMIT_WINDOW_MS: 15 * 60_000,
+    UPLOAD_RATE_LIMIT_USER_MAX: 300,
+    UPLOAD_RATE_LIMIT_IP_MAX: 600,
+    UPLOAD_MAX_CONCURRENT: 4,
+    UPLOAD_STORAGE_TIMEOUT_MS: 30_000,
+  };
+  for (const [name, maximum] of Object.entries(uploadMaximums)) {
+    positiveInteger(env, name, violations, { maximum });
+  }
+  const number = (name) => Number(clean(env, name));
+  if (number("UPLOAD_MAX_AGGREGATE_BYTES") < number("UPLOAD_MAX_FILE_BYTES")) {
+    violations.push("UPLOAD_MAX_AGGREGATE_BYTES must be at least UPLOAD_MAX_FILE_BYTES");
+  }
+  if (number("UPLOAD_MAX_PIXELS") > number("UPLOAD_MAX_WIDTH") * number("UPLOAD_MAX_HEIGHT")) {
+    violations.push("UPLOAD_MAX_PIXELS cannot exceed the configured width and height product");
+  }
   if (!enabled) return false;
 
   for (const name of ["UPLOAD_STORAGE_REGION", "UPLOAD_STORAGE_BUCKET"]) {

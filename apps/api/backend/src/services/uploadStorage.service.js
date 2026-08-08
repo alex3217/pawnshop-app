@@ -5,7 +5,7 @@ function publicObjectUrl(baseUrl, key) {
   return `${baseUrl}/${key.split("/").map(encodeURIComponent).join("/")}`;
 }
 
-export function createS3UploadStorage(config = loadDurableUploadConfig()) {
+export function createS3UploadStorage(config = loadDurableUploadConfig(), options = {}) {
   if (!config.enabled) {
     return {
       async put() {
@@ -17,7 +17,7 @@ export function createS3UploadStorage(config = loadDurableUploadConfig()) {
     };
   }
 
-  const client = new S3Client({
+  const client = options.client || new S3Client({
     endpoint: config.endpoint,
     region: config.region,
     forcePathStyle: config.forcePathStyle,
@@ -37,11 +37,13 @@ export function createS3UploadStorage(config = loadDurableUploadConfig()) {
         CacheControl: "public, max-age=31536000, immutable",
         Metadata: metadata,
         IfNoneMatch: "*",
-      }));
+      }), { abortSignal: AbortSignal.timeout(config.limits.storageTimeoutMs) });
       return { url: publicObjectUrl(config.publicBaseUrl, key) };
     },
     async delete({ key }) {
-      await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }));
+      await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }), {
+        abortSignal: AbortSignal.timeout(config.limits.storageTimeoutMs),
+      });
     },
   };
 }

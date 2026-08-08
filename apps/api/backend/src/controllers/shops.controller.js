@@ -27,6 +27,8 @@ const PAWNSHOP_SAFE_FIELDS = [
   "phone",
   "description",
   "hours",
+  "logoUrl",
+  "bannerUrl",
   "ownerId",
   "createdAt",
   "updatedAt",
@@ -95,6 +97,8 @@ function pickShopWriteData(body = {}, ownerId) {
   if (body.phone !== undefined) data.phone = normalizeString(body.phone);
   if (body.description !== undefined) data.description = normalizeString(body.description);
   if (body.hours !== undefined) data.hours = normalizeString(body.hours);
+  if (body.logoUrl !== undefined) data.logoUrl = normalizeString(body.logoUrl);
+  if (body.bannerUrl !== undefined) data.bannerUrl = normalizeString(body.bannerUrl);
   if (ownerId !== undefined) data.ownerId = ownerId;
 
   return data;

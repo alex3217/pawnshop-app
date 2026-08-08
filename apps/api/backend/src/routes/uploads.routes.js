@@ -4,6 +4,8 @@ import { authRequired } from "../middleware/auth.js";
 import { requireOwnerAdminOrStaffPermission } from "../middleware/staffAccess.middleware.js";
 import { loadUploadLimits } from "../config/uploads.js";
 import { uploadImages } from "../services/uploads.service.js";
+import { createAggregateMemoryStorage } from "../middleware/aggregateMemoryStorage.js";
+import { createUploadProtection } from "../middleware/uploadProtection.js";
 
 function uploadError(error, req, res, next) {
   if (!(error instanceof multer.MulterError)) return next(error);
@@ -11,31 +13,43 @@ function uploadError(error, req, res, next) {
   return res.status(status).json({ success: false, error: "Upload request is invalid", requestId: req.requestId });
 }
 
-export function createUploadsRouter({ storage, limits = loadUploadLimits() }) {
+function rejectOversizedMultipart(req, res, next) {
+  const declaredBytes = Number(req.get("content-length") || 0);
+  const maximumRequestBytes = req.uploadLimits.maxAggregateBytes + (256 * 1024);
+  if (Number.isFinite(declaredBytes) && declaredBytes > maximumRequestBytes) {
+    return res.status(413).json({ success: false, error: "Upload request exceeds the aggregate size limit", requestId: req.requestId });
+  }
+  return next();
+}
+
+export function createUploadsRouter({ storage, limits = loadUploadLimits(), protection, logger = console }) {
   const router = Router();
   const multipart = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: limits.maxFileBytes, files: limits.maxFiles, fields: 8, parts: limits.maxFiles + 8 },
+    storage: createAggregateMemoryStorage(limits.maxAggregateBytes),
+    limits: { fileSize: limits.maxFileBytes, files: limits.maxFiles, fields: 8, fieldSize: 16 * 1024, parts: limits.maxFiles + 8 },
   });
   const authorize = [authRequired, requireOwnerAdminOrStaffPermission("inventory:write")];
+  const uploadProtection = protection || createUploadProtection({ limits });
+  const exposeLimits = (req, _res, next) => { req.uploadLimits = limits; next(); };
+  const protectedUpload = [...authorize, uploadProtection.rateLimit, uploadProtection.concurrency, exposeLimits, rejectOversizedMultipart];
 
-  router.post("/", ...authorize, multipart.any(), uploadError, async (req, res, next) => {
+  router.post("/", ...protectedUpload, multipart.any(), uploadError, async (req, res, next) => {
     try {
       if (req.files?.length !== 1) {
         const error = new Error("Exactly one image is required");
         error.statusCode = 400;
         throw error;
       }
-      const [file] = await uploadImages({ req, files: req.files, input: req.body, storage, limits });
+      const [file] = await uploadImages({ req, files: req.files, input: req.body, storage, limits, logger });
       return res.status(201).json({ file });
     } catch (error) {
       return next(error);
     }
   });
 
-  router.post("/bulk", ...authorize, multipart.any(), uploadError, async (req, res, next) => {
+  router.post("/bulk", ...protectedUpload, multipart.any(), uploadError, async (req, res, next) => {
     try {
-      const files = await uploadImages({ req, files: req.files, input: req.body, storage, limits });
+      const files = await uploadImages({ req, files: req.files, input: req.body, storage, limits, logger });
       return res.status(201).json({ files });
     } catch (error) {
       return next(error);

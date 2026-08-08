@@ -14,6 +14,8 @@ const LOCATION_SAFE_FIELDS = [
   "phone",
   "description",
   "hours",
+  "logoUrl",
+  "bannerUrl",
   "ownerId",
   "createdAt",
   "updatedAt",
@@ -144,6 +146,8 @@ function pickLocationWriteData(body = {}, ownerId) {
     data.description = normalizeString(body.description);
   }
   if (body.hours !== undefined) data.hours = normalizeString(body.hours);
+  if (body.logoUrl !== undefined) data.logoUrl = normalizeString(body.logoUrl);
+  if (body.bannerUrl !== undefined) data.bannerUrl = normalizeString(body.bannerUrl);
   if (ownerId !== undefined) data.ownerId = ownerId;
 
   return data;
@@ -165,6 +169,8 @@ function mapLocation(shop) {
     phone: shop.phone ?? null,
     description: shop.description ?? null,
     hours: shop.hours ?? null,
+    logoUrl: shop.logoUrl ?? null,
+    bannerUrl: shop.bannerUrl ?? null,
     ownerId: shop.ownerId ?? null,
     isDeleted: shop.isDeleted ?? false,
     subscriptionPlan: normalizePlanCode(shop.subscriptionPlan, "FREE"),

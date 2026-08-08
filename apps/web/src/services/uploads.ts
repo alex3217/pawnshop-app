@@ -11,6 +11,8 @@ export type UploadKind =
 
 export type UploadedFile = {
   id?: string;
+  /** Server-generated storage-object identifier; not a database asset-record ID. */
+  storageObjectId?: string;
   url: string;
   key?: string;
   filename?: string;
@@ -69,7 +71,8 @@ function normalizeUploadedFile(data: unknown): UploadedFile {
 
   if (!isObject(file)) throw new Error("Invalid uploaded file response");
 
-  return file as UploadedFile;
+  const uploaded = file as UploadedFile;
+  return { ...uploaded, storageObjectId: uploaded.id };
 }
 
 function normalizeUploadedFiles(data: unknown): UploadedFile[] {

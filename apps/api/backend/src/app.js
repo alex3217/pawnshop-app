@@ -376,7 +376,12 @@ export function createApp(options = {}) {
   mountApi(app, "/owner-applications", ownerApplicationsRoutes);
   mountApi(app, "/notifications", notificationsRoutes);
   mountApi(app, "/training", trainingRoutes);
-  mountApi(app, "/uploads", createUploadsRouter({ storage: uploadStorage, limits: options.uploadLimits }));
+  mountApi(app, "/uploads", createUploadsRouter({
+    storage: uploadStorage,
+    limits: options.uploadLimits,
+    protection: options.uploadProtection,
+    logger: options.uploadLogger,
+  }));
   mountApi(app, "/shops", shopRoutes);
   mountApi(app, "/locations", locationsRoutes);
   mountApi(app, "/items", itemRoutes);

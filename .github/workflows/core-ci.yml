@@ -51,7 +51,7 @@ jobs:
         run: npm --prefix apps/web run lint
 
       - name: Deployment environment contract tests
-        run: node --test apps/web/test/build-environment.test.mjs apps/web/test/environment-contract.test.mjs apps/web/test/environment-contract-consumption.test.mjs apps/web/test/environment-indicator.runtime.test.mjs scripts/test-deployment-environment-cli.mjs
+        run: node --test apps/web/test/build-environment.test.mjs apps/web/test/environment-contract.test.mjs apps/web/test/environment-contract-consumption.test.mjs apps/web/test/environment-indicator.runtime.test.mjs apps/web/test/upload-workflow.contract.test.mjs scripts/test-deployment-environment-cli.mjs
 
       - name: Validate Production deployment target
         run: node scripts/check-deployment-environment.mjs

@@ -102,7 +102,7 @@ export async function validateAndNormalizeImage(file, limits) {
   return { body: data, mimeType: supported.mimeType, extension: supported.extension, width: info.width, height: info.height, size: data.length };
 }
 
-export async function uploadImages({ req, files, input, storage, limits }) {
+export async function uploadImages({ req, files, input, storage, limits, logger = console }) {
   if (!Array.isArray(files) || files.length === 0) throw httpError("At least one image is required", 400, "UPLOAD_FILES_REQUIRED");
   if (files.length > limits.maxFiles) throw httpError("Too many images", 413, "UPLOAD_FILE_COUNT_EXCEEDED");
   const aggregate = files.reduce((total, file) => total + Number(file?.size || file?.buffer?.length || 0), 0);
@@ -124,7 +124,14 @@ export async function uploadImages({ req, files, input, storage, limits }) {
     }
     return created.map(({ file }) => file);
   } catch (error) {
-    await Promise.allSettled(created.map(({ key }) => storage.delete({ key })));
+    const cleanup = await Promise.allSettled(created.map(({ key }) => storage.delete({ key })));
+    const cleanupFailureCount = cleanup.filter(({ status }) => status === "rejected").length;
+    if (cleanupFailureCount > 0) {
+      logger.warn("[uploads] durable cleanup incomplete", {
+        requestId: req.requestId,
+        cleanupFailureCount,
+      });
+    }
     if (error?.statusCode && error.statusCode < 500) throw error;
     throw httpError("Image storage is temporarily unavailable", 502, "UPLOAD_STORAGE_UNAVAILABLE");
   }

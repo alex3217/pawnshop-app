@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
 import { getMyLocations, updateLocation } from "../services/locations";
 import { getMyShops } from "../services/shops";
+import { updateShopBranding } from "../services/ownerPhotoWorkflows";
 import "../styles/owner-locations-readability.css";
 
 type LocationRecord = {
@@ -149,6 +150,8 @@ export default function OwnerLocationsPage() {
     phone: "",
     hours: "",
   });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
 
   const load = useCallback(
     async (
@@ -190,6 +193,8 @@ export default function OwnerLocationsPage() {
       phone: location.phone === "—" ? "" : location.phone,
       hours: location.hours === "—" ? "" : location.hours,
     });
+    setLogoFile(null);
+    setBannerFile(null);
   }
 
   function cancelEditLocation() {
@@ -201,6 +206,8 @@ export default function OwnerLocationsPage() {
       phone: "",
       hours: "",
     });
+    setLogoFile(null);
+    setBannerFile(null);
   }
 
   async function saveLocation(id: string) {
@@ -226,6 +233,9 @@ export default function OwnerLocationsPage() {
         phone,
         hours,
       });
+      if (logoFile || bannerFile) {
+        await updateShopBranding(id, {}, logoFile, bannerFile);
+      }
 
       setLocations((current) =>
         sortLocations(
@@ -244,6 +254,8 @@ export default function OwnerLocationsPage() {
       );
 
       setEditingId(null);
+      setLogoFile(null);
+      setBannerFile(null);
       setActionMessage("Location details updated.");
     } catch (err) {
       setActionError(
@@ -403,6 +415,14 @@ export default function OwnerLocationsPage() {
                           }
                           style={styles.input}
                         />
+                      </label>
+                      <label style={styles.fieldLabel}>
+                        Shop logo
+                        <input type="file" accept="image/jpeg,image/png,image/webp" disabled={savingId === location.id} onChange={(event) => setLogoFile(event.target.files?.[0] || null)} style={styles.input} />
+                      </label>
+                      <label style={styles.fieldLabel}>
+                        Shop banner
+                        <input type="file" accept="image/jpeg,image/png,image/webp" disabled={savingId === location.id} onChange={(event) => setBannerFile(event.target.files?.[0] || null)} style={styles.input} />
                       </label>
 
                       <label style={styles.fieldLabel}>
