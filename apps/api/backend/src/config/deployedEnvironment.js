@@ -10,6 +10,7 @@ const SECRET_NAMES = new Set([
   "AUTH_SECRET", "INTEGRATION_CREDENTIAL_ENCRYPTION_KEY", "MFA_ENCRYPTION_KEY",
   "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_CONNECT_WEBHOOK_SECRET",
   "RESEND_API_KEY", "SMTP_USER", "SMTP_PASS",
+  "UPLOAD_STORAGE_ACCESS_KEY_ID", "UPLOAD_STORAGE_SECRET_ACCESS_KEY",
 ]);
 
 export class DeployedEnvironmentValidationError extends Error {
@@ -188,6 +189,35 @@ function validateScheduler(env, violations) {
   return { owner: owner || null, auctionEnabled, reservationEnabled };
 }
 
+function validateDurableUploads(env, violations) {
+  const enabled = parseExplicitBoolean(env, "DURABLE_UPLOADS_ENABLED", violations);
+  for (const name of [
+    "UPLOAD_MAX_FILE_BYTES", "UPLOAD_MAX_FILES", "UPLOAD_MAX_AGGREGATE_BYTES",
+    "UPLOAD_MAX_WIDTH", "UPLOAD_MAX_HEIGHT", "UPLOAD_MAX_PIXELS",
+  ]) positiveInteger(env, name, violations);
+  if (!enabled) return false;
+
+  for (const name of ["UPLOAD_STORAGE_REGION", "UPLOAD_STORAGE_BUCKET"]) {
+    requireValue(env, name, violations, { secret: false });
+  }
+  requireValue(env, "UPLOAD_STORAGE_ACCESS_KEY_ID", violations);
+  requireValue(env, "UPLOAD_STORAGE_SECRET_ACCESS_KEY", violations);
+  parseExplicitBoolean(env, "UPLOAD_STORAGE_FORCE_PATH_STYLE", violations);
+  for (const name of ["UPLOAD_STORAGE_ENDPOINT", "UPLOAD_STORAGE_PUBLIC_BASE_URL"]) {
+    const raw = requireValue(env, name, violations, { secret: false });
+    if (!raw) continue;
+    try {
+      const url = new URL(raw);
+      if (url.protocol !== "https:" || url.username || url.password || isLocalOrLoopbackHostname(url.hostname)) {
+        throw new Error("invalid durable storage URL");
+      }
+    } catch {
+      violations.push(`${name} must be a non-local HTTPS URL without credentials`);
+    }
+  }
+  return true;
+}
+
 export function validateDeployedEnvironment(env, { environment } = {}) {
   const target = String(environment || env.APP_ENV || "").trim().toLowerCase();
   if (!DEPLOYED_ENVIRONMENTS.has(target)) {
@@ -260,6 +290,7 @@ export function validateDeployedEnvironment(env, { environment } = {}) {
   const mfaMode = requireValue(env, "MFA_MODE", violations, { secret: false }).toLowerCase();
   try { loadMfaConfig(env); } catch (error) { violations.push(error.message); }
   const schedulers = validateScheduler(env, violations);
+  const durableUploadsEnabled = validateDurableUploads(env, violations);
   const readinessTimeoutMs = positiveInteger(env, "READINESS_TIMEOUT_MS", violations, { maximum: 30_000 });
   positiveInteger(env, "PORT", violations, { maximum: 65_535 });
 
@@ -287,6 +318,7 @@ export function validateDeployedEnvironment(env, { environment } = {}) {
     schedulerOwner: schedulers.owner,
     auctionSchedulerEnabled: schedulers.auctionEnabled,
     reservationSchedulerEnabled: schedulers.reservationEnabled,
+    durableUploadsEnabled,
     readinessTimeoutMs,
   });
 }

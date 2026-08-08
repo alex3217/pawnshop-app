@@ -37,6 +37,8 @@ import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes
 import ownerApplicationsRoutes from "./routes/ownerApplications.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
 import trainingRoutes from "./routes/training.routes.js";
+import { createUploadsRouter } from "./routes/uploads.routes.js";
+import { createS3UploadStorage } from "./services/uploadStorage.service.js";
 import { prisma } from "./lib/prisma.js";
 import {
   loadAuthRateLimitConfig,
@@ -196,6 +198,8 @@ export function createApp(options = {}) {
     auditMfaRateLimit: options.auditMfaRateLimit,
   });
   app.locals.authRateLimiters = authRateLimiters;
+  const uploadStorage = options.uploadStorage || createS3UploadStorage();
+  app.locals.uploadStorage = uploadStorage;
 
   const serviceName = process.env.APP_NAME || "pawnloop-api";
   const env = process.env.APP_ENV || process.env.NODE_ENV || "development";
@@ -372,6 +376,7 @@ export function createApp(options = {}) {
   mountApi(app, "/owner-applications", ownerApplicationsRoutes);
   mountApi(app, "/notifications", notificationsRoutes);
   mountApi(app, "/training", trainingRoutes);
+  mountApi(app, "/uploads", createUploadsRouter({ storage: uploadStorage, limits: options.uploadLimits }));
   mountApi(app, "/shops", shopRoutes);
   mountApi(app, "/locations", locationsRoutes);
   mountApi(app, "/items", itemRoutes);

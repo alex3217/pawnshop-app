@@ -18,6 +18,8 @@ export type UploadedFile = {
   mimetype?: string;
   mimeType?: string;
   size?: number;
+  width?: number;
+  height?: number;
   kind?: UploadKind;
   createdAt?: string;
   updatedAt?: string;
