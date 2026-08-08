@@ -100,3 +100,53 @@ export async function upsertDemoUser({ prisma, user, buildData, hasField }) {
     : data;
   return prisma.user.update({ where: { id: existing.id }, data: update });
 }
+
+export async function ensureDemoOwnerApproval({
+  prisma,
+  owner,
+  shop,
+  reviewedAt = new Date(),
+}) {
+  if (!owner || owner.role !== "OWNER") {
+    throw new Error("Demo owner approval requires an OWNER user.");
+  }
+  if (!shop || shop.ownerId !== owner.id) {
+    throw new Error("Demo owner approval requires an owner-owned shop.");
+  }
+
+  const metadata = {
+    status: "APPROVED",
+    businessName: shop.name,
+    businessEmail: owner.email,
+    decisionReason: "Approved for development demo data",
+    adminNotes: "Managed by the development demo seed",
+  };
+  const existing = await prisma.ownerApplication.findUnique({
+    where: { ownerId: owner.id },
+    select: { status: true },
+  });
+
+  if (!existing) {
+    return prisma.ownerApplication.create({
+      data: {
+        ownerId: owner.id,
+        ...metadata,
+        reviewedAt,
+        statusChangedAt: reviewedAt,
+      },
+    });
+  }
+
+  return prisma.ownerApplication.update({
+    where: { ownerId: owner.id },
+    data: {
+      ...metadata,
+      ...(existing.status === "APPROVED"
+        ? {}
+        : {
+            reviewedAt,
+            statusChangedAt: reviewedAt,
+          }),
+    },
+  });
+}

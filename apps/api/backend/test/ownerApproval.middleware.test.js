@@ -22,6 +22,51 @@ function createResponse() {
   };
 }
 
+test("approved demo-owner state satisfies owner authorization while buyers remain forbidden", async () => {
+  const originalFindUnique = prisma.ownerApplication.findUnique;
+  const middleware = requireRole("OWNER");
+  let approvalLookups = 0;
+
+  try {
+    prisma.ownerApplication.findUnique = async ({ where }) => {
+      approvalLookups += 1;
+      assert.equal(where.ownerId, "demo-owner-id");
+      return { status: "APPROVED" };
+    };
+
+    const ownerResponse = createResponse();
+    let ownerNextCalled = false;
+    await middleware(
+      { user: { sub: "demo-owner-id", role: "OWNER" } },
+      ownerResponse,
+      () => {
+        ownerNextCalled = true;
+      },
+    );
+
+    assert.equal(ownerNextCalled, true);
+    assert.equal(ownerResponse.statusCode, null);
+    assert.equal(approvalLookups, 1);
+
+    const buyerResponse = createResponse();
+    let buyerNextCalled = false;
+    await middleware(
+      { user: { sub: "demo-buyer-id", role: "CONSUMER" } },
+      buyerResponse,
+      () => {
+        buyerNextCalled = true;
+      },
+    );
+
+    assert.equal(buyerNextCalled, false);
+    assert.equal(buyerResponse.statusCode, 403);
+    assert.deepEqual(buyerResponse.body, { error: "Forbidden" });
+    assert.equal(approvalLookups, 1);
+  } finally {
+    prisma.ownerApplication.findUnique = originalFindUnique;
+  }
+});
+
 for (const [name, createMiddleware] of [
   ["role middleware", () => requireRole("OWNER", "ADMIN")],
   [

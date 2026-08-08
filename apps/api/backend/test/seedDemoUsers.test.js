@@ -7,6 +7,7 @@ import path from "node:path";
 
 import {
   configuredDemoUsers,
+  ensureDemoOwnerApproval,
   loadConfiguredDemoUsers,
   upsertDemoUser,
 } from "../scripts/lib/seed-demo-users.mjs";
@@ -75,4 +76,150 @@ test("development env files load before credentials are resolved", () => {
   } finally {
     fs.rmSync(backendRoot, { recursive: true, force: true });
   }
+});
+
+test("development seed approval is owner-only, owner-scoped, and idempotent", async () => {
+  const owner = {
+    id: "demo-owner-id",
+    email: "owner@pawn.local",
+    role: "OWNER",
+  };
+  const shop = {
+    id: "demo-shop-id",
+    name: "Demo Pawn Shop",
+    ownerId: owner.id,
+  };
+  const firstTransitionAt = new Date("2026-08-07T12:00:00.000Z");
+  const unchangedReseedAt = new Date("2026-08-08T12:00:00.000Z");
+  const applications = new Map();
+  const prisma = {
+    ownerApplication: {
+      findUnique: async ({ where }) => applications.get(where.ownerId) || null,
+      create: async ({ data }) => {
+        const record = { id: "demo-owner-application-id", ...data };
+        applications.set(data.ownerId, record);
+        return record;
+      },
+      update: async ({ where, data }) => {
+        const record = { ...applications.get(where.ownerId), ...data };
+        applications.set(where.ownerId, record);
+        return record;
+      },
+    },
+  };
+
+  const first = await ensureDemoOwnerApproval({
+    prisma,
+    owner,
+    shop,
+    reviewedAt: firstTransitionAt,
+  });
+  shop.name = "Renamed Demo Pawn Shop";
+  const second = await ensureDemoOwnerApproval({
+    prisma,
+    owner,
+    shop,
+    reviewedAt: unchangedReseedAt,
+  });
+
+  assert.equal(first.status, "APPROVED");
+  assert.equal(first.ownerId, owner.id);
+  assert.equal(first.businessName, "Demo Pawn Shop");
+  assert.equal(first.reviewedAt, firstTransitionAt);
+  assert.equal(first.statusChangedAt, firstTransitionAt);
+  assert.equal(second.id, first.id);
+  assert.equal(second.businessName, "Renamed Demo Pawn Shop");
+  assert.equal(second.reviewedAt, firstTransitionAt);
+  assert.equal(second.statusChangedAt, firstTransitionAt);
+  assert.equal(applications.size, 1);
+});
+
+test("development seed records a fresh transition time when approving an existing application", async () => {
+  const owner = {
+    id: "pending-owner-id",
+    email: "pending-owner@pawn.local",
+    role: "OWNER",
+  };
+  const shop = {
+    id: "pending-owner-shop-id",
+    name: "Pending Owner Shop",
+    ownerId: owner.id,
+  };
+  const originalStatusChangedAt = new Date("2026-08-01T12:00:00.000Z");
+  const transitionAt = new Date("2026-08-08T12:00:00.000Z");
+  const applications = new Map([
+    [
+      owner.id,
+      {
+        id: "pending-owner-application-id",
+        ownerId: owner.id,
+        status: "PENDING",
+        reviewedAt: null,
+        statusChangedAt: originalStatusChangedAt,
+      },
+    ],
+  ]);
+  const prisma = {
+    ownerApplication: {
+      findUnique: async ({ where }) => applications.get(where.ownerId) || null,
+      create: async () => assert.fail("existing applications must be updated"),
+      update: async ({ where, data }) => {
+        const record = { ...applications.get(where.ownerId), ...data };
+        applications.set(where.ownerId, record);
+        return record;
+      },
+    },
+  };
+
+  const approved = await ensureDemoOwnerApproval({
+    prisma,
+    owner,
+    shop,
+    reviewedAt: transitionAt,
+  });
+
+  assert.equal(approved.id, "pending-owner-application-id");
+  assert.equal(approved.status, "APPROVED");
+  assert.equal(approved.reviewedAt, transitionAt);
+  assert.equal(approved.statusChangedAt, transitionAt);
+  assert.equal(applications.size, 1);
+});
+
+test("development seed approval rejects buyers and mismatched shop ownership", async () => {
+  let upsertCalls = 0;
+  const prisma = {
+    ownerApplication: {
+      findUnique: async () => {
+        upsertCalls += 1;
+      },
+    },
+  };
+  const buyer = {
+    id: "demo-buyer-id",
+    email: "buyer@pawn.local",
+    role: "CONSUMER",
+  };
+  const owner = {
+    id: "demo-owner-id",
+    email: "owner@pawn.local",
+    role: "OWNER",
+  };
+
+  await assert.rejects(
+    ensureDemoOwnerApproval({
+      prisma,
+      owner: buyer,
+      shop: { id: "buyer-shop", name: "Buyer Shop", ownerId: buyer.id },
+    }),
+    /requires an OWNER user/,
+  );
+  await assert.rejects(
+    ensureDemoOwnerApproval({
+      prisma,
+      owner,
+      shop: { id: "other-shop", name: "Other Shop", ownerId: "other-owner" },
+    }),
+    /requires an owner-owned shop/,
+  );
+  assert.equal(upsertCalls, 0);
 });
