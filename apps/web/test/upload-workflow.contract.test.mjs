@@ -148,48 +148,133 @@ test("persistence failure retains recovery identity and retry replaces rather th
   ]);
 });
 
-test("submission orchestration navigates only after persistence and retains recovery on failure", async () => {
+test("page controller preserves recovery through Clear Prefill, locks the shop, and retries the same item", async () => {
+  let uploadAttempts = 0;
+  const { calls, dependencies } = fakeDependencies({
+    async uploadItemImages(id, files) {
+      calls.push(["uploadItemImages", id, files]);
+      uploadAttempts += 1;
+      if (uploadAttempts === 1) throw new Error("Upload temporarily unavailable");
+      return [{ url: "https://assets.invalid/retry.jpg" }];
+    },
+  });
+  const workflows = workflowModule.createOwnerPhotoWorkflows(dependencies);
+  const controller = workflowModule.createItemPageRecoveryController(workflows.createItemWithPhotos);
   const events = [];
-  let attempts = 0;
-  const workflow = async (_input, _files, recoverableItemId) => {
-    events.push(["workflow", recoverableItemId]);
-    attempts += 1;
-    if (attempts === 1) {
-      throw new workflowModule.RecoverablePhotoWorkflowError("Item saved, but photos were not completed.", "item-1");
-    }
-    return { id: "item-1", status: "AVAILABLE" };
-  };
-  const run = workflowModule.createItemPhotoSubmissionRunner(workflow);
-  let recovery = { recoverableItemId: "", recoverableShopId: "" };
   const callbacks = {
-    onRecovery(next) { recovery = next; events.push(["recovery", next.recoverableItemId, next.recoverableShopId]); },
+    onRecovery(next) { events.push(["recovery", next]); },
     onSuccess(item) { events.push(["navigate", item.id]); },
   };
 
-  await assert.rejects(run(itemInput(), [{ name: "photo.jpg" }], recovery, callbacks));
-  assert.deepEqual(events, [
-    ["workflow", ""],
-    ["recovery", "item-1", "shop-1"],
-  ]);
-  await run(itemInput(), [{ name: "photo.jpg" }], recovery, callbacks);
-  assert.deepEqual(events.at(-1), ["navigate", "item-1"]);
-  assert.deepEqual(events[2], ["workflow", "item-1"]);
-});
-
-test("Clear Prefill preserves recovery identity and the original shop target", () => {
-  const recovery = workflowModule.preserveItemRecoveryOnPrefillClear({
+  const first = controller.startSubmission(itemInput(), [{ name: "photo.jpg" }], callbacks);
+  assert.equal(first.started, true);
+  await assert.rejects(first.completion, /photos were not completed/i);
+  assert.deepEqual(controller.getRecovery(), {
     recoverableItemId: "item-1",
     recoverableShopId: "shop-1",
   });
-  assert.deepEqual(recovery, { recoverableItemId: "item-1", recoverableShopId: "shop-1" });
+  assert.deepEqual(controller.clearPrefill(), controller.getRecovery());
+  assert.equal(controller.selectShop("shop-2"), "shop-1");
+
+  const retry = controller.startSubmission(itemInput(), [{ name: "photo.jpg" }], callbacks);
+  await retry.completion;
+  assert.equal(calls.filter(([name]) => name === "createItem").length, 1);
+  assert.equal(calls.filter(([name, id]) => name === "uploadItemImages" && id === "item-1").length, 2);
+  assert.deepEqual(controller.getRecovery(), { recoverableItemId: "", recoverableShopId: "" });
+  assert.deepEqual(events.at(-1), ["navigate", "item-1"]);
 });
 
-test("submission guard rejects overlapping submissions and releases after completion", () => {
-  const guard = workflowModule.createSubmissionGuard();
-  assert.equal(guard.enter(), true);
-  assert.equal(guard.enter(), false);
-  guard.leave();
-  assert.equal(guard.enter(), true);
+test("page controller retains recovery after persistence failure without early navigation or duplicate URLs", async () => {
+  let updateAttempts = 0;
+  let uploadAttempts = 0;
+  const persisted = [];
+  const events = [];
+  const { calls, dependencies } = fakeDependencies({
+    async uploadItemImages(id, files) {
+      calls.push(["uploadItemImages", id, files]);
+      uploadAttempts += 1;
+      return [{ url: `https://assets.invalid/attempt-${uploadAttempts}.jpg` }];
+    },
+    async updateItem(id, input) {
+      calls.push(["updateItem", id, input]);
+      if (input.images) {
+        updateAttempts += 1;
+        persisted.push(input.images);
+        if (updateAttempts === 1) throw new Error("Save temporarily unavailable");
+      }
+      return { id, ...input, status: "AVAILABLE" };
+    },
+  });
+  const workflows = workflowModule.createOwnerPhotoWorkflows(dependencies);
+  const controller = workflowModule.createItemPageRecoveryController(workflows.createItemWithPhotos);
+  const callbacks = {
+    onRecovery(next) { events.push(["recovery", next]); },
+    onSuccess(item) { events.push(["navigate", item.id]); },
+  };
+
+  await assert.rejects(
+    controller.startSubmission(itemInput(), [{ name: "photo.jpg" }], callbacks).completion,
+    /photos were not completed/i,
+  );
+  assert.equal(events.some(([name]) => name === "navigate"), false);
+  assert.equal(controller.getRecovery().recoverableItemId, "item-1");
+
+  await controller.startSubmission(itemInput(), [{ name: "photo.jpg" }], callbacks).completion;
+  assert.equal(calls.filter(([name]) => name === "createItem").length, 1);
+  assert.deepEqual(persisted, [
+    ["https://assets.invalid/attempt-1.jpg"],
+    ["https://assets.invalid/attempt-2.jpg"],
+  ]);
+  assert.deepEqual(events.at(-2), ["recovery", { recoverableItemId: "", recoverableShopId: "" }]);
+  assert.deepEqual(events.at(-1), ["navigate", "item-1"]);
+});
+
+test("page controller rejects overlap synchronously and releases capacity after failure and success", async () => {
+  let releaseFirst;
+  let calls = 0;
+  const workflow = async () => {
+    calls += 1;
+    if (calls === 1) await new Promise((resolve) => { releaseFirst = resolve; });
+    if (calls === 2) throw new Error("ordinary failure");
+    return { id: "item-1", status: "AVAILABLE" };
+  };
+  const controller = workflowModule.createItemPageRecoveryController(workflow);
+  const callbacks = { onRecovery() {}, onSuccess() {} };
+
+  const first = controller.startSubmission(itemInput(), [], callbacks);
+  const overlap = controller.startSubmission(itemInput(), [], callbacks);
+  assert.equal(first.started, true);
+  assert.equal(overlap.started, false);
+  assert.equal(calls, 1);
+  releaseFirst();
+  await first.completion;
+
+  const failing = controller.startSubmission(itemInput(), [], callbacks);
+  await assert.rejects(failing.completion, /ordinary failure/);
+  const afterFailure = controller.startSubmission(itemInput(), [], callbacks);
+  assert.equal(afterFailure.started, true);
+  await afterFailure.completion;
+  assert.equal(calls, 3);
+});
+
+test("page controller completes an item without photos before clearing recovery and navigating", async () => {
+  const events = [];
+  const workflow = async (_input, files, recoverableItemId) => {
+    events.push(["workflow", files.length, recoverableItemId]);
+    return { id: "item-no-photos", status: "AVAILABLE" };
+  };
+  const controller = workflowModule.createItemPageRecoveryController(workflow);
+  const submission = controller.startSubmission(itemInput(), [], {
+    onRecovery(next) { events.push(["recovery", next]); },
+    onSuccess(item) { events.push(["navigate", item.id]); },
+  });
+
+  await submission.completion;
+  assert.deepEqual(events, [
+    ["workflow", 0, ""],
+    ["recovery", { recoverableItemId: "", recoverableShopId: "" }],
+    ["navigate", "item-no-photos"],
+  ]);
 });
 
 test("existing item uploads append URLs and persist against the existing item", async () => {
@@ -238,15 +323,16 @@ test("existing shop branding uses its real ID and propagates a sanitized boundar
   );
 });
 
-test("page-level recovery controls use the executable guards", async () => {
+test("page imports the executable controller; source checks remain supplemental", async () => {
   const [create, docs] = await Promise.all([
     read("src/pages/CreateItemPage.tsx"),
     read("../../docs/durable-photo-uploads-v1.md"),
   ]);
-  assert.match(create, /if \(!submissionGuardRef\.current\.enter\(\)\) return/);
+  assert.match(create, /createItemPageController/);
+  assert.match(create, /recoveryControllerRef\.current\.startSubmission/);
   assert.match(create, /disabled=\{Boolean\(recoverableItemId\) \|\| saving\}/);
-  assert.match(create, /preserveItemRecoveryOnPrefillClear/);
-  assert.match(create, /runItemPhotoSubmission/);
+  assert.match(create, /recoveryControllerRef\.current\.clearPrefill/);
+  assert.match(create, /recoveryControllerRef\.current\.selectShop/);
   assert.match(docs, /storage-object identifier/);
   assert.doesNotMatch(docs, /stable asset ID/);
 });

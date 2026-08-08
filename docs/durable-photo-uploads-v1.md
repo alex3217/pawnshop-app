@@ -86,8 +86,10 @@ Provider credentials and bucket/CORS/domain configuration remain deployment work
 and must never be committed.
 
 Backend tests inject an in-memory fake adapter into `createApp`; frontend
-behavioral tests execute the production workflow module with fake item, shop, and
-upload service boundaries. They do not contact a provider. Run
+behavioral tests execute the production workflow and Create Item recovery
+controller with fake item, shop, upload, and navigation boundaries. Supplemental
+source checks verify that the page uses that controller; they are not the primary
+recovery proof. Tests do not contact a provider. Run
 `node --test --test-concurrency=1 test/uploads.test.js` from the backend workspace
 and `node --test test/upload-workflow.contract.test.mjs` from the web workspace.
 Rollback consists of reverting the application release and

@@ -14,9 +14,7 @@ import {
   type ScanResult,
 } from "../services/items";
 import {
-  createSubmissionGuard,
-  preserveItemRecoveryOnPrefillClear,
-  runItemPhotoSubmission,
+  createItemPageController,
 } from "../services/ownerPhotoWorkflows";
 import { getMyShops, type Shop } from "../services/shops";
 import "../styles/owner-workspace-readability.css";
@@ -172,8 +170,7 @@ export default function CreateItemPage() {
   const [error, setError] = useState<string | null>(null);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [recoverableItemId, setRecoverableItemId] = useState("");
-  const [recoverableShopId, setRecoverableShopId] = useState("");
-  const submissionGuardRef = useRef(createSubmissionGuard());
+  const recoveryControllerRef = useRef(createItemPageController());
 
   const selectedShop = useMemo(
     () => shops.find((shop) => shop.id === pawnShopId) ?? null,
@@ -455,80 +452,65 @@ export default function CreateItemPage() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!submissionGuardRef.current.enter()) return;
     setError(null);
 
     if (!token) {
       setError("You must be logged in as an owner.");
-      submissionGuardRef.current.leave();
       return;
     }
 
     if (!pawnShopId || !selectedShop) {
       setError("Please select a shop.");
-      submissionGuardRef.current.leave();
       return;
     }
 
     if (!title.trim()) {
       setError("Title is required.");
-      submissionGuardRef.current.leave();
       return;
     }
 
     if (!category) {
       setError("Please select a category.");
-      submissionGuardRef.current.leave();
       return;
     }
 
     if (!condition) {
       setError("Please select a condition.");
-      submissionGuardRef.current.leave();
       return;
     }
-
-    if (recoverableItemId && pawnShopId !== recoverableShopId) {
-      setError("Retry this saved item with its original shop.");
-      submissionGuardRef.current.leave();
-      return;
-    }
-
-    setSaving(true);
 
     try {
       const parsedPrice = parsePositiveNumber(price, "Price");
-
-      await runItemPhotoSubmission({
+      const submission = recoveryControllerRef.current.startSubmission({
         pawnShopId,
         title: title.trim(),
         description: description.trim(),
         price: parsedPrice,
         category,
         condition,
-      }, photoFiles, { recoverableItemId, recoverableShopId }, {
+      }, photoFiles, {
         onSuccess() {
-          setRecoverableItemId("");
-          setRecoverableShopId("");
           nav("/owner/inventory");
         },
         onRecovery(recovery) {
           setRecoverableItemId(recovery.recoverableItemId);
-          setRecoverableShopId(recovery.recoverableShopId);
+        },
+        onSubmissionComplete() {
+          setSaving(false);
         },
       });
+      if (!submission.started) return;
+      setSaving(true);
+      await submission.completion;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create item");
-    } finally {
       setSaving(false);
-      submissionGuardRef.current.leave();
     }
   }
 
   function clearPrefill() {
-    const recovery = preserveItemRecoveryOnPrefillClear({ recoverableItemId, recoverableShopId });
+    const recovery = recoveryControllerRef.current.clearPrefill();
     setRecoverableItemId(recovery.recoverableItemId);
-    setRecoverableShopId(recovery.recoverableShopId);
     setTitle("");
     setDescription("");
     setPrice("100");
@@ -1055,7 +1037,7 @@ export default function CreateItemPage() {
             Shop
             <select
               value={pawnShopId}
-              onChange={(e) => setPawnShopId(e.target.value)}
+              onChange={(e) => setPawnShopId(recoveryControllerRef.current.selectShop(e.target.value))}
               disabled={loading || saving || Boolean(recoverableItemId)}
               required
               style={inputStyle}

@@ -35,6 +35,79 @@ export function createSubmissionGuard() {
   };
 }
 
+type ItemPageRecoveryCallbacks = ItemSubmissionCallbacks & {
+  onSubmissionComplete?: () => void;
+};
+
+export function createItemPageRecoveryController(
+  workflow: typeof createItemWithPhotos,
+) {
+  let recovery: ItemRecoveryIdentity = {
+    recoverableItemId: "",
+    recoverableShopId: "",
+  };
+  const guard = createSubmissionGuard();
+
+  return {
+    getRecovery() {
+      return { ...recovery };
+    },
+    clearPrefill() {
+      return preserveItemRecoveryOnPrefillClear(recovery);
+    },
+    selectShop(requestedShopId: string) {
+      return recovery.recoverableItemId
+        ? recovery.recoverableShopId
+        : requestedShopId;
+    },
+    startSubmission(
+      input: CreateItemInput,
+      files: File[],
+      callbacks: ItemPageRecoveryCallbacks,
+    ) {
+      if (!guard.enter()) {
+        return { started: false, completion: Promise.resolve<Item | null>(null) };
+      }
+
+      const completion = (async () => {
+        try {
+          if (
+            recovery.recoverableItemId &&
+            input.pawnShopId !== recovery.recoverableShopId
+          ) {
+            throw new Error("Retry this saved item with its original shop.");
+          }
+
+          const item = await workflow(
+            input,
+            files,
+            recovery.recoverableItemId,
+          );
+          recovery = { recoverableItemId: "", recoverableShopId: "" };
+          callbacks.onRecovery(recovery);
+          callbacks.onSuccess(item);
+          return item;
+        } catch (error) {
+          if (error instanceof RecoverablePhotoWorkflowError) {
+            recovery = {
+              recoverableItemId: error.resourceId,
+              recoverableShopId:
+                recovery.recoverableShopId || input.pawnShopId,
+            };
+            callbacks.onRecovery({ ...recovery });
+          }
+          throw error;
+        } finally {
+          guard.leave();
+          callbacks.onSubmissionComplete?.();
+        }
+      })();
+
+      return { started: true, completion };
+    },
+  };
+}
+
 type ItemSubmissionCallbacks = {
   onSuccess: (item: Item) => void;
   onRecovery: (recovery: ItemRecoveryIdentity) => void;
@@ -150,3 +223,6 @@ export function createItemPhotoSubmissionRunner(
 }
 
 export const runItemPhotoSubmission = createItemPhotoSubmissionRunner(createItemWithPhotos);
+
+export const createItemPageController = () =>
+  createItemPageRecoveryController(createItemWithPhotos);
