@@ -48,7 +48,10 @@ sanitized structured warning containing only request correlation and failure cou
 The Owner item workflow creates the item first, uploads selected images against
 that server-issued item ID, then persists returned URLs through the existing item
 update route. A failed photo step leaves a recoverable item ID so retry does not
-create a duplicate. Existing-item uploads append and persist URLs. Shop creation
+create a duplicate. While recovery is active, the original shop remains locked,
+the Clear Prefill action is disabled, and overlapping submissions are rejected.
+Recovery identity is cleared only after image URLs are persisted successfully.
+Existing-item uploads append and persist URLs. Shop creation
 and Location editing similarly persist returned logo/banner URLs through the
 ownership-checked shop update contract. Abandoned or removed objects are handled
 by provider retention policy; this version intentionally exposes no deletion API.
@@ -82,8 +85,11 @@ credential-bearing, or non-HTTPS provider URLs. There is no filesystem fallback.
 Provider credentials and bucket/CORS/domain configuration remain deployment work
 and must never be committed.
 
-Tests inject an in-memory fake adapter into `createApp`; they do not contact a
-provider. Run `node --test --test-concurrency=1 test/uploads.test.js` from the
-backend workspace. Rollback consists of reverting the application release and
+Backend tests inject an in-memory fake adapter into `createApp`; frontend
+behavioral tests execute the production workflow module with fake item, shop, and
+upload service boundaries. They do not contact a provider. Run
+`node --test --test-concurrency=1 test/uploads.test.js` from the backend workspace
+and `node --test test/upload-workflow.contract.test.mjs` from the web workspace.
+Rollback consists of reverting the application release and
 disabling the provider configuration; uploaded objects remain durable and can be
 retained or removed under the provider lifecycle policy.

@@ -13,7 +13,11 @@ import {
   type ScanPayload,
   type ScanResult,
 } from "../services/items";
-import { createItemWithPhotos, RecoverablePhotoWorkflowError } from "../services/ownerPhotoWorkflows";
+import {
+  createSubmissionGuard,
+  preserveItemRecoveryOnPrefillClear,
+  runItemPhotoSubmission,
+} from "../services/ownerPhotoWorkflows";
 import { getMyShops, type Shop } from "../services/shops";
 import "../styles/owner-workspace-readability.css";
 
@@ -169,6 +173,7 @@ export default function CreateItemPage() {
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [recoverableItemId, setRecoverableItemId] = useState("");
   const [recoverableShopId, setRecoverableShopId] = useState("");
+  const submissionGuardRef = useRef(createSubmissionGuard());
 
   const selectedShop = useMemo(
     () => shops.find((shop) => shop.id === pawnShopId) ?? null,
@@ -450,35 +455,42 @@ export default function CreateItemPage() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!submissionGuardRef.current.enter()) return;
     setError(null);
 
     if (!token) {
       setError("You must be logged in as an owner.");
+      submissionGuardRef.current.leave();
       return;
     }
 
     if (!pawnShopId || !selectedShop) {
       setError("Please select a shop.");
+      submissionGuardRef.current.leave();
       return;
     }
 
     if (!title.trim()) {
       setError("Title is required.");
+      submissionGuardRef.current.leave();
       return;
     }
 
     if (!category) {
       setError("Please select a category.");
+      submissionGuardRef.current.leave();
       return;
     }
 
     if (!condition) {
       setError("Please select a condition.");
+      submissionGuardRef.current.leave();
       return;
     }
 
     if (recoverableItemId && pawnShopId !== recoverableShopId) {
       setError("Retry this saved item with its original shop.");
+      submissionGuardRef.current.leave();
       return;
     }
 
@@ -487,30 +499,36 @@ export default function CreateItemPage() {
     try {
       const parsedPrice = parsePositiveNumber(price, "Price");
 
-      await createItemWithPhotos({
+      await runItemPhotoSubmission({
         pawnShopId,
         title: title.trim(),
         description: description.trim(),
         price: parsedPrice,
         category,
         condition,
-      }, photoFiles, recoverableItemId);
-
-      nav("/owner/inventory");
+      }, photoFiles, { recoverableItemId, recoverableShopId }, {
+        onSuccess() {
+          setRecoverableItemId("");
+          setRecoverableShopId("");
+          nav("/owner/inventory");
+        },
+        onRecovery(recovery) {
+          setRecoverableItemId(recovery.recoverableItemId);
+          setRecoverableShopId(recovery.recoverableShopId);
+        },
+      });
     } catch (err: unknown) {
-      if (err instanceof RecoverablePhotoWorkflowError) {
-        setRecoverableItemId(err.resourceId);
-        setRecoverableShopId(pawnShopId);
-      }
       setError(err instanceof Error ? err.message : "Failed to create item");
     } finally {
       setSaving(false);
+      submissionGuardRef.current.leave();
     }
   }
 
   function clearPrefill() {
-    setRecoverableItemId("");
-    setRecoverableShopId("");
+    const recovery = preserveItemRecoveryOnPrefillClear({ recoverableItemId, recoverableShopId });
+    setRecoverableItemId(recovery.recoverableItemId);
+    setRecoverableShopId(recovery.recoverableShopId);
     setTitle("");
     setDescription("");
     setPrice("100");
@@ -654,10 +672,14 @@ export default function CreateItemPage() {
               type="button"
               className="btn"
               onClick={clearPrefill}
+              disabled={Boolean(recoverableItemId) || saving}
               style={{ width: "fit-content" }}
             >
               Clear Prefill
             </button>
+            {recoverableItemId ? (
+              <span className="muted">Finish retrying photos for the saved item before clearing imported details.</span>
+            ) : null}
           </div>
         ) : null}
 
