@@ -1,5 +1,6 @@
 import { assertDevDemoSeedAllowed } from "./lib/seed-environment-guard.mjs";
 import {
+  ensureDemoOwnerApproval,
   loadConfiguredDemoUsers,
   upsertDemoUser,
 } from "./lib/seed-demo-users.mjs";
@@ -238,6 +239,14 @@ async function main() {
   }
 
   console.log(`✅ Shops ready: ${shops.length}`);
+
+  await ensureDemoOwnerApproval({
+    prisma,
+    owner,
+    shop: shops[0],
+    reviewedAt: now,
+  });
+  console.log("✅ Demo owner approval ready.");
 
   const itemTemplates = [
     ["Sony PlayStation 5 Console Bundle", "Gaming", "Like New", 39900],
