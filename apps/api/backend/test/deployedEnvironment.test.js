@@ -85,6 +85,9 @@ const invalidCases = [
   ["ambiguous scheduler boolean", "AUCTION_SCHEDULER_ENABLED", "yes"],
   ["missing application revision", "APP_VERSION", undefined],
   ["non-HTTPS deployed origin", "API_ORIGIN", "http://api.pawnloop.invalid"],
+  ["missing durable storage endpoint", "UPLOAD_STORAGE_ENDPOINT", undefined],
+  ["missing durable storage credential", "UPLOAD_STORAGE_SECRET_ACCESS_KEY", undefined],
+  ["non-HTTPS durable storage public URL", "UPLOAD_STORAGE_PUBLIC_BASE_URL", "http://assets.pawnloop.invalid"],
 ];
 
 for (const [label, name, value] of invalidCases) {
@@ -94,6 +97,18 @@ for (const [label, name, value] of invalidCases) {
     assert.throws(() => validateDeployedEnvironment(env, { environment: "production" }));
   });
 }
+
+test("deployed environments may explicitly disable uploads without storage credentials", () => {
+  const env = validEnvironment("staging");
+  env.DURABLE_UPLOADS_ENABLED = "false";
+  for (const name of [
+    "UPLOAD_STORAGE_ENDPOINT", "UPLOAD_STORAGE_REGION", "UPLOAD_STORAGE_BUCKET",
+    "UPLOAD_STORAGE_ACCESS_KEY_ID", "UPLOAD_STORAGE_SECRET_ACCESS_KEY",
+    "UPLOAD_STORAGE_PUBLIC_BASE_URL", "UPLOAD_STORAGE_FORCE_PATH_STYLE",
+  ]) delete env[name];
+  const metadata = validateDeployedEnvironment(env, { environment: "staging" });
+  assert.equal(metadata.durableUploadsEnabled, false);
+});
 
 test("staging rejects Stripe live mode", () => {
   const env = validEnvironment("staging");
@@ -273,4 +288,13 @@ test("health and readiness expose revision without process internals", async () 
   } finally {
     if (prior === undefined) delete process.env.APP_VERSION; else process.env.APP_VERSION = prior;
   }
+});
+
+test("deployed upload limits reject unsafe ceilings and relationships", () => {
+  const overCeiling = validEnvironment("production");
+  overCeiling.UPLOAD_MAX_CONCURRENT = "5";
+  assert.throws(() => validateDeployedEnvironment(overCeiling, { environment: "production" }), /UPLOAD_MAX_CONCURRENT/);
+  const invalidAggregate = validEnvironment("production");
+  invalidAggregate.UPLOAD_MAX_AGGREGATE_BYTES = "1";
+  assert.throws(() => validateDeployedEnvironment(invalidAggregate, { environment: "production" }), /UPLOAD_MAX_AGGREGATE_BYTES must be at least/);
 });

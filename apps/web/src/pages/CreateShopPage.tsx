@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createShop } from "../services/shops";
+import { createShopWithBranding, RecoverablePhotoWorkflowError } from "../services/ownerPhotoWorkflows";
 import "../styles/owner-workspace-readability.css";
 
 export default function CreateShopPage() {
@@ -13,6 +13,9 @@ export default function CreateShopPage() {
   const [hours, setHours] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logo, setLogo] = useState<File | null>(null);
+  const [banner, setBanner] = useState<File | null>(null);
+  const [recoverableShopId, setRecoverableShopId] = useState("");
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,16 +31,17 @@ export default function CreateShopPage() {
         throw new Error("Shop name is required.");
       }
 
-      await createShop({
+      await createShopWithBranding({
         name: trimmedName,
         address: address.trim(),
         phone: phone.trim(),
         description: description.trim(),
         hours: hours.trim(),
-      });
+      }, logo, banner, recoverableShopId);
 
       navigate("/owner", { replace: true });
     } catch (err) {
+      if (err instanceof RecoverablePhotoWorkflowError) setRecoverableShopId(err.resourceId);
       setError(err instanceof Error ? err.message : "Failed to create shop.");
     } finally {
       setSubmitting(false);
@@ -63,6 +67,16 @@ export default function CreateShopPage() {
               placeholder="Downtown Pawn"
               required
             />
+          </label>
+
+          <label className="owner-readable-field">
+            Shop logo
+            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={submitting} onChange={(event) => setLogo(event.target.files?.[0] || null)} />
+          </label>
+
+          <label className="owner-readable-field">
+            Shop banner
+            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={submitting} onChange={(event) => setBanner(event.target.files?.[0] || null)} />
           </label>
 
           <label className="owner-readable-field">
@@ -106,7 +120,7 @@ export default function CreateShopPage() {
 
           <div className="owner-create-shop-actions">
             <button type="submit" disabled={submitting} className="owner-readable-button owner-readable-button-primary">
-              {submitting ? "Creating Shop..." : "Create Shop"}
+              {submitting ? "Saving shop and branding..." : recoverableShopId ? "Retry branding upload" : "Create Shop"}
             </button>
 
             <Link to="/owner" className="owner-readable-link">

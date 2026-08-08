@@ -12,6 +12,8 @@ export type Shop = {
   phone?: string | null;
   description?: string | null;
   hours?: string | null;
+  logoUrl?: string | null;
+  bannerUrl?: string | null;
   ownerId?: string | null;
   onboardingCompletedAt?: string | null;
   createdAt?: string;
@@ -49,6 +51,11 @@ export type CreateShopInput = {
   phone?: string;
   description?: string;
   hours?: string;
+};
+
+export type UpdateShopInput = Partial<CreateShopInput> & {
+  logoUrl?: string | null;
+  bannerUrl?: string | null;
 };
 
 export function normalizeShops(data: unknown): Shop[] {
@@ -102,6 +109,15 @@ export async function createShop(
     },
     { signal },
   );
+}
+
+export async function updateShop(
+  shopId: string,
+  input: UpdateShopInput,
+  signal?: AbortSignal,
+): Promise<Shop> {
+  if (!shopId) throw new Error("Missing shop id.");
+  return api.put<Shop>(`/shops/${encodeURIComponent(shopId)}`, input, { signal });
 }
 
 export async function completeShopOnboarding(

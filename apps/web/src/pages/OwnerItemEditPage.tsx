@@ -6,9 +6,9 @@ import {
   deleteItem,
   getItemById,
   markItemSold,
-  updateItem,
   type Item,
 } from "../services/items";
+import { updateItemWithPhotos } from "../services/ownerPhotoWorkflows";
 
 function formatPrice(value: string | number) {
   const num = Number(value);
@@ -81,6 +81,7 @@ export default function OwnerItemEditPage() {
   const [actionLoading, setActionLoading] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
 
   const itemStatus = useMemo(() => item?.status || "UNKNOWN", [item]);
 
@@ -150,15 +151,16 @@ export default function OwnerItemEditPage() {
     try {
       const parsedPrice = parsePositiveNumber(price, "Price");
 
-      const updated = await updateItem(id, {
+      const updated = await updateItemWithPhotos(item, {
         title,
         description,
         price: parsedPrice,
         category,
         condition,
-      });
+      }, photoFiles);
 
       setItem(updated);
+      setPhotoFiles([]);
       setNotice("Item updated successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update item.");
@@ -275,6 +277,20 @@ export default function OwnerItemEditPage() {
               required
               style={styles.input}
             />
+          </label>
+
+          <label style={styles.field}>
+            Add item photos
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              disabled={saving}
+              onChange={(event) => setPhotoFiles(Array.from(event.target.files || []).slice(0, 10))}
+              style={styles.input}
+            />
+            <span style={styles.help}>New photos are uploaded and appended to the saved item.</span>
+            {photoFiles.length ? <span style={styles.help}>{photoFiles.length} photo(s) selected.</span> : null}
           </label>
 
           <label style={styles.field}>
@@ -509,5 +525,10 @@ const styles: Record<string, CSSProperties> = {
     color: "#ff9ead",
     fontWeight: 700,
     marginBottom: 12,
+  },
+  help: {
+    color: "#a7b0d8",
+    fontSize: 13,
+    fontWeight: 500,
   },
 };
