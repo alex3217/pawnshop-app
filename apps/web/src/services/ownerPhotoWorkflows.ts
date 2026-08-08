@@ -36,8 +36,20 @@ export function createSubmissionGuard() {
 }
 
 type ItemPageRecoveryCallbacks = ItemSubmissionCallbacks & {
-  onSubmissionComplete?: () => void;
+  onSubmissionComplete?: () => void | Promise<void>;
 };
+
+async function notifyItemPageObserver<T>(
+  observer: ((value: T) => void | Promise<void>) | undefined,
+  value: T,
+) {
+  if (!observer) return;
+  try {
+    await observer(value);
+  } catch {
+    // Observer failures cannot replace the authoritative workflow outcome.
+  }
+}
 
 export function createItemPageRecoveryController(
   workflow: typeof createItemWithPhotos,
@@ -46,6 +58,7 @@ export function createItemPageRecoveryController(
     recoverableItemId: "",
     recoverableShopId: "",
   };
+  let completedItem: Item | null = null;
   const guard = createSubmissionGuard();
 
   return {
@@ -65,6 +78,12 @@ export function createItemPageRecoveryController(
       files: File[],
       callbacks: ItemPageRecoveryCallbacks,
     ) {
+      if (completedItem) {
+        return {
+          started: false,
+          completion: Promise.resolve<Item | null>(completedItem),
+        };
+      }
       if (!guard.enter()) {
         return { started: false, completion: Promise.resolve<Item | null>(null) };
       }
@@ -83,9 +102,10 @@ export function createItemPageRecoveryController(
             files,
             recovery.recoverableItemId,
           );
+          completedItem = item;
           recovery = { recoverableItemId: "", recoverableShopId: "" };
-          callbacks.onRecovery(recovery);
-          callbacks.onSuccess(item);
+          await notifyItemPageObserver(callbacks.onRecovery, recovery);
+          await notifyItemPageObserver(callbacks.onSuccess, item);
           return item;
         } catch (error) {
           if (error instanceof RecoverablePhotoWorkflowError) {
@@ -94,12 +114,17 @@ export function createItemPageRecoveryController(
               recoverableShopId:
                 recovery.recoverableShopId || input.pawnShopId,
             };
-            callbacks.onRecovery({ ...recovery });
+            await notifyItemPageObserver(callbacks.onRecovery, { ...recovery });
           }
           throw error;
         } finally {
           guard.leave();
-          callbacks.onSubmissionComplete?.();
+          await notifyItemPageObserver(
+            callbacks.onSubmissionComplete
+              ? () => callbacks.onSubmissionComplete?.()
+              : undefined,
+            undefined,
+          );
         }
       })();
 
@@ -109,8 +134,8 @@ export function createItemPageRecoveryController(
 }
 
 type ItemSubmissionCallbacks = {
-  onSuccess: (item: Item) => void;
-  onRecovery: (recovery: ItemRecoveryIdentity) => void;
+  onSuccess: (item: Item) => void | Promise<void>;
+  onRecovery: (recovery: ItemRecoveryIdentity) => void | Promise<void>;
 };
 
 export class RecoverablePhotoWorkflowError extends Error {

@@ -232,13 +232,12 @@ test("page controller retains recovery after persistence failure without early n
 test("page controller rejects overlap synchronously and releases capacity after failure and success", async () => {
   let releaseFirst;
   let calls = 0;
-  const workflow = async () => {
+  const successfulWorkflow = async () => {
     calls += 1;
-    if (calls === 1) await new Promise((resolve) => { releaseFirst = resolve; });
-    if (calls === 2) throw new Error("ordinary failure");
+    await new Promise((resolve) => { releaseFirst = resolve; });
     return { id: "item-1", status: "AVAILABLE" };
   };
-  const controller = workflowModule.createItemPageRecoveryController(workflow);
+  const controller = workflowModule.createItemPageRecoveryController(successfulWorkflow);
   const callbacks = { onRecovery() {}, onSuccess() {} };
 
   const first = controller.startSubmission(itemInput(), [], callbacks);
@@ -248,13 +247,20 @@ test("page controller rejects overlap synchronously and releases capacity after 
   assert.equal(calls, 1);
   releaseFirst();
   await first.completion;
+  assert.equal(controller.startSubmission(itemInput(), [], callbacks).started, false);
 
-  const failing = controller.startSubmission(itemInput(), [], callbacks);
+  let failureCalls = 0;
+  const failureController = workflowModule.createItemPageRecoveryController(async () => {
+    failureCalls += 1;
+    if (failureCalls === 1) throw new Error("ordinary failure");
+    return { id: "item-2", status: "AVAILABLE" };
+  });
+  const failing = failureController.startSubmission(itemInput(), [], callbacks);
   await assert.rejects(failing.completion, /ordinary failure/);
-  const afterFailure = controller.startSubmission(itemInput(), [], callbacks);
+  const afterFailure = failureController.startSubmission(itemInput(), [], callbacks);
   assert.equal(afterFailure.started, true);
   await afterFailure.completion;
-  assert.equal(calls, 3);
+  assert.equal(failureCalls, 2);
 });
 
 test("page controller completes an item without photos before clearing recovery and navigating", async () => {
@@ -275,6 +281,128 @@ test("page controller completes an item without photos before clearing recovery 
     ["recovery", { recoverableItemId: "", recoverableShopId: "" }],
     ["navigate", "item-no-photos"],
   ]);
+});
+
+test("persisted success survives a clearing observer failure and remains terminal", async () => {
+  let workflowCalls = 0;
+  let successCalls = 0;
+  const workflow = async () => {
+    workflowCalls += 1;
+    return { id: "item-1", status: "AVAILABLE" };
+  };
+  const controller = workflowModule.createItemPageRecoveryController(workflow);
+  const callbacks = {
+    onRecovery() { throw new Error("state observer failed"); },
+    onSuccess() { successCalls += 1; },
+  };
+
+  const first = controller.startSubmission(itemInput(), [], callbacks);
+  assert.equal((await first.completion).id, "item-1");
+  assert.equal(successCalls, 1);
+  const repeated = controller.startSubmission(itemInput(), [], callbacks);
+  assert.equal(repeated.started, false);
+  assert.equal((await repeated.completion).id, "item-1");
+  assert.equal(workflowCalls, 1);
+});
+
+test("persisted success survives navigation failure and cannot create a duplicate", async () => {
+  let workflowCalls = 0;
+  const workflow = async () => {
+    workflowCalls += 1;
+    return { id: "item-1", status: "AVAILABLE" };
+  };
+  const controller = workflowModule.createItemPageRecoveryController(workflow);
+  const callbacks = {
+    onRecovery() {},
+    onSuccess() { throw new Error("navigation failed"); },
+  };
+
+  assert.equal(
+    (await controller.startSubmission(itemInput(), [], callbacks).completion).id,
+    "item-1",
+  );
+  assert.equal(controller.startSubmission(itemInput(), [], callbacks).started, false);
+  assert.equal(workflowCalls, 1);
+});
+
+test("completion observer failure preserves success and releases the guard", async () => {
+  let workflowCalls = 0;
+  const workflow = async () => {
+    workflowCalls += 1;
+    return { id: "item-1", status: "AVAILABLE" };
+  };
+  const controller = workflowModule.createItemPageRecoveryController(workflow);
+  const submission = controller.startSubmission(itemInput(), [], {
+    onRecovery() {},
+    onSuccess() {},
+    async onSubmissionComplete() { throw new Error("completion observer failed"); },
+  });
+
+  assert.equal((await submission.completion).id, "item-1");
+  assert.equal(controller.startSubmission(itemInput(), [], {
+    onRecovery() {},
+    onSuccess() {},
+  }).started, false);
+  assert.equal(workflowCalls, 1);
+});
+
+test("recovery observer failure preserves the original recovery error and same-item retry", async () => {
+  let workflowCalls = 0;
+  const workflow = async (_input, _files, recoverableItemId) => {
+    workflowCalls += 1;
+    if (!recoverableItemId) {
+      throw new workflowModule.RecoverablePhotoWorkflowError(
+        "Item saved, but photos were not completed.",
+        "item-1",
+      );
+    }
+    return { id: recoverableItemId, status: "AVAILABLE" };
+  };
+  const controller = workflowModule.createItemPageRecoveryController(workflow);
+  const callbacks = {
+    onRecovery() { throw new Error("state observer failed"); },
+    onSuccess() {},
+  };
+
+  await assert.rejects(
+    controller.startSubmission(itemInput(), [], callbacks).completion,
+    (error) => error instanceof workflowModule.RecoverablePhotoWorkflowError
+      && error.resourceId === "item-1",
+  );
+  assert.deepEqual(controller.getRecovery(), {
+    recoverableItemId: "item-1",
+    recoverableShopId: "shop-1",
+  });
+  assert.equal(
+    (await controller.startSubmission(itemInput(), [], callbacks).completion).id,
+    "item-1",
+  );
+  assert.equal(workflowCalls, 2);
+});
+
+test("completion observer cannot replace a non-recoverable workflow failure", async () => {
+  const original = new Error("authoritative workflow failure");
+  let workflowCalls = 0;
+  const controller = workflowModule.createItemPageRecoveryController(async () => {
+    workflowCalls += 1;
+    if (workflowCalls === 1) throw original;
+    return { id: "item-1", status: "AVAILABLE" };
+  });
+  const callbacks = {
+    onRecovery() {},
+    onSuccess() {},
+    onSubmissionComplete() { throw new Error("completion observer failed"); },
+  };
+
+  await assert.rejects(
+    controller.startSubmission(itemInput(), [], callbacks).completion,
+    (error) => error === original,
+  );
+  assert.equal(
+    (await controller.startSubmission(itemInput(), [], callbacks).completion).id,
+    "item-1",
+  );
+  assert.equal(workflowCalls, 2);
 });
 
 test("existing item uploads append URLs and persist against the existing item", async () => {

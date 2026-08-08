@@ -51,6 +51,8 @@ update route. A failed photo step leaves a recoverable item ID so retry does not
 create a duplicate. While recovery is active, the original shop remains locked,
 the Clear Prefill action is disabled, and overlapping submissions are rejected.
 Recovery identity is cleared only after image URLs are persisted successfully.
+Persisted success is terminal for that page controller: observer or navigation
+callback failures cannot replace the workflow result or permit another item create.
 Existing-item uploads append and persist URLs. Shop creation
 and Location editing similarly persist returned logo/banner URLs through the
 ownership-checked shop update contract. Abandoned or removed objects are handled
