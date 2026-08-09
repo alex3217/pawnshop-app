@@ -530,9 +530,12 @@ export default function SiteLayout() {
 
             <div className="site-mobile-actions">
               {role ? (
-                <Link to={dashboardHref} className="site-mobile-account-link">
-                  Dashboard
-                </Link>
+                <>
+                  <NotificationCenter placement="mobile" />
+                  <Link to={dashboardHref} className="site-mobile-account-link">
+                    Dashboard
+                  </Link>
+                </>
               ) : (
                 <>
                   <Link to="/login" className="site-mobile-account-link">

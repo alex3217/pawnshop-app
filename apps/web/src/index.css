@@ -18,6 +18,8 @@
 
   --primary: #6ea8fe;
   --primary-strong: #4f8df6;
+  --primary-action: #1d4ed8;
+  --primary-action-hover: #1e40af;
   --accent: #8df0cc;
   --danger: #ff8ea1;
   --success: #7ef2a7;
@@ -47,6 +49,8 @@
   --border-strong: #94a3b8;
   --primary: #4338ca;
   --primary-strong: #3730a3;
+  --primary-action: #4338ca;
+  --primary-action-hover: #3730a3;
   --accent: #047857;
   --danger: #b91c1c;
   --success: #047857;
