@@ -123,6 +123,7 @@ const SUPER_ADMIN_PRIMARY_NAV: NavItem[] = [
 ];
 
 const SUPER_ADMIN_SECONDARY_NAV: NavItem[] = [
+  { to: "/super-admin/owner-applications", label: "Owner Applications" },
   { to: "/super-admin/training", label: "Training Content" },
   { to: "/super-admin/plans/seller", label: "Seller Plans" },
   { to: "/super-admin/seller-subscriptions", label: "Seller Subscriptions" },

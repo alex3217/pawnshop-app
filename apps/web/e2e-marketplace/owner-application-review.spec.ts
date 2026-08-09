@@ -32,7 +32,10 @@ const application = {
   reviewedBy: null,
 } as const;
 
-async function storeSession(page: Page, role: "ADMIN" | "OWNER" | "CONSUMER") {
+async function storeSession(
+  page: Page,
+  role: "ADMIN" | "SUPER_ADMIN" | "OWNER" | "CONSUMER",
+) {
   await page.addInitScript((selectedRole) => {
     localStorage.setItem("auth_token", `${selectedRole.toLowerCase()}-token`);
     localStorage.setItem("auth_role", selectedRole);
@@ -185,12 +188,65 @@ test("admin queue supports search, filter, pagination, details, reasons, and rev
   await page.getByLabel(/Decision reason/).fill("Upload a current license.");
   await page.getByLabel(/Administrator notes/).fill("License review is incomplete.");
   await page.getByRole("button", { name: "Confirm status change" }).click();
-  await expect(page.getByText("Ada Admin · admin@pawnloop.test")).toBeVisible();
+  await expect(page.getByText("Ada Admin · admin@pawnloop.test").first()).toBeVisible();
   await expect(page.getByText("License review is incomplete.", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("PENDING → INFORMATION REQUESTED")).toBeVisible();
   await expect(
     page.getByLabel("Review history").getByText("Upload a current license.", { exact: true }),
   ).toBeVisible();
+});
+
+test("super admin opens the shared review interface from Platform Tools", async ({ page }) => {
+  await storeSession(page, "SUPER_ADMIN");
+  let listRequestPath = "";
+
+  await page.route("**/api/**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/admin/owner-applications") {
+      listRequestPath = url.pathname;
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          rows: [],
+          pagination: {
+            page: 1,
+            limit: 25,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, notifications: [] }),
+    });
+  });
+
+  await page.goto("/terms");
+  const platformTools = page.locator('details[data-tour="workspace-menu"]');
+  await platformTools.evaluate((details: HTMLDetailsElement) => {
+    details.open = true;
+  });
+  const menuLink = platformTools.getByRole("link", { name: "Owner Applications" });
+  await expect(menuLink).toHaveAttribute("href", "/super-admin/owner-applications");
+  await menuLink.click({ force: true });
+
+  await expect(page).toHaveURL(/\/super-admin\/owner-applications$/);
+  await expect(page.getByRole("heading", { name: "Owner Applications" })).toBeVisible();
+  await expect(page.locator('aside.admin-sidebar a[href="/super-admin/owner-applications"]'))
+    .toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("navigation", { name: "Breadcrumbs" }))
+    .toContainText("Super Admin");
+  await expect(page.getByRole("navigation", { name: "Breadcrumbs" }))
+    .toContainText("Owner Applications");
+  await expect(page.getByRole("button", { name: "← Back" })).toBeVisible();
+  await expect.poll(() => listRequestPath).toBe("/api/admin/owner-applications");
 });
 
 test("review timeline exposes loading, empty, error, responsive, light, and dark states", async ({ page }) => {
@@ -358,10 +414,53 @@ test("owner dashboard requires approval and handles responsive light and dark la
 });
 
 test("non-admin users cannot open the administrator application queue", async ({ page }) => {
-  await storeSession(page, "CONSUMER");
-  await page.goto("/admin/owner-applications");
-  await expect(page).toHaveURL("/");
-  await expect(page.getByRole("heading", { name: "Owner Applications" })).toHaveCount(0);
+  for (const role of ["CONSUMER", "OWNER"] as const) {
+    await storeSession(page, role);
+    for (const path of [
+      "/admin/owner-applications",
+      "/super-admin/owner-applications",
+    ]) {
+      await page.goto(path);
+      await expect(page).toHaveURL("/");
+      await expect(page.getByRole("heading", { name: "Owner Applications" })).toHaveCount(0);
+    }
+  }
+});
+
+test("unauthenticated users cannot open either administrator application queue", async ({ page }) => {
+  for (const path of [
+    "/admin/owner-applications",
+    "/super-admin/owner-applications",
+  ]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(`/login?next=${encodeURIComponent(path)}`);
+    await expect(page.getByRole("heading", { name: "Owner Applications" })).toHaveCount(0);
+  }
+});
+
+test("staff and seller role values cannot open either administrator application queue", async ({ page }) => {
+  for (const role of ["STAFF", "SELLER"] as const) {
+    await page.goto("/terms");
+    await page.evaluate((unsupportedRole) => {
+      localStorage.setItem("auth_token", `${unsupportedRole.toLowerCase()}-token`);
+      localStorage.setItem("auth_role", unsupportedRole);
+      localStorage.setItem("auth_user", JSON.stringify({
+        id: `${unsupportedRole.toLowerCase()}-1`,
+        name: "Unauthorized Workflow User",
+        email: `${unsupportedRole.toLowerCase()}@pawnloop.test`,
+        role: unsupportedRole,
+      }));
+    }, role);
+
+    for (const path of [
+      "/admin/owner-applications",
+      "/super-admin/owner-applications",
+    ]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(`/login?next=${encodeURIComponent(path)}`);
+      await expect(page.getByRole("heading", { name: "Owner Applications" })).toHaveCount(0);
+    }
+  }
 });
 
 test("owner application page explains every workflow status without exposing private review data", async ({ page }) => {
