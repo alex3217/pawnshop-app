@@ -2,6 +2,129 @@
   color: var(--text);
 }
 
+.owner-review-backdrop {
+  z-index: 120;
+}
+
+.owner-review-dialog {
+  width: min(1120px, 100%);
+  max-height: calc(100dvh - 32px);
+  overscroll-behavior: contain;
+}
+
+.owner-review-header {
+  position: sticky;
+  top: -20px;
+  z-index: 2;
+  margin: -20px -20px 18px;
+  padding: 20px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+  background: #0f172a;
+}
+
+.owner-review-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.owner-review-grid,
+.owner-review-dialog > .list-card,
+.owner-review-dialog > section {
+  margin-top: 16px;
+}
+
+.owner-review-responses {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.owner-review-responses > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+}
+
+.owner-review-responses dt {
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.owner-review-responses dd {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.owner-review-responses pre {
+  max-width: 100%;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.owner-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(2, 6, 23, 0.82);
+}
+
+.owner-confirm-dialog {
+  width: min(600px, 100%);
+}
+
+.owner-review-dialog .btn-danger,
+.owner-confirm-dialog .btn-danger {
+  border-color: #ef4444;
+  background: #b91c1c;
+  color: #fff;
+}
+
+.owner-review-dialog .btn-danger:hover:not(:disabled),
+.owner-confirm-dialog .btn-danger:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+.owner-confirm-dialog p,
+.owner-confirm-dialog textarea,
+.owner-review-dialog a,
+.owner-review-dialog dd,
+.owner-review-dialog li {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .owner-review-backdrop,
+  .owner-confirm-backdrop {
+    padding: 0;
+  }
+
+  .owner-review-dialog,
+  .owner-confirm-dialog {
+    width: 100%;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .owner-review-header {
+    top: -16px;
+    margin: -16px -16px 18px;
+    padding: 16px;
+  }
+
+  .owner-review-navigation {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
 .owner-application-audit__state {
   margin: 16px 0 0;
   padding: 18px;

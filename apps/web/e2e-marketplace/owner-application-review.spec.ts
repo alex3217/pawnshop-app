@@ -163,7 +163,6 @@ test("admin queue supports search, filter, pagination, details, reasons, and rev
     });
   });
 
-  page.on("dialog", (dialog) => dialog.accept());
   await page.goto("/admin/owner-applications");
   await expect(page.getByText("Owner Applications", { exact: true }).last()).toBeVisible();
 
@@ -181,13 +180,16 @@ test("admin queue supports search, filter, pagination, details, reasons, and rev
   await expect(page.getByText("PENDING → IN REVIEW")).toBeVisible();
   await expect(page.getByText("Initial review started.")).toBeVisible();
 
-  await page.getByLabel("New status").selectOption("INFORMATION_REQUESTED");
-  await page.getByRole("button", { name: "Confirm status change" }).click();
-  await expect(page.getByText("A reason is required when changing status to INFORMATION REQUESTED.")).toBeVisible();
+  await page.getByRole("button", { name: "Request Information" }).click();
+  const confirmation = page.locator("[data-owner-confirm]");
+  await expect(confirmation).toHaveAttribute("role", "dialog");
+  await expect(confirmation).toContainText("PENDING → INFORMATION REQUESTED");
+  await confirmation.getByRole("button", { name: "Confirm Request Information" }).click();
+  await expect(confirmation.getByText("A nonblank reason or review note is required.")).toBeVisible();
 
-  await page.getByLabel(/Decision reason/).fill("Upload a current license.");
-  await page.getByLabel(/Administrator notes/).fill("License review is incomplete.");
-  await page.getByRole("button", { name: "Confirm status change" }).click();
+  await confirmation.getByLabel(/Reason or review note/).fill("Upload a current license.");
+  await confirmation.getByLabel(/Administrator notes/).fill("License review is incomplete.");
+  await confirmation.getByRole("button", { name: "Confirm Request Information" }).click();
   await expect(page.getByText("Ada Admin · admin@pawnloop.test").first()).toBeVisible();
   await expect(page.getByText("License review is incomplete.", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("PENDING → INFORMATION REQUESTED")).toBeVisible();
@@ -247,6 +249,175 @@ test("super admin opens the shared review interface from Platform Tools", async 
     .toContainText("Owner Applications");
   await expect(page.getByRole("button", { name: "← Back" })).toBeVisible();
   await expect.poll(() => listRequestPath).toBe("/api/admin/owner-applications");
+});
+
+test("review dialog preserves filters, traps workflow actions by status, and rejected is terminal", async ({ page }) => {
+  await storeSession(page, "ADMIN");
+  const statusRows = ["PENDING", "IN_REVIEW", "INFORMATION_REQUESTED", "APPROVED", "REJECTED", "SUSPENDED"].map((status, index) => ({
+    ...application,
+    id: `application-${index}`,
+    businessName: `${status} Shop`,
+    status,
+  }));
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/admin/owner-applications") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: statusRows, pagination: { page: 1, limit: 25, total: statusRows.length, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    }
+    const row = statusRows.find((candidate) => url.pathname === `/api/admin/owner-applications/${candidate.id}`);
+    if (row) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: row }) });
+    if (url.pathname.endsWith("/history")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+  await page.goto("/admin/owner-applications");
+  await page.getByLabel("Search applications").fill("kept search");
+  await page.getByLabel("Filter by status").selectOption("PENDING");
+
+  const open = async (name: string) => {
+    await page.getByRole("button", { name: `Review ${name} application` }).click();
+    return page.getByRole("dialog", { name: `Review ${name}` });
+  };
+  let dialog = await open("PENDING Shop");
+  await expect(dialog.getByRole("button", { name: "Start Review" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Approve" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close application review" }).click();
+  await expect(page.getByLabel("Search applications")).toHaveValue("kept search");
+  await expect(page.getByLabel("Filter by status")).toHaveValue("PENDING");
+
+  dialog = await open("INFORMATION_REQUESTED Shop");
+  await expect(dialog.getByText("Waiting for owner response.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Return to Review" })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Reject" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+
+  dialog = await open("REJECTED Shop");
+  await expect(dialog.getByText("This status is terminal")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Approve|Reject|Suspend|Reinstate|Start Review|Return to Review/ })).toHaveCount(0);
+});
+
+test("detail failures and failed refreshes keep all mutation controls unavailable", async ({ page }) => {
+  await storeSession(page, "ADMIN");
+  let detailMode: "error" | "success" = "error";
+  let patchCount = 0;
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/admin/owner-applications") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [application], pagination: { page: 1, limit: 25, total: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    if (url.pathname.endsWith("/history")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    if (url.pathname.endsWith("/status")) { patchCount += 1; return route.fulfill({ status: 500, body: "{}" }); }
+    if (url.pathname === `/api/admin/owner-applications/${application.id}`) {
+      return detailMode === "error"
+        ? route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Application details unavailable" }) })
+        : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application }) });
+    }
+    return route.fulfill({ status: 200, body: "{}" });
+  });
+  await page.goto("/admin/owner-applications");
+  await page.getByRole("button", { name: /Review North Loop Pawn application/ }).click();
+  const dialog = page.getByRole("dialog", { name: /Review North Loop Pawn/ });
+  await expect(dialog.getByText("Application details unavailable.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Start Review|Request Information|Approve|Reject/ })).toHaveCount(0);
+  expect(patchCount).toBe(0);
+
+  detailMode = "success";
+  await dialog.getByRole("button", { name: "Retry Application Details" }).click();
+  await expect(dialog.getByRole("button", { name: "Start Review" })).toBeVisible();
+  detailMode = "error";
+  await dialog.getByRole("button", { name: "Refresh Application" }).click();
+  await expect(dialog.getByText("Application details unavailable.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Start Review|Request Information|Approve|Reject/ })).toHaveCount(0);
+  expect(patchCount).toBe(0);
+});
+
+test("rapid application navigation ignores superseded detail and history responses", async ({ page }) => {
+  await storeSession(page, "ADMIN");
+  const first = { ...application, id: "application-a", businessName: "Alpha Pawn", licenseNumber: "ALPHA-LICENSE" };
+  const second = { ...application, id: "application-b", businessName: "Beta Pawn", licenseNumber: "BETA-LICENSE" };
+  let releaseFirstDetail: () => void = () => undefined;
+  let releaseFirstHistory: () => void = () => undefined;
+  const firstDetailGate = new Promise<void>((resolve) => { releaseFirstDetail = resolve; });
+  const firstHistoryGate = new Promise<void>((resolve) => { releaseFirstHistory = resolve; });
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/admin/owner-applications") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [first, second], pagination: { page: 1, limit: 25, total: 2, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    if (url.pathname === `/api/admin/owner-applications/${first.id}`) { await firstDetailGate; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: first }) }); }
+    if (url.pathname === `/api/admin/owner-applications/${first.id}/history`) { await firstHistoryGate; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [{ id: "alpha-history", ownerApplicationId: first.id, previousStatus: "PENDING", newStatus: "IN_REVIEW", decisionReason: null, adminNotes: "Alpha history", reviewerId: "admin-1", reviewer: { id: "admin-1", name: "Admin", email: "admin@test", role: "ADMIN" }, reviewedAt: application.createdAt }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) }); }
+    if (url.pathname === `/api/admin/owner-applications/${second.id}`) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: second }) });
+    if (url.pathname === `/api/admin/owner-applications/${second.id}/history`) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    return route.fulfill({ status: 200, body: "{}" });
+  });
+  await page.goto("/admin/owner-applications");
+  await page.getByRole("button", { name: "Review Alpha Pawn application" }).click();
+  await page.getByRole("button", { name: "Next Application" }).click();
+  const betaDialog = page.getByRole("dialog", { name: "Review Beta Pawn" });
+  await expect(betaDialog.getByText("BETA-LICENSE")).toBeVisible();
+  releaseFirstDetail(); releaseFirstHistory();
+  await expect(betaDialog.getByText("BETA-LICENSE")).toBeVisible();
+  await expect(betaDialog.getByText("ALPHA-LICENSE")).toHaveCount(0);
+  await expect(betaDialog.getByText("Alpha history")).toHaveCount(0);
+});
+
+test("confirmation owns focus, traps keyboard navigation, and restores the invoking action", async ({ page }) => {
+  await storeSession(page, "ADMIN");
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/admin/owner-applications") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [application], pagination: { page: 1, limit: 25, total: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    if (url.pathname.endsWith("/history")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application }) });
+  });
+  await page.goto("/admin/owner-applications");
+  await page.getByRole("button", { name: /Review North Loop Pawn application/ }).click();
+  const review = page.locator(".owner-review-dialog");
+  const action = review.getByRole("button", { name: "Start Review" });
+  await action.click();
+  const confirmation = page.locator("[data-owner-confirm]");
+  const reason = confirmation.getByLabel(/Reason or review note/);
+  await expect(reason).toBeFocused();
+  await expect(review).toHaveAttribute("aria-hidden", "true");
+  await expect(review).not.toHaveAttribute("aria-modal", "true");
+  await page.keyboard.press("Shift+Tab");
+  await expect(confirmation.getByRole("button", { name: "Confirm Start Review" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(reason).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(confirmation).toHaveCount(0);
+  await expect(action).toBeFocused();
+});
+
+test("confirmation blocks duplicate submissions and leaves status unchanged on API failure", async ({ page }) => {
+  await storeSession(page, "ADMIN");
+  let patchCount = 0;
+  let releaseMutation: () => void = () => undefined;
+  const mutationGate = new Promise<void>((resolve) => { releaseMutation = resolve; });
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === "/api/admin/owner-applications") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [application], pagination: { page: 1, limit: 25, total: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    if (url.pathname === `/api/admin/owner-applications/${application.id}/history`) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, rows: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }) });
+    if (url.pathname === `/api/admin/owner-applications/${application.id}/status`) {
+      patchCount += 1;
+      await mutationGate;
+      return route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "Application changed during review" }) });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application }) });
+  });
+  await page.goto("/admin/owner-applications");
+  await page.getByRole("button", { name: /Review North Loop Pawn application/ }).click();
+  await page.getByRole("button", { name: "Start Review" }).click();
+  const confirm = page.locator("[data-owner-confirm]");
+  await confirm.getByLabel(/Reason or review note/).fill("Beginning documented review.");
+  const submit = confirm.getByRole("button", { name: "Confirm Start Review" });
+  await submit.evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
+  const progress = confirm.getByRole("button", { name: "Starting review…" });
+  await expect(progress).toBeVisible();
+  await expect(progress).toBeDisabled();
+  expect(patchCount).toBe(1);
+  releaseMutation();
+  await expect(confirm.getByText("Application changed during review")).toBeVisible();
+  expect(patchCount).toBe(1);
+  await expect(page.locator(".owner-review-dialog")).toContainText("PENDING");
 });
 
 test("review timeline exposes loading, empty, error, responsive, light, and dark states", async ({ page }) => {
