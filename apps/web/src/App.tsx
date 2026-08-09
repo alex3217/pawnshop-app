@@ -37,9 +37,9 @@ type RouteConfig =
       index?: false;
     };
 
-const ADMIN_ROLES: Role[] = ["ADMIN", "SUPER_ADMIN"];
+const ADMIN_ROLES: Role[] = ["ADMIN"];
 const SUPER_ADMIN_ROLES: Role[] = ["SUPER_ADMIN"];
-const CONSUMER_ROLES: Role[] = ["CONSUMER", "ADMIN"];
+const CONSUMER_ROLES: Role[] = ["CONSUMER"];
 const OFFER_ROLES: Role[] = ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"];
 const MARKETPLACE_TRANSACTION_ROLES: Role[] = ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"];
 
@@ -262,10 +262,6 @@ function renderRouteGroup(
 
 const publicRoutes: RouteConfig[] = [
   { index: true, element: <HomePage /> },
-  { path: "/buyer", element: <Navigate to="/buyer/dashboard" replace /> },
-  { path: BUYER_PATHS.dashboard, element: <BuyerDashboardPage /> },
-  { path: "/buyer/item-locator", element: <BuyerItemLocatorPage /> },
-  { path: "/buyer/sell-item", element: <BuyerSellItemPage /> },
   { path: "/terms", element: <TermsPage /> },
   { path: "/privacy", element: <PrivacyPage /> },
 
@@ -289,6 +285,10 @@ const publicRoutes: RouteConfig[] = [
 ];
 
 const consumerRoutes: RouteConfig[] = [
+  { path: "/buyer", element: <Navigate to="/buyer/dashboard" replace /> },
+  { path: BUYER_PATHS.dashboard, element: <BuyerDashboardPage /> },
+  { path: "/buyer/item-locator", element: <BuyerItemLocatorPage /> },
+  { path: "/buyer/sell-item", element: <BuyerSellItemPage /> },
   { path: BUYER_PATHS.subscription, element: <BuyerSubscriptionPage /> },
   { path: BUYER_PATHS.bids, element: <MyBidsPage /> },
   { path: "/bids", element: <Navigate to="/my-bids" replace /> },
