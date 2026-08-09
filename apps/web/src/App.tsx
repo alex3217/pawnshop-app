@@ -408,6 +408,7 @@ const adminChildRoutes: RouteConfig[] = [
 const superAdminRoutes: RouteConfig[] = [
   { index: true, element: <SuperAdminOverviewPage /> },
   { path: "overview", element: <Navigate to="/super-admin" replace /> },
+  { path: "owner-applications", element: <AdminOwnerApplicationsPage /> },
   { path: "growth", element: <GrowthCenterDashboardPage /> },
   { path: "growth/leads", element: <GrowthLeadDirectoryPage /> },
   { path: "growth/leads/:leadId", element: <GrowthLeadDetailPage /> },

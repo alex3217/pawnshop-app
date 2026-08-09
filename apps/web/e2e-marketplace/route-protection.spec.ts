@@ -126,6 +126,22 @@ test("wrong-role users cannot render another role's protected shell", async ({ p
   }
 });
 
+test("Owner Applications routes remain isolated to their matching admin workspace", async ({ page }) => {
+  await installSession(page, "ADMIN");
+  await page.goto("/admin/owner-applications");
+  await expect(page).toHaveURL(/\/admin\/owner-applications$/);
+  await expect(page.getByRole("heading", { name: "Owner Applications" })).toBeVisible();
+  await page.goto("/super-admin/owner-applications");
+  await expect(page).toHaveURL(/\/$/);
+
+  await installSession(page, "SUPER_ADMIN");
+  await page.goto("/super-admin/owner-applications");
+  await expect(page).toHaveURL(/\/super-admin\/owner-applications$/);
+  await expect(page.getByRole("heading", { name: "Owner Applications" })).toBeVisible();
+  await page.goto("/admin/owner-applications");
+  await expect(page).toHaveURL(/\/$/);
+});
+
 test("public routes remain accessible without authentication", async ({ page }) => {
   await page.goto("/terms");
   await expect(page).toHaveURL(/\/terms$/);
