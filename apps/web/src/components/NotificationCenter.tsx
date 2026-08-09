@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getMyNotifications,
@@ -6,35 +6,62 @@ import {
   type InAppNotification,
 } from "../services/notifications";
 
-type NotificationCenterProps = {
-  placement?: "desktop" | "mobile";
-};
-
-export default function NotificationCenter({
-  placement = "desktop",
-}: NotificationCenterProps) {
+export default function NotificationCenter() {
   const [items, setItems] = useState<InAppNotification[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
   const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
   const [markReadError, setMarkReadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const pendingIdsRef = useRef(new Set<string>());
+  const itemsRef = useRef<InAppNotification[]>([]);
+  const loadRequestRef = useRef<AbortController | null>(null);
+  const loadAttemptRef = useRef(0);
+
+  const loadNotifications = useCallback(async () => {
+    if (loadRequestRef.current) return;
+
+    const controller = new AbortController();
+    const attempt = ++loadAttemptRef.current;
+    loadRequestRef.current = controller;
+    setLoadState("loading");
+    setLoadError(null);
+
+    try {
+      const notifications = await getMyNotifications(controller.signal);
+      if (controller.signal.aborted || attempt !== loadAttemptRef.current) return;
+      itemsRef.current = notifications;
+      setItems(notifications);
+      setLoadState("ready");
+    } catch {
+      if (controller.signal.aborted || attempt !== loadAttemptRef.current) return;
+      const hasExistingItems = itemsRef.current.length > 0;
+      setLoadState(hasExistingItems ? "ready" : "error");
+      setLoadError(
+        hasExistingItems
+          ? "Notifications could not be refreshed. Showing previously loaded notifications."
+          : "Notifications could not be loaded.",
+      );
+    } finally {
+      if (attempt === loadAttemptRef.current) loadRequestRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-    getMyNotifications(controller.signal)
-      .then((notifications) => {
-        setItems(notifications);
-        setLoadState("ready");
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setLoadState("error");
-      });
-    return () => controller.abort();
-  }, []);
+    const timeout = window.setTimeout(() => void loadNotifications(), 0);
+    return () => {
+      window.clearTimeout(timeout);
+      loadAttemptRef.current += 1;
+      loadRequestRef.current?.abort();
+      loadRequestRef.current = null;
+    };
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   const unread = items.filter((item) => !item.readAt);
 
@@ -88,33 +115,47 @@ export default function NotificationCenter({
   }
 
   return (
-    <details
-      className={`site-notifications site-notifications--${placement}`}
-      ref={detailsRef}
-    >
+    <details className="site-notifications" ref={detailsRef}>
       <summary
         aria-label={`${unread.length} unread notification${unread.length === 1 ? "" : "s"}`}
-        aria-controls={`site-notifications-panel-${placement}`}
+        aria-controls="site-notifications-panel"
       >
-        {placement === "mobile" ? "Alerts" : "Notifications"} ({unread.length})
+        <span className="site-notifications__desktop-label">Notifications</span>
+        <span className="site-notifications__mobile-label">Alerts</span>
+        &nbsp;({unread.length})
       </summary>
       <div
         className="site-notifications__panel"
-        id={`site-notifications-panel-${placement}`}
+        id="site-notifications-panel"
         aria-label="Notifications"
+        aria-busy={loadState === "loading"}
       >
         <div className="site-notifications__heading">
           <strong>Notifications</strong>
-          <span>{unread.length} unread</span>
+          <div>
+            <span>{unread.length} unread</span>
+            <button
+              type="button"
+              className="site-notifications__retry"
+              disabled={loadState === "loading"}
+              onClick={() => void loadNotifications()}
+            >
+              {loadState === "loading"
+                ? "Loading…"
+                : loadError
+                  ? "Retry"
+                  : "Refresh"}
+            </button>
+          </div>
         </div>
         {loadState === "loading" ? (
           <p className="site-notifications__state" role="status">
             Loading notifications…
           </p>
         ) : null}
-        {loadState === "error" ? (
+        {loadError ? (
           <p className="site-notifications__state site-notifications__error" role="alert">
-            Notifications could not be loaded. Close and try again later.
+            {loadError}
           </p>
         ) : null}
         {loadState === "ready" && unread.length === 0 ? (

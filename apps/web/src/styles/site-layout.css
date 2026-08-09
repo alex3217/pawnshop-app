@@ -58,6 +58,12 @@
   flex-wrap: wrap;
 }
 
+.site-top-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .site-role-badge,
 .site-theme-toggle,
 .site-primary-button,
@@ -111,6 +117,10 @@
    tokens as the rest of the application shell. */
 .site-notifications {
   position: relative;
+}
+
+.site-notifications__mobile-label {
+  display: none;
 }
 
 .site-notifications > summary {
@@ -181,6 +191,12 @@
   color: var(--text-strong);
 }
 
+.site-notifications__heading > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .site-notifications__heading span,
 .site-notifications__time {
   color: var(--muted);
@@ -231,7 +247,8 @@
 }
 
 .site-notifications__view,
-.site-notifications__mark-read {
+.site-notifications__mark-read,
+.site-notifications__retry {
   min-height: 38px;
   display: inline-flex;
   align-items: center;
@@ -242,6 +259,27 @@
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.site-notifications__retry {
+  min-height: 34px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-soft);
+  color: var(--text-strong);
+}
+
+.site-notifications__retry:hover:not(:disabled),
+.site-notifications__retry:active:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--bg-elevated);
+}
+
+.site-notifications__retry:disabled {
+  cursor: not-allowed;
+  border-color: var(--border);
+  background: var(--bg-soft);
+  color: var(--muted);
+  opacity: 1;
 }
 
 .site-notifications__view {
@@ -3110,6 +3148,19 @@
     display: none !important;
   }
 
+  .site-top-controls {
+    flex: 0 0 auto;
+    gap: 5px;
+  }
+
+  .site-top-controls > .site-notifications {
+    order: 1;
+  }
+
+  .site-top-controls > .site-mobile-actions {
+    order: 2;
+  }
+
   .site-mobile-actions {
     display: flex;
     align-items: center;
@@ -3119,7 +3170,7 @@
   }
 
   .site-mobile-account-link,
-  .site-notifications--mobile > summary,
+  .site-notifications > summary,
   .site-mobile-menu > summary {
     display: inline-flex;
     min-height: 36px;
@@ -3158,15 +3209,23 @@
     list-style: none;
   }
 
-  .site-notifications--mobile > summary {
+  .site-notifications > summary {
     min-height: 36px;
     padding: 7px 9px;
     border-radius: 10px;
     font-size: 12px;
   }
 
-  .site-notifications--mobile .site-notifications__panel {
+  .site-notifications .site-notifications__panel {
     top: 58px;
+  }
+
+  .site-notifications__desktop-label {
+    display: none;
+  }
+
+  .site-notifications__mobile-label {
+    display: inline;
   }
 
   .site-mobile-menu > summary::-webkit-details-marker {
@@ -3224,11 +3283,24 @@
   }
 
   :root[data-theme="dark"] .site-mobile-account-link,
+  :root[data-theme="dark"] .site-notifications > summary,
   :root[data-theme="dark"] .site-mobile-menu > summary,
   :root[data-theme="dark"] .site-mobile-menu-panel {
     border-color: rgba(255, 255, 255, 0.16);
     background: #0f172a;
     color: #e2e8f0;
+  }
+
+  :root[data-theme="dark"] .site-notifications > summary:hover,
+  :root[data-theme="dark"] .site-notifications[open] > summary {
+    border-color: #60a5fa;
+    background: #1e293b;
+    color: #ffffff;
+  }
+
+  :root[data-theme="dark"] .site-notifications > summary:active {
+    background: #334155;
+    color: #ffffff;
   }
 
   :root[data-theme="dark"] .site-mobile-account-link--primary {
@@ -3305,6 +3377,26 @@
 }
 
 :root .site-header .site-notifications__mark-read:disabled {
+  border-color: var(--border) !important;
+  background: var(--bg-soft) !important;
+  color: var(--muted) !important;
+  -webkit-text-fill-color: var(--muted) !important;
+}
+
+:root .site-header .site-notifications__retry {
+  border-color: var(--border-strong) !important;
+  background: var(--bg-soft) !important;
+  color: var(--text-strong) !important;
+  -webkit-text-fill-color: var(--text-strong) !important;
+}
+
+:root .site-header .site-notifications__retry:hover:not(:disabled),
+:root .site-header .site-notifications__retry:active:not(:disabled) {
+  border-color: var(--primary) !important;
+  background: var(--bg-elevated) !important;
+}
+
+:root .site-header .site-notifications__retry:disabled {
   border-color: var(--border) !important;
   background: var(--bg-soft) !important;
   color: var(--muted) !important;

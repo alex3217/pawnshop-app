@@ -55,10 +55,20 @@ async function expectContrast(
 async function prepareOwner(
   page: Page,
   theme: Theme,
-  options: { failMarkRead?: boolean; holdMarkRead?: boolean } = {},
+  options: {
+    failLoadAttempts?: number[];
+    failMarkRead?: boolean;
+    holdLoadAttempt?: number;
+    holdMarkRead?: boolean;
+  } = {},
 ) {
+  let getCount = 0;
   let patchCount = 0;
+  let releaseLoad: (() => void) | undefined;
   let releasePatch: (() => void) | undefined;
+  const loadGate = new Promise<void>((resolve) => {
+    releaseLoad = resolve;
+  });
   const patchGate = new Promise<void>((resolve) => {
     releasePatch = resolve;
   });
@@ -88,8 +98,11 @@ async function prepareOwner(
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === "/api/notifications" && request.method() === "GET") {
+      getCount += 1;
+      if (options.holdLoadAttempt === getCount) await loadGate;
+      const failLoad = options.failLoadAttempts?.includes(getCount) ?? false;
       await route.fulfill({
-        status: 200,
+        status: failLoad ? 500 : 200,
         contentType: "application/json",
         body: JSON.stringify({
           success: true,
@@ -131,15 +144,18 @@ async function prepareOwner(
 
   await page.goto("/privacy");
   return {
+    getCount: () => getCount,
     patchCount: () => patchCount,
+    releaseLoad: () => releaseLoad?.(),
     releasePatch: () => releasePatch?.(),
   };
 }
 
 function notificationTrigger(page: Page, unreadCount: number) {
-  return page
-    .locator(".site-top-actions .site-notifications > summary")
-    .filter({ has: page.getByText(`Notifications (${unreadCount})`, { exact: true }) });
+  const noun = unreadCount === 1 ? "notification" : "notifications";
+  return page.locator(
+    `.site-notifications > summary[aria-label="${unreadCount} unread ${noun}"]`,
+  );
 }
 
 for (const theme of ["light", "dark"] as const) {
@@ -149,10 +165,11 @@ for (const theme of ["light", "dark"] as const) {
     const requests = await prepareOwner(page, theme);
     const trigger = notificationTrigger(page, 10);
     await expect(trigger).toBeVisible();
+    await expect.poll(requests.getCount).toBe(1);
     await expect(trigger).toHaveAttribute("aria-label", "10 unread notifications");
     await trigger.click();
 
-    const panel = page.locator("#site-notifications-panel-desktop");
+    const panel = page.locator("#site-notifications-panel");
     await expect(panel).toBeVisible();
     const colors = await panel.evaluate((element) => {
       const style = getComputedStyle(element);
@@ -200,9 +217,11 @@ test("keyboard open, navigation, activation, Escape, and outside close preserve 
   const trigger = notificationTrigger(page, 10);
   await trigger.focus();
   await page.keyboard.press("Enter");
-  const panel = page.locator("#site-notifications-panel-desktop");
+  const panel = page.locator("#site-notifications-panel");
   await expect(panel).toBeVisible();
 
+  await page.keyboard.press("Tab");
+  await expect(panel.getByRole("button", { name: "Refresh" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(panel.getByRole("link", { name: "View" })).toBeFocused();
   await page.keyboard.press("Tab");
@@ -217,10 +236,12 @@ test("keyboard open, navigation, activation, Escape, and outside close preserve 
   await expect(trigger).toBeFocused();
 });
 
-test("mark read is single-submit, failure-safe, and refreshes the unread count only on success", async ({
+test("one list request and one mutation owner stay synchronized across desktop and mobile resize", async ({
   page,
 }) => {
   const pending = await prepareOwner(page, "dark", { holdMarkRead: true });
+  await expect.poll(pending.getCount).toBe(1);
+  await page.setViewportSize({ width: 1280, height: 800 });
   await notificationTrigger(page, 10).click();
   const markRead = page.getByRole("button", { name: "Mark read" }).first();
   await markRead.evaluate((button) => {
@@ -231,10 +252,25 @@ test("mark read is single-submit, failure-safe, and refreshes the unread count o
   const disabledMarkRead = page.getByRole("button", { name: "Marking read…" });
   await expect(disabledMarkRead).toBeDisabled();
   await expectContrast(disabledMarkRead, disabledMarkRead);
+
+  await page.setViewportSize({ width: 360, height: 740 });
+  await expect(notificationTrigger(page, 10)).toContainText("Alerts");
+  await disabledMarkRead.evaluate((button) => {
+    button.click();
+    button.click();
+  });
+  expect(pending.patchCount()).toBe(1);
+  expect(pending.getCount()).toBe(1);
+
   pending.releasePatch();
   await expect(notificationTrigger(page, 9)).toBeVisible();
+  await expect(page.getByText("Owner application needs information", { exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(notificationTrigger(page, 9)).toContainText("Notifications");
+  expect(pending.getCount()).toBe(1);
+});
 
-  await page.reload();
+test("failed mark read keeps the notification and count unchanged", async ({ page }) => {
   const failed = await prepareOwner(page, "light", { failMarkRead: true });
   await notificationTrigger(page, 10).click();
   await page.getByRole("button", { name: "Mark read" }).first().click();
@@ -243,27 +279,85 @@ test("mark read is single-submit, failure-safe, and refreshes the unread count o
   expect(failed.patchCount()).toBe(1);
 });
 
-test("mobile notification panel stays within the viewport and wraps long content", async ({ page }) => {
+for (const theme of ["light", "dark"] as const) {
+  test(`${theme} mobile Alerts trigger and panel retain contrast and viewport containment`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    const requests = await prepareOwner(page, theme);
+    const trigger = notificationTrigger(page, 10);
+    await expect.poll(requests.getCount).toBe(1);
+    await expect(trigger).toContainText("Alerts");
+    await expectContrast(trigger, trigger);
+    await trigger.hover();
+    await expectContrast(trigger, trigger);
+    await trigger.focus();
+    await expect(trigger).not.toHaveCSS("outline-style", "none");
+    await trigger.click();
+    await expectContrast(trigger, trigger);
+
+    const panel = page.locator("#site-notifications-panel");
+    const bounds = await panel.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(360);
+    expect(await panel.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(
+      await panel.evaluate((element) => element.clientWidth),
+    );
+    await expectContrast(panel.locator(".site-notifications__message").first(), panel);
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+test(`${theme} initial load failure retries once, synchronizes loading, and preserves stale items`, async ({
+  page,
+}) => {
+  const requests = await prepareOwner(page, theme, {
+    failLoadAttempts: [1, 3],
+    holdLoadAttempt: 2,
+  });
+  await expect.poll(requests.getCount).toBe(1);
+  await notificationTrigger(page, 0).click();
+  const panel = page.locator("#site-notifications-panel");
+  await expect(panel.getByRole("alert")).toHaveText("Notifications could not be loaded.");
+
+  const retry = panel.getByRole("button", { name: "Retry" });
+  await expectContrast(retry, retry);
+  await retry.hover();
+  await expectContrast(retry, retry);
+  await retry.focus();
+  await expect(retry).not.toHaveCSS("outline-style", "none");
+  await retry.evaluate((button) => {
+    button.click();
+    button.click();
+  });
+  await expect.poll(requests.getCount).toBe(2);
+  await expect(panel).toHaveAttribute("aria-busy", "true");
+  const pendingRetry = panel.getByRole("button", { name: "Loading…" });
+  await expect(pendingRetry).toBeDisabled();
+  await expectContrast(pendingRetry, pendingRetry);
+  await expect(panel.getByRole("alert")).toHaveCount(0);
   await page.setViewportSize({ width: 360, height: 740 });
-  await prepareOwner(page, "dark");
-  const trigger = page.locator(".site-mobile-actions .site-notifications > summary");
-  await expect(trigger).toHaveAttribute("aria-label", "10 unread notifications");
-  await trigger.click();
-  const panel = page.locator(".site-mobile-actions").getByLabel("Notifications", { exact: true });
-  const bounds = await panel.boundingBox();
-  expect(bounds).not.toBeNull();
-  expect(bounds!.x).toBeGreaterThanOrEqual(0);
-  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(360);
-  expect(await panel.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(
-    await panel.evaluate((element) => element.clientWidth),
-  );
-  await expectContrast(panel.locator(".site-notifications__message").first(), panel);
+  await expect(panel.getByRole("status")).toHaveText("Loading notifications…");
+  await expect(notificationTrigger(page, 0)).toContainText("Alerts");
+  requests.releaseLoad();
+  await expect(notificationTrigger(page, 10)).toBeVisible();
+  await expect(panel.getByText("Owner application needs information", { exact: true })).toBeVisible();
+  expect(requests.patchCount()).toBe(0);
+
+  await panel.getByRole("button", { name: "Refresh" }).click();
+  await expect.poll(requests.getCount).toBe(3);
+  await expect(panel.getByRole("alert")).toContainText("Showing previously loaded notifications");
+  await expect(panel.getByText("Owner application needs information", { exact: true })).toBeVisible();
+  await expect(notificationTrigger(page, 10)).toBeVisible();
+  expect(requests.patchCount()).toBe(0);
 });
+}
 
 test("View preserves notification routing without marking the notification read", async ({ page }) => {
   const requests = await prepareOwner(page, "dark");
   await notificationTrigger(page, 10).click();
-  await page.locator("#site-notifications-panel-desktop")
+  await page.locator("#site-notifications-panel")
     .getByRole("link", { name: "View", exact: true })
     .click();
   await expect(page).toHaveURL(/\/owner\/application$/);

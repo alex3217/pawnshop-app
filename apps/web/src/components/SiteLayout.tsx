@@ -473,7 +473,8 @@ export default function SiteLayout() {
               </span>
             </Link>
 
-            <div className="site-top-actions">
+            <div className="site-top-controls">
+              <div className="site-top-actions">
               <Link
                 to={dashboardHref}
                 className="site-role-badge"
@@ -499,7 +500,6 @@ export default function SiteLayout() {
 
               {role ? (
                 <>
-                  <NotificationCenter />
                   <Link
                     to={dashboardHref}
                     className="site-primary-button"
@@ -526,16 +526,15 @@ export default function SiteLayout() {
                   </Link>
                 </>
               )}
-            </div>
+              </div>
 
-            <div className="site-mobile-actions">
+              {role ? <NotificationCenter /> : null}
+
+              <div className="site-mobile-actions">
               {role ? (
-                <>
-                  <NotificationCenter placement="mobile" />
-                  <Link to={dashboardHref} className="site-mobile-account-link">
-                    Dashboard
-                  </Link>
-                </>
+                <Link to={dashboardHref} className="site-mobile-account-link">
+                  Dashboard
+                </Link>
               ) : (
                 <>
                   <Link to="/login" className="site-mobile-account-link">
@@ -604,6 +603,7 @@ export default function SiteLayout() {
                   ) : null}
                 </div>
               </details>
+              </div>
             </div>
           </div>
 
