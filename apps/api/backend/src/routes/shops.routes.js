@@ -7,6 +7,7 @@ import {
   myShops,
   createShop,
   updateShop,
+  getShopOnboardingProgress,
   completeShopOnboarding,
   getShopItems,
   getShopById,
@@ -103,6 +104,12 @@ router.put(
   authRequired,
   requireRole("OWNER", "ADMIN"),
   completeShopOnboarding,
+);
+router.get(
+  "/:id/onboarding/progress",
+  authRequired,
+  requireRole("OWNER", "ADMIN", "SUPER_ADMIN"),
+  getShopOnboardingProgress,
 );
 
 // Public detail routes

@@ -6,11 +6,14 @@ export const BUYER_PLAN_CODES = Object.freeze({
 });
 
 export const BUYER_SUBSCRIPTION_STATUSES = Object.freeze({
+  UNKNOWN: "UNKNOWN",
   ACTIVE: "ACTIVE",
   TRIALING: "TRIALING",
   PAST_DUE: "PAST_DUE",
   INCOMPLETE: "INCOMPLETE",
+  INCOMPLETE_EXPIRED: "INCOMPLETE_EXPIRED",
   CANCELED: "CANCELED",
+  PAUSED: "PAUSED",
 });
 
 export const DEFAULT_BUYER_PLAN = BUYER_PLAN_CODES.FREE;
@@ -51,10 +54,14 @@ function freezeFeatures(features) {
 }
 
 function toNumberOrNull(value) {
-  if (value === null) return null;
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  if (typeof value !== "number" && typeof value !== "string") return null;
   const num = Number(value);
-  return Number.isFinite(num) ? num : 0;
+  return Number.isFinite(num) ? num : null;
 }
+
+export const normalizeOptionalBuyerLimit = toNumberOrNull;
 
 function createBuyerPlan(config) {
   return Object.freeze({
@@ -64,6 +71,25 @@ function createBuyerPlan(config) {
     yearlyPriceCents: toNumberOrNull(config.yearlyPriceCents) ?? 0,
     maxSavedSearches: toNumberOrNull(config.maxSavedSearches),
     maxWatchlistItems: toNumberOrNull(config.maxWatchlistItems),
+    wishListLimit: toNumberOrNull(config.wishListLimit),
+    favoriteLimit: toNumberOrNull(config.favoriteLimit),
+    comparisonLimit: toNumberOrNull(config.comparisonLimit),
+    alertLevel: String(config.alertLevel || "basic").trim().toLowerCase(),
+    notificationPriority: String(config.notificationPriority || "standard").trim().toLowerCase(),
+    aiShoppingEnabled: Boolean(config.aiShoppingEnabled),
+    aiShoppingMonthlyLimit: toNumberOrNull(config.aiShoppingMonthlyLimit),
+    priceHistoryEnabled: Boolean(config.priceHistoryEnabled),
+    advancedSearchEnabled: Boolean(config.advancedSearchEnabled),
+    workspaceLevel: String(config.workspaceLevel || "fixed").trim().toLowerCase(),
+    workspaceCustomizationEnabled: Boolean(config.workspaceCustomizationEnabled),
+    collectionManagerEnabled: Boolean(config.collectionManagerEnabled),
+    collectionItemLimit: toNumberOrNull(config.collectionItemLimit),
+    marketIntelligenceLevel: String(config.marketIntelligenceLevel || "none").trim().toLowerCase(),
+    conciergeEnabled: Boolean(config.conciergeEnabled),
+    loyaltyEnabled: Boolean(config.loyaltyEnabled),
+    referralRewardsEnabled: Boolean(config.referralRewardsEnabled),
+    earlyInventoryAlertsEnabled: Boolean(config.earlyInventoryAlertsEnabled),
+    exclusiveDealsLevel: String(config.exclusiveDealsLevel || "none").trim().toLowerCase(),
     instantAlerts: Boolean(config.instantAlerts),
     advancedAutoBid: Boolean(config.advancedAutoBid),
     premiumDealAccess: Boolean(config.premiumDealAccess),

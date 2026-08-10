@@ -171,10 +171,14 @@ export function mapStripeSubscriptionStatus(status) {
       return "PAST_DUE";
 
     case "incomplete":
-    case "paused":
       return "INCOMPLETE";
 
     case "incomplete_expired":
+      return "INCOMPLETE_EXPIRED";
+
+    case "paused":
+      return "PAUSED";
+
     case "canceled":
     case "cancelled":
     case "unpaid":

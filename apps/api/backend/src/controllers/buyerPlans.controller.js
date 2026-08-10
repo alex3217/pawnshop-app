@@ -3,6 +3,8 @@ import {
   BUYER_PLAN_CODES,
   getBuyerPlanCatalog,
 } from "../services/platformPricingCatalog.service.js";
+import { getBuyerEntitlementsForUser } from "../services/buyerEntitlements.service.js";
+import { setAuthenticatedBuyerStripeCancellation } from "../services/buyerSelfServiceSubscription.service.js";
 
 const BUYER_SUBSCRIPTION_STATUSES = [
   "UNKNOWN",
@@ -110,7 +112,12 @@ async function requireBuyerSubscriptionModel() {
 
 export async function listAvailableBuyerPlans(_req, res) {
   try {
-    const plans = await getBuyerPlanCatalog();
+    const catalog = await getBuyerPlanCatalog();
+    const plans = catalog.map(({ stripeMonthlyPriceId, stripeYearlyPriceId, ...plan }) => ({
+      ...plan,
+      monthlyCheckoutConfigured: plan.isFree || Boolean(stripeMonthlyPriceId),
+      yearlyCheckoutConfigured: plan.isFree || Boolean(stripeYearlyPriceId),
+    }));
 
     return res.json({
       success: true,
@@ -144,11 +151,25 @@ export async function getMyBuyerSubscription(req, res) {
   }
 }
 
+export async function getMyBuyerPlanUsage(req, res) {
+  try {
+    const userId = req?.user?.sub;
+    if (!userId) return res.status(401).json({ success: false, error: "Unauthorized" });
+    return res.json({ success: true, ...(await getBuyerEntitlementsForUser(userId)) });
+  } catch (error) {
+    return sendError(res, error, "Failed to load buyer plan usage");
+  }
+}
+
 export async function upsertMyBuyerSubscription(req, res) {
   try {
     const userId = req?.user?.sub;
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    if (req?.user?.role === "CONSUMER") {
+      throw forbidden("Buyer plan changes require a verified billing or administrator workflow.");
     }
 
     await requireBuyerSubscriptionModel();
@@ -242,6 +263,24 @@ export async function cancelMyBuyerSubscription(req, res) {
   } catch (error) {
     return sendError(res, error);
   }
+}
+
+async function setMyStripeCancellation(req, res, cancelAtPeriodEnd) {
+  try {
+    const userId = req?.user?.sub;
+    if (!userId) return res.status(401).json({ success: false, error: "Unauthorized" });
+    return res.json({ success: true, ...(await setAuthenticatedBuyerStripeCancellation({ userId, cancelAtPeriodEnd })) });
+  } catch (error) {
+    return sendError(res, error, "Failed to update buyer subscription");
+  }
+}
+
+export function scheduleMyBuyerSubscriptionCancellation(req, res) {
+  return setMyStripeCancellation(req, res, true);
+}
+
+export function resumeMyBuyerSubscription(req, res) {
+  return setMyStripeCancellation(req, res, false);
 }
 
 export async function adminListBuyerSubscriptions(req, res) {

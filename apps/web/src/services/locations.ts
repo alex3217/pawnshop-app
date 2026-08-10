@@ -18,6 +18,7 @@ export type PawnShopLocation = {
   phone?: string | null;
   email?: string | null;
   hours?: string | null;
+  description?: string | null;
   staffCount?: number | null;
   inventoryCount?: number | null;
   itemCount?: number | null;
@@ -35,6 +36,7 @@ export type CreateLocationInput = {
   country?: string;
   phone?: string;
   hours?: string;
+  description?: string;
   email?: string;
 };
 

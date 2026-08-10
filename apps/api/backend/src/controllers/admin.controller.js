@@ -884,7 +884,11 @@ function serializeOwnerApplication(application) {
     ownerId: application.ownerId,
     status: application.status,
     businessName: application.businessName,
-    businessType: application.businessType,
+    businessType: application.businessType?.startsWith("OTHER: ")
+      ? `Other — ${application.businessType.slice(7)}`
+      : application.businessType?.includes("_")
+        ? `${application.businessType.replaceAll("_", " ")} (legacy)`
+        : application.businessType,
     businessEmail: application.businessEmail,
     businessPhone: application.businessPhone,
     websiteUrl: application.websiteUrl,
@@ -964,7 +968,7 @@ export async function listOwnerApplications(req, res) {
     );
 
     const where = {
-      ...(requestedStatus ? { status: requestedStatus } : {}),
+      status: requestedStatus || { not: "DRAFT" },
       ...(query
         ? {
             OR: [
@@ -1045,8 +1049,8 @@ export async function listOwnerApplications(req, res) {
 export async function getOwnerApplication(req, res) {
   try {
     const application =
-      await prisma.ownerApplication.findUnique({
-        where: { id: req.params.id },
+      await prisma.ownerApplication.findFirst({
+        where: { id: req.params.id, status: { not: "DRAFT" } },
         include: OWNER_APPLICATION_INCLUDE,
       });
 
@@ -1077,8 +1081,8 @@ export async function getOwnerApplicationReviewHistory(req, res) {
       ownerApplicationId: req.params.id,
     };
 
-    const application = await prisma.ownerApplication.findUnique({
-      where: { id: req.params.id },
+    const application = await prisma.ownerApplication.findFirst({
+      where: { id: req.params.id, status: { not: "DRAFT" } },
       select: { id: true },
     });
 
@@ -1156,8 +1160,8 @@ export async function updateOwnerApplicationStatus(req, res) {
     }
 
     const existing =
-      await prisma.ownerApplication.findUnique({
-        where: { id: req.params.id },
+      await prisma.ownerApplication.findFirst({
+        where: { id: req.params.id, status: { not: "DRAFT" } },
         include: OWNER_APPLICATION_INCLUDE,
       });
 

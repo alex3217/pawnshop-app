@@ -123,7 +123,8 @@
   gap: 1rem;
 }
 .owner-application__grid label { display: grid; gap: .35rem; font-weight: 600; }
-.owner-application__grid input {
+.owner-application__grid input,
+.owner-application__grid select {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--application-border);
@@ -132,6 +133,16 @@
   color: var(--application-text);
   background: var(--application-inset);
 }
+.owner-application__grid select { min-width: 0; white-space: normal; }
+.owner-application__grid label > span { overflow-wrap: anywhere; }
+.owner-application__grid label strong { color: var(--application-heading); font-size: .78rem; }
+.owner-application__grid label em { color: var(--application-muted); font-size: .78rem; font-style: normal; }
+.field-error { color: var(--danger, #b42318); font-size: .875rem; font-weight: 600; overflow-wrap: anywhere; }
+.owner-application__grid [aria-invalid="true"] { border-color: var(--danger, #b42318); outline: 1px solid var(--danger, #b42318); }
+.owner-application__error-summary { margin: 0 0 1rem; padding: .85rem 1rem; border: 2px solid var(--danger, #b42318); border-radius: 8px; background: color-mix(in srgb, var(--danger, #b42318) 8%, var(--application-inset)); }
+.owner-application__error-summary h3 { margin: 0 0 .35rem; color: var(--application-heading); }
+.owner-application__error-summary ul { margin: 0; padding-left: 1.25rem; }
+.owner-application__error-summary a { color: var(--application-text); overflow-wrap: anywhere; }
 .owner-application__actions {
   display: flex;
   gap: .75rem;
@@ -141,21 +152,6 @@
 .owner-application__actions .btn { text-align: center; }
 .form-error { color: var(--danger, #b42318); }
 .form-success { color: var(--success, #18733c); }
-.site-notifications { position: relative; }
-.site-notifications__panel {
-  position: absolute;
-  z-index: 20;
-  right: 0;
-  width: min(360px, 80vw);
-  padding: .75rem;
-  border: 1px solid var(--border-color, #d6dbe3);
-  border-radius: 10px;
-  background: var(--surface-color, #fff);
-  box-shadow: 0 10px 30px rgb(0 0 0 / .18);
-}
-.site-notifications__panel article + article { border-top: 1px solid var(--border-color, #ddd); margin-top: .75rem; padding-top: .75rem; }
-.site-notifications__panel p { margin: .35rem 0; }
-.site-notifications__panel article div { display: flex; gap: 1rem; }
 @media (max-width: 640px) {
   .owner-application__header { align-items: flex-start; }
   .owner-application__summary,

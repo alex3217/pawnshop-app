@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, Outlet } from "react-router-dom";
+import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import {
   getAuthRole,
   getAuthToken,
@@ -13,6 +13,7 @@ function statusLabel(status: string) {
 }
 
 export default function RequireApprovedOwner() {
+  const location = useLocation();
   const token = getAuthToken();
   const role = getAuthRole();
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -38,11 +39,8 @@ export default function RequireApprovedOwner() {
   }, [role, token]);
 
   if (!token || !role) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (role === "ADMIN") {
-    return <Outlet />;
+    const next = location.pathname + location.search;
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
   }
 
   if (role !== "OWNER") {

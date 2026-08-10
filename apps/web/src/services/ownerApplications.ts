@@ -27,6 +27,7 @@ export type OwnerApplication = {
   statusChangedAt: string | null;
   updatedAt: string | null;
   canEdit: boolean;
+  canSubmit: boolean;
   canResubmit: boolean;
 };
 
@@ -67,4 +68,8 @@ export async function resubmitMyOwnerApplication() {
       {},
     )
   ).application;
+}
+
+export async function submitMyOwnerApplication() {
+  return (await api.post<ApplicationResponse>("/owner-applications/me/submit", {})).application;
 }

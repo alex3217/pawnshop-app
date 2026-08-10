@@ -7,6 +7,9 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import type { Role } from "../../services/auth";
+import { getMyShops, getShopOnboardingProgress } from "../../services/shops";
+import { emptyOwnerReadiness, type OwnerReadinessItem, type OwnerReadinessSummary } from "../../services/ownerOnboardingReadiness";
+import { ownerSetupHref, selectActiveOwnerShopId, subscribeToActiveOwnerShop } from "../../services/ownerActiveShop";
 import "../../styles/role-setup-checklist.css";
 
 type RoleSetupChecklistProps = {
@@ -145,6 +148,8 @@ export default function RoleSetupChecklist({
   const [completed, setCompleted] = useState<string[]>(() =>
     activeRole ? readCompleted(activeRole) : [],
   );
+  const [ownerProgress, setOwnerProgress] = useState<OwnerReadinessSummary>(emptyOwnerReadiness);
+  const [ownerShopId, setOwnerShopId] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -163,6 +168,30 @@ export default function RoleSetupChecklist({
     if (!activeRole) return;
     setCompleted(readCompleted(activeRole));
     setIsOpen(false);
+  }, [activeRole]);
+
+  useEffect(() => {
+    if (activeRole !== "OWNER") return;
+    const controller = new AbortController();
+    const refresh = async (preferredShopId = "") => {
+      try {
+        const shops = await getMyShops(controller.signal);
+        const shopId = selectActiveOwnerShopId(shops, preferredShopId);
+        setOwnerShopId(shopId);
+        setOwnerProgress(shopId ? await getShopOnboardingProgress(shopId, controller.signal) : emptyOwnerReadiness());
+      } catch (error) {
+        if (!controller.signal.aborted) console.warn("[owner-setup] Unable to refresh progress", error);
+      }
+    };
+    const onRefresh = () => void refresh();
+    const unsubscribe = subscribeToActiveOwnerShop((shopId) => void refresh(shopId));
+    void refresh();
+    window.addEventListener("pawnloop:owner-setup-updated", onRefresh);
+    return () => {
+      controller.abort();
+      window.removeEventListener("pawnloop:owner-setup-updated", onRefresh);
+      unsubscribe();
+    };
   }, [activeRole]);
 
   useEffect(() => {
@@ -218,12 +247,14 @@ export default function RoleSetupChecklist({
 
   if (!activeRole) return null;
 
-  const completedCount = items.filter((item) =>
-    completed.includes(item.id),
-  ).length;
-  const progress = items.length
-    ? Math.round((completedCount / items.length) * 100)
-    : 0;
+  const displayedItems = activeRole === "OWNER" ? ownerProgress.items : items;
+  const completedCount = activeRole === "OWNER"
+    ? ownerProgress.completedCount
+    : items.filter((item) => completed.includes(item.id)).length;
+  const totalCount = activeRole === "OWNER" ? ownerProgress.totalCount : items.length;
+  const progress = activeRole === "OWNER"
+    ? ownerProgress.percentComplete
+    : totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
 
   function toggleItem(itemId: string) {
     setCompleted((current) => {
@@ -276,7 +307,7 @@ export default function RoleSetupChecklist({
                 {activeRole === "OWNER" ? "Owner setup" : "Buyer setup"}
               </span>
               <strong>
-                {completedCount} of {items.length} complete
+                {completedCount} of {totalCount} complete
               </strong>
             </div>
             <button
@@ -301,8 +332,9 @@ export default function RoleSetupChecklist({
             tabIndex={0}
             aria-label={`${activeRole === "OWNER" ? "Owner" : "Buyer"} setup checklist items`}
           >
-            {items.map((item) => {
-              const isComplete = completed.includes(item.id);
+            {displayedItems.map((item) => {
+              const ownerItem = activeRole === "OWNER" ? item as OwnerReadinessItem : null;
+              const isComplete = ownerItem ? ownerItem.complete : completed.includes(item.id);
               return (
                 <article
                   key={item.id}
@@ -312,23 +344,19 @@ export default function RoleSetupChecklist({
                       : "role-checklist-item"
                   }
                 >
-                  <button
-                    type="button"
-                    className="role-checklist-check"
-                    onClick={() => toggleItem(item.id)}
-                    aria-label={
-                      isComplete
-                        ? `Mark ${item.label} incomplete`
-                        : `Mark ${item.label} complete`
-                    }
-                  >
-                    {isComplete ? "✓" : ""}
-                  </button>
+                  {activeRole === "OWNER" ? (
+                    <span className="role-checklist-check" aria-hidden="true">{isComplete ? "✓" : ""}</span>
+                  ) : (
+                    <button type="button" className="role-checklist-check" onClick={() => toggleItem(item.id)} aria-label={isComplete ? `Mark ${item.label} incomplete` : `Mark ${item.label} complete`}>
+                      {isComplete ? "✓" : ""}
+                    </button>
+                  )}
                   <div>
-                    <Link to={item.href} onClick={closePanel}>
+                    <Link to={ownerItem ? ownerSetupHref(ownerItem.complete ? ownerItem.editHref : ownerItem.href, ownerShopId) : item.href} onClick={closePanel}>
                       {item.label}
                     </Link>
                     <p>{item.description}</p>
+                    {ownerItem ? <Link to={ownerSetupHref(isComplete ? ownerItem.editHref : ownerItem.href, ownerShopId)} onClick={closePanel}>{isComplete ? "Edit" : "Complete setup"}</Link> : null}
                   </div>
                 </article>
               );
@@ -357,9 +385,7 @@ export default function RoleSetupChecklist({
                 Navigation Assistance
               </button>
             ) : null}
-            <button type="button" onClick={resetChecklist}>
-              Reset
-            </button>
+            {activeRole !== "OWNER" ? <button type="button" onClick={resetChecklist}>Reset</button> : null}
           </div>
         </aside>
       ) : null}
@@ -379,7 +405,7 @@ export default function RoleSetupChecklist({
         }}
       >
         <span>{activeRole === "OWNER" ? "Owner setup" : "Buyer setup"}</span>
-        <strong>{completedCount}/{items.length}</strong>
+        <strong>{completedCount}/{totalCount}</strong>
       </button>
     </div>
   );

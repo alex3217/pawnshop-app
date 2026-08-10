@@ -3,6 +3,7 @@ import { API_BASE } from "../config";
 export type Role = "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
 
 export type OwnerApplicationStatus =
+  | "DRAFT"
   | "PENDING"
   | "IN_REVIEW"
   | "INFORMATION_REQUESTED"
@@ -75,6 +76,7 @@ function isOwnerApplicationStatus(
   value: unknown,
 ): value is OwnerApplicationStatus {
   return (
+    value === "DRAFT" ||
     value === "PENDING" ||
     value === "IN_REVIEW" ||
     value === "INFORMATION_REQUESTED" ||
@@ -307,6 +309,8 @@ async function requestAuth(
 
   const data = await parseJson<Record<string, unknown>>(res);
 
+  if (res.status === 401) handleAuthenticationFailure();
+
   if (!res.ok) {
     const message =
       typeof data?.error === "string"
@@ -354,6 +358,8 @@ export async function getCurrentUser(
     signal,
   });
   const data = await parseJson<Record<string, unknown>>(res);
+
+  if (res.status === 401) handleAuthenticationFailure();
 
   if (!res.ok) {
     throw new AuthRequestError(
@@ -487,6 +493,18 @@ export function clearAuth() {
   removeStoredValue(STORAGE_KEYS.adminToken);
   removeStoredValue(STORAGE_KEYS.superAdminToken);
   clearLegacyTokens();
+}
+
+let authenticationRedirectStarted = false;
+
+export function handleAuthenticationFailure() {
+  const hadAuthentication = Boolean(getStoredToken() || readStoredValue(STORAGE_KEYS.role));
+  clearAuth();
+  if (!hadAuthentication || authenticationRedirectStarted || typeof window === "undefined") return;
+  if (/^\/(login|register|forgot-password|reset-password)(\/|$)/.test(window.location.pathname)) return;
+  authenticationRedirectStarted = true;
+  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  window.location.replace(`/login?reason=session-expired&returnTo=${encodeURIComponent(returnTo)}`);
 }
 
 export function logout() {

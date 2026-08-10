@@ -21,6 +21,11 @@ import {
 import "../styles/owner-dashboard-readability.css";
 import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
 import { firstUsableImage } from "../utils/imageUrl";
+import OwnerLaunchReadiness from "../components/onboarding/OwnerLaunchReadiness";
+import { getShopOnboardingProgress } from "../services/shops";
+import { emptyOwnerReadiness, type OwnerReadinessSummary } from "../services/ownerOnboardingReadiness";
+import "../styles/owner-onboarding.css";
+import { selectActiveOwnerShopId, setActiveOwnerShopId } from "../services/ownerActiveShop";
 
 type Shop = {
   id: string;
@@ -383,6 +388,7 @@ export default function OwnerDashboardPage() {
   const [submissionOfferMessages, setSubmissionOfferMessages] = useState<Record<string, string>>({});
   const [selectedShopId, setSelectedShopId] = useState("");
   const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
+  const [setupProgress, setSetupProgress] = useState<OwnerReadinessSummary>(emptyOwnerReadiness);
 
   const [pageLoading, setPageLoading] = useState(true);
   const [entitlementsLoading, setEntitlementsLoading] = useState(false);
@@ -483,11 +489,7 @@ export default function OwnerDashboardPage() {
         setBuyerItemSubmissions(buyerSubmissionsJson);
 
         if (nextShops.length > 0) {
-          setSelectedShopId((prev) =>
-            prev && nextShops.some((shop) => shop.id === prev)
-              ? prev
-              : nextShops[0].id
-          );
+          setSelectedShopId(selectActiveOwnerShopId(nextShops));
         } else {
           setSelectedShopId("");
           setEntitlements(null);
@@ -533,6 +535,23 @@ export default function OwnerDashboardPage() {
 
     return () => controller.abort();
   }, [selectedShopId, loadEntitlements]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    if (!selectedShopId) {
+      setSetupProgress(emptyOwnerReadiness());
+      return () => controller.abort();
+    }
+    const refresh = () => void getShopOnboardingProgress(selectedShopId, controller.signal).then(setSetupProgress).catch((error) => {
+      if (!controller.signal.aborted) console.warn("[owner-dashboard] Unable to load setup progress", error);
+    });
+    refresh();
+    window.addEventListener("pawnloop:owner-setup-updated", refresh);
+    return () => {
+      controller.abort();
+      window.removeEventListener("pawnloop:owner-setup-updated", refresh);
+    };
+  }, [selectedShopId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -727,6 +746,8 @@ export default function OwnerDashboardPage() {
       {pageError ? <div style={styles.error}>{pageError}</div> : null}
       {entitlementsError ? <div style={styles.error}>{entitlementsError}</div> : null}
 
+      {selectedShopId ? <OwnerLaunchReadiness summary={setupProgress} shopId={selectedShopId} /> : null}
+
       {foundingProgram.enabled ? (
         <section
           style={{
@@ -741,8 +762,8 @@ export default function OwnerDashboardPage() {
           <h3 style={styles.sectionTitle}>{foundingProgram.headline}</h3>
           <p style={styles.subtitle}>{foundingProgram.subtitle}</p>
           <div style={styles.muted}>
-            {foundingProgram.trialDays} days free · first {foundingProgram.shopLimit} shops ·
-            free setup for {foundingProgram.freeUploadCount} items.
+            {foundingProgram.trialDays} days free · guided onboarding and help listing
+            your first {foundingProgram.freeUploadCount} inventory items.
           </div>
           <div style={styles.muted}>
             Trial starts after your profile is complete and {foundingProgram.minimumLiveItems} items are live.
@@ -856,7 +877,10 @@ export default function OwnerDashboardPage() {
               <label style={styles.label}>Selected shop</label>
               <select
                 value={selectedShopId}
-                onChange={(e) => setSelectedShopId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedShopId(e.target.value);
+                  setActiveOwnerShopId(e.target.value);
+                }}
                 style={styles.select}
                 disabled={shops.length === 0}
               >

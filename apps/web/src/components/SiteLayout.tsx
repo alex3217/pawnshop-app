@@ -123,6 +123,7 @@ const SUPER_ADMIN_PRIMARY_NAV: NavItem[] = [
 ];
 
 const SUPER_ADMIN_SECONDARY_NAV: NavItem[] = [
+  { to: "/super-admin/owner-applications", label: "Owner Applications" },
   { to: "/super-admin/training", label: "Training Content" },
   { to: "/super-admin/plans/seller", label: "Seller Plans" },
   { to: "/super-admin/seller-subscriptions", label: "Seller Subscriptions" },
@@ -472,7 +473,8 @@ export default function SiteLayout() {
               </span>
             </Link>
 
-            <div className="site-top-actions">
+            <div className="site-top-controls">
+              <div className="site-top-actions">
               <Link
                 to={dashboardHref}
                 className="site-role-badge"
@@ -498,7 +500,6 @@ export default function SiteLayout() {
 
               {role ? (
                 <>
-                  <NotificationCenter />
                   <Link
                     to={dashboardHref}
                     className="site-primary-button"
@@ -525,9 +526,11 @@ export default function SiteLayout() {
                   </Link>
                 </>
               )}
-            </div>
+              </div>
 
-            <div className="site-mobile-actions">
+              {role ? <NotificationCenter /> : null}
+
+              <div className="site-mobile-actions">
               {role ? (
                 <Link to={dashboardHref} className="site-mobile-account-link">
                   Dashboard
@@ -600,6 +603,7 @@ export default function SiteLayout() {
                   ) : null}
                 </div>
               </details>
+              </div>
             </div>
           </div>
 

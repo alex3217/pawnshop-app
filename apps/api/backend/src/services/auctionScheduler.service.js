@@ -124,7 +124,7 @@ export function startAuctionScheduler() {
     return schedulerTimer;
   }
 
-  if (process.env.AUCTION_SCHEDULER_ENABLED === "false") {
+  if (process.env.AUCTION_SCHEDULER_ENABLED !== "true") {
     console.log("[scheduler] Auction scheduler disabled by env.");
     return null;
   }

@@ -1,10 +1,14 @@
-import "dotenv/config";
-import bcrypt from "bcryptjs";
-import { validatePassword } from "../src/services/passwordPolicy.service.js";
-import { PrismaClient, Prisma } from "@prisma/client";
 import { assertDevDemoSeedAllowed } from "./lib/seed-environment-guard.mjs";
+import {
+  ensureDemoOwnerApproval,
+  loadConfiguredDemoUsers,
+  upsertDemoUser,
+} from "./lib/seed-demo-users.mjs";
+
+const configuredUsers = loadConfiguredDemoUsers({ env: process.env });
 
 assertDevDemoSeedAllowed(process.env);
+const { PrismaClient, Prisma } = await import("@prisma/client");
 const prisma = new PrismaClient();
 
 const now = new Date();
@@ -132,33 +136,6 @@ function buildData(modelName, overrides = {}) {
   return data;
 }
 
-async function upsertUser({ email, name, role, password }) {
-  validatePassword(password, { email });
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  const data = buildData("User", {
-    email,
-    name,
-    role,
-    isActive: true,
-    emailVerifiedAt: new Date(),
-    password: passwordHash,
-    passwordHash,
-    hashedPassword: passwordHash,
-  });
-
-  const existing = await prisma.user.findFirst({ where: { email } });
-
-  if (existing) {
-    const updateData = hasField("User", "authVersion")
-      ? { ...data, authVersion: { increment: 1 } }
-      : data;
-    return prisma.user.update({ where: { id: existing.id }, data: updateData });
-  }
-
-  return prisma.user.create({ data });
-}
-
 async function findOrCreate(modelName, where, input) {
   const delegateName = modelName[0].toLowerCase() + modelName.slice(1);
   const delegate = prisma[delegateName];
@@ -185,33 +162,11 @@ async function findOrCreate(modelName, where, input) {
 async function main() {
   console.log("===== Seed PawnLoop dev demo data =====");
 
-  const buyer = await upsertUser({
-    email: "buyer@pawn.local",
-    name: "Dev Buyer",
-    role: "CONSUMER",
-    password: "PawnLoop-Dev-Buyer-2026!",
-  });
-
-  const owner = await upsertUser({
-    email: "owner1@pawn.local",
-    name: "Dev Owner",
-    role: "OWNER",
-    password: "PawnLoop-Dev-Owner-2026!",
-  });
-
-  const admin = await upsertUser({
-    email: "admin1@example.com",
-    name: "Dev Admin",
-    role: "ADMIN",
-    password: "PawnLoop-Dev-Admin-2026!",
-  });
-
-  const superAdmin = await upsertUser({
-    email: "superadmin1@example.com",
-    name: "Dev Super Admin",
-    role: "SUPER_ADMIN",
-    password: "PawnLoop-Dev-SuperAdmin-2026!",
-  });
+  const users = {};
+  for (const user of configuredUsers) {
+    users[user.key] = await upsertDemoUser({ prisma, user, buildData, hasField });
+  }
+  const { buyer, owner, admin, superAdmin } = users;
 
   console.log("✅ Users ready:", {
     buyer: buyer.email,
@@ -284,6 +239,14 @@ async function main() {
   }
 
   console.log(`✅ Shops ready: ${shops.length}`);
+
+  await ensureDemoOwnerApproval({
+    prisma,
+    owner,
+    shop: shops[0],
+    reviewedAt: now,
+  });
+  console.log("✅ Demo owner approval ready.");
 
   const itemTemplates = [
     ["Sony PlayStation 5 Console Bundle", "Gaming", "Like New", 39900],

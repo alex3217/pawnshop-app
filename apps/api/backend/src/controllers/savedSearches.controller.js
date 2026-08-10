@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { createSavedSearchWithinCapacity } from "../services/buyerEntitlements.service.js";
 
 function sendError(res, error, fallback = "Internal server error") {
   const status =
@@ -48,12 +49,7 @@ export async function addSavedSearch(req, res) {
       return res.status(400).json({ success: false, error: "query is required" });
     }
 
-    const row = await prisma.savedSearch.create({
-      data: {
-        userId,
-        query,
-      },
-    });
+    const row = await createSavedSearchWithinCapacity({ userId, query });
 
     return res.status(201).json(row);
   } catch (error) {

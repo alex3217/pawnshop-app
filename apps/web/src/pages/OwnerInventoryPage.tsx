@@ -443,7 +443,7 @@ export default function OwnerInventoryPage() {
         </div>
       </section>
 
-      <section style={styles.controlBar}>
+      <section id="inventory-list" style={styles.controlBar}>
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}

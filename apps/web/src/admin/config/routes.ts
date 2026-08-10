@@ -190,6 +190,13 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     group: "super-admin-core",
   }),
   route({
+    key: "superAdminOwnerApplications",
+    path: "/super-admin/owner-applications",
+    label: "Owner Applications",
+    permissions: ["admin:owners:read"],
+    group: "super-admin-core",
+  }),
+  route({
     key: "superAdminShops",
     path: "/super-admin/shops",
     label: "Shop Management",

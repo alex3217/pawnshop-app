@@ -3,17 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { selectActiveOwnerShopId, setActiveOwnerShopId } from "../services/ownerActiveShop";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { getAuthToken } from "../services/auth";
 import { requestListingAssistant, type AiListingSuggestion } from "../services/aiListingAssistant";
 import {
-  createItem,
   scanItem,
   type ScanIntakeDestination,
   type ScanIntakeSource,
   type ScanPayload,
   type ScanResult,
 } from "../services/items";
+import {
+  createItemPageController,
+} from "../services/ownerPhotoWorkflows";
 import { getMyShops, type Shop } from "../services/shops";
 import "../styles/owner-workspace-readability.css";
 
@@ -166,6 +169,9 @@ export default function CreateItemPage() {
   const [aiSuggestion, setAiSuggestion] = useState<AiListingSuggestion | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [recoverableItemId, setRecoverableItemId] = useState("");
+  const recoveryControllerRef = useRef(createItemPageController());
 
   const selectedShop = useMemo(
     () => shops.find((shop) => shop.id === pawnShopId) ?? null,
@@ -213,13 +219,7 @@ export default function CreateItemPage() {
         setShops(rows);
 
         setPawnShopId((prev) => {
-          const preferredId = prefill.pawnShopId || prev;
-
-          if (preferredId && rows.some((shop) => shop.id === preferredId)) {
-            return preferredId;
-          }
-
-          return rows[0]?.id || "";
+          return selectActiveOwnerShopId(rows, prefill.pawnShopId || prev);
         });
 
         if (rows.length === 0) {
@@ -474,30 +474,39 @@ export default function CreateItemPage() {
       return;
     }
 
-    setSaving(true);
-
     try {
       const parsedPrice = parsePositiveNumber(price, "Price");
-
-      await createItem({
+      const submission = recoveryControllerRef.current.startSubmission({
         pawnShopId,
         title: title.trim(),
         description: description.trim(),
         price: parsedPrice,
-        images: [],
         category,
         condition,
+      }, photoFiles, {
+        onSuccess() {
+          window.dispatchEvent(new CustomEvent("pawnloop:owner-setup-updated"));
+          nav("/owner/inventory");
+        },
+        onRecovery(recovery) {
+          setRecoverableItemId(recovery.recoverableItemId);
+        },
+        onSubmissionComplete() {
+          setSaving(false);
+        },
       });
-
-      nav("/owner/inventory");
+      if (!submission.started) return;
+      setSaving(true);
+      await submission.completion;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create item");
-    } finally {
       setSaving(false);
     }
   }
 
   function clearPrefill() {
+    const recovery = recoveryControllerRef.current.clearPrefill();
+    setRecoverableItemId(recovery.recoverableItemId);
     setTitle("");
     setDescription("");
     setPrice("100");
@@ -604,6 +613,19 @@ export default function CreateItemPage() {
             </p>
           </div>
 
+          <label style={fieldStyle}>
+            Item photos
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              disabled={saving}
+              onChange={(event) => setPhotoFiles(Array.from(event.target.files || []).slice(0, 10))}
+            />
+            <span className="muted">JPEG, PNG, or WebP. Up to 10 files and 10 MiB each.</span>
+            {photoFiles.length ? <span className="muted">{photoFiles.length} photo(s) selected.</span> : null}
+          </label>
+
           <Link className="btn" to="/owner/inventory">
             Back to Inventory
           </Link>
@@ -628,10 +650,14 @@ export default function CreateItemPage() {
               type="button"
               className="btn"
               onClick={clearPrefill}
+              disabled={Boolean(recoverableItemId) || saving}
               style={{ width: "fit-content" }}
             >
               Clear Prefill
             </button>
+            {recoverableItemId ? (
+              <span className="muted">Finish retrying photos for the saved item before clearing imported details.</span>
+            ) : null}
           </div>
         ) : null}
 
@@ -1002,13 +1028,17 @@ export default function CreateItemPage() {
           ) : null}
         </section>
 
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+        <form id="item-details" onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
           <label style={fieldStyle}>
             Shop
             <select
               value={pawnShopId}
-              onChange={(e) => setPawnShopId(e.target.value)}
-              disabled={loading || saving}
+              onChange={(e) => {
+                const shopId = recoveryControllerRef.current.selectShop(e.target.value);
+                setPawnShopId(shopId);
+                setActiveOwnerShopId(shopId);
+              }}
+              disabled={loading || saving || Boolean(recoverableItemId)}
               required
               style={inputStyle}
             >
@@ -1021,6 +1051,7 @@ export default function CreateItemPage() {
                 </option>
               ))}
             </select>
+            {recoverableItemId ? <span className="muted">Shop is locked while retrying photos for the saved item.</span> : null}
           </label>
 
           <label style={fieldStyle}>
@@ -1108,7 +1139,7 @@ export default function CreateItemPage() {
               cursor: submitDisabled ? "not-allowed" : "pointer",
             }}
           >
-            {saving ? "Creating Item..." : "Create Item"}
+            {saving ? "Saving item and photos..." : recoverableItemId ? "Retry photo upload" : "Create Item"}
           </button>
         </form>
       </div>

@@ -364,8 +364,8 @@ export default function RegisterPage() {
                     registered pawn shops.
                   </li>
                   <li>
-                    Free setup support for the first{" "}
-                    {foundingProgram.freeUploadCount} items.
+                    Guided onboarding and help listing your shop’s first{" "}
+                    {foundingProgram.freeUploadCount} inventory items.
                   </li>
                   <li>
                     Trial starts after your profile is complete

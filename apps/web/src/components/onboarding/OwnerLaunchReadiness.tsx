@@ -3,13 +3,16 @@ import { Link } from "react-router-dom";
 import type {
   OwnerReadinessSummary,
 } from "../../services/ownerOnboardingReadiness";
+import { ownerSetupHref } from "../../services/ownerActiveShop";
 
 type OwnerLaunchReadinessProps = {
   summary: OwnerReadinessSummary;
+  shopId: string;
 };
 
 export default function OwnerLaunchReadiness({
   summary,
+  shopId,
 }: OwnerLaunchReadinessProps) {
   const status = summary.launched
     ? {
@@ -111,8 +114,8 @@ export default function OwnerLaunchReadiness({
               <p>{item.description}</p>
             </div>
 
-            <Link to={item.href}>
-              {item.complete ? "Review" : "Complete"}
+            <Link to={ownerSetupHref(item.complete ? item.editHref : item.href, shopId)}>
+              {item.complete ? "Edit" : "Complete setup"}
             </Link>
           </li>
         ))}

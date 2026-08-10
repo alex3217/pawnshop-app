@@ -1,4 +1,5 @@
 import { api } from "./apiClient";
+import type { OwnerReadinessSummary } from "./ownerOnboardingReadiness";
 
 export type Shop = {
   id: string;
@@ -12,6 +13,8 @@ export type Shop = {
   phone?: string | null;
   description?: string | null;
   hours?: string | null;
+  logoUrl?: string | null;
+  bannerUrl?: string | null;
   ownerId?: string | null;
   onboardingCompletedAt?: string | null;
   createdAt?: string;
@@ -49,6 +52,11 @@ export type CreateShopInput = {
   phone?: string;
   description?: string;
   hours?: string;
+};
+
+export type UpdateShopInput = Partial<CreateShopInput> & {
+  logoUrl?: string | null;
+  bannerUrl?: string | null;
 };
 
 export function normalizeShops(data: unknown): Shop[] {
@@ -104,11 +112,30 @@ export async function createShop(
   );
 }
 
+export async function updateShop(
+  shopId: string,
+  input: UpdateShopInput,
+  signal?: AbortSignal,
+): Promise<Shop> {
+  if (!shopId) throw new Error("Missing shop id.");
+  return api.put<Shop>(`/shops/${encodeURIComponent(shopId)}`, input, { signal });
+}
+
 export async function completeShopOnboarding(
   shopId: string,
 ): Promise<CompleteShopOnboardingResponse> {
   return api.put<CompleteShopOnboardingResponse>(
     `/shops/${encodeURIComponent(shopId)}/onboarding/complete`,
+  );
+}
+
+export async function getShopOnboardingProgress(
+  shopId: string,
+  signal?: AbortSignal,
+): Promise<OwnerReadinessSummary> {
+  return api.get<OwnerReadinessSummary>(
+    `/shops/${encodeURIComponent(shopId)}/onboarding/progress`,
+    { signal },
   );
 }
 
