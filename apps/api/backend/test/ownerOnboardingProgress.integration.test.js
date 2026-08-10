@@ -16,7 +16,10 @@ function authenticated(httpRequest) {
 async function progress(shopId) {
   const response = await authenticated(request(app).get(`/api/shops/${shopId}/onboarding/progress`));
   assert.equal(response.status, 200, JSON.stringify(response.body));
-  return Object.fromEntries(response.body.items.map((item) => [item.id, item.complete]));
+  return {
+    ...response.body,
+    completionById: Object.fromEntries(response.body.items.map((item) => [item.id, item.complete])),
+  };
 }
 
 before(async () => {
@@ -60,9 +63,13 @@ test("all nine checklist destinations persist the facts used by progress", async
   const created = await authenticated(request(app).post("/api/shops")).send({ name: "Progress Shop" });
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const shopId = created.body.id;
-  let state = await progress(shopId);
+  let result = await progress(shopId);
+  let state = result.completionById;
   assert.equal(state["shop-created"], true);
   assert.equal(state["shop-name"], true);
+  assert.equal(state["seller-plan"], true, "default FREE plan should require no paid subscription record");
+  assert.equal(result.completedCount, 3);
+  assert.equal(result.totalCount, 9);
 
   for (const [field, itemId, value] of [
     ["address", "shop-address", "100 Progress Lane"],
@@ -72,7 +79,7 @@ test("all nine checklist destinations persist the facts used by progress", async
   ]) {
     const saved = await authenticated(request(app).patch(`/api/locations/${shopId}`)).send({ [field]: value });
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
-    state = await progress(shopId);
+    state = (await progress(shopId)).completionById;
     assert.equal(state[itemId], true, `${itemId} did not change after saving ${field}`);
   }
 
@@ -80,19 +87,19 @@ test("all nine checklist destinations persist the facts used by progress", async
     plan: "FREE", status: "ACTIVE", cancelAtPeriodEnd: false,
   });
   assert.equal(plan.status, 200, JSON.stringify(plan.body));
-  state = await progress(shopId);
+  state = (await progress(shopId)).completionById;
   assert.equal(state["seller-plan"], true);
 
   const staff = await authenticated(request(app).post("/api/staff")).send({
     shopId, email: `invite${DOMAIN}`, role: "SHOP_STAFF", permissions: ["inventory:read"],
   });
   assert.equal(staff.status, 201, JSON.stringify(staff.body));
-  state = await progress(shopId);
+  state = (await progress(shopId)).completionById;
   assert.equal(state.staff, true);
 
   const disabled = await authenticated(request(app).patch(`/api/staff/${staff.body.id}`)).send({ status: "INACTIVE" });
   assert.equal(disabled.status, 200, JSON.stringify(disabled.body));
-  state = await progress(shopId);
+  state = (await progress(shopId)).completionById;
   assert.equal(state.staff, false, "inactive staff must not complete setup");
   await authenticated(request(app).patch(`/api/staff/${staff.body.id}`)).send({ status: "INVITED" });
 
@@ -100,7 +107,10 @@ test("all nine checklist destinations persist the facts used by progress", async
     pawnShopId: shopId, title: "First persisted item", price: 100, images: [],
   });
   assert.equal(item.status, 201, JSON.stringify(item.body));
-  state = await progress(shopId);
+  result = await progress(shopId);
+  state = result.completionById;
   assert.equal(state.inventory, true);
   assert.equal(Object.values(state).filter(Boolean).length, 9);
+  assert.equal(result.completedCount, 9);
+  assert.equal(result.totalCount, 9);
 });
