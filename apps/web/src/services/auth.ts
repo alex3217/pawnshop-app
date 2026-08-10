@@ -3,6 +3,7 @@ import { API_BASE } from "../config";
 export type Role = "CONSUMER" | "OWNER" | "ADMIN" | "SUPER_ADMIN";
 
 export type OwnerApplicationStatus =
+  | "DRAFT"
   | "PENDING"
   | "IN_REVIEW"
   | "INFORMATION_REQUESTED"
@@ -75,6 +76,7 @@ function isOwnerApplicationStatus(
   value: unknown,
 ): value is OwnerApplicationStatus {
   return (
+    value === "DRAFT" ||
     value === "PENDING" ||
     value === "IN_REVIEW" ||
     value === "INFORMATION_REQUESTED" ||

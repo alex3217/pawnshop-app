@@ -114,6 +114,7 @@ model PaymentMethodConsent {
 }
 
 enum OwnerApplicationStatus {
+  DRAFT
   PENDING
   IN_REVIEW
   INFORMATION_REQUESTED
@@ -125,7 +126,7 @@ enum OwnerApplicationStatus {
 model OwnerApplication {
   id              String                 @id @default(cuid())
   ownerId         String                 @unique
-  status          OwnerApplicationStatus @default(PENDING)
+  status          OwnerApplicationStatus @default(DRAFT)
   businessName    String?
   businessType    String?
   businessEmail   String?
@@ -135,7 +136,7 @@ model OwnerApplication {
   licenseNumber   String?
   licenseState    String?
   applicationData Json?
-  submittedAt     DateTime               @default(now())
+  submittedAt     DateTime?
   reviewedAt      DateTime?
   reviewedById    String?
   decisionReason  String?

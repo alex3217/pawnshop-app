@@ -1075,11 +1075,11 @@ test("new blank owner applications use accessible standardized controls and vali
   await page.route("**/api/**", route => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/owner-applications/me") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: {
-      id: "blank-application", status: "PENDING", businessName: null, businessType: null,
+      id: "blank-application", status: "DRAFT", businessName: null, businessType: null,
       businessEmail: "owner@example.test", businessPhone: null, websiteUrl: null,
       businessAddress: null, licenseNumber: null, licenseState: null, submittedAt: null,
       reviewedAt: null, decisionReason: null, statusChangedAt: null, updatedAt: null,
-      canEdit: true, canResubmit: false,
+      canEdit: true, canSubmit: true, canResubmit: false,
     } }) });
     return route.fulfill({ status: 200, body: JSON.stringify({ success: true, notifications: [] }) });
   });
@@ -1094,11 +1094,72 @@ test("new blank owner applications use accessible standardized controls and vali
   await businessType.selectOption("Other");
   await expect(page.getByLabel(/Other business type/)).toBeVisible();
   await page.getByRole("button", { name: "Save corrections" }).click();
-  await expect(page.locator("#owner-application-errors")).toBeFocused();
-  await expect(page.getByText("Describe the other business type using at least 3 characters.").first()).toBeVisible();
+  await expect(page.locator("#owner-businessName")).toBeFocused();
+  await page.locator("#owner-application-errors a").first().click();
+  await expect(page.locator("#owner-businessName")).toBeFocused();
+  await expect(page.getByText(/Describe the other business type using 3 to/).first()).toBeVisible();
   const region = page.getByLabel(/^State \/ region/);
   await expect(region.locator("option")).toHaveCount(58);
   await expect(region.locator('option[value="DC"]')).toHaveCount(1);
   await expect(region.locator('option[value="PR"]')).toHaveCount(1);
   await expect(page.locator("body")).not.toHaveCSS("overflow-x", "scroll");
+});
+
+test("draft save and explicit submit preserve Other values and lock pending applications", async ({ page }) => {
+  await storeSession(page, "OWNER");
+  let status = "DRAFT";
+  let saved = { businessName: "", businessType: "", businessEmail: "owner@example.test", businessPhone: "", websiteUrl: "", businessAddress: null as Record<string, string> | null, licenseNumber: "", licenseState: "" };
+  const response = () => ({ id: "draft-1", status, ...saved, submittedAt: status === "DRAFT" ? null : "2026-08-10T01:00:00.000Z", reviewedAt: null, decisionReason: null, statusChangedAt: null, updatedAt: null, canEdit: status === "DRAFT", canSubmit: status === "DRAFT", canResubmit: false });
+  await page.route("**/api/**", async route => {
+    const request = route.request(); const url = new URL(request.url());
+    if (url.pathname === "/api/owner-applications/me" && request.method() === "PATCH") { saved = { ...saved, ...request.postDataJSON() }; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: response() }) }); }
+    if (url.pathname === "/api/owner-applications/me/submit") { status = "PENDING"; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: response() }) }); }
+    if (url.pathname === "/api/owner-applications/me") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: response() }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, notifications: [] }) });
+  });
+  await page.goto("/owner/application");
+  await page.getByLabel(/Legal business name/).fill("Loop Specialty Pawn");
+  await page.getByLabel(/Business type/).selectOption("Other");
+  await page.getByLabel(/Other business type/).fill("Estate collateral specialist");
+  await page.getByLabel(/Physical address/).fill("1 Main Street");
+  await page.getByLabel(/City/).fill("Chicago");
+  await page.getByLabel(/^State \/ region/).selectOption("IL");
+  await page.getByLabel(/Postal code/).fill("60601");
+  await expect(page.getByRole("button", { name: "Submit Application" })).toBeDisabled();
+  await page.getByRole("button", { name: "Save corrections" }).click();
+  await expect(page.getByText("Draft saved. You can now submit the application.")).toBeVisible();
+  expect(saved.businessType).toBe("OTHER: Estate collateral specialist");
+  await expect(page.getByLabel(/Business type/)).toHaveValue("Other");
+  await expect(page.getByLabel(/Other business type/)).toHaveValue("Estate collateral specialist");
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Submit Application" }).click();
+  await expect(page.getByText("Your application was submitted for review.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save corrections" })).toHaveCount(0);
+});
+
+test("legacy business types remain visibly identified without becoming Other", async ({ page }) => {
+  await storeSession(page, "OWNER");
+  await page.route("**/api/**", route => {
+    if (new URL(route.request().url()).pathname !== "/api/owner-applications/me") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, notifications: [] }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: { id: "legacy", status: "INFORMATION_REQUESTED", businessName: "Legacy Pawn", businessType: "PAWN_SHOP", businessEmail: "legacy@example.test", businessPhone: null, websiteUrl: null, businessAddress: { line1: "1 Main", city: "Chicago", state: "IL", postalCode: "60601", country: "US" }, licenseNumber: null, licenseState: null, submittedAt: "2026-01-01T00:00:00.000Z", reviewedAt: null, decisionReason: "Standardize the business type.", statusChangedAt: null, updatedAt: null, canEdit: true, canSubmit: false, canResubmit: true } }) });
+  });
+  await page.goto("/owner/application");
+  await expect(page.getByLabel(/Business type/)).toHaveValue("PAWN_SHOP");
+  await expect(page.getByLabel(/Business type/).locator('option[value="PAWN_SHOP"]')).toHaveText("Legacy value: PAWN_SHOP");
+  await expect(page.getByLabel(/Other business type/)).toHaveCount(0);
+});
+
+test("committed country changes prompt once and preserve independent saved regions", async ({ page }) => {
+  await storeSession(page, "OWNER");
+  await page.route("**/api/**", route => {
+    if (new URL(route.request().url()).pathname !== "/api/owner-applications/me") return route.fulfill({ status: 200, body: JSON.stringify({ success: true, notifications: [] }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: { id: "country-change", status: "INFORMATION_REQUESTED", businessName: "Loop Pawn", businessType: "Traditional Pawn Shop", businessEmail: "owner@example.test", businessPhone: null, websiteUrl: null, businessAddress: { line1: "1 Main", city: "Chicago", state: "IL", postalCode: "60601", country: "US" }, licenseNumber: "WI-1", licenseState: "WI", submittedAt: "2026-01-01T00:00:00.000Z", reviewedAt: null, decisionReason: "Confirm location.", statusChangedAt: null, updatedAt: null, canEdit: true, canSubmit: false, canResubmit: true } }) });
+  });
+  await page.goto("/owner/application");
+  let prompts = 0; page.on("dialog", dialog => { prompts += 1; void dialog.accept(); });
+  await page.getByLabel(/Country/).selectOption("CA");
+  await expect(page.getByLabel(/Country/)).toHaveValue("CA");
+  await expect(page.getByLabel(/^State \/ region/)).toHaveValue("IL");
+  await expect(page.getByLabel(/License state \/ region/)).toHaveValue("WI");
+  expect(prompts).toBe(1);
 });

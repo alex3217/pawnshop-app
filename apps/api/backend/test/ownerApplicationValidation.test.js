@@ -1,14 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { addressSchema, businessTypeSchema, US_REGION_CODES, validateLicenseRelationship } from "../src/validation/ownerApplication.js";
+import { addressSchema, businessTypeSchema, completeOwnerApplicationSchema, US_REGION_CODES, validateLicenseRelationship } from "../src/validation/ownerApplication.js";
 import { z } from "zod";
 
-test("accepts every canonical business type and meaningful custom values", () => {
-  for (const value of ["Traditional Pawn Shop", "Pawn and Jewelry", "Pawn and Firearms", "Auto/Title Pawn", "Online or Hybrid Pawn", "Multi-location Pawn Chain", "Estate collateral specialist"]) {
+test("accepts every canonical business type and prefixed Other values", () => {
+  for (const value of ["Traditional Pawn Shop", "Pawn and Jewelry", "Pawn and Firearms", "Auto/Title Pawn", "Online or Hybrid Pawn", "Multi-location Pawn Chain", "OTHER: Estate collateral specialist"]) {
     assert.equal(businessTypeSchema.safeParse(value).success, true, value);
   }
   assert.equal(businessTypeSchema.safeParse("Other").success, false);
   assert.equal(businessTypeSchema.safeParse("  ").success, false);
+});
+
+test("complete applications reject legacy types and unsupported countries", () => {
+  const valid = { businessName: "Loop Pawn", businessType: "Traditional Pawn Shop", businessEmail: "owner@example.test", businessPhone: null, websiteUrl: null, businessAddress: { line1: "1 Main", city: "Chicago", state: "IL", postalCode: "60601", country: "US" }, licenseNumber: null, licenseState: null };
+  assert.equal(completeOwnerApplicationSchema.safeParse(valid).success, true);
+  assert.equal(completeOwnerApplicationSchema.safeParse({ ...valid, businessType: "PAWN_SHOP" }).success, false);
+  assert.equal(completeOwnerApplicationSchema.safeParse({ ...valid, businessAddress: { ...valid.businessAddress, country: "ZZ" } }).success, false);
 });
 
 test("U.S. regions include 50 states, DC, Puerto Rico, and supported territories", () => {

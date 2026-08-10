@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { addressSchema, businessTypeSchema, optionalText, phoneSchema, validateLicenseRelationship, websiteSchema } from "../validation/ownerApplication.js";
+import { addressSchema, businessTypeSchema, optionalText, phoneSchema, validateCompleteApplication, validateLicenseRelationship, websiteSchema } from "../validation/ownerApplication.js";
 
 const applicationUpdateSchema = z
   .object({
@@ -68,8 +68,8 @@ function serializeApplicantApplication(application) {
     statusChangedAt: toIso(application.statusChangedAt),
     updatedAt: toIso(application.updatedAt),
     canEdit:
-      application.status === "INFORMATION_REQUESTED" ||
-      application.status === "PENDING",
+      application.status === "INFORMATION_REQUESTED" || application.status === "DRAFT",
+    canSubmit: application.status === "DRAFT",
     canResubmit: application.status === "INFORMATION_REQUESTED",
   };
 }
@@ -110,10 +110,9 @@ export async function updateMyOwnerApplication(req, res) {
     }
 
     const existing = await findOwnedApplication(ownerId);
-    const editablePending = existing.status === "PENDING";
-    if (existing.status !== "INFORMATION_REQUESTED" && !editablePending) {
+    if (existing.status !== "INFORMATION_REQUESTED" && existing.status !== "DRAFT") {
       const error = new Error(
-        "Application details can only be changed on a new blank application or when information is requested.",
+        "Application details can only be changed in draft or when information is requested.",
       );
       error.statusCode = 409;
       throw error;
@@ -152,6 +151,38 @@ export async function updateMyOwnerApplication(req, res) {
   }
 }
 
+function requireCompleteApplication(application) {
+  const parsed = validateCompleteApplication(application);
+  if (!parsed.success) {
+    const error = new Error("Complete all required application fields before submitting.");
+    error.statusCode = 400;
+    error.details = parsed.error.flatten();
+    throw error;
+  }
+}
+
+export async function submitMyOwnerApplication(req, res) {
+  try {
+    const ownerId = requireOwner(req);
+    if (Object.keys(req.body || {}).length) {
+      const error = new Error("Submission does not accept application fields. Save the draft first."); error.statusCode = 400; throw error;
+    }
+    const application = await prisma.$transaction(async transaction => {
+      await transaction.$queryRaw`SELECT "id" FROM "OwnerApplication" WHERE "ownerId" = ${ownerId} FOR UPDATE`;
+      const existing = await transaction.ownerApplication.findUnique({ where: { ownerId } });
+      if (!existing || existing.status !== "DRAFT") { const error = new Error("Only a draft application can be submitted."); error.statusCode = 409; throw error; }
+      requireCompleteApplication(existing);
+      const now = new Date();
+      const result = await transaction.ownerApplication.updateMany({ where: { id: existing.id, ownerId, status: "DRAFT" }, data: { status: "PENDING", submittedAt: now, statusChangedAt: now } });
+      if (result.count !== 1) { const error = new Error("Application was already submitted or changed. Refresh and try again."); error.statusCode = 409; throw error; }
+      return transaction.ownerApplication.findUnique({ where: { id: existing.id } });
+    });
+    return res.json({ success: true, application: serializeApplicantApplication(application) });
+  } catch (error) {
+    return sendError(res, error, "Failed to submit owner application.");
+  }
+}
+
 export async function resubmitMyOwnerApplication(req, res) {
   try {
     const ownerId = requireOwner(req);
@@ -169,9 +200,12 @@ export async function resubmitMyOwnerApplication(req, res) {
       error.statusCode = 409;
       throw error;
     }
-
     const now = new Date();
     const application = await prisma.$transaction(async (transaction) => {
+      await transaction.$queryRaw`SELECT "id" FROM "OwnerApplication" WHERE "id" = ${existing.id} FOR UPDATE`;
+      const locked = await transaction.ownerApplication.findUnique({ where: { id: existing.id } });
+      if (!locked || locked.status !== "INFORMATION_REQUESTED") { const error = new Error("Application was already resubmitted or changed. Refresh to see its current status."); error.statusCode = 409; throw error; }
+      requireCompleteApplication(locked);
       const result = await transaction.ownerApplication.updateMany({
         where: {
           id: existing.id,
@@ -215,7 +249,7 @@ export async function resubmitMyOwnerApplication(req, res) {
             userId: administrator.id,
             type: "OWNER_APPLICATION_RESUBMITTED",
             title: "Owner application resubmitted",
-            message: `${existing.businessName || "An owner"} submitted requested corrections.`,
+            message: `${locked.businessName || "An owner"} submitted requested corrections.`,
             actionUrl: "/admin/owner-applications",
             dedupeKey: `owner-application-resubmitted:${event.id}:${administrator.id}`,
           })),

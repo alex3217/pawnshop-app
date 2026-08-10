@@ -3,22 +3,28 @@ import { Link } from "react-router-dom";
 import {
   getMyOwnerApplication,
   resubmitMyOwnerApplication,
+  submitMyOwnerApplication,
   updateMyOwnerApplication,
   type OwnerApplication,
   type OwnerApplicationUpdate,
 } from "../services/ownerApplications";
 import "../styles/owner-application.css";
 import OwnerApplicationFields from "../components/OwnerApplicationFields";
-import { blankAddress, normalizePhone, normalizeWebsite, validateOwnerApplication, type FieldErrors } from "../utils/ownerApplicationFields";
+import { blankAddress, normalizePhone, normalizeWebsite, parseBusinessType, serializeBusinessType, validateOwnerApplication, type FieldErrors } from "../utils/ownerApplicationFields";
 
 const STATUS_COPY: Record<
   OwnerApplication["status"],
   { label: string; heading: string; next: string }
 > = {
+  DRAFT: {
+    label: "Draft",
+    heading: "Complete your application",
+    next: "Save complete business information, then submit the application for review.",
+  },
   PENDING: {
     label: "Pending",
     heading: "Application pending",
-    next: "Complete your business details. Your application will remain pending while the review team checks it.",
+    next: "No action is needed. Your submitted application is waiting to be reviewed.",
   },
   IN_REVIEW: {
     label: "In review",
@@ -65,9 +71,10 @@ function formatDate(value: string | null) {
 }
 
 function valuesFrom(application: OwnerApplication): OwnerApplicationUpdate {
+  const businessType = parseBusinessType(application.businessType);
   return {
     businessName: application.businessName || "",
-    businessType: application.businessType || "",
+    businessType: businessType.selection,
     businessEmail: application.businessEmail || "",
     businessPhone: application.businessPhone || "",
     websiteUrl: application.websiteUrl || "",
@@ -87,8 +94,10 @@ export default function OwnerApplicationPage() {
   const [message, setMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [customBusinessType, setCustomBusinessType] = useState("");
-  const initialForm = useMemo(() => application ? JSON.stringify(valuesFrom(application)) : "", [application]);
-  const dirty = !!application && JSON.stringify(form) !== initialForm;
+  const [legacyBusinessType, setLegacyBusinessType] = useState("");
+  const [savedValid, setSavedValid] = useState(false);
+  const initialForm = useMemo(() => application ? JSON.stringify({ form: valuesFrom(application), customBusinessType: parseBusinessType(application.businessType).explanation }) : "", [application]);
+  const dirty = !!application && JSON.stringify({ form, customBusinessType }) !== initialForm;
 
   function load() {
     const controller = new AbortController();
@@ -96,8 +105,12 @@ export default function OwnerApplicationPage() {
     setError("");
     getMyOwnerApplication(controller.signal)
       .then((next) => {
+        const businessType = parseBusinessType(next.businessType);
         setApplication(next);
         setForm(valuesFrom(next));
+        setCustomBusinessType(businessType.explanation);
+        setLegacyBusinessType(businessType.legacy);
+        setSavedValid(false);
       })
       .catch((reason: unknown) => {
         if (!(reason instanceof DOMException && reason.name === "AbortError")) {
@@ -122,7 +135,28 @@ export default function OwnerApplicationPage() {
   }, [dirty]);
 
   useEffect(() => {
-    if (Object.keys(fieldErrors).length) document.getElementById("owner-application-errors")?.focus();
+    const protectHistoryNavigation = () => {
+      if (dirty && !window.confirm("You have unsaved application changes. Leave this page and discard them?")) window.history.forward();
+    };
+    window.addEventListener("popstate", protectHistoryNavigation);
+    return () => window.removeEventListener("popstate", protectHistoryNavigation);
+  }, [dirty]);
+
+  useEffect(() => {
+    const protectSpaNavigation = (event: MouseEvent) => {
+      if (!dirty || event.defaultPrevented || event.button !== 0) return;
+      const anchor = (event.target as Element | null)?.closest("a[href]") as HTMLAnchorElement | null;
+      if (!anchor || anchor.origin !== window.location.origin) return;
+      if (anchor.pathname === window.location.pathname && anchor.search === window.location.search && anchor.hash) return;
+      if (!window.confirm("You have unsaved application changes. Leave this page and discard them?")) { event.preventDefault(); event.stopPropagation(); }
+    };
+    document.addEventListener("click", protectSpaNavigation, true);
+    return () => document.removeEventListener("click", protectSpaNavigation, true);
+  }, [dirty]);
+
+  useEffect(() => {
+    const first = Object.keys(fieldErrors)[0];
+    if (first) document.getElementById(`owner-${first}`)?.focus();
   }, [fieldErrors]);
 
   function updateAddress(key: string, value: string) {
@@ -148,13 +182,16 @@ export default function OwnerApplicationPage() {
       return;
     }
     setSaving(true);
+    const statusAtSave = application?.status;
     setError("");
     setMessage("");
     try {
-      const updated = await updateMyOwnerApplication({ ...form, businessType: form.businessType === "Other" ? customBusinessType.trim() : form.businessType, businessPhone: normalizePhone(form.businessPhone || ""), websiteUrl: normalizeWebsite(form.websiteUrl || "") });
+      const updated = await updateMyOwnerApplication({ ...form, businessType: serializeBusinessType(form.businessType, customBusinessType), businessPhone: normalizePhone(form.businessPhone || ""), websiteUrl: normalizeWebsite(form.websiteUrl || "") });
       setApplication(updated);
       setForm(valuesFrom(updated));
-      setMessage(application.status === "PENDING" ? "Business information saved." : "Corrections saved. Review them, then resubmit for review.");
+      const parsedType = parseBusinessType(updated.businessType);
+      setCustomBusinessType(parsedType.explanation); setLegacyBusinessType(parsedType.legacy); setSavedValid(true);
+      setMessage(statusAtSave === "DRAFT" ? "Draft saved. You can now submit the application." : "Corrections saved. Review them, then resubmit for review.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to save corrections.");
     } finally {
@@ -176,6 +213,14 @@ export default function OwnerApplicationPage() {
     } finally {
       setResubmitting(false);
     }
+  }
+
+  async function submit() {
+    if (!window.confirm("Submit this application for administrator review? You will not be able to edit it while it is pending.")) return;
+    setResubmitting(true); setError(""); setMessage("");
+    try { const updated = await submitMyOwnerApplication(); setApplication(updated); setForm(valuesFrom(updated)); setSavedValid(false); setMessage("Your application was submitted for review."); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to submit application."); }
+    finally { setResubmitting(false); }
   }
 
   if (loading) {
@@ -275,20 +320,22 @@ export default function OwnerApplicationPage() {
 
         {application.canEdit ? (
           <form className="owner-application__form" onSubmit={save}>
-          <h2>{application.status === "PENDING" ? "Complete business information" : "Make requested corrections"}</h2>
-          {Object.keys(fieldErrors).length ? <section id="owner-application-errors" className="owner-application__error-summary" role="alert" aria-labelledby="owner-error-heading" tabIndex={-1}><h3 id="owner-error-heading">Please correct these fields</h3><ul>{Object.entries(fieldErrors).map(([key, value]) => <li key={key}><a href={`#${key}-error`}>{value}</a></li>)}</ul></section> : null}
-          <OwnerApplicationFields value={form} errors={fieldErrors} customBusinessType={customBusinessType} disabled={disabled} onChange={setForm} onCustomBusinessTypeChange={setCustomBusinessType} onCountryChange={(country) => {
-            const savedRegion = form.businessAddress?.state?.trim();
-            if (savedRegion && !window.confirm("Changing country may make the saved state or region incompatible. Keep it until you select a replacement?")) return;
+          <h2>{application.status === "DRAFT" ? "Complete business information" : "Make requested corrections"}</h2>
+          {Object.keys(fieldErrors).length ? <section id="owner-application-errors" className="owner-application__error-summary" role="alert" aria-labelledby="owner-error-heading" tabIndex={-1}><h3 id="owner-error-heading">Please correct these fields</h3><ul>{Object.entries(fieldErrors).map(([key, value]) => <li key={key}><a href={`#owner-${key}`} onClick={(event) => { event.preventDefault(); document.getElementById(`owner-${key}`)?.focus(); }}>{value}</a></li>)}</ul></section> : null}
+          <OwnerApplicationFields value={form} errors={fieldErrors} customBusinessType={customBusinessType} legacyBusinessType={legacyBusinessType} disabled={disabled} onChange={(next) => { setForm(next); setSavedValid(false); setFieldErrors({}); }} onCustomBusinessTypeChange={(next) => { setCustomBusinessType(next); setSavedValid(false); setFieldErrors({}); }} onCountryChange={(country) => {
+            const hasSavedRegions = !!(form.businessAddress?.state?.trim() || form.licenseState?.trim());
+            if (hasSavedRegions && !window.confirm("Change country and keep the saved address and license regions until you choose compatible replacements?")) return;
             updateAddress("country", country);
+            setSavedValid(false); setFieldErrors({});
           }} />
           <div className="owner-application__actions">
             <button className="btn btn-secondary" disabled={disabled} type="submit">
               {saving ? "Saving…" : "Save corrections"}
             </button>
+            {application.canSubmit ? <button className="btn btn-primary" disabled={disabled || dirty || !savedValid} type="button" onClick={() => void submit()}>{resubmitting ? "Submitting…" : "Submit Application"}</button> : null}
             {application.canResubmit ? <button
               className="btn btn-primary"
-              disabled={disabled}
+              disabled={disabled || dirty || !savedValid}
               type="button"
               onClick={() => void resubmit()}
             >

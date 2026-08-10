@@ -77,12 +77,20 @@ async function createOwnerApplication({
       ownerApplication: {
         create: {
           status,
+          submittedAt: status === "DRAFT" ? null : new Date(),
           businessName:
             businessName ||
             prefix + " Pawn Shop",
           businessEmail: testEmail(prefix),
           businessPhone: "555-0100",
-          businessType: "PAWN_SHOP",
+          businessType: "Traditional Pawn Shop",
+          businessAddress: {
+            line1: "100 Test Avenue",
+            city: "Chicago",
+            state: "IL",
+            postalCode: "60601",
+            country: "US",
+          },
         },
       },
     },
@@ -1120,6 +1128,67 @@ test(
       });
 
     assert.equal(approve.status, 409);
+  },
+);
+
+test(
+  "administrators receive readable legacy and Other business type formatting",
+  async () => {
+    const admin = await createUser({ prefix: "type-format-admin", role: "SUPER_ADMIN" });
+    const legacy = await createOwnerApplication({ prefix: "type-format-legacy", status: "PENDING" });
+    await prisma.ownerApplication.update({ where: { id: legacy.application.id }, data: { businessType: "PAWN_SHOP" } });
+    const legacyDetail = await request(app).get(`/api/admin/owner-applications/${legacy.application.id}`).set("Authorization", authorizationFor(admin));
+    assert.equal(legacyDetail.status, 200); assert.equal(legacyDetail.body.application.businessType, "PAWN SHOP (legacy)");
+    await prisma.ownerApplication.update({ where: { id: legacy.application.id }, data: { businessType: "OTHER: Estate collateral specialist" } });
+    const otherDetail = await request(app).get(`/api/admin/owner-applications/${legacy.application.id}`).set("Authorization", authorizationFor(admin));
+    assert.equal(otherDetail.body.application.businessType, "Other — Estate collateral specialist");
+  },
+);
+
+test(
+  "draft applications are owner-editable, admin-invisible, and submit exactly once",
+  async () => {
+    const result = await createOwnerApplication({ prefix: "draft-lifecycle", status: "DRAFT" });
+    const admin = await createUser({ prefix: "draft-admin", role: "ADMIN" });
+    const queue = await request(app).get("/api/admin/owner-applications").set("Authorization", authorizationFor(admin));
+    assert.equal(queue.status, 200);
+    assert.equal(queue.body.rows.some(row => row.id === result.application.id), false);
+    const detail = await request(app).get(`/api/admin/owner-applications/${result.application.id}`).set("Authorization", authorizationFor(admin));
+    assert.equal(detail.status, 404);
+
+    const update = await request(app).patch("/api/owner-applications/me").set("Authorization", authorizationFor(result.owner)).send({ businessName: "Draft Loop Pawn" });
+    assert.equal(update.status, 200);
+    assert.equal(update.body.application.canSubmit, true);
+    const submit = await request(app).post("/api/owner-applications/me/submit").set("Authorization", authorizationFor(result.owner)).send({});
+    assert.equal(submit.status, 200);
+    assert.equal(submit.body.application.status, "PENDING");
+    assert.ok(submit.body.application.submittedAt);
+    const locked = await request(app).patch("/api/owner-applications/me").set("Authorization", authorizationFor(result.owner)).send({ businessName: "Too late" });
+    assert.equal(locked.status, 409);
+    const duplicate = await request(app).post("/api/owner-applications/me/submit").set("Authorization", authorizationFor(result.owner)).send({});
+    assert.equal(duplicate.status, 409);
+  },
+);
+
+test(
+  "submission and resubmission reject incomplete persisted applications without side effects",
+  async () => {
+    const draft = await createOwnerApplication({ prefix: "incomplete-draft", status: "DRAFT" });
+    await prisma.ownerApplication.update({ where: { id: draft.application.id }, data: { businessAddress: null } });
+    const submit = await request(app).post("/api/owner-applications/me/submit").set("Authorization", authorizationFor(draft.owner)).send({});
+    assert.equal(submit.status, 400);
+    const unchangedDraft = await prisma.ownerApplication.findUnique({ where: { id: draft.application.id } });
+    assert.equal(unchangedDraft.status, "DRAFT"); assert.equal(unchangedDraft.submittedAt, null);
+
+    const requested = await createOwnerApplication({ prefix: "incomplete-resubmit", status: "INFORMATION_REQUESTED" });
+    const originalSubmittedAt = requested.application.submittedAt;
+    await prisma.ownerApplication.update({ where: { id: requested.application.id }, data: { businessName: null } });
+    const resubmit = await request(app).post("/api/owner-applications/me/resubmit").set("Authorization", authorizationFor(requested.owner)).send({});
+    assert.equal(resubmit.status, 400);
+    const unchanged = await prisma.ownerApplication.findUnique({ where: { id: requested.application.id } });
+    assert.equal(unchanged.status, "INFORMATION_REQUESTED"); assert.equal(unchanged.submittedAt.getTime(), originalSubmittedAt.getTime());
+    assert.equal(await prisma.ownerApplicationResubmission.count({ where: { ownerApplicationId: requested.application.id } }), 0);
+    assert.equal(await prisma.notification.count({ where: { type: "OWNER_APPLICATION_RESUBMITTED" } }), 0);
   },
 );
 

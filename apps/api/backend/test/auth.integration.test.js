@@ -344,7 +344,7 @@ test("unverified login is rejected and verified login remains successful", async
   assert.equal(typeof verified.body.token, "string");
 });
 
-test("OWNER registration creates a pending application and verification does not approve a shop", async () => {
+test("OWNER registration creates a draft application and verification does not approve a shop", async () => {
   const registration = await registerUser({
     userEmail: email("owner"),
     role: "OWNER",
@@ -364,7 +364,7 @@ test("OWNER registration creates a pending application and verification does not
   assert.equal(registeredOwner.role, "OWNER");
   assert.equal(
     registeredOwner.ownerApplication.status,
-    "PENDING",
+    "DRAFT",
   );
   assert.equal(
     registeredOwner.ownerApplication.businessEmail,
@@ -374,6 +374,7 @@ test("OWNER registration creates a pending application and verification does not
     registeredOwner.ownerApplication.reviewedAt,
     null,
   );
+  assert.equal(registeredOwner.ownerApplication.submittedAt, null);
   assert.deepEqual(registeredOwner.shops, []);
 
   const response = await verifyLatestEmail();
@@ -390,7 +391,7 @@ test("OWNER registration creates a pending application and verification does not
   assert.ok(verifiedOwner.emailVerifiedAt instanceof Date);
   assert.equal(
     verifiedOwner.ownerApplication.status,
-    "PENDING",
+    "DRAFT",
   );
   assert.deepEqual(verifiedOwner.shops, []);
 });
@@ -539,7 +540,7 @@ test("authenticated verified users can load their profile", async () => {
   );
 });
 
-test("authenticated owners receive their pending application status through auth me", async () => {
+test("authenticated owners receive their draft application status through auth me", async () => {
   await registerAndVerify({
     userEmail: email("owner-profile"),
     role: "OWNER",
@@ -562,7 +563,7 @@ test("authenticated owners receive their pending application status through auth
   assert.equal(response.body.user.role, "OWNER");
   assert.equal(
     response.body.user.ownerApplication.status,
-    "PENDING",
+    "DRAFT",
   );
   assert.equal(
     response.body.user.ownerApplication.reviewedAt,
