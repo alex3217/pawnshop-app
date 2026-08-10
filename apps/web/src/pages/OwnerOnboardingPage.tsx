@@ -107,6 +107,7 @@ function formatMoney(cents: number) {
 export default function OwnerOnboardingPage() {
   const [step, setStep] = useState(getInitialStep);
   const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShopId, setSelectedShopId] = useState("");
@@ -178,13 +179,12 @@ export default function OwnerOnboardingPage() {
       setLoading(true);
       setError("");
 
-      const [shopResult, planResult] = await Promise.allSettled([
-        getMyShops(controller.signal),
-        getSellerPlans(controller.signal),
-      ]);
+      try {
+        const [ownerShops, planPayload] = await Promise.all([
+          getMyShops(controller.signal),
+          getSellerPlans(controller.signal),
+        ]);
 
-      if (shopResult.status === "fulfilled") {
-        const ownerShops = shopResult.value;
         setShops(ownerShops);
 
         if (ownerShops.length > 0) {
@@ -198,12 +198,8 @@ export default function OwnerOnboardingPage() {
             setStep(2);
           }
         }
-      } else if (!controller.signal.aborted) {
-        setError("Unable to load your existing shops.");
-      }
 
-      if (planResult.status === "fulfilled") {
-        const normalized = normalizePlans(planResult.value);
+        const normalized = normalizePlans(planPayload);
         setPlans(normalized);
 
         if (
@@ -212,35 +208,42 @@ export default function OwnerOnboardingPage() {
         ) {
           setSelectedPlanCode(normalized[0].code);
         }
-      }
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          const checkout = url.searchParams.get("checkout");
+          const plan = url.searchParams.get("plan");
 
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        const checkout = url.searchParams.get("checkout");
-        const plan = url.searchParams.get("plan");
-
-        if (checkout === "success") {
-          setMessage(
-            `Subscription checkout completed${
-              plan ? ` for ${plan}` : ""
-            }. Continue your setup.`,
-          );
-        } else if (checkout === "cancelled") {
-          setMessage(
-            "Checkout was cancelled. No billing changes were made.",
+          if (checkout === "success") {
+            setMessage(
+              `Subscription checkout completed${
+                plan ? ` for ${plan}` : ""
+              }. Continue your setup.`,
+            );
+          } else if (checkout === "cancelled") {
+            setMessage(
+              "Checkout was cancelled. No billing changes were made.",
+            );
+          }
+        }
+      } catch (cause) {
+        if (!controller.signal.aborted) {
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Unable to load your owner setup.",
           );
         }
-      }
-
-      if (!controller.signal.aborted) {
-        setLoading(false);
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
     void loadOnboarding();
 
     return () => controller.abort();
-  }, [refreshReadiness]);
+  }, [loadAttempt, refreshReadiness]);
 
   async function submitShop(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -461,6 +464,19 @@ export default function OwnerOnboardingPage() {
       <main className="owner-onboarding-page">
         <section className="owner-onboarding-state">
           Loading your owner setup...
+        </section>
+      </main>
+    );
+  }
+
+  if (error && shops.length === 0) {
+    return (
+      <main className="owner-onboarding-page">
+        <section className="owner-onboarding-state" role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+            Try again
+          </button>
         </section>
       </main>
     );

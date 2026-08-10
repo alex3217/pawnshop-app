@@ -104,3 +104,35 @@ test("active seller subscription is not expired by an old period date", () => {
 
   assert.equal(getEffectivePlanCode(shop), "PRO");
 });
+
+test("FREE is effective without a paid subscription record", () => {
+  assert.equal(getEffectivePlanCode({ subscriptionPlan: "FREE" }), "FREE");
+  assert.equal(getEffectivePlanCode({}), "FREE");
+});
+
+test("active paid seller plans remain effective", () => {
+  for (const subscriptionPlan of ["PRO", "PREMIUM", "ULTRA"]) {
+    assert.equal(
+      getEffectivePlanCode({ subscriptionPlan, subscriptionStatus: "ACTIVE" }),
+      subscriptionPlan,
+    );
+  }
+});
+
+test("inactive paid subscriptions use the existing FREE fallback", () => {
+  for (const subscriptionStatus of ["CANCELED", "INCOMPLETE"]) {
+    assert.equal(
+      getEffectivePlanCode({ subscriptionPlan: "PREMIUM", subscriptionStatus }),
+      "FREE",
+    );
+  }
+});
+
+test("unknown seller plan values safely use the FREE fallback", () => {
+  for (const subscriptionPlan of ["", "ENTERPRISE", null, undefined]) {
+    assert.equal(
+      getEffectivePlanCode({ subscriptionPlan, subscriptionStatus: "ACTIVE" }),
+      "FREE",
+    );
+  }
+});
