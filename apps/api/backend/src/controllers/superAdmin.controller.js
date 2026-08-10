@@ -1638,6 +1638,7 @@ export async function updateSuperAdminSellerPlan(req, res) {
     if (!["DRAFT", "ACTIVE", "DISABLED", "ARCHIVED"].includes(status)) throw badRequest("Plan status is invalid.");
     if (["DISABLED", "ARCHIVED"].includes(status) && assignedShops > 0 && body.grandfatherExisting !== true && !body.scheduledMigrationAt) throw badRequest("Assigned plans require grandfathering or a scheduled migration before deactivation.");
     if (body.scheduledMigrationAt && Number.isNaN(new Date(body.scheduledMigrationAt).getTime())) throw badRequest("Scheduled migration date is invalid.");
+    if (body.scheduledMigrationAt && new Date(body.scheduledMigrationAt).getTime() <= Date.now()) throw badRequest("Scheduled migration date must be in the future.");
     const monthlyPriceCents = sellerPlanInteger(body.monthlyPriceCents ?? current.monthlyPriceCents, "Monthly price");
     const yearlyPriceCents = sellerPlanInteger(body.yearlyPriceCents ?? current.yearlyPriceCents, "Yearly price");
     const maxActiveListings = sellerPlanInteger(body.maxActiveListings ?? current.maxActiveListings, "Active-listing limit", true);
@@ -1645,11 +1646,14 @@ export async function updateSuperAdminSellerPlan(req, res) {
     const commissionBps = sellerPlanInteger(body.commissionBps ?? current.commissionBps, "Commission basis points");
     if (commissionBps > 10000) throw badRequest("Commission basis points cannot exceed 10000.");
     const trialDays = sellerPlanInteger(body.trialDays ?? 60, "Trial duration");
-    const stripeProductId = validateStripeReference(body.stripeProductId, "prod", "Stripe product ID");
-    const stripeMonthlyPriceId = validateStripeReference(body.stripeMonthlyPriceId, "price", "Monthly Stripe price ID");
-    const stripeYearlyPriceId = validateStripeReference(body.stripeYearlyPriceId, "price", "Yearly Stripe price ID");
     const prefix = `seller_plan_${code.toLowerCase()}`;
     const existingRules = await prisma.platformPricingRule.findMany({ where: { key: { startsWith: `${prefix}_` } }, orderBy: { updatedAt: "desc" } });
+    const existingLimitsRule = existingRules.find((rule) => rule.key.endsWith("_limits"));
+    const existingMetadata = existingLimitsRule?.metadata && typeof existingLimitsRule.metadata === "object" ? existingLimitsRule.metadata : {};
+    const stripeProductId = validateStripeReference(body.stripeProductId === undefined ? existingMetadata.stripeProductId : body.stripeProductId, "prod", "Stripe product ID");
+    const stripeMonthlyPriceId = validateStripeReference(body.stripeMonthlyPriceId === undefined ? current.stripeMonthlyPriceId : body.stripeMonthlyPriceId, "price", "Monthly Stripe price ID");
+    const stripeYearlyPriceId = validateStripeReference(body.stripeYearlyPriceId === undefined ? current.stripeYearlyPriceId : body.stripeYearlyPriceId, "price", "Yearly Stripe price ID");
+    if (code !== "FREE" && status === "ACTIVE" && (!stripeMonthlyPriceId || !stripeYearlyPriceId)) throw badRequest("Active paid seller plans require monthly and yearly Stripe Price IDs.");
     const currentVersion = existingRules[0]?.updatedAt?.toISOString?.() || "CONFIG";
     if (normalizeString(body.expectedVersion) !== currentVersion) throw createHttpError("This plan changed since it was loaded. Refresh and try again.", 409);
     const actorId = req.user?.sub || req.user?.id || null;
@@ -1660,7 +1664,7 @@ export async function updateSuperAdminSellerPlan(req, res) {
       await tx.platformPricingRule.upsert({ where: { key: `${prefix}_yearly` }, update: { ...base, label: `${metadata.label} yearly`, feeType: "FIXED_CENTS", amountCents: yearlyPriceCents, stripePriceId: stripeYearlyPriceId }, create: { ...base, key: `${prefix}_yearly`, label: `${metadata.label} yearly`, feeType: "FIXED_CENTS", amountCents: yearlyPriceCents, stripePriceId: stripeYearlyPriceId, createdByUserId: actorId } });
       await tx.platformPricingRule.upsert({ where: { key: `${prefix}_commission_bps` }, update: { ...base, label: `${metadata.label} commission`, feeType: "PERCENT_BPS", percentBps: commissionBps }, create: { ...base, key: `${prefix}_commission_bps`, label: `${metadata.label} commission`, feeType: "PERCENT_BPS", percentBps: commissionBps, createdByUserId: actorId } });
       await tx.platformPricingRule.upsert({ where: { key: `${prefix}_limits` }, update: { ...base, label: `${metadata.label} limits`, feeType: "FIXED_CENTS", amountCents: 0, metadata }, create: { ...base, key: `${prefix}_limits`, label: `${metadata.label} limits`, feeType: "FIXED_CENTS", amountCents: 0, metadata, createdByUserId: actorId } });
-      await tx.superAdminAuditLog.create({ data: platformConfigurationAuditData(req, "UPDATE_SELLER_PLAN", "seller-plans", code, { code, assignedShops, monthlyPriceCents, yearlyPriceCents, commissionBps, status, grandfatherExisting: metadata.grandfatherExisting, scheduledMigrationAt: metadata.scheduledMigrationAt }) });
+      await tx.superAdminAuditLog.create({ data: platformConfigurationAuditData(req, "UPDATE_SELLER_PLAN", "seller-plans", code, { code, assignedShops, monthlyPriceCents, yearlyPriceCents, commissionBps, status, stripeReferencesConfigured: code === "FREE" || Boolean(stripeMonthlyPriceId && stripeYearlyPriceId), grandfatherExisting: metadata.grandfatherExisting, scheduledMigrationAt: metadata.scheduledMigrationAt }) });
     });
     return getSuperAdminSellerPlans(req, res);
   } catch (error) { return sendError(res, error); }

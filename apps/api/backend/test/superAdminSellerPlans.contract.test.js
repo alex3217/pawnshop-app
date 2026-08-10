@@ -26,4 +26,7 @@ test("seller-plan mutations are SUPER_ADMIN protected, impact-aware, concurrent-
   assert.match(section, /UPDATE_SELLER_PLAN/);
   assert.match(controller, /function validateStripeReference/);
   assert.match(controller, /must be a valid/);
+  assert.match(section, /Active paid seller plans require monthly and yearly Stripe Price IDs/);
+  assert.match(section, /stripeReferencesConfigured/);
+  assert.match(section, /Scheduled migration date must be in the future/);
 });
