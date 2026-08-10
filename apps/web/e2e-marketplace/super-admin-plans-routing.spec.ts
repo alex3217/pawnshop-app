@@ -190,7 +190,7 @@ test("seller-plan page actions, dialogs, downloads, and pricing toggle work", as
   await page.goto("/super-admin/plans/seller");
 
   await expect(
-    page.getByRole("link", { name: "Seller Subscriptions" }),
+    page.getByLabel("Seller plan actions").getByRole("link", { name: "Seller Subscriptions" }),
   ).toHaveAttribute("href", "/super-admin/seller-subscriptions");
   await expect(
     page.getByRole("link", { name: "View audit history" }),
