@@ -314,8 +314,9 @@ export async function register(req, res) {
         await tx.ownerApplication.create({
           data: {
             ownerId: createdUser.id,
-            status: "PENDING",
+            status: "DRAFT",
             businessEmail: createdUser.email,
+            submittedAt: null,
           },
         });
       }
