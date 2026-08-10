@@ -141,21 +141,6 @@
 .owner-application__actions .btn { text-align: center; }
 .form-error { color: var(--danger, #b42318); }
 .form-success { color: var(--success, #18733c); }
-.site-notifications { position: relative; }
-.site-notifications__panel {
-  position: absolute;
-  z-index: 20;
-  right: 0;
-  width: min(360px, 80vw);
-  padding: .75rem;
-  border: 1px solid var(--border-color, #d6dbe3);
-  border-radius: 10px;
-  background: var(--surface-color, #fff);
-  box-shadow: 0 10px 30px rgb(0 0 0 / .18);
-}
-.site-notifications__panel article + article { border-top: 1px solid var(--border-color, #ddd); margin-top: .75rem; padding-top: .75rem; }
-.site-notifications__panel p { margin: .35rem 0; }
-.site-notifications__panel article div { display: flex; gap: 1rem; }
 @media (max-width: 640px) {
   .owner-application__header { align-items: flex-start; }
   .owner-application__summary,
