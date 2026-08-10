@@ -13,6 +13,7 @@ import { getMyLocations, updateLocation } from "../services/locations";
 import { getMyShops } from "../services/shops";
 import { updateShopBranding } from "../services/ownerPhotoWorkflows";
 import "../styles/owner-locations-readability.css";
+import { selectActiveOwnerShopId, setActiveOwnerShopId } from "../services/ownerActiveShop";
 
 type LocationRecord = {
   id: string;
@@ -20,6 +21,7 @@ type LocationRecord = {
   address: string;
   phone: string;
   hours: string;
+  description: string;
   staffCount: number;
   inventoryCount: number;
   status: string;
@@ -34,13 +36,14 @@ type ApiLocationRecord = Partial<{
   location: string;
   phone: string;
   hours: string;
+  description: string;
   staffCount: number;
   inventoryCount: number;
   itemCount: number;
   status: string;
 }>;
 
-type LocationEditForm = Pick<LocationRecord, "name" | "address" | "phone" | "hours">;
+type LocationEditForm = Pick<LocationRecord, "name" | "address" | "phone" | "hours" | "description">;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -63,6 +66,7 @@ function normalizeLocation(
     address: String(row.address || row.location || "Address not available"),
     phone: String(row.phone || "—"),
     hours: String(row.hours || "—"),
+    description: String(row.description || ""),
     staffCount: Number.isFinite(row.staffCount) ? Number(row.staffCount) : 0,
     inventoryCount: Number.isFinite(row.inventoryCount)
       ? Number(row.inventoryCount)
@@ -149,6 +153,7 @@ export default function OwnerLocationsPage() {
     address: "",
     phone: "",
     hours: "",
+    description: "",
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -183,15 +188,26 @@ export default function OwnerLocationsPage() {
     return () => controller.abort();
   }, [load]);
 
+  useEffect(() => {
+    if (loading || editingId || locations.length === 0 || !window.location.hash) return;
+    const queryShopId = new URLSearchParams(window.location.search).get("shopId") || "";
+    const shopId = selectActiveOwnerShopId(locations, queryShopId);
+    const location = locations.find((item) => item.id === shopId) || locations[0];
+    beginEditLocation(location);
+    window.requestAnimationFrame(() => document.querySelector(window.location.hash)?.scrollIntoView({ block: "center" }));
+  }, [editingId, loading, locations]);
+
   function beginEditLocation(location: LocationRecord) {
     setActionMessage("");
     setActionError("");
     setEditingId(location.id);
+    setActiveOwnerShopId(location.id);
     setEditForm({
       name: location.name || "",
       address: location.address || "",
       phone: location.phone === "—" ? "" : location.phone,
       hours: location.hours === "—" ? "" : location.hours,
+      description: location.description || "",
     });
     setLogoFile(null);
     setBannerFile(null);
@@ -205,6 +221,7 @@ export default function OwnerLocationsPage() {
       address: "",
       phone: "",
       hours: "",
+      description: "",
     });
     setLogoFile(null);
     setBannerFile(null);
@@ -226,12 +243,14 @@ export default function OwnerLocationsPage() {
       const address = editForm.address.trim();
       const phone = editForm.phone.trim();
       const hours = editForm.hours.trim();
+      const description = editForm.description.trim();
 
       await updateLocation(id, {
         name,
         address,
         phone,
         hours,
+        description,
       });
       if (logoFile || bannerFile) {
         await updateShopBranding(id, {}, logoFile, bannerFile);
@@ -247,6 +266,7 @@ export default function OwnerLocationsPage() {
                   address: address || "Address not available",
                   phone: phone || "—",
                   hours: hours || "—",
+                  description,
                 }
               : item,
           ),
@@ -257,6 +277,7 @@ export default function OwnerLocationsPage() {
       setLogoFile(null);
       setBannerFile(null);
       setActionMessage("Location details updated.");
+      window.dispatchEvent(new CustomEvent("pawnloop:owner-setup-updated"));
     } catch (err) {
       setActionError(
         err instanceof Error ? err.message : "Failed to update location.",
@@ -403,7 +424,7 @@ export default function OwnerLocationsPage() {
                     }}
                   >
                     <div style={styles.fieldGrid}>
-                      <label style={styles.fieldLabel}>
+                      <label id="shop-name" style={styles.fieldLabel}>
                         Location name
                         <input
                           value={editForm.name}
@@ -425,7 +446,7 @@ export default function OwnerLocationsPage() {
                         <input type="file" accept="image/jpeg,image/png,image/webp" disabled={savingId === location.id} onChange={(event) => setBannerFile(event.target.files?.[0] || null)} style={styles.input} />
                       </label>
 
-                      <label style={styles.fieldLabel}>
+                      <label id="shop-address" style={styles.fieldLabel}>
                         Address
                         <input
                           value={editForm.address}
@@ -438,8 +459,12 @@ export default function OwnerLocationsPage() {
                           style={styles.input}
                         />
                       </label>
+                      <label id="shop-description" style={styles.fieldLabel}>
+                        Shop description
+                        <textarea value={editForm.description} onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} style={styles.input} rows={4} />
+                      </label>
 
-                      <label style={styles.fieldLabel}>
+                      <label id="shop-phone" style={styles.fieldLabel}>
                         Phone
                         <input
                           value={editForm.phone}
@@ -453,7 +478,7 @@ export default function OwnerLocationsPage() {
                         />
                       </label>
 
-                      <label style={styles.fieldLabel}>
+                      <label id="shop-hours" style={styles.fieldLabel}>
                         Hours
                         <input
                           value={editForm.hours}

@@ -10,7 +10,7 @@ const FOUNDING_SHOP_PROGRAM_DEFAULTS = Object.freeze({
   proMonthlyPrice: 99,
   premiumMonthlyPrice: 199,
   headline: "60-Day Founding Shop Trial",
-  subtitle: "We help pawn shops build inventory before buyer traffic scales.",
+  subtitle: "Guided onboarding includes help listing your shop’s first 25 inventory items.",
 });
 
 const FOUNDING_SHOP_SETTING_MAP = Object.freeze({

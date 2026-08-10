@@ -1,4 +1,5 @@
 import { api } from "./apiClient";
+import type { OwnerReadinessSummary } from "./ownerOnboardingReadiness";
 
 export type Shop = {
   id: string;
@@ -125,6 +126,16 @@ export async function completeShopOnboarding(
 ): Promise<CompleteShopOnboardingResponse> {
   return api.put<CompleteShopOnboardingResponse>(
     `/shops/${encodeURIComponent(shopId)}/onboarding/complete`,
+  );
+}
+
+export async function getShopOnboardingProgress(
+  shopId: string,
+  signal?: AbortSignal,
+): Promise<OwnerReadinessSummary> {
+  return api.get<OwnerReadinessSummary>(
+    `/shops/${encodeURIComponent(shopId)}/onboarding/progress`,
+    { signal },
   );
 }
 
