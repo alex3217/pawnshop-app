@@ -170,6 +170,7 @@ export async function adminSetShopPlan(req, res) {
         subscriptionPlan: nextPlan,
         subscriptionStatus: nextStatus,
         subscriptionCurrentPeriodEnd: nextCurrentPeriodEnd,
+        subscriptionStartedAt: new Date(),
         cancelAtPeriodEnd: Boolean(cancelAtPeriodEnd),
       },
       select: {

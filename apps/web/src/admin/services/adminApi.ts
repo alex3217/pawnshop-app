@@ -1,7 +1,7 @@
 // File: apps/web/src/admin/services/adminApi.ts
 
 import { API_BASE } from "../../config";
-import { getAuthHeaders } from "../../services/auth";
+import { getAuthHeaders, handleAuthenticationFailure } from "../../services/auth";
 
 type Primitive = string | number | boolean | null | undefined;
 type JsonRecord = Record<string, unknown>;
@@ -893,6 +893,8 @@ async function adminRequest<T>(
   });
 
   const parsed = await parseJsonSafe<unknown>(res);
+
+  if (res.status === 401) handleAuthenticationFailure();
 
   if (!res.ok) {
     throw new Error(getErrorMessage(parsed, `Admin request failed (${res.status})`));

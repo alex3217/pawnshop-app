@@ -24,6 +24,7 @@ import {
   type StaffStatus,
 } from "../services/staff";
 import "../styles/owner-staff-readability.css";
+import { selectActiveOwnerShopId, setActiveOwnerShopId } from "../services/ownerActiveShop";
 
 type StatusFilter = "ALL" | "ACTIVE" | "INVITED" | "INACTIVE" | "ARCHIVED";
 type RoleFilter = "ALL" | StaffRole;
@@ -273,13 +274,9 @@ export default function OwnerStaffPage() {
         setStaff(normalizedStaff);
         setShops(shopRows);
 
-        setForm((current) => {
-          if (current.shopId || shopRows.length === 0) return current;
-          return {
-            ...current,
-            shopId: shopRows[0]?.id || "",
-          };
-        });
+        const queryShopId = new URLSearchParams(window.location.search).get("shopId") || "";
+        const activeShopId = selectActiveOwnerShopId(shopRows, queryShopId);
+        setForm((current) => ({ ...current, shopId: current.shopId || activeShopId }));
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed to load staff.");
@@ -612,7 +609,7 @@ export default function OwnerStaffPage() {
         </div>
       ) : null}
 
-      <form onSubmit={handleSubmit} style={styles.formCard}>
+      <form id="invite-staff" onSubmit={handleSubmit} style={styles.formCard}>
         <div>
           <div style={styles.sectionEyebrow}>
             {editingId ? "Edit staff access" : "Add staff access"}
@@ -631,7 +628,10 @@ export default function OwnerStaffPage() {
             Shop / Location
             <select
               value={form.shopId}
-              onChange={(event) => updateForm("shopId", event.target.value)}
+              onChange={(event) => {
+                updateForm("shopId", event.target.value);
+                setActiveOwnerShopId(event.target.value);
+              }}
               disabled={Boolean(editingId)}
               style={styles.select}
             >

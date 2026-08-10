@@ -1,5 +1,5 @@
 import { API_BASE } from "../config";
-import { clearAuth, getAuthHeaders } from "./auth";
+import { getAuthHeaders, handleAuthenticationFailure } from "./auth";
 
 export class ApiError extends Error {
   status: number;
@@ -73,7 +73,7 @@ async function request<T>(method: string, path: string, options: ApiOptions = {}
   const payload = await parseResponse(res);
 
   if (res.status === 401) {
-    clearAuth();
+    handleAuthenticationFailure();
   }
 
   if (!res.ok) {
@@ -82,6 +82,14 @@ async function request<T>(method: string, path: string, options: ApiOptions = {}
       res.status,
       payload,
     );
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    method !== "GET" &&
+    /^\/(shops|locations|staff|items|inventory-bulk|seller-plans)(\/|$)/.test(path)
+  ) {
+    window.dispatchEvent(new CustomEvent("pawnloop:owner-setup-updated"));
   }
 
   return payload as T;

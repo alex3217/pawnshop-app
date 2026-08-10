@@ -1,6 +1,7 @@
 // File: apps/web/src/pages/OwnerOnboardingPage.tsx
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -13,7 +14,7 @@ import {
   completeShopOnboarding,
   createShop,
   getMyShops,
-  getShopItems,
+  getShopOnboardingProgress,
   type Shop,
 } from "../services/shops";
 import {
@@ -21,15 +22,14 @@ import {
   getSellerPlans,
   updateShopSubscription,
 } from "../services/ownerWorkspace";
+import { inviteStaffMember } from "../services/staff";
 import {
-  getShopStaff,
-  inviteStaffMember,
-} from "../services/staff";
-import {
-  buildOwnerReadiness,
+  emptyOwnerReadiness,
+  type OwnerReadinessSummary,
 } from "../services/ownerOnboardingReadiness";
 
 import "../styles/owner-onboarding.css";
+import { selectActiveOwnerShopId, setActiveOwnerShopId } from "../services/ownerActiveShop";
 
 type SellerPlan = {
   code: string;
@@ -130,8 +130,7 @@ export default function OwnerOnboardingPage() {
   const [staffSubmitting, setStaffSubmitting] = useState(false);
   const [completionSubmitting, setCompletionSubmitting] = useState(false);
 
-  const [inventoryCount, setInventoryCount] = useState(0);
-  const [hasInvitedStaff, setHasInvitedStaff] = useState(false);
+  const [readiness, setReadiness] = useState<OwnerReadinessSummary>(emptyOwnerReadiness);
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -147,21 +146,15 @@ export default function OwnerOnboardingPage() {
     [plans, selectedPlanCode],
   );
 
-  const readiness = useMemo(
-    () =>
-      buildOwnerReadiness({
-        shop: selectedShop,
-        selectedPlanCode,
-        hasStaffInvite: hasInvitedStaff,
-        inventoryCount,
-      }),
-    [
-      selectedShop,
-      selectedPlanCode,
-      hasInvitedStaff,
-      inventoryCount,
-    ],
-  );
+  const refreshReadiness = useCallback(async (shopId: string, signal?: AbortSignal) => {
+    if (!shopId) {
+      setReadiness(emptyOwnerReadiness());
+      return;
+    }
+    const progress = await getShopOnboardingProgress(shopId, signal);
+    setReadiness(progress);
+    window.dispatchEvent(new CustomEvent("pawnloop:owner-setup-updated"));
+  }, []);
 
   function goToStep(nextStep: number) {
     const safeStep = Math.min(4, Math.max(1, nextStep));
@@ -195,10 +188,13 @@ export default function OwnerOnboardingPage() {
         setShops(ownerShops);
 
         if (ownerShops.length > 0) {
-          setSelectedShopId(ownerShops[0].id);
+          const requestedShopId = new URL(window.location.href).searchParams.get("shopId") || "";
+          const activeShopId = selectActiveOwnerShopId(ownerShops, requestedShopId);
+          setSelectedShopId(activeShopId);
+          await refreshReadiness(activeShopId, controller.signal);
 
           const requestedStep = getInitialStep();
-          if (requestedStep === 1) {
+          if (requestedStep === 1 && window.location.hash !== "#shop-profile") {
             setStep(2);
           }
         }
@@ -244,68 +240,7 @@ export default function OwnerOnboardingPage() {
     void loadOnboarding();
 
     return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedShopId) {
-      setInventoryCount(0);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    async function loadInventoryCount() {
-      try {
-        const result = await getShopItems(
-          selectedShopId,
-          controller.signal,
-        );
-
-        if (!controller.signal.aborted) {
-          setInventoryCount(result.items.length);
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setInventoryCount(0);
-        }
-      }
-    }
-
-    void loadInventoryCount();
-
-    return () => controller.abort();
-  }, [selectedShopId]);
-
-  useEffect(() => {
-    if (!selectedShopId) {
-      setHasInvitedStaff(false);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    async function loadStaffProgress() {
-      try {
-        const result = await getShopStaff(
-          selectedShopId,
-          { page: 1, pageSize: 1 },
-          controller.signal,
-        );
-
-        if (!controller.signal.aborted) {
-          setHasInvitedStaff(result.total > 0);
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setHasInvitedStaff(false);
-        }
-      }
-    }
-
-    void loadStaffProgress();
-
-    return () => controller.abort();
-  }, [selectedShopId]);
+  }, [refreshReadiness]);
 
   async function submitShop(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -333,6 +268,8 @@ export default function OwnerOnboardingPage() {
 
       setShops((current) => [created, ...current]);
       setSelectedShopId(created.id);
+      setActiveOwnerShopId(created.id);
+      await refreshReadiness(created.id);
       setMessage(`${created.name} was created successfully.`);
       goToStep(2);
     } catch (caught) {
@@ -404,6 +341,8 @@ export default function OwnerOnboardingPage() {
         cancelAtPeriodEnd: false,
       });
 
+      await refreshReadiness(selectedShopId);
+
       setMessage(`${planCode} plan selected.`);
       goToStep(3);
     } catch (caught) {
@@ -452,7 +391,7 @@ export default function OwnerOnboardingPage() {
         ],
       });
 
-      setHasInvitedStaff(true);
+      await refreshReadiness(selectedShopId);
       setMessage(`Invitation sent to ${email}.`);
       setStaffEmail("");
       setStaffName("");
@@ -502,6 +441,7 @@ export default function OwnerOnboardingPage() {
             : shop,
         ),
       );
+      await refreshReadiness(selectedShop.id);
       setMessage(
         "Shop onboarding is complete and saved to your shop account.",
       );
@@ -581,7 +521,7 @@ export default function OwnerOnboardingPage() {
       ) : null}
 
       {step === 1 ? (
-        <section className="owner-onboarding-card">
+        <section id="shop-profile" data-wizard-step="1" className="owner-onboarding-card">
           <div className="owner-onboarding-card-heading">
             <span>Step 1 of 4</span>
             <h2>Create your shop profile</h2>
@@ -597,9 +537,11 @@ export default function OwnerOnboardingPage() {
                 Use an existing shop
                 <select
                   value={selectedShopId}
-                  onChange={(event) =>
-                    setSelectedShopId(event.target.value)
-                  }
+                  onChange={(event) => {
+                    setSelectedShopId(event.target.value);
+                    setActiveOwnerShopId(event.target.value);
+                    void refreshReadiness(event.target.value);
+                  }}
                 >
                   {shops.map((shop) => (
                     <option key={shop.id} value={shop.id}>
@@ -692,7 +634,7 @@ export default function OwnerOnboardingPage() {
       ) : null}
 
       {step === 2 ? (
-        <section className="owner-onboarding-card">
+        <section id="seller-plan-step" data-wizard-step="2" className="owner-onboarding-card">
           <div className="owner-onboarding-card-heading">
             <span>Step 2 of 4</span>
             <h2>Choose your seller plan</h2>
@@ -778,7 +720,7 @@ export default function OwnerOnboardingPage() {
       ) : null}
 
       {step === 3 ? (
-        <section className="owner-onboarding-card">
+        <section id="staff-step" data-wizard-step="3" className="owner-onboarding-card">
           <div className="owner-onboarding-card-heading">
             <span>Step 3 of 4</span>
             <h2>Invite your first staff member</h2>
@@ -883,7 +825,7 @@ export default function OwnerOnboardingPage() {
       ) : null}
 
       {step === 4 ? (
-        <section className="owner-onboarding-card">
+        <section id="finish-setup-step" data-wizard-step="4" className="owner-onboarding-card">
           <div className="owner-onboarding-card-heading">
             <span>Step 4 of 4</span>
             <h2>Your owner workspace is ready</h2>
@@ -893,7 +835,7 @@ export default function OwnerOnboardingPage() {
             </p>
           </div>
 
-          <OwnerLaunchReadiness summary={readiness} />
+          <OwnerLaunchReadiness summary={readiness} shopId={selectedShopId} />
 
           <div className="owner-onboarding-next-links">
             <Link to="/owner/items/new">Add inventory</Link>

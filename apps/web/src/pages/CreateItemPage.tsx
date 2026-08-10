@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { selectActiveOwnerShopId, setActiveOwnerShopId } from "../services/ownerActiveShop";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { getAuthToken } from "../services/auth";
 import { requestListingAssistant, type AiListingSuggestion } from "../services/aiListingAssistant";
@@ -218,13 +219,7 @@ export default function CreateItemPage() {
         setShops(rows);
 
         setPawnShopId((prev) => {
-          const preferredId = prefill.pawnShopId || prev;
-
-          if (preferredId && rows.some((shop) => shop.id === preferredId)) {
-            return preferredId;
-          }
-
-          return rows[0]?.id || "";
+          return selectActiveOwnerShopId(rows, prefill.pawnShopId || prev);
         });
 
         if (rows.length === 0) {
@@ -490,6 +485,7 @@ export default function CreateItemPage() {
         condition,
       }, photoFiles, {
         onSuccess() {
+          window.dispatchEvent(new CustomEvent("pawnloop:owner-setup-updated"));
           nav("/owner/inventory");
         },
         onRecovery(recovery) {
@@ -1032,12 +1028,16 @@ export default function CreateItemPage() {
           ) : null}
         </section>
 
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+        <form id="item-details" onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
           <label style={fieldStyle}>
             Shop
             <select
               value={pawnShopId}
-              onChange={(e) => setPawnShopId(recoveryControllerRef.current.selectShop(e.target.value))}
+              onChange={(e) => {
+                const shopId = recoveryControllerRef.current.selectShop(e.target.value);
+                setPawnShopId(shopId);
+                setActiveOwnerShopId(shopId);
+              }}
               disabled={loading || saving || Boolean(recoverableItemId)}
               required
               style={inputStyle}

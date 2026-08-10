@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { calculateOwnerSetupProgress } from "../../../../../shared/ownerSetupChecklist.mjs";
 
 /**
  * Why this controller is defensive:
@@ -252,6 +253,66 @@ export async function updateShop(req, res) {
   }
 }
 
+async function loadOwnerSetupProgress(shopId, user, { hideForbidden = false } = {}) {
+  const actualColumns = await getPawnShopColumns();
+  const select = {
+    id: true,
+    name: true,
+    address: true,
+    phone: true,
+    description: true,
+    hours: true,
+    ownerId: true,
+    ...(actualColumns.has("isDeleted") ? { isDeleted: true } : {}),
+    ...(actualColumns.has("onboardingCompletedAt") ? { onboardingCompletedAt: true } : {}),
+    ...(actualColumns.has("subscriptionPlan") ? { subscriptionPlan: true } : {}),
+    ...(actualColumns.has("subscriptionStartedAt") ? { subscriptionStartedAt: true } : {}),
+  };
+  const shop = await prisma.pawnShop.findFirst({
+    where: await buildPawnShopWhere({ id: shopId }),
+    select,
+  });
+  if (!shop || shop.isDeleted) {
+    const error = new Error("Shop not found");
+    error.statusCode = 404;
+    throw error;
+  }
+  if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN" && shop.ownerId !== user.sub) {
+    const error = new Error(hideForbidden ? "Shop not found" : "Forbidden");
+    error.statusCode = hideForbidden ? 404 : 403;
+    throw error;
+  }
+  const [inventoryCount, staffCount] = await Promise.all([
+    prisma.item.count({ where: { pawnShopId: shop.id, isDeleted: false } }),
+    // The checklist promises an invitation, so both pending invitations and
+    // accepted active memberships count. Disabled/archived records do not.
+    prisma.staff.count({
+      where: { shopId: shop.id, status: { in: ["INVITED", "ACTIVE"] } },
+    }),
+  ]);
+  const hasText = (value) => typeof value === "string" && value.trim().length > 0;
+  return calculateOwnerSetupProgress({
+    shopCreated: true,
+    shopName: hasText(shop.name),
+    shopAddress: hasText(shop.address),
+    shopPhone: hasText(shop.phone),
+    shopHours: hasText(shop.hours),
+    shopDescription: hasText(shop.description),
+    sellerPlan: hasText(shop.subscriptionPlan) && Boolean(shop.subscriptionStartedAt),
+    staff: staffCount > 0,
+    inventory: inventoryCount > 0,
+    launched: Boolean(shop.onboardingCompletedAt),
+  });
+}
+
+export async function getShopOnboardingProgress(req, res) {
+  try {
+    return res.json(await loadOwnerSetupProgress(req.params.id, req.user));
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
 export async function completeShopOnboarding(req, res) {
   try {
     const userId = req?.user?.sub;
@@ -288,6 +349,15 @@ export async function completeShopOnboarding(req, res) {
 
     if (req.user.role !== "ADMIN" && shop.ownerId !== userId) {
       return res.status(404).json({ success: false, error: "Shop not found" });
+    }
+
+    const progress = await loadOwnerSetupProgress(shop.id, req.user, { hideForbidden: true });
+    if (!progress.readyToLaunch) {
+      return res.status(409).json({
+        success: false,
+        error: "Complete all required setup items before launching.",
+        progress,
+      });
     }
 
     if (shop.onboardingCompletedAt) {

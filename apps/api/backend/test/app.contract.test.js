@@ -374,6 +374,8 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
   const originalQueryRaw = prisma.$queryRaw;
   const originalFindFirst = prisma.pawnShop.findFirst;
   const originalUpdate = prisma.pawnShop.update;
+  const originalItemCount = prisma.item.count;
+  const originalStaffCount = prisma.staff.count;
   const originalOwnerApplicationFindUnique =
     prisma.ownerApplication.findUnique;
 
@@ -404,6 +406,7 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
         ownerId: "owner-onboarding-test",
         isDeleted: false,
         onboardingCompletedAt: null,
+        name: "Owner Shop", address: "1 Main", phone: "555-0100", hours: "9-5", description: "Local pawn shop", subscriptionPlan: "FREE", subscriptionStartedAt: completedAt,
       },
     ],
     [
@@ -413,6 +416,7 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
         ownerId: "other-owner-onboarding-test",
         isDeleted: false,
         onboardingCompletedAt: null,
+        name: "Other Shop", address: "2 Main", phone: "555-0200", hours: "9-5", description: "Local pawn shop", subscriptionPlan: "FREE", subscriptionStartedAt: completedAt,
       },
     ],
     [
@@ -422,6 +426,7 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
         ownerId: "owner-onboarding-test",
         isDeleted: true,
         onboardingCompletedAt: null,
+        name: "Deleted", address: "3 Main", phone: "555-0300", hours: "9-5", description: "Deleted", subscriptionPlan: "FREE", subscriptionStartedAt: completedAt,
       },
     ],
     [
@@ -431,6 +436,7 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
         ownerId: "owner-onboarding-test",
         isDeleted: false,
         onboardingCompletedAt: completedAt,
+        name: "Complete", address: "4 Main", phone: "555-0400", hours: "9-5", description: "Complete", subscriptionPlan: "FREE", subscriptionStartedAt: completedAt,
       },
     ],
   ]);
@@ -442,6 +448,7 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
       "id",
       "ownerId",
       "isDeleted",
+      "name", "address", "phone", "hours", "description", "subscriptionPlan", "subscriptionStartedAt",
       ...(includeOnboardingColumn ? ["onboardingCompletedAt"] : []),
     ].map((columnName) => ({ column_name: columnName }));
 
@@ -470,6 +477,8 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
         onboardingCompletedAt: updated.onboardingCompletedAt,
       };
     };
+    prisma.item.count = async () => 1;
+    prisma.staff.count = async () => 1;
 
     prisma.ownerApplication.findUnique = async () => {
       const error = new Error(
@@ -501,6 +510,16 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
       status: "APPROVED",
     });
     includeOnboardingColumn = true;
+
+    const progressResponse = await request(app)
+      .get("/api/shops/owner-shop/onboarding/progress")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(200);
+    assert.equal(progressResponse.body.completedCount, 9);
+    assert.equal(progressResponse.body.totalCount, 9);
+    assert.equal(progressResponse.body.readyToLaunch, true);
+    assert.equal(progressResponse.body.launched, false);
+    assert.equal(progressResponse.body.items.length, 9);
 
     const ownerResponse = await request(app)
       .put("/api/shops/owner-shop/onboarding/complete")
@@ -571,6 +590,8 @@ test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract"
     prisma.$queryRaw = originalQueryRaw;
     prisma.pawnShop.findFirst = originalFindFirst;
     prisma.pawnShop.update = originalUpdate;
+    prisma.item.count = originalItemCount;
+    prisma.staff.count = originalStaffCount;
     prisma.ownerApplication.findUnique =
       originalOwnerApplicationFindUnique;
   }

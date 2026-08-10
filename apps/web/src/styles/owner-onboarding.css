@@ -5,6 +5,22 @@
   color: #172033;
 }
 
+.owner-onboarding-page [id],
+.owner-launch-readiness [id] {
+  scroll-margin-top: 190px;
+}
+
+@media (max-width: 1024px) {
+  .owner-onboarding-page [id],
+  .owner-launch-readiness [id] { scroll-margin-top: 150px; }
+}
+
+@media (max-width: 767px) {
+  .owner-onboarding-page { padding-top: 12px; }
+  .owner-onboarding-page [id],
+  .owner-launch-readiness [id] { scroll-margin-top: 16px; }
+}
+
 .owner-onboarding-hero {
   display: flex;
   justify-content: space-between;

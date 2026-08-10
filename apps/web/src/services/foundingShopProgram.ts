@@ -23,7 +23,7 @@ export const DEFAULT_FOUNDING_SHOP_PROGRAM: FoundingShopProgramSettings = {
   proMonthlyPrice: 99,
   premiumMonthlyPrice: 199,
   headline: "60-Day Founding Shop Trial",
-  subtitle: "We help pawn shops build inventory before buyer traffic scales.",
+  subtitle: "Guided onboarding includes help listing your shop’s first 25 inventory items.",
 };
 
 export function buildFoundingShopProgramUrl(apiBase = API_BASE) {

@@ -18,6 +18,7 @@ import {
 } from "../services/ownerWorkspace";
 import "../styles/owner-subscription-readability.css";
 import { DEFAULT_FOUNDING_SHOP_PROGRAM, getFoundingShopProgramSettings } from "../services/foundingShopProgram";
+import { selectActiveOwnerShopId, setActiveOwnerShopId } from "../services/ownerActiveShop";
 
 type SellerPlan = {
   code: "FREE" | "PRO" | "PREMIUM" | "ULTRA" | string;
@@ -507,11 +508,7 @@ export default function OwnerSubscriptionPage() {
             ? queryShopId
             : "";
 
-        setSelectedShopId((prev) => {
-          if (selectedFromQuery) return selectedFromQuery;
-          if (prev && nextShops.some((shop) => shop.id === prev)) return prev;
-          return nextShops[0].id;
-        });
+        setSelectedShopId((prev) => selectActiveOwnerShopId(nextShops, selectedFromQuery || prev));
       } catch (err: unknown) {
         if ((err as Error)?.name === "AbortError") return;
 
@@ -699,7 +696,10 @@ export default function OwnerSubscriptionPage() {
               <label style={styles.label}>Shop</label>
               <select
                 value={selectedShopId}
-                onChange={(e) => setSelectedShopId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedShopId(e.target.value);
+                  setActiveOwnerShopId(e.target.value);
+                }}
                 style={styles.select}
                 disabled={pageLoading || !hasShops}
               >
@@ -766,7 +766,7 @@ export default function OwnerSubscriptionPage() {
               {foundingProgram.minimumLiveItems} items are live.
             </div>
             <div style={styles.planMeta}>
-              Free setup support for the first {foundingProgram.freeUploadCount} items.
+              Guided onboarding and help listing your shop’s first {foundingProgram.freeUploadCount} inventory items.
             </div>
             <div style={styles.planMeta}>
               After trial:{" "}
@@ -783,7 +783,7 @@ export default function OwnerSubscriptionPage() {
           <>
             {!hasShops ? (
               <div style={styles.card}>
-                <div style={styles.sectionLabel}>Seller Plans</div>
+                <div id="seller-plan" style={styles.sectionLabel}>Seller Plans</div>
                 <div style={styles.planName}>
                   Compare plans before creating your shop
                 </div>
@@ -906,7 +906,7 @@ export default function OwnerSubscriptionPage() {
             </div>
             )}
 
-            <div style={styles.billingIntervalPanel}>
+            <div id="seller-plan" style={styles.billingIntervalPanel}>
               <div>
                 <div style={styles.billingIntervalTitle}>
                   Choose your billing cycle
