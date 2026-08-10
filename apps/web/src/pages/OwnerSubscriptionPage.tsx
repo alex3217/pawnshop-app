@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
@@ -320,7 +321,9 @@ function getPlanButtonLabel(
 ) {
   const switchingKey = `${plan.code}:${billingInterval}`;
 
-  if (switchingPlan === switchingKey) return "Opening checkout...";
+  if (switchingPlan === switchingKey) {
+    return isPaidPlanCode(plan.code) ? "Opening checkout..." : "Updating plan...";
+  }
   if (plan.code === currentPlanCode) return "Current Plan";
 
   return isPaidPlanCode(plan.code)
@@ -372,6 +375,7 @@ export default function OwnerSubscriptionPage() {
   const [entitlementsLoading, setEntitlementsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [switchingPlan, setSwitchingPlan] = useState("");
+  const planActionInFlightRef = useRef(false);
   const [billingInterval, setBillingInterval] =
     useState<SellerBillingInterval>("MONTH");
 
@@ -591,11 +595,27 @@ export default function OwnerSubscriptionPage() {
   }, [loadEntitlements, selectedShopId]);
 
   async function switchPlan(planCode: string) {
-    if (!selectedShopId || !entitlements) return;
+    if (planActionInFlightRef.current) return;
+
+    if (!selectedShopId) {
+      setEntitlementsError("Select a shop before choosing a seller plan.");
+      return;
+    }
+
+    if (!entitlements) {
+      setEntitlementsError("Subscription details are not ready. Try refreshing the shop and select the plan again.");
+      return;
+    }
 
     const normalizedPlanCode = String(planCode || "").trim().toUpperCase();
     const selectedBillingInterval = billingInterval;
 
+    if (!["FREE", "PRO", "PREMIUM", "ULTRA"].includes(normalizedPlanCode)) {
+      setEntitlementsError("This seller plan is unavailable. Refresh the page and try again.");
+      return;
+    }
+
+    planActionInFlightRef.current = true;
     setSwitchingPlan(
       `${normalizedPlanCode}:${selectedBillingInterval}`,
     );
@@ -657,8 +677,16 @@ export default function OwnerSubscriptionPage() {
 
       setCheckoutMessage(`Plan updated to ${normalizedPlanCode}.`);
     } catch (err: unknown) {
-      setEntitlementsError(getErrorMessage(err, "Failed to switch plan"));
+      setEntitlementsError(
+        getErrorMessage(
+          err,
+          isPaidPlanCode(normalizedPlanCode)
+            ? "Unable to open Stripe checkout. Verify billing is configured and try again."
+            : "Unable to select the Free plan. Try again.",
+        ),
+      );
     } finally {
+      planActionInFlightRef.current = false;
       setSwitchingPlan("");
     }
   }

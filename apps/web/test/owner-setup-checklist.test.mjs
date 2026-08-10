@@ -31,3 +31,14 @@ test("owner setup surfaces use canonical API progress and action copy", async ()
   assert.match(client, /handleAuthenticationFailure/);
   assert.doesNotMatch(client, /res\.status === 403[\s\S]*handleAuthenticationFailure/);
 });
+
+test("owner onboarding stops loading and offers retry after an API failure", async () => {
+  const page = await readFile(
+    new URL("../src/pages/OwnerOnboardingPage.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(page, /finally\s*\{[\s\S]*setLoading\(false\)/);
+  assert.match(page, />\s*Try again\s*</);
+  assert.match(page, /setLoadAttempt\(\(attempt\) => attempt \+ 1\)/);
+});

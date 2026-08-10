@@ -17,6 +17,19 @@ const TEST_CATALOG = [
   },
 ];
 
+const ALL_PAID_PLAN_CATALOG = [
+  ["PRO", 4900],
+  ["PREMIUM", 14900],
+  ["ULTRA", 29900],
+].map(([code, monthlyPriceCents]) => ({
+  code,
+  monthlyPriceCents,
+  yearlyPriceCents: monthlyPriceCents * 10,
+  stripeMonthlyPriceId: `price_${code.toLowerCase()}_month`,
+  stripeYearlyPriceId: `price_${code.toLowerCase()}_year`,
+  currency: "USD",
+}));
+
 function createFakeStripe(price) {
   const calls = {
     retrieve: 0,
@@ -120,6 +133,31 @@ test("creates Checkout only after a valid Price passes", async () => {
       },
     ],
   );
+});
+
+test("PRO, PREMIUM, and ULTRA each create checkout with their configured price", async () => {
+  for (const plan of ALL_PAID_PLAN_CATALOG) {
+    const stripe = createFakeStripe(validMonthlyPrice({
+      id: plan.stripeMonthlyPriceId,
+      unit_amount: plan.monthlyPriceCents,
+    }));
+
+    const result = await createValidatedSellerSubscriptionCheckoutSession({
+      stripe,
+      catalog: ALL_PAID_PLAN_CATALOG,
+      planCode: plan.code,
+      billingInterval: "MONTH",
+      stripeSecretKey: "sk_test_core_only",
+      checkoutParams: { mode: "subscription", customer: "cus_test" },
+    });
+
+    assert.equal(result.config.priceId, plan.stripeMonthlyPriceId);
+    assert.equal(result.config.amountCents, plan.monthlyPriceCents);
+    assert.equal(stripe.calls.checkoutCreate, 1);
+    assert.deepEqual(stripe.calls.checkoutParams.line_items, [
+      { price: plan.stripeMonthlyPriceId, quantity: 1 },
+    ]);
+  }
 });
 
 test("amount mismatch blocks Checkout Session creation", async () => {

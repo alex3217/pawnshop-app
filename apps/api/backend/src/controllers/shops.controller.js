@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { calculateOwnerSetupProgress } from "../../../../../shared/ownerSetupChecklist.mjs";
+import { getEffectivePlanCode } from "../services/sellerPlan.service.js";
+import { isKnownSellerPlanCode } from "../config/sellerPlans.js";
 
 /**
  * Why this controller is defensive:
@@ -266,7 +268,8 @@ async function loadOwnerSetupProgress(shopId, user, { hideForbidden = false } = 
     ...(actualColumns.has("isDeleted") ? { isDeleted: true } : {}),
     ...(actualColumns.has("onboardingCompletedAt") ? { onboardingCompletedAt: true } : {}),
     ...(actualColumns.has("subscriptionPlan") ? { subscriptionPlan: true } : {}),
-    ...(actualColumns.has("subscriptionStartedAt") ? { subscriptionStartedAt: true } : {}),
+    ...(actualColumns.has("subscriptionStatus") ? { subscriptionStatus: true } : {}),
+    ...(actualColumns.has("subscriptionCurrentPeriodEnd") ? { subscriptionCurrentPeriodEnd: true } : {}),
   };
   const shop = await prisma.pawnShop.findFirst({
     where: await buildPawnShopWhere({ id: shopId }),
@@ -298,7 +301,7 @@ async function loadOwnerSetupProgress(shopId, user, { hideForbidden = false } = 
     shopPhone: hasText(shop.phone),
     shopHours: hasText(shop.hours),
     shopDescription: hasText(shop.description),
-    sellerPlan: hasText(shop.subscriptionPlan) && Boolean(shop.subscriptionStartedAt),
+    sellerPlan: isKnownSellerPlanCode(getEffectivePlanCode(shop)),
     staff: staffCount > 0,
     inventory: inventoryCount > 0,
     launched: Boolean(shop.onboardingCompletedAt),
