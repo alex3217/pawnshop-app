@@ -1056,8 +1056,10 @@ test("owner saves requested corrections and resubmits with responsive success an
   expect(savedPayload).not.toHaveProperty("status");
   expect(savedPayload).not.toHaveProperty("adminNotes");
 
+  page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Resubmit for review" }).click();
   await expect(page.getByText("Review service unavailable")).toBeVisible();
+  page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Resubmit for review" }).click();
   await expect(page.getByText("Your corrected application was resubmitted for review.")).toBeVisible();
   await expect(page.getByText("In review", { exact: true })).toBeVisible();
@@ -1066,4 +1068,37 @@ test("owner saves requested corrections and resubmits with responsive success an
 
   await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
+test("new blank owner applications use accessible standardized controls and validation", async ({ page }) => {
+  await storeSession(page, "OWNER");
+  await page.route("**/api/**", route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/owner-applications/me") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: {
+      id: "blank-application", status: "PENDING", businessName: null, businessType: null,
+      businessEmail: "owner@example.test", businessPhone: null, websiteUrl: null,
+      businessAddress: null, licenseNumber: null, licenseState: null, submittedAt: null,
+      reviewedAt: null, decisionReason: null, statusChangedAt: null, updatedAt: null,
+      canEdit: true, canResubmit: false,
+    } }) });
+    return route.fulfill({ status: 200, body: JSON.stringify({ success: true, notifications: [] }) });
+  });
+  await page.goto("/owner/application");
+  await expect(page.getByLabel(/Country/)).toHaveValue("US");
+  await expect(page.getByRole("button", { name: "Resubmit for review" })).toHaveCount(0);
+  const businessType = page.getByLabel(/Business type/);
+  for (const option of ["Traditional Pawn Shop", "Pawn and Jewelry", "Pawn and Firearms", "Auto/Title Pawn", "Online or Hybrid Pawn", "Multi-location Pawn Chain", "Other"]) {
+    await businessType.selectOption({ label: option });
+    await expect(businessType).toHaveValue(option);
+  }
+  await businessType.selectOption("Other");
+  await expect(page.getByLabel(/Other business type/)).toBeVisible();
+  await page.getByRole("button", { name: "Save corrections" }).click();
+  await expect(page.locator("#owner-application-errors")).toBeFocused();
+  await expect(page.getByText("Describe the other business type using at least 3 characters.").first()).toBeVisible();
+  const region = page.getByLabel(/^State \/ region/);
+  await expect(region.locator("option")).toHaveCount(58);
+  await expect(region.locator('option[value="DC"]')).toHaveCount(1);
+  await expect(region.locator('option[value="PR"]')).toHaveCount(1);
+  await expect(page.locator("body")).not.toHaveCSS("overflow-x", "scroll");
 });

@@ -1,36 +1,22 @@
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-
-const optionalText = (maximum) =>
-  z.union([z.string().trim().max(maximum), z.null()]).optional();
-
-const addressSchema = z
-  .object({
-    line1: z.string().trim().min(1).max(160),
-    line2: optionalText(160),
-    city: z.string().trim().min(1).max(100),
-    state: z.string().trim().min(2).max(80),
-    postalCode: z.string().trim().min(3).max(20),
-    country: z.string().trim().min(2).max(80).default("US"),
-  })
-  .strict();
+import { addressSchema, businessTypeSchema, optionalText, phoneSchema, validateLicenseRelationship, websiteSchema } from "../validation/ownerApplication.js";
 
 const applicationUpdateSchema = z
   .object({
-    businessName: optionalText(160),
-    businessType: optionalText(80),
+    businessName: z.union([z.string().trim().min(1).max(160), z.null()]).optional(),
+    businessType: businessTypeSchema,
     businessEmail: z
-      .union([z.email().trim().toLowerCase().max(254), z.literal(""), z.null()])
+      .union([z.email().trim().toLowerCase().max(254), z.null()])
       .optional(),
-    businessPhone: optionalText(40),
-    websiteUrl: z
-      .union([z.url().trim().max(500), z.literal(""), z.null()])
-      .optional(),
+    businessPhone: phoneSchema,
+    websiteUrl: websiteSchema,
     businessAddress: z.union([addressSchema, z.null()]).optional(),
     licenseNumber: optionalText(100),
     licenseState: optionalText(80),
   })
   .strict()
+  .superRefine(validateLicenseRelationship)
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one application field to update.",
   });
@@ -81,7 +67,9 @@ function serializeApplicantApplication(application) {
     decisionReason: application.decisionReason,
     statusChangedAt: toIso(application.statusChangedAt),
     updatedAt: toIso(application.updatedAt),
-    canEdit: application.status === "INFORMATION_REQUESTED",
+    canEdit:
+      application.status === "INFORMATION_REQUESTED" ||
+      application.status === "PENDING",
     canResubmit: application.status === "INFORMATION_REQUESTED",
   };
 }
@@ -122,9 +110,10 @@ export async function updateMyOwnerApplication(req, res) {
     }
 
     const existing = await findOwnedApplication(ownerId);
-    if (existing.status !== "INFORMATION_REQUESTED") {
+    const editablePending = existing.status === "PENDING";
+    if (existing.status !== "INFORMATION_REQUESTED" && !editablePending) {
       const error = new Error(
-        "Application details can only be changed when information is requested.",
+        "Application details can only be changed on a new blank application or when information is requested.",
       );
       error.statusCode = 409;
       throw error;
@@ -140,7 +129,7 @@ export async function updateMyOwnerApplication(req, res) {
       where: {
         id: existing.id,
         ownerId,
-        status: "INFORMATION_REQUESTED",
+        status: existing.status,
       },
       data,
     });
