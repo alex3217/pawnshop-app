@@ -1267,6 +1267,42 @@ test(
   },
 );
 
+test("draft and requested-information saves persist partial progress without lifecycle side effects", async () => {
+  for (const status of ["DRAFT", "INFORMATION_REQUESTED"]) {
+    const result = await createOwnerApplication({ prefix: `partial-${status.toLowerCase()}`, status });
+    await prisma.ownerApplication.update({ where: { id: result.application.id }, data: { businessName: null, businessType: null, businessAddress: null, submittedAt: status === "DRAFT" ? null : result.application.submittedAt } });
+    const before = await prisma.ownerApplication.findUnique({ where: { id: result.application.id } });
+    const notificationsBefore = await prisma.notification.count({ where: { type: "OWNER_APPLICATION_RESUBMITTED" } });
+    const saved = await request(app).patch("/api/owner-applications/me").set("Authorization", authorizationFor(result.owner)).send({ businessName: "Partial progress", businessType: "", businessAddress: { country: "US", line1: "", city: "", state: "", postalCode: "" } });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(saved.body.application.status, status);
+    assert.equal(saved.body.application.businessName, "Partial progress");
+    const reloaded = await request(app).get("/api/owner-applications/me").set("Authorization", authorizationFor(result.owner));
+    assert.equal(reloaded.body.application.businessAddress.country, "US");
+    assert.equal(reloaded.body.application.businessAddress.city, "");
+    const after = await prisma.ownerApplication.findUnique({ where: { id: result.application.id } });
+    assert.equal(after.status, before.status);
+    assert.equal(after.submittedAt?.getTime() ?? null, before.submittedAt?.getTime() ?? null);
+    assert.equal(after.statusChangedAt?.getTime() ?? null, before.statusChangedAt?.getTime() ?? null);
+    assert.equal(await prisma.ownerApplicationReviewHistory.count({ where: { ownerApplicationId: result.application.id } }), 0);
+    assert.equal(await prisma.notification.count({ where: { type: "OWNER_APPLICATION_RESUBMITTED" } }), notificationsBefore);
+  }
+});
+
+test("PATCH rejects manufactured legacy business types while existing legacy values remain readable", async () => {
+  const result = await createOwnerApplication({ prefix: "legacy-contract", status: "INFORMATION_REQUESTED" });
+  await prisma.ownerApplication.update({ where: { id: result.application.id }, data: { businessType: "PAWN_SHOP" } });
+  const readable = await request(app).get("/api/owner-applications/me").set("Authorization", authorizationFor(result.owner));
+  assert.equal(readable.status, 200);
+  assert.equal(readable.body.application.businessType, "PAWN_SHOP");
+  for (const businessType of ["PAWN_SHOP", "Estate collateral specialist", "Other", "OTHER: "]) {
+    const update = await request(app).patch("/api/owner-applications/me").set("Authorization", authorizationFor(result.owner)).send({ businessType });
+    assert.equal(update.status, 400, businessType);
+  }
+  const canonical = await request(app).patch("/api/owner-applications/me").set("Authorization", authorizationFor(result.owner)).send({ businessType: "Pawn and Jewelry" });
+  assert.equal(canonical.status, 200);
+});
+
 test(
   "owner updates and resubmission reject invalid statuses and duplicate submissions",
   async () => {

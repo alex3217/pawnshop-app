@@ -10,7 +10,7 @@ import {
 } from "../services/ownerApplications";
 import "../styles/owner-application.css";
 import OwnerApplicationFields from "../components/OwnerApplicationFields";
-import { blankAddress, normalizePhone, normalizeWebsite, parseBusinessType, serializeBusinessType, validateOwnerApplication, type FieldErrors } from "../utils/ownerApplicationFields";
+import { addressValuesFrom, blankAddress, normalizePhone, normalizeWebsite, parseBusinessType, serializeBusinessType, validateOwnerApplication, validateOwnerApplicationSave, type FieldErrors } from "../utils/ownerApplicationFields";
 
 const STATUS_COPY: Record<
   OwnerApplication["status"],
@@ -80,7 +80,7 @@ function valuesFrom(application: OwnerApplication): OwnerApplicationUpdate {
     websiteUrl: application.websiteUrl || "",
     licenseNumber: application.licenseNumber || "",
     licenseState: application.licenseState || "",
-    businessAddress: application.businessAddress || blankAddress(),
+    businessAddress: addressValuesFrom(application),
   };
 }
 
@@ -95,9 +95,13 @@ export default function OwnerApplicationPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [customBusinessType, setCustomBusinessType] = useState("");
   const [legacyBusinessType, setLegacyBusinessType] = useState("");
-  const [savedValid, setSavedValid] = useState(false);
   const initialForm = useMemo(() => application ? JSON.stringify({ form: valuesFrom(application), customBusinessType: parseBusinessType(application.businessType).explanation }) : "", [application]);
   const dirty = !!application && JSON.stringify({ form, customBusinessType }) !== initialForm;
+  const persistedComplete = useMemo(() => {
+    if (!application) return false;
+    const persisted = valuesFrom(application);
+    return Object.keys(validateOwnerApplication(persisted, parseBusinessType(application.businessType).explanation)).length === 0;
+  }, [application]);
 
   function load() {
     const controller = new AbortController();
@@ -110,7 +114,6 @@ export default function OwnerApplicationPage() {
         setForm(valuesFrom(next));
         setCustomBusinessType(businessType.explanation);
         setLegacyBusinessType(businessType.legacy);
-        setSavedValid(false);
       })
       .catch((reason: unknown) => {
         if (!(reason instanceof DOMException && reason.name === "AbortError")) {
@@ -163,11 +166,7 @@ export default function OwnerApplicationPage() {
     setForm((current) => ({
       ...current,
       businessAddress: {
-        line1: "",
-        city: "",
-        state: "",
-        postalCode: "",
-        country: "US",
+        ...blankAddress(),
         ...(current.businessAddress || {}),
         [key]: value,
       },
@@ -176,7 +175,7 @@ export default function OwnerApplicationPage() {
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    const errors = validateOwnerApplication(form, customBusinessType);
+    const errors = validateOwnerApplicationSave(form, customBusinessType);
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       return;
@@ -190,8 +189,9 @@ export default function OwnerApplicationPage() {
       setApplication(updated);
       setForm(valuesFrom(updated));
       const parsedType = parseBusinessType(updated.businessType);
-      setCustomBusinessType(parsedType.explanation); setLegacyBusinessType(parsedType.legacy); setSavedValid(true);
-      setMessage(statusAtSave === "DRAFT" ? "Draft saved. You can now submit the application." : "Corrections saved. Review them, then resubmit for review.");
+      setCustomBusinessType(parsedType.explanation); setLegacyBusinessType(parsedType.legacy);
+      const complete = Object.keys(validateOwnerApplication(valuesFrom(updated), parsedType.explanation)).length === 0;
+      setMessage(statusAtSave === "DRAFT" ? (complete ? "Draft saved. You can now submit the application." : "Draft saved. Complete the remaining required fields before submitting.") : (complete ? "Corrections saved. Review them, then resubmit for review." : "Corrections saved. Complete the remaining required fields before resubmitting."));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to save corrections.");
     } finally {
@@ -218,7 +218,7 @@ export default function OwnerApplicationPage() {
   async function submit() {
     if (!window.confirm("Submit this application for administrator review? You will not be able to edit it while it is pending.")) return;
     setResubmitting(true); setError(""); setMessage("");
-    try { const updated = await submitMyOwnerApplication(); setApplication(updated); setForm(valuesFrom(updated)); setSavedValid(false); setMessage("Your application was submitted for review."); }
+    try { const updated = await submitMyOwnerApplication(); setApplication(updated); setForm(valuesFrom(updated)); setMessage("Your application was submitted for review."); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to submit application."); }
     finally { setResubmitting(false); }
   }
@@ -322,20 +322,20 @@ export default function OwnerApplicationPage() {
           <form className="owner-application__form" onSubmit={save}>
           <h2>{application.status === "DRAFT" ? "Complete business information" : "Make requested corrections"}</h2>
           {Object.keys(fieldErrors).length ? <section id="owner-application-errors" className="owner-application__error-summary" role="alert" aria-labelledby="owner-error-heading" tabIndex={-1}><h3 id="owner-error-heading">Please correct these fields</h3><ul>{Object.entries(fieldErrors).map(([key, value]) => <li key={key}><a href={`#owner-${key}`} onClick={(event) => { event.preventDefault(); document.getElementById(`owner-${key}`)?.focus(); }}>{value}</a></li>)}</ul></section> : null}
-          <OwnerApplicationFields value={form} errors={fieldErrors} customBusinessType={customBusinessType} legacyBusinessType={legacyBusinessType} disabled={disabled} onChange={(next) => { setForm(next); setSavedValid(false); setFieldErrors({}); }} onCustomBusinessTypeChange={(next) => { setCustomBusinessType(next); setSavedValid(false); setFieldErrors({}); }} onCountryChange={(country) => {
+          <OwnerApplicationFields value={form} errors={fieldErrors} customBusinessType={customBusinessType} legacyBusinessType={legacyBusinessType} disabled={disabled} onChange={(next) => { setForm(next); setFieldErrors({}); }} onCustomBusinessTypeChange={(next) => { setCustomBusinessType(next); setFieldErrors({}); }} onCountryChange={(country) => {
             const hasSavedRegions = !!(form.businessAddress?.state?.trim() || form.licenseState?.trim());
             if (hasSavedRegions && !window.confirm("Change country and keep the saved address and license regions until you choose compatible replacements?")) return;
             updateAddress("country", country);
-            setSavedValid(false); setFieldErrors({});
+            setFieldErrors({});
           }} />
           <div className="owner-application__actions">
             <button className="btn btn-secondary" disabled={disabled} type="submit">
-              {saving ? "Saving…" : "Save corrections"}
+              {saving ? "Saving…" : application.status === "DRAFT" ? "Save Draft" : "Save Corrections"}
             </button>
-            {application.canSubmit ? <button className="btn btn-primary" disabled={disabled || dirty || !savedValid} type="button" onClick={() => void submit()}>{resubmitting ? "Submitting…" : "Submit Application"}</button> : null}
+            {application.canSubmit ? <button className="btn btn-primary" disabled={disabled || dirty || !persistedComplete} type="button" onClick={() => void submit()}>{resubmitting ? "Submitting…" : "Submit Application"}</button> : null}
             {application.canResubmit ? <button
               className="btn btn-primary"
-              disabled={disabled || dirty || !savedValid}
+              disabled={disabled || dirty || !persistedComplete}
               type="button"
               onClick={() => void resubmit()}
             >

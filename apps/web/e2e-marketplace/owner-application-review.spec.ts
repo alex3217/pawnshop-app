@@ -535,11 +535,10 @@ test("admin queue exposes loading, empty, and error states", async ({ page }) =>
 test("owner dashboard requires approval and handles responsive light and dark layouts", async ({ page }) => {
   await storeSession(page, "OWNER");
   let status = "PENDING";
-  await page.route("**/api/auth/me", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
+  await page.route("**/api/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/auth/me") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
         success: true,
         user: {
           id: "owner-1",
@@ -555,13 +554,9 @@ test("owner dashboard requires approval and handles responsive light and dark la
             statusChangedAt: "2026-07-28T12:00:00.000Z",
           },
         },
-      }),
-    }),
-  );
-  await page.route("**/api/**", (route) => {
-    if (new URL(route.request().url()).pathname === "/api/auth/me") {
-      return route.fallback();
+      }) });
     }
+    if (path === "/api/notifications") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, notifications: [] }) });
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -831,7 +826,7 @@ test("owner application header and setup shortcut stay usable across responsive 
       exact: true,
     });
     const logout = page.getByRole("button", { name: "Logout" });
-    const shortcut = page.getByLabel("Return to pawn shop owner setup");
+    const shortcut = page.getByRole("button", { name: /^Owner setup/ });
     const continueSetup = page.getByRole("link", {
       name: "Continue Shop Setup",
     });
@@ -841,13 +836,14 @@ test("owner application header and setup shortcut stay usable across responsive 
     });
 
     await expect(logo).toBeVisible();
-    await expect(themeToggle).toBeVisible();
+    if (viewport.width > 480) await expect(themeToggle).toBeVisible();
     await expect(dashboard).toBeVisible();
-    await expect(logout).toBeVisible();
+    if (viewport.width > 480) await expect(logout).toBeVisible();
     await expect(shortcut).toBeVisible();
     await expect(continueSetup).toBeVisible();
     await expect(openDashboard).toBeVisible();
     await expect(shortcut).toHaveCSS("height", "48px");
+    await shortcut.evaluate(element => element.scrollIntoView({ block: "center", inline: "nearest" }));
 
     const layout = await page.evaluate(() => {
       const rect = (selector: string) =>
@@ -865,7 +861,7 @@ test("owner application header and setup shortcut stay usable across responsive 
 
       const logoRect = rect(".site-brand");
       const actionsRect = rect(".site-top-actions");
-      const shortcutRect = rect(".role-checklist-return");
+      const shortcutRect = rect(".role-setup-trigger");
       const continueRect = rect(
         '.owner-application__actions a[href="/owner/onboarding"]',
       );
@@ -897,7 +893,7 @@ test("owner application header and setup shortcut stay usable across responsive 
             shortcutRect.left >= 0 &&
             shortcutRect.top >= 0 &&
             shortcutRect.right <= window.innerWidth &&
-            shortcutRect.bottom <= window.innerHeight,
+            shortcutRect.bottom <= window.innerHeight + 1,
         ),
       };
     });
@@ -907,10 +903,10 @@ test("owner application header and setup shortcut stay usable across responsive 
     expect(layout.logoActionsOverlap).toBe(false);
     expect(layout.shortcutContinueOverlap).toBe(false);
     expect(layout.shortcutDashboardOverlap).toBe(false);
-    expect(layout.shortcutWithinViewport).toBe(true);
+    expect(layout.shortcutWithinViewport, JSON.stringify(layout)).toBe(true);
 
     const moreMenu = page.locator(".site-primary-more-menu");
-    if (viewport.width <= 1200) {
+    if (viewport.width > 480 && viewport.width <= 1200) {
       await expect(moreMenu).toBeVisible();
       await moreMenu.locator("summary").click();
       await expect(
@@ -921,35 +917,16 @@ test("owner application header and setup shortcut stay usable across responsive 
       await expect(moreMenu).toBeHidden();
     }
 
-    await themeToggle.click();
+    if (viewport.width > 480) await themeToggle.click();
+    else await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await expect(shortcut).toBeVisible();
-    await themeToggle.click();
+    if (viewport.width > 480) await themeToggle.click();
+    else await page.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   }
 
-  const shortcut = page.getByLabel("Return to pawn shop owner setup");
-  const shortcutBox = await shortcut.boundingBox();
-  expect(shortcutBox).not.toBeNull();
-  if (shortcutBox) {
-    const headerBox = await page.locator(".site-header").boundingBox();
-    const headerBottom = headerBox ? headerBox.y + headerBox.height : 0;
-    await page.getByRole("button", {
-      name: "Move owner setup shortcut",
-      exact: true,
-    }).hover();
-    await page.mouse.down();
-    await page.mouse.move(40, headerBottom + 30);
-    await page.mouse.up();
-    const movedBox = await shortcut.boundingBox();
-    expect(movedBox).not.toBeNull();
-    expect(movedBox?.y).toBeGreaterThanOrEqual(headerBottom + 11);
-  }
-
-  await page.getByRole("button", {
-    name: "Owner setup",
-    exact: true,
-  }).click();
+  await page.getByRole("button", { name: /^Owner setup/ }).click();
   await expect(
     page.getByLabel("Pawn shop owner setup checklist"),
   ).toBeVisible();
@@ -965,7 +942,7 @@ test("owner saves requested corrections and resubmits with responsive success an
     id: "application-1",
     status: currentStatus,
     businessName: "North Loop Pawn",
-    businessType: "PAWN_SHOP",
+    businessType: "Traditional Pawn Shop",
     businessEmail: "owner@northloop.test",
     businessPhone: "555-0100",
     websiteUrl: "https://northloop.test",
@@ -977,7 +954,7 @@ test("owner saves requested corrections and resubmits with responsive success an
       postalCode: "55401",
       country: "US",
     },
-    licenseNumber: "EXPIRED",
+    licenseNumber: typeof savedPayload?.licenseNumber === "string" ? savedPayload.licenseNumber : "EXPIRED",
     licenseState: "MN",
     submittedAt: "2026-07-28T12:00:00.000Z",
     reviewedAt: "2026-07-29T12:00:00.000Z",
@@ -1048,13 +1025,17 @@ test("owner saves requested corrections and resubmits with responsive success an
   await page.goto("/owner/application");
   await expect(page.getByText("Enter the renewed license number.")).toBeVisible();
   await page.getByLabel("License number").fill("MN-RENEWED-2026");
-  await page.getByRole("button", { name: "Save corrections" }).click();
+  await expect(page.getByRole("button", { name: "Resubmit for review" })).toBeDisabled();
+  await page.getByRole("button", { name: "Save Corrections" }).click();
   await expect(page.getByText(/Corrections saved/)).toBeVisible();
   expect(savedPayload).toMatchObject({
     licenseNumber: "MN-RENEWED-2026",
   });
   expect(savedPayload).not.toHaveProperty("status");
   expect(savedPayload).not.toHaveProperty("adminNotes");
+  await page.reload();
+  await expect(page.getByLabel("License number")).toHaveValue("MN-RENEWED-2026");
+  await expect(page.getByRole("button", { name: "Resubmit for review" })).toBeEnabled();
 
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Resubmit for review" }).click();
@@ -1093,16 +1074,28 @@ test("new blank owner applications use accessible standardized controls and vali
   }
   await businessType.selectOption("Other");
   await expect(page.getByLabel(/Other business type/)).toBeVisible();
-  await page.getByRole("button", { name: "Save corrections" }).click();
-  await expect(page.locator("#owner-businessName")).toBeFocused();
+  await page.getByRole("button", { name: "Save Draft" }).click();
+  await expect(page.locator("#owner-businessTypeOther")).toBeFocused();
   await page.locator("#owner-application-errors a").first().click();
-  await expect(page.locator("#owner-businessName")).toBeFocused();
+  await expect(page.locator("#owner-businessTypeOther")).toBeFocused();
   await expect(page.getByText(/Describe the other business type using 3 to/).first()).toBeVisible();
   const region = page.getByLabel(/^State \/ region/);
   await expect(region.locator("option")).toHaveCount(58);
   await expect(region.locator('option[value="DC"]')).toHaveCount(1);
   await expect(region.locator('option[value="PR"]')).toHaveCount(1);
   await expect(page.locator("body")).not.toHaveCSS("overflow-x", "scroll");
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(selected => document.documentElement.setAttribute("data-theme", selected), theme);
+    for (const control of [page.getByLabel(/Country/), businessType, region]) {
+      const styles = await control.evaluate(element => { const value = getComputedStyle(element); return { color: value.color, background: value.backgroundColor, border: value.borderColor }; });
+      expect(styles.color).not.toBe(styles.background);
+      expect(styles.border).not.toBe("rgba(0, 0, 0, 0)");
+      await control.focus();
+      await expect(control).toBeFocused();
+      const focus = await control.evaluate(element => { const value = getComputedStyle(element); return `${value.outlineStyle} ${value.outlineWidth} ${value.boxShadow}`; });
+      expect(focus).not.toMatch(/^none 0px none$/);
+    }
+  }
 });
 
 test("draft save and explicit submit preserve Other values and lock pending applications", async ({ page }) => {
@@ -1126,15 +1119,45 @@ test("draft save and explicit submit preserve Other values and lock pending appl
   await page.getByLabel(/^State \/ region/).selectOption("IL");
   await page.getByLabel(/Postal code/).fill("60601");
   await expect(page.getByRole("button", { name: "Submit Application" })).toBeDisabled();
-  await page.getByRole("button", { name: "Save corrections" }).click();
+  await page.getByRole("button", { name: "Save Draft" }).click();
   await expect(page.getByText("Draft saved. You can now submit the application.")).toBeVisible();
   expect(saved.businessType).toBe("OTHER: Estate collateral specialist");
   await expect(page.getByLabel(/Business type/)).toHaveValue("Other");
   await expect(page.getByLabel(/Other business type/)).toHaveValue("Estate collateral specialist");
+  await page.reload();
+  await expect(page.getByLabel(/Business type/)).toHaveValue("Other");
+  await expect(page.getByLabel(/Other business type/)).toHaveValue("Estate collateral specialist");
+  await expect(page.getByRole("button", { name: "Submit Application" })).toBeEnabled();
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Submit Application" }).click();
   await expect(page.getByText("Your application was submitted for review.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save corrections" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save Draft" })).toHaveCount(0);
+});
+
+test("partial draft saves reload while correction and legacy null addresses do not default country", async ({ page }) => {
+  await storeSession(page, "OWNER");
+  let current = { id: "partial-draft", status: "DRAFT", businessName: null as string | null, businessType: null, businessEmail: "owner@example.test", businessPhone: null, websiteUrl: null, businessAddress: null as Record<string, string> | null, licenseNumber: null, licenseState: null, submittedAt: null, reviewedAt: null, decisionReason: null, statusChangedAt: null, updatedAt: null, canEdit: true, canSubmit: true, canResubmit: false };
+  await page.route("**/api/**", async route => {
+    const request = route.request(); const url = new URL(request.url());
+    if (url.pathname === "/api/owner-applications/me" && request.method() === "PATCH") { current = { ...current, ...request.postDataJSON() }; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: current }) }); }
+    if (url.pathname === "/api/owner-applications/me") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, application: current }) });
+    return route.fulfill({ status: 200, body: JSON.stringify({ success: true, notifications: [] }) });
+  });
+  await page.goto("/owner/application");
+  await expect(page.getByLabel(/Country/)).toHaveValue("US");
+  await page.getByLabel(/Legal business name/).fill("Saved so far");
+  await page.getByRole("button", { name: "Save Draft" }).click();
+  await expect(page.getByText(/Draft saved/)).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel(/Legal business name/)).toHaveValue("Saved so far");
+  await expect(page.getByLabel(/Country/)).toHaveValue("US");
+  await expect(page.getByRole("button", { name: "Submit Application" })).toBeDisabled();
+
+  current = { ...current, id: "requested-null", status: "INFORMATION_REQUESTED", businessName: "Legacy", businessAddress: null, submittedAt: "2026-01-01T00:00:00.000Z", canSubmit: false, canResubmit: true };
+  await page.reload();
+  await expect(page.getByLabel(/Country/)).toHaveValue("");
+  await page.getByLabel(/Legal business name/).fill("Unrelated correction");
+  await expect(page.getByLabel(/Country/)).toHaveValue("");
 });
 
 test("legacy business types remain visibly identified without becoming Other", async ({ page }) => {

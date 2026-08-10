@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BUSINESS_TYPES as BUSINESS_TYPE_VALUES, SUPPORTED_COUNTRIES, REGIONS_BY_COUNTRY, OTHER_BUSINESS_TYPE_PREFIX, BUSINESS_TYPE_MAX_LENGTH } from "../../../../../shared/ownerApplicationOptions.mjs";
+import { BUSINESS_TYPES as BUSINESS_TYPE_VALUES, SUPPORTED_COUNTRIES, REGIONS_BY_COUNTRY, OTHER_BUSINESS_TYPE_PREFIX, BUSINESS_TYPE_MAX_LENGTH, postalCodeError } from "../../../../../shared/ownerApplicationOptions.mjs";
 
 export const BUSINESS_TYPES = new Set(BUSINESS_TYPE_VALUES);
 export const SUPPORTED_COUNTRY_CODES = new Set(SUPPORTED_COUNTRIES.map(([code]) => code));
@@ -9,21 +9,27 @@ const customBusinessType = (value) => typeof value === "string" && value.startsW
 
 export const optionalText = (maximum) => z.union([z.string().trim().max(maximum), z.null()]).optional();
 export const businessTypeSchema = optionalText(BUSINESS_TYPE_MAX_LENGTH).superRefine((value, context) => {
-  if (value === "" || value === "Other") context.addIssue({ code: "custom", message: "Select a business type or provide an Other explanation." });
-  if (typeof value === "string" && value.startsWith(OTHER_BUSINESS_TYPE_PREFIX) && !customBusinessType(value)) context.addIssue({ code: "custom", message: "Other business type must contain a meaningful explanation." });
+  if (value === "Other") context.addIssue({ code: "custom", message: "Provide an Other business type explanation." });
+  if (value && !BUSINESS_TYPES.has(value) && !customBusinessType(value)) context.addIssue({ code: "custom", message: "Select a standardized business type or provide a valid Other explanation." });
 });
 const completeBusinessTypeSchema = z.string().trim().min(1).max(BUSINESS_TYPE_MAX_LENGTH).refine(value => BUSINESS_TYPES.has(value) || customBusinessType(value), "Select a standardized business type or provide a valid Other explanation.");
 export const phoneSchema = optionalText(40).superRefine((value, context) => { if (value && !/^\+?\d{7,15}$/.test(value.replace(/[^\d+]/g, ""))) context.addIssue({ code: "custom", message: "Business phone must contain 7 to 15 digits." }); });
 export const websiteSchema = z.union([z.url().trim().max(500).refine(value => /^https?:\/\//i.test(value), "Website must use HTTP or HTTPS."), z.literal(""), z.null()]).optional();
+function validateAddressRelationships(value, context) {
+  if (value.country && !SUPPORTED_COUNTRY_CODES.has(value.country)) context.addIssue({ code: "custom", path: ["country"], message: "Select a supported country." });
+  const regions = value.country ? regionCodes(value.country) : null;
+  if (value.state && regions && !regions.has(value.state)) context.addIssue({ code: "custom", path: ["state"], message: "State or region is not valid for the selected country." });
+  if (value.country && value.postalCode) {
+    const message = postalCodeError(value.country, value.postalCode);
+    if (message) context.addIssue({ code: "custom", path: ["postalCode"], message });
+  }
+}
+export const partialAddressSchema = z.object({
+  line1: z.string().trim().max(160).optional(), line2: optionalText(160), city: z.string().trim().max(100).optional(), state: z.string().trim().max(80).optional(), postalCode: z.string().trim().max(20).optional(), country: z.string().trim().max(2).toUpperCase().optional(),
+}).strict().superRefine(validateAddressRelationships);
 export const addressSchema = z.object({
   line1: z.string().trim().min(1).max(160), line2: optionalText(160), city: z.string().trim().min(1).max(100), state: z.string().trim().min(1).max(80), postalCode: z.string().trim().min(3).max(20), country: z.string().trim().length(2).toUpperCase(),
-}).strict().superRefine((value, context) => {
-  if (!SUPPORTED_COUNTRY_CODES.has(value.country)) context.addIssue({ code: "custom", path: ["country"], message: "Select a supported country." });
-  const regions = regionCodes(value.country);
-  if (regions && !regions.has(value.state)) context.addIssue({ code: "custom", path: ["state"], message: "State or region is not valid for the selected country." });
-  if (value.country === "US" && !/^\d{5}(?:-\d{4})?$/.test(value.postalCode)) context.addIssue({ code: "custom", path: ["postalCode"], message: "Enter a valid U.S. ZIP code." });
-  if (value.country === "CA" && !/^[A-Z]\d[A-Z][ -]?\d[A-Z]\d$/i.test(value.postalCode)) context.addIssue({ code: "custom", path: ["postalCode"], message: "Enter a valid Canadian postal code." });
-});
+}).strict().superRefine(validateAddressRelationships);
 export function validateLicenseRelationship(value, context) {
   const number = value.licenseNumber?.trim(); const state = value.licenseState?.trim();
   if (number && !state) context.addIssue({ code: "custom", path: ["licenseState"], message: "License state or region is required with a license number." });

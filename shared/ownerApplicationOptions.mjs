@@ -24,3 +24,22 @@ export const REGIONS_BY_COUNTRY = Object.freeze({
 
 export const OTHER_BUSINESS_TYPE_PREFIX = "OTHER: ";
 export const BUSINESS_TYPE_MAX_LENGTH = 80;
+
+const POSTAL_PATTERNS = Object.freeze({
+  US: /^\d{5}(?:-\d{4})?$/,
+  CA: /^[A-Z]\d[A-Z][ -]?\d[A-Z]\d$/i,
+  AU: /^\d{4}$/,
+  GB: /^(GIR 0AA|[A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2})$/i,
+});
+const GENERIC_POSTAL_PATTERN = /^[A-Z0-9][A-Z0-9 -]{1,10}[A-Z0-9]$/i;
+
+export function postalCodeError(country, postalCode) {
+  const value = String(postalCode || "").trim();
+  if (!value) return null;
+  if (country === "US" && !POSTAL_PATTERNS.US.test(value)) return "Enter a valid U.S. ZIP code.";
+  if (country === "CA" && !POSTAL_PATTERNS.CA.test(value)) return "Enter a valid Canadian postal code.";
+  if (country === "AU" && !POSTAL_PATTERNS.AU.test(value)) return "Enter a valid Australian postal code.";
+  if (country === "GB" && !POSTAL_PATTERNS.GB.test(value)) return "Enter a valid United Kingdom postcode.";
+  if (!POSTAL_PATTERNS[country] && !GENERIC_POSTAL_PATTERN.test(value)) return "Enter a postal code using 3 to 12 letters, numbers, spaces, or hyphens.";
+  return null;
+}

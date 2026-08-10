@@ -1,17 +1,17 @@
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { addressSchema, businessTypeSchema, optionalText, phoneSchema, validateCompleteApplication, validateLicenseRelationship, websiteSchema } from "../validation/ownerApplication.js";
+import { businessTypeSchema, optionalText, partialAddressSchema, phoneSchema, validateCompleteApplication, validateLicenseRelationship, websiteSchema } from "../validation/ownerApplication.js";
 
 const applicationUpdateSchema = z
   .object({
-    businessName: z.union([z.string().trim().min(1).max(160), z.null()]).optional(),
+    businessName: optionalText(160),
     businessType: businessTypeSchema,
     businessEmail: z
-      .union([z.email().trim().toLowerCase().max(254), z.null()])
+      .union([z.email().trim().toLowerCase().max(254), z.literal(""), z.null()])
       .optional(),
     businessPhone: phoneSchema,
     websiteUrl: websiteSchema,
-    businessAddress: z.union([addressSchema, z.null()]).optional(),
+    businessAddress: z.union([partialAddressSchema, z.null()]).optional(),
     licenseNumber: optionalText(100),
     licenseState: optionalText(80),
   })

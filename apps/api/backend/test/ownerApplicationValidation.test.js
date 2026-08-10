@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { addressSchema, businessTypeSchema, completeOwnerApplicationSchema, US_REGION_CODES, validateLicenseRelationship } from "../src/validation/ownerApplication.js";
+import { addressSchema, businessTypeSchema, completeOwnerApplicationSchema, partialAddressSchema, US_REGION_CODES, validateLicenseRelationship } from "../src/validation/ownerApplication.js";
 import { z } from "zod";
 
 test("accepts every canonical business type and prefixed Other values", () => {
@@ -8,7 +8,9 @@ test("accepts every canonical business type and prefixed Other values", () => {
     assert.equal(businessTypeSchema.safeParse(value).success, true, value);
   }
   assert.equal(businessTypeSchema.safeParse("Other").success, false);
-  assert.equal(businessTypeSchema.safeParse("  ").success, false);
+  assert.equal(businessTypeSchema.safeParse("Estate collateral specialist").success, false);
+  assert.equal(businessTypeSchema.safeParse("PAWN_SHOP").success, false);
+  assert.equal(businessTypeSchema.safeParse("").success, true);
 });
 
 test("complete applications reject legacy types and unsupported countries", () => {
@@ -29,7 +31,17 @@ test("validates country-aware regions and postal codes", () => {
   assert.equal(addressSchema.safeParse({ ...base, state: "ON" }).success, false);
   assert.equal(addressSchema.safeParse({ ...base, postalCode: "A1A 1A1" }).success, false);
   assert.equal(addressSchema.safeParse({ ...base, country: "CA", state: "ON", postalCode: "A1A 1A1" }).success, true);
+  assert.equal(addressSchema.safeParse({ ...base, country: "AU", state: "NSW", postalCode: "2000" }).success, true);
   assert.equal(addressSchema.safeParse({ ...base, country: "GB", state: "London", postalCode: "SW1A 1AA" }).success, true);
+  assert.equal(addressSchema.safeParse({ ...base, country: "FR", state: "Paris", postalCode: "75001" }).success, true);
+  assert.equal(addressSchema.safeParse({ ...base, country: "FR", state: "Paris", postalCode: "@@" }).success, false);
+});
+
+test("partial saves allow incomplete addresses but reject invalid populated values", () => {
+  assert.equal(partialAddressSchema.safeParse({ country: "US", line1: "" }).success, true);
+  assert.equal(partialAddressSchema.safeParse({ country: "US", postalCode: "bad" }).success, false);
+  assert.equal(partialAddressSchema.safeParse({ country: "ZZ" }).success, false);
+  assert.equal(partialAddressSchema.safeParse({ country: "AU", state: "XX" }).success, false);
 });
 
 test("keeps address and license regions independent while validating their relationship", () => {
