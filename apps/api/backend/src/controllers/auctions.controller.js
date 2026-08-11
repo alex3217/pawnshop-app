@@ -1,6 +1,10 @@
 // File: apps/api/backend/src/controllers/auctions.controller.js
 
 import { prisma } from "../lib/prisma.js";
+import {
+  assertCanCreateAuctionForShop,
+  resolveEffectiveSellerPlan,
+} from "../services/sellerPlan.service.js";
 import { calculateSettlementRevenueContext } from "../services/revenue/settlementRevenueAdapter.service.js";
 import { persistSettlementOperationAudit } from "../services/settlementStateMachine.service.js";
 import {
@@ -688,10 +692,9 @@ async function upsertSettlementForEndedAuction(auctionId) {
     return { settlement: null, reason: "INVALID_TOP_BID" };
   }
 
-  const sellerPlanCode =
-    auction.shop?.subscriptionPlan ||
-    auction.item?.shop?.subscriptionPlan ||
-    "FREE";
+  const sellerPlanCode = resolveEffectiveSellerPlan(
+    auction.shop || auction.item?.shop,
+  ).effectivePlan;
 
   const revenueContext = await calculateSettlementRevenueContext({
     amount: finalPrice,
@@ -1093,6 +1096,8 @@ export async function createAuction(req, res) {
       req,
       shopId,
     );
+
+    await assertCanCreateAuctionForShop(shopId);
 
     const existing = await prisma.auction.findFirst({
       where: { itemId },

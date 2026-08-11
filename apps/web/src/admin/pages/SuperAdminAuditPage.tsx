@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../services/apiClient";
 import "../../styles/super-admin-audit-readability.css";
@@ -94,15 +94,14 @@ export default function SuperAdminAuditPage() {
   const [rows, setRows] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState(() => searchParams.get("q") || "");
+  const targetType = searchParams.get("targetType") || "";
+  const targetId = searchParams.get("targetId") || "";
   const [success, setSuccess] = useState("");
   const [selected, setSelected] = useState<AuditLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function loadAuditLogs(next?: { q?: string; success?: string }) {
-    const search = next?.q ?? q;
-    const result = next?.success ?? success;
-
+  const loadAuditLogs = useCallback(async (search: string, result: string) => {
     setLoading(true);
     setError("");
 
@@ -112,6 +111,8 @@ export default function SuperAdminAuditPage() {
 
       if (search.trim()) params.set("q", search.trim());
       if (result) params.set("success", result);
+      if (targetType) params.set("targetType", targetType);
+      if (targetId) params.set("targetId", targetId);
 
       const data = await api.get<AuditResponse>(`/super-admin/audit?${params.toString()}`);
 
@@ -122,14 +123,11 @@ export default function SuperAdminAuditPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [targetId, targetType]);
 
   useEffect(() => {
-    void loadAuditLogs();
-
-    // Initial loading intentionally uses the default filter state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void loadAuditLogs(q, success);
+  }, [loadAuditLogs, q, success]);
 
   const csv = useMemo(() => {
     const headers = [
@@ -170,18 +168,15 @@ export default function SuperAdminAuditPage() {
 
   function applySuccessFilter(value: string) {
     setSuccess(value);
-    void loadAuditLogs({ success: value });
   }
 
   function applySearchFilter(value: string) {
     setQ(value);
-    void loadAuditLogs({ q: value });
   }
 
   function clearFilters() {
     setQ("");
     setSuccess("");
-    void loadAuditLogs({ q: "", success: "" });
   }
 
   function openTarget(row: AuditLog) {
@@ -201,7 +196,7 @@ export default function SuperAdminAuditPage() {
         </div>
 
         <div style={styles.actions}>
-          <button type="button" className="btn btn-secondary" onClick={() => loadAuditLogs()}>
+          <button type="button" className="btn btn-secondary" onClick={() => loadAuditLogs(q, success)}>
             Refresh
           </button>
           <button type="button" className="btn btn-secondary" onClick={exportCsv}>
@@ -265,7 +260,7 @@ export default function SuperAdminAuditPage() {
         </label>
 
         <div style={styles.filterButtons}>
-          <button type="button" className="btn btn-secondary" onClick={() => loadAuditLogs()}>
+          <button type="button" className="btn btn-secondary" onClick={() => loadAuditLogs(q, success)}>
             Apply Filters
           </button>
           <button type="button" className="btn btn-secondary" onClick={clearFilters}>

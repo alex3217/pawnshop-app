@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  reconcileSellerSubscriptionAudit,
   syncStripeSubscriptionEvent,
 } from "../src/services/stripeSubscriptionWebhook.service.js";
 
@@ -30,6 +31,7 @@ function shopFixture(overrides = {}) {
 function mockPrisma(initialShop = shopFixture()) {
   let shop = { ...initialShop };
   const audits = [];
+  const adminAudits = [];
   const notifications = [];
   const client = {
     pawnShop: {
@@ -63,6 +65,15 @@ function mockPrisma(initialShop = shopFixture()) {
         return { count: data.length };
       },
     },
+    superAdminAuditLog: {
+      upsert: async ({ where, create }) => {
+        const existing = adminAudits.find((row) => row.idempotencyKey === where.idempotencyKey);
+        if (existing) return existing;
+        const row = { id: `admin_audit_${adminAudits.length + 1}`, ...create };
+        adminAudits.push(row);
+        return row;
+      },
+    },
   };
   client.$transaction = async (callback) => callback(client);
   return {
@@ -72,6 +83,7 @@ function mockPrisma(initialShop = shopFixture()) {
     },
     audits,
     notifications,
+    adminAudits,
   };
 }
 
@@ -123,22 +135,77 @@ test("payment failures are idempotent and retain a single immutable audit/notifi
   assert.equal(db.shop.subscriptionStatus, "PAST_DUE");
   assert.equal(db.shop.stripeLatestInvoiceId, "in_1");
   assert.equal(db.audits.length, 1);
+  assert.equal(db.adminAudits.length, 0);
   assert.equal(db.notifications.length, 1);
   assert.equal(db.notifications[0].type, "SUBSCRIPTION_PAYMENT_FAILED");
 });
 
 test("successful payment recovers state and paid-plan access notification", async () => {
   const db = mockPrisma(shopFixture({ subscriptionStatus: "PAST_DUE" }));
-  await syncStripeSubscriptionEvent({
-    event: event("invoice.payment_succeeded", invoice(), { id: "evt_recovery_1" }),
+  const successfulEvent = event("invoice.payment_succeeded", invoice(), { id: "evt_recovery_1" });
+  const first = await syncStripeSubscriptionEvent({
+    event: successfulEvent,
     prismaClient: db.client,
   });
+  const replay = await syncStripeSubscriptionEvent({ event: successfulEvent, prismaClient: db.client });
 
+  assert.equal(first.applied, true);
+  assert.equal(replay.duplicate, true);
   assert.equal(db.shop.subscriptionStatus, "ACTIVE");
   assert.equal(db.shop.subscriptionPlan, "PRO");
   assert.equal(db.notifications[0].type, "SUBSCRIPTION_PAYMENT_RECOVERED");
   assert.equal(db.audits[0].previousState.status, "PAST_DUE");
   assert.equal(db.audits[0].resultingState.status, "ACTIVE");
+  assert.equal(db.adminAudits.length, 1);
+  assert.equal(db.adminAudits[0].action, "SELLER_SUBSCRIPTION_ACTIVATED");
+  assert.equal(db.adminAudits[0].targetId, "shop_1");
+  assert.equal(db.audits.length, 1);
+  assert.equal(db.adminAudits.filter(({ action }) => action === "SELLER_SUBSCRIPTION_ACTIVATED").length, 1);
+});
+
+test("ACTIVE paid state with an expired period end creates no activation audit", async () => {
+  const db = mockPrisma(shopFixture({ subscriptionStatus: "PAST_DUE" }));
+  const expired = invoice({
+    lines: { data: [{
+      subscription: "sub_1",
+      period: {
+        start: Math.floor(Date.now() / 1000) - 7_200,
+        end: Math.floor(Date.now() / 1000) - 3_600,
+      },
+      price: { id: "price_pro", recurring: { interval: "month" }, metadata: { planCode: "PRO" } },
+    }] },
+  });
+
+  await syncStripeSubscriptionEvent({
+    event: event("invoice.payment_succeeded", expired, {
+      id: "evt_expired_recovery",
+      created: Math.floor(Date.now() / 1000),
+    }),
+    prismaClient: db.client,
+  });
+
+  assert.equal(db.shop.subscriptionStatus, "ACTIVE");
+  assert.equal(db.adminAudits.length, 0);
+});
+
+test("existing subscription reconciliation is truthful and idempotent", async () => {
+  const db = mockPrisma();
+  await reconcileSellerSubscriptionAudit({ shopId: "shop_1", prismaClient: db.client });
+  await reconcileSellerSubscriptionAudit({ shopId: "shop_1", prismaClient: db.client });
+  assert.equal(db.adminAudits.length, 1);
+  assert.equal(db.adminAudits[0].action, "SELLER_SUBSCRIPTION_RECONCILED");
+  assert.equal(db.adminAudits[0].metadata.effectivePlan, "PRO");
+  assert.equal(db.adminAudits[0].metadata.interval, "MONTH");
+});
+
+test("reconciliation records inactive paid storage as effective FREE without claiming activation", async () => {
+  const db = mockPrisma(shopFixture({ subscriptionStatus: "CANCELED" }));
+  await reconcileSellerSubscriptionAudit({ shopId: "shop_1", prismaClient: db.client });
+  assert.equal(db.adminAudits.length, 1);
+  assert.equal(db.adminAudits[0].action, "SELLER_SUBSCRIPTION_RECONCILED");
+  assert.equal(db.adminAudits[0].metadata.previousPlan, "PRO");
+  assert.equal(db.adminAudits[0].metadata.effectivePlan, "FREE");
+  assert.equal(db.adminAudits[0].metadata.status, "CANCELED");
 });
 
 test("subscription updates synchronize plan, interval, period, and scheduled cancellation", async () => {

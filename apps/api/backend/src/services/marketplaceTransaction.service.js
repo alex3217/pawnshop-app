@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { resolveEffectiveSellerPlan } from "./sellerPlan.service.js";
 import {
   calculateSettlementRevenueContext,
 } from "./revenue/settlementRevenueAdapter.service.js";
@@ -731,6 +732,9 @@ export async function reserveMarketplacePurchase({
                   id: true,
                   ownerId: true,
                   subscriptionPlan: true,
+                  subscriptionStatus: true,
+                  subscriptionCurrentPeriodEnd: true,
+                  subscriptionBillingInterval: true,
                   isDeleted: true,
                 },
               },
@@ -801,9 +805,9 @@ export async function reserveMarketplacePurchase({
           );
         }
 
-        const sellerPlanCode =
-          listing.sellerShop?.subscriptionPlan ||
-          "FREE";
+        const sellerPlanCode = resolveEffectiveSellerPlan(
+          listing.sellerShop,
+        ).effectivePlan;
 
         const revenueContext =
           await calculateSettlementRevenueContext({

@@ -51,7 +51,7 @@ jobs:
         run: npm --prefix apps/web run lint
 
       - name: Deployment environment contract tests
-        run: node --test apps/web/test/build-environment.test.mjs apps/web/test/environment-contract.test.mjs apps/web/test/environment-contract-consumption.test.mjs apps/web/test/environment-indicator.runtime.test.mjs apps/web/test/upload-workflow.contract.test.mjs scripts/test-deployment-environment-cli.mjs
+        run: node --test apps/web/test/build-environment.test.mjs apps/web/test/core-ci-playwright.contract.test.mjs apps/web/test/environment-contract.test.mjs apps/web/test/environment-contract-consumption.test.mjs apps/web/test/environment-indicator.runtime.test.mjs apps/web/test/seller-plan-control.contract.test.mjs apps/web/test/upload-workflow.contract.test.mjs scripts/test-deployment-environment-cli.mjs
 
       - name: Validate Production deployment target
         run: node scripts/check-deployment-environment.mjs
@@ -188,3 +188,39 @@ jobs:
 
       - name: Run focused HTTP and Socket.IO CORS policy tests
         run: node --test --test-concurrency=1 apps/api/backend/test/app.contract.test.js apps/api/backend/test/socketCors.test.js apps/api/backend/test/deployedCorsRuntimeGuard.test.js
+
+  seller-subscription-browser-tests:
+    name: Seller Subscription Browser Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm --prefix apps/web ci
+
+      - name: Install Chromium and Linux browser dependencies
+        run: npm --prefix apps/web exec -- playwright install --with-deps chromium
+
+      - name: Run seller subscription browser tests
+        run: npm --prefix apps/web run test:ci:seller-subscription
+
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seller-subscription-playwright-${{ github.run_id }}
+          path: |
+            apps/web/.playwright/seller-subscription-report
+            apps/web/.playwright/seller-subscription-results
+          if-no-files-found: warn
+          retention-days: 7

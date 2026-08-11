@@ -1,7 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import {
+  assertCanCreateLocationForOwner,
+  getEffectivePlanCode,
+} from "../services/sellerPlan.service.js";
 import { calculateOwnerSetupProgress } from "../../../../../shared/ownerSetupChecklist.mjs";
-import { getEffectivePlanCode } from "../services/sellerPlan.service.js";
 import { isKnownSellerPlanCode } from "../config/sellerPlans.js";
 
 /**
@@ -209,6 +212,10 @@ export async function createShop(req, res) {
 
     const data = pickShopWriteData(req.body, userId);
     assertShopName(data);
+
+    if (String(req.user?.role || "").toUpperCase() !== "SUPER_ADMIN") {
+      await assertCanCreateLocationForOwner(userId);
+    }
 
     const select = await buildPawnShopSelect();
 

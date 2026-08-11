@@ -20,6 +20,7 @@ import {
   updateSuperAdminShop,
   getSuperAdminSellerPlans,
   previewSuperAdminSellerPlanImpact,
+  validateSuperAdminSellerPlanStripeReferences,
   updateSuperAdminSellerPlan,
   getSuperAdminBuyerPlans,
   listSuperAdminBuyerSubscriptions,
@@ -73,6 +74,7 @@ export const SUPER_ADMIN_ROUTE_MAP = Object.freeze({
   shops: "GET /api/super-admin/shops",
   updateShop: "PATCH /api/super-admin/shops/:id",
   sellerPlans: "GET /api/super-admin/plans/seller",
+  validateSellerPlanStripe: "POST /api/super-admin/plans/seller/:code/validate-stripe",
   buyerPlans: "GET /api/super-admin/plans/buyer",
   buyerSubscriptions: "GET /api/super-admin/buyer-subscriptions",
   updateBuyerSubscription: "PATCH /api/super-admin/buyer-subscriptions/:id",
@@ -265,6 +267,7 @@ router.patch(
 
 router.get("/plans/seller", asyncRoute(getSuperAdminSellerPlans));
 router.post("/plans/seller/:code/impact", validateJsonObjectBody, asyncRoute(previewSuperAdminSellerPlanImpact));
+router.post("/plans/seller/:code/validate-stripe", validateJsonObjectBody, asyncRoute(validateSuperAdminSellerPlanStripeReferences));
 router.patch("/plans/seller/:code", validateJsonObjectBody, asyncRoute(updateSuperAdminSellerPlan));
 router.get("/plans/buyer", asyncRoute(getSuperAdminBuyerPlans));
 

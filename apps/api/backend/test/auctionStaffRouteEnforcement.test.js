@@ -191,6 +191,10 @@ test(
   },
 );
 
+test("auction creation delegates paid-plan enforcement to seller entitlements", () => {
+  assert.match(auctionControllerSource, /await assertCanCreateAuctionForShop\(shopId\)/);
+});
+
 test(
   "settlement details are redacted outside the permitted shop scope",
   () => {

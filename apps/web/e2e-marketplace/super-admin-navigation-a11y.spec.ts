@@ -88,6 +88,29 @@ test.beforeEach(async ({ page }) => {
   await installSuperAdmin(page);
 });
 
+test("Shop Management renders one primary action set", async ({ page }) => {
+  await page.goto("/super-admin/shops");
+
+  await expect(page.getByRole("button", { name: "Add Shop", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Export CSV", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(1);
+});
+
+test("audit navigation reloads records for each shop target", async ({ page }) => {
+  const auditRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/super-admin/audit?")) {
+      auditRequests.push(request.url());
+    }
+  });
+
+  await page.goto("/super-admin/audit?targetType=SHOP&targetId=shop_one");
+  await expect.poll(() => auditRequests.some((url) => url.includes("targetId=shop_one"))).toBe(true);
+
+  await page.goto("/super-admin/audit?targetType=SHOP&targetId=shop_two");
+  await expect.poll(() => auditRequests.some((url) => url.includes("targetId=shop_two"))).toBe(true);
+});
+
 test("every enabled central Super Admin sidebar target resolves to page content", async ({
   page,
 }) => {
