@@ -33,7 +33,7 @@ test("subscription cards mask Stripe references and explain separate payout stat
   assert.match(page, /maskStripeReference\(subscription\.stripeCustomerId\)/);
   assert.match(page, /maskStripeReference\(subscription\.stripeSubscriptionId\)/);
   assert.match(page, /Subscription billing and Stripe Connect payouts are separate/);
-  assert.match(page, /Not synced to PawnLoop · Stripe subscription active/);
+  assert.match(page, /Subscription payment managed by Stripe · Active/);
   assert.match(page, /Payout onboarding not started/);
 });
 
@@ -43,4 +43,11 @@ test("shop billing action has one clear destination and preserves its search que
   assert.doesNotMatch(page, />\s*Manage subscription\s*</);
   assert.match(shopsPage, /useSearchParams/);
   assert.match(shopsPage, /searchParams\.get\("q"\) \|\| ""/);
+});
+
+test("seller subscription audit navigation uses the shop entity filter", () => {
+  assert.match(page, /shopId: string/);
+  assert.match(page, /shopId,\s*$/m);
+  assert.match(page, /encodeURIComponent\(subscription\.shopId\)/);
+  assert.match(page, /\/super-admin\/audit\?targetType=SHOP&targetId=/);
 });

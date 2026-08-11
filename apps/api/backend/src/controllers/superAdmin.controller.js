@@ -26,6 +26,7 @@ import {
 } from "../services/settlementStateMachine.service.js";
 import { getStripe } from "../lib/stripe.js";
 import { validateSellerPlanStripeReferences } from "../services/sellerPlanStripeValidation.service.js";
+import { resolveEffectiveSellerPlan } from "../services/sellerPlan.service.js";
 
 
 const USER_ROLE_CODES = new Set(["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
@@ -267,7 +268,8 @@ function mapUserRow(user) {
   };
 }
 
-function mapShopRow(shop) {
+export function mapShopRow(shop) {
+  const effective = resolveEffectiveSellerPlan(shop);
   return {
     id: shop.id,
     name: shop.name,
@@ -279,9 +281,11 @@ function mapShopRow(shop) {
     ownerName: shop.owner?.name || null,
     ownerEmail: shop.owner?.email || null,
     isDeleted: Boolean(shop.isDeleted),
-    subscriptionPlan: normalizeUpper(shop.subscriptionPlan, "FREE"),
-    subscriptionStatus: normalizeUpper(shop.subscriptionStatus, "UNKNOWN"),
-    subscriptionBillingInterval: normalizeUpper(shop.subscriptionBillingInterval, "MONTHLY"),
+    subscriptionPlan: effective.effectivePlan,
+    effectiveSubscriptionPlan: effective.effectivePlan,
+    storedSubscriptionPlan: effective.storedPlan,
+    subscriptionStatus: effective.status,
+    subscriptionBillingInterval: effective.interval,
     subscriptionCurrentPeriodEnd: toIsoOrNull(shop.subscriptionCurrentPeriodEnd),
     cancelAtPeriodEnd: Boolean(shop.cancelAtPeriodEnd),
     stripeCustomerId: shop.stripeCustomerId || null,

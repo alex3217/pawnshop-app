@@ -307,7 +307,7 @@ export default function AdminShopsPage() {
 
   function exportShops() {
     downloadCsv(
-      isSuperAdminSurface ? "super-admin-shops.csv" : isSuperAdminSurface ? "super-admin-shops.csv" : isSuperAdminSurface ? "super-admin-shops.csv" : "admin-shops.csv",
+      isSuperAdminSurface ? "super-admin-shops.csv" : "admin-shops.csv",
       filteredShops.map((shop) => ({
         id: shop.id,
         name: shop.name,
@@ -329,7 +329,7 @@ export default function AdminShopsPage() {
       <AdminPageShell
       title={isSuperAdminSurface ? "Super Admin Shop Management" : "Admin Shops"}
       subtitle={isSuperAdminSurface ? "Search, add, edit, reassign owners, update plan/status, disable, and restore shops." : "Search, filter, export, create, edit, assign owners, disable, and restore marketplace shops."}
-      actions={
+      actions={!isSuperAdminSurface ?
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="btn btn-primary" onClick={openCreateModal}>
             Add Shop
@@ -341,7 +341,7 @@ export default function AdminShopsPage() {
             {loading ? "Refreshing..." : "Refresh"}
           </button>
         </div>
-      }
+      : undefined}
     >
       {isSuperAdminSurface ? (
         <section className="super-admin-master-toolbar">
@@ -353,15 +353,6 @@ export default function AdminShopsPage() {
             </p>
           </div>
           <div className="super-admin-master-actions">
-            <button className="btn btn-primary" onClick={openCreateModal}>
-              Add Shop
-            </button>
-            <button className="btn btn-secondary" onClick={exportShops}>
-              Export CSV
-            </button>
-            <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
-              Refresh
-            </button>
             <Link className="btn btn-secondary" to="/super-admin/integrations">
               Integration Oversight
             </Link>
@@ -428,15 +419,9 @@ export default function AdminShopsPage() {
               </p>
             </div>
             <div className="super-admin-control-actions">
-              <button className="btn btn-primary" onClick={openCreateModal}>
-                Add Shop
-              </button>
-              <button className="btn btn-secondary" onClick={exportShops}>
-                Export CSV
-              </button>
-              <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
-                Refresh
-              </button>
+              <button className="btn btn-primary" onClick={openCreateModal}>Add Shop</button>
+              <button className="btn btn-secondary" onClick={exportShops}>Export CSV</button>
+              <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>{loading ? "Refreshing..." : "Refresh"}</button>
             </div>
           </div>
           <ul className="super-admin-control-list">
