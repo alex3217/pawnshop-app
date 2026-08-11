@@ -42,6 +42,46 @@ function money(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
 }
 
+function maskStripeReference(value: string | null) {
+  if (!value) return "Not linked";
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 4)}••••••${value.slice(-4)}`;
+}
+
+function statusTone(status: string) {
+  if (["ACTIVE", "TRIALING"].includes(status)) return "healthy";
+  if (["PAST_DUE", "INCOMPLETE", "INCOMPLETE_EXPIRED"].includes(status)) {
+    return "attention";
+  }
+  return "neutral";
+}
+
+function billingMethodSummary(subscription: AdminSubscriptionRecord) {
+  if (subscription.billingMethodPresent) {
+    return `${subscription.billingMethodLabel} · ${subscription.billingMethodStatus}`;
+  }
+
+  if (subscription.stripeSubscriptionId) {
+    return subscription.status === "ACTIVE"
+      ? "Not synced to PawnLoop · Stripe subscription active"
+      : "Not synced to PawnLoop · Stripe subscription linked";
+  }
+
+  return "Not configured";
+}
+
+function connectPayoutSummary(subscription: AdminSubscriptionRecord) {
+  if (subscription.connectPayoutsEnabled) return "Payouts enabled";
+
+  const labels: Record<string, string> = {
+    NOT_STARTED: "Payout onboarding not started",
+    SETUP_INCOMPLETE: "Payout onboarding incomplete",
+    RESTRICTED: "Payout account restricted",
+  };
+
+  return labels[subscription.connectState] || "Payouts disabled";
+}
+
 function normalizePlan(value: string | null | undefined) {
   return String(value || "FREE").trim().toUpperCase();
 }
@@ -264,7 +304,7 @@ export default function AdminSubscriptionsPage() {
             ))}
           </select>
         </label>
-        {superAdmin ? <><label style={styles.filterLabel}>Interval<select value={intervalFilter} onChange={(event) => setIntervalFilter(event.target.value)} style={styles.select}><option>ALL</option><option>MONTHLY</option><option>YEARLY</option></select></label><label style={styles.filterLabel}>Billing method<select value={stripeFilter} onChange={(event) => setStripeFilter(event.target.value)} style={styles.select}><option>ALL</option><option>READY</option><option>MISSING</option><option>EXPIRED</option><option>SYNC_FAILED</option></select></label><label style={styles.filterLabel}>Connect status<select value={connectFilter} onChange={(event) => setConnectFilter(event.target.value)} style={styles.select}><option>ALL</option><option>INCOMPLETE</option><option>PAYOUTS_DISABLED</option><option>PAYOUTS_ENABLED</option></select></label></> : null}
+        {superAdmin ? <><label style={styles.filterLabel}>Interval<select value={intervalFilter} onChange={(event) => setIntervalFilter(event.target.value)} style={styles.select}><option>ALL</option><option>MONTHLY</option><option>YEARLY</option></select></label><label style={styles.filterLabel}>Saved billing method<select value={stripeFilter} onChange={(event) => setStripeFilter(event.target.value)} style={styles.select}><option>ALL</option><option>READY</option><option>MISSING</option><option>EXPIRED</option><option>SYNC_FAILED</option></select></label><label style={styles.filterLabel}>Payout onboarding<select value={connectFilter} onChange={(event) => setConnectFilter(event.target.value)} style={styles.select}><option>ALL</option><option>INCOMPLETE</option><option>PAYOUTS_DISABLED</option><option>PAYOUTS_ENABLED</option></select></label></> : null}
 
         <label style={styles.filterLabel}>
           Status
@@ -310,9 +350,62 @@ export default function AdminSubscriptionsPage() {
                   </div>
                 </div>
 
-                <div style={styles.statusPill}>{subscription.status}</div>
+                <div
+                  className={`seller-subscription-status seller-subscription-status--${statusTone(subscription.status)}`}
+                >
+                  {subscription.status}
+                </div>
               </div>
-              {superAdmin ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}><details><summary className="btn btn-secondary">Open details</summary><div className="mt-2 rounded-xl border p-3 text-sm">{subscription.ownerName} ({subscription.ownerEmail}) · {subscription.plan} · {subscription.status}<br />Stripe subscription: {subscription.stripeSubscriptionId || "Not linked"}<br />Stripe customer: {subscription.stripeCustomerId || "Not linked"}</div></details><Link className="btn btn-secondary" to={`/super-admin/shops?q=${encodeURIComponent(subscription.shopName)}`}>View shop and owner</Link><Link className="btn btn-secondary" to={`/super-admin/shops?q=${encodeURIComponent(subscription.shopName)}`}>Manage subscription</Link><Link className="btn btn-secondary" to={`/super-admin/audit?q=${encodeURIComponent(subscription.id)}`}>Audit history</Link></div> : null}
+              {superAdmin ? (
+                <div className="seller-subscription-controls">
+                  <details className="seller-subscription-disclosure">
+                    <summary className="btn btn-secondary seller-subscription-action">
+                      Open details
+                    </summary>
+                    <div className="seller-subscription-expanded-panel">
+                      <dl className="seller-subscription-expanded-grid">
+                        <div>
+                          <dt>Owner</dt>
+                          <dd>{subscription.ownerName}</dd>
+                        </div>
+                        <div>
+                          <dt>Owner email</dt>
+                          <dd>{subscription.ownerEmail || "Not available"}</dd>
+                        </div>
+                        <div>
+                          <dt>Renewal behavior</dt>
+                          <dd>{subscription.cancelAtPeriodEnd ? "Cancels at period end" : "Renews automatically"}</dd>
+                        </div>
+                        <div>
+                          <dt>Last synced</dt>
+                          <dd>{formatDate(subscription.updatedAt)}</dd>
+                        </div>
+                      </dl>
+                      <p className="seller-subscription-reference-note">
+                        Stripe references are masked on this page. Use the Stripe
+                        dashboard when the complete identifier is required.
+                      </p>
+                    </div>
+                  </details>
+                  <nav
+                    className="seller-subscription-actions"
+                    aria-label={`Actions for ${subscription.shopName}`}
+                  >
+                    <Link
+                      className="btn btn-secondary seller-subscription-action"
+                      to={`/super-admin/shops?q=${encodeURIComponent(subscription.shopName)}`}
+                    >
+                      Manage shop billing
+                    </Link>
+                    <Link
+                      className="btn btn-secondary seller-subscription-action"
+                      to={`/super-admin/audit?q=${encodeURIComponent(subscription.id)}`}
+                    >
+                      Audit history
+                    </Link>
+                  </nav>
+                </div>
+              ) : null}
 
               <div style={styles.detailGrid}>
                 <div>
@@ -330,18 +423,24 @@ export default function AdminSubscriptionsPage() {
                 <div>
                   <div style={styles.detailLabel}>Stripe customer</div>
                   <div style={styles.detailValue}>
-                    {subscription.stripeCustomerId || "—"}
+                    {maskStripeReference(subscription.stripeCustomerId)}
                   </div>
                 </div>
 
                 <div>
                   <div style={styles.detailLabel}>Stripe subscription</div>
                   <div style={styles.detailValue}>
-                    {subscription.stripeSubscriptionId || "—"}
+                    {maskStripeReference(subscription.stripeSubscriptionId)}
                   </div>
                 </div>
-                {superAdmin ? <><div><div style={styles.detailLabel}>Billing method</div><div style={styles.detailValue}>{subscription.billingMethodLabel} · {subscription.billingMethodStatus}</div></div><div><div style={styles.detailLabel}>Connect payouts</div><div style={styles.detailValue}>{subscription.connectState} · {subscription.connectPayoutsEnabled ? "Enabled" : "Disabled"}</div></div></> : null}
+                {superAdmin ? <><div><div style={styles.detailLabel}>Seller billing profile</div><div style={styles.detailValue}>{billingMethodSummary(subscription)}</div></div><div><div style={styles.detailLabel}>Stripe Connect payouts</div><div style={styles.detailValue}>{connectPayoutSummary(subscription)}</div></div></> : null}
               </div>
+              {superAdmin ? (
+                <p className="seller-subscription-separation-note">
+                  Subscription billing and Stripe Connect payouts are separate.
+                  A shop can have an active paid plan before payout onboarding is complete.
+                </p>
+              ) : null}
             </article>
           ))}
         </div>
@@ -486,14 +585,6 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 8,
     color: "rgba(238,242,255,0.72)",
     fontSize: 14,
-  },
-  statusPill: {
-    alignSelf: "flex-start",
-    borderRadius: 999,
-    padding: "10px 14px",
-    background: "rgba(34,197,94,0.18)",
-    border: "1px solid rgba(74,222,128,0.3)",
-    fontWeight: 900,
   },
   detailGrid: {
     display: "grid",

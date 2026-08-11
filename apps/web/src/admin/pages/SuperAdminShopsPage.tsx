@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { exportCsv } from "../utils/exportCsv";
 import {
   adminApi,
@@ -57,6 +58,7 @@ function ownerLabel(owner: AdminUserRow) {
 }
 
 export default function SuperAdminShopsPage() {
+  const [searchParams] = useSearchParams();
   const [shops, setShops] = useState<AdminShopRow[]>([]);
   const [owners, setOwners] = useState<AdminUserRow[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
@@ -69,7 +71,7 @@ export default function SuperAdminShopsPage() {
   });
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("q") || "");
   const [plan, setPlan] = useState("");
   const [status, setStatus] = useState("");
   const [access, setAccess] = useState("");
