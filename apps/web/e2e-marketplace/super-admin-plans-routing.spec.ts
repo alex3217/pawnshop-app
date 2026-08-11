@@ -24,10 +24,14 @@ const sellerPlans = [
     trialMaxActiveListings: 50,
     commissionBps: 900,
     status: "ACTIVE",
-    stripeSyncStatus: "MISSING_REFERENCES",
+    stripeProductId: "prod_pro",
+    stripeMonthlyPriceId: "price_pro_month",
+    stripeYearlyPriceId: "price_pro_year",
+    stripeSyncStatus: "CONFIGURED",
     isPaid: true,
     isFree: false,
     version: "CONFIG",
+    annualSavingsCents: 9800,
     features: ["Up to 100 active listings", "Auction creation"],
   },
   {
@@ -94,6 +98,36 @@ test.beforeEach(async ({ page }) => {
             projectedMrrCents: 4900,
             mrrDeltaCents: 0,
             requiresGrandfathering: true,
+          },
+        }),
+      });
+    }
+
+    if (path.endsWith("/plans/seller/PRO/validate-stripe")) {
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          validation: {
+            valid: true,
+            notRequired: false,
+            planCode: "PRO",
+            validatedAt: "2026-08-10T23:00:00.000Z",
+            product: { active: true, name: "PawnShop Seller Pro" },
+            prices: [
+              {
+                billingInterval: "MONTH",
+                amountCents: 4900,
+                currency: "USD",
+                recurringInterval: "month",
+              },
+              {
+                billingInterval: "YEAR",
+                amountCents: 49000,
+                currency: "USD",
+                recurringInterval: "year",
+              },
+            ],
           },
         }),
       });
@@ -204,12 +238,24 @@ test("seller-plan page actions, dialogs, downloads, and pricing toggle work", as
     page.getByRole("button", { name: "Hide comparison" }),
   ).toBeVisible();
 
-  await page.getByRole("switch", { name: "Show yearly pricing" }).click();
+  const billingPeriod = page.getByRole("group", {
+    name: "Displayed billing period",
+  });
+  await expect(
+    billingPeriod.getByRole("button", { name: "Monthly" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await billingPeriod.getByRole("button", { name: /Yearly/ }).click();
+  await expect(
+    billingPeriod.getByRole("button", { name: /Yearly/ }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("$490.00/year")).toBeVisible();
 
   const proCard = page
     .locator("article.seller-plan-card")
     .filter({ has: page.getByRole("heading", { name: "PRO", exact: true }) });
+  await expect(
+    proCard.getByText(/\$40\.83\/month equivalent/),
+  ).toBeVisible();
 
   await proCard.getByRole("button", { name: "View details" }).click();
   await expect(
@@ -226,8 +272,13 @@ test("seller-plan page actions, dialogs, downloads, and pricing toggle work", as
   await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
 
   const duplicate = page.waitForEvent("download");
-  await proCard.getByRole("button", { name: "Duplicate plan" }).click();
+  await proCard
+    .getByRole("button", { name: "Download duplicate draft" })
+    .click();
   await expect((await duplicate).suggestedFilename()).toBe("pro-seller-plan-draft.json");
+  await expect(proCard.getByRole("status")).toContainText(
+    "No live plan was created or changed",
+  );
 
   const exportDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export plans" }).click();
@@ -236,8 +287,8 @@ test("seller-plan page actions, dialogs, downloads, and pricing toggle work", as
   await proCard
     .getByRole("button", { name: "Validate Stripe references" })
     .click();
-  await expect(page.getByRole("alert")).toContainText(
-    "missing its monthly Price ID and yearly Price ID",
+  await expect(proCard.getByRole("status")).toContainText(
+    "verified in Stripe",
   );
 
   await proCard
@@ -245,13 +296,18 @@ test("seller-plan page actions, dialogs, downloads, and pricing toggle work", as
     .click();
   const scheduleDialog = page.getByRole("dialog");
   await expect(
-    scheduleDialog.getByRole("heading", { name: "Schedule changes for PRO" }),
+    scheduleDialog.getByRole("heading", { name: "Schedule PRO changes" }),
   ).toBeVisible();
-  await expect(scheduleDialog.getByLabel("Future effective date")).not.toHaveValue("");
+  await expect(scheduleDialog.getByRole("status")).toContainText(
+    "Future scheduling is not enabled yet",
+  );
+  await expect(scheduleDialog.getByRole("status")).toContainText(
+    "No pricing, Stripe reference, entitlement, or subscriber change was made",
+  );
   await scheduleDialog.getByRole("button", { name: "Close" }).click();
 
   await page.getByRole("button", { name: "Refresh" }).click();
-  await expect(page.getByRole("status")).toContainText("Seller plans refreshed");
+  await expect(page.getByRole("status").filter({ hasText: "Seller plans refreshed" })).toBeVisible();
 });
 
 test("Edit plan saves paid-plan monthly and yearly Stripe Price IDs", async ({

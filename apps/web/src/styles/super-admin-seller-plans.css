@@ -111,47 +111,49 @@
 }
 
 .seller-plan-billing-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  gap: 4px;
   width: fit-content;
-  padding: 7px 10px;
+  max-width: 100%;
+  padding: 4px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   background: var(--bg-elevated);
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 800;
-}
-
-.seller-plan-billing-toggle > span.is-active {
-  color: var(--text-strong);
 }
 
 .seller-plan-billing-toggle button {
-  position: relative;
-  width: 48px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--bg-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-md) - 4px);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 900;
   cursor: pointer;
 }
 
-.seller-plan-billing-toggle button > span:first-child {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--primary);
-  transition: transform 160ms ease;
+.seller-plan-billing-toggle button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--border));
+  background: color-mix(in srgb, var(--primary) 18%, var(--bg-soft));
+  color: var(--text-strong);
+  box-shadow: 0 4px 14px rgba(20, 90, 190, 0.16);
 }
 
-.seller-plan-billing-toggle button[aria-checked="true"] > span:first-child {
-  transform: translateX(22px);
+.seller-plan-billing-toggle button > span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 18%, var(--bg-soft));
+  color: var(--success);
+  font-size: 0.68rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .seller-plan-grid {
@@ -205,6 +207,14 @@
   color: var(--muted);
   font-size: 0.83rem;
   font-weight: 600;
+}
+
+.seller-plan-card__price-note {
+  min-height: 1.2em;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 
 .seller-plan-status {
@@ -270,6 +280,32 @@
 
 .seller-plan-stripe--missing {
   color: var(--warning) !important;
+}
+
+.seller-plan-action-result {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.seller-plan-action-result--progress {
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
+  color: var(--primary);
+}
+
+.seller-plan-action-result--success {
+  border-color: color-mix(in srgb, var(--success) 48%, var(--border));
+  color: var(--success);
+}
+
+.seller-plan-action-result--error {
+  border-color: color-mix(in srgb, var(--danger) 52%, var(--border));
+  color: var(--danger);
 }
 
 .seller-plan-state,
@@ -526,6 +562,25 @@
   padding-left: 20px;
 }
 
+.seller-plan-schedule-unavailable {
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--warning) 48%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-soft));
+  color: var(--text);
+}
+
+.seller-plan-schedule-unavailable strong {
+  color: var(--warning);
+  font-size: 1rem;
+}
+
+.seller-plan-schedule-unavailable p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 @media (max-width: 1050px) {
   .seller-plan-hero {
     flex-direction: column;
@@ -610,5 +665,19 @@
   .seller-plan-toolbar,
   .seller-plan-toolbar .btn {
     width: 100%;
+  }
+
+  .seller-plan-billing-toggle {
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .seller-plan-billing-toggle button {
+    min-width: 0;
+    padding-inline: 8px;
+  }
+
+  .seller-plan-billing-toggle button > span {
+    display: none;
   }
 }

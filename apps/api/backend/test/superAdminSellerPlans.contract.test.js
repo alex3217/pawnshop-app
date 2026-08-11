@@ -16,6 +16,7 @@ test("seller-plan mutations are SUPER_ADMIN protected, impact-aware, concurrent-
   const controller = await readFile(new URL("../src/controllers/superAdmin.controller.js", import.meta.url), "utf8");
   const auth = routes.indexOf("router.use(authRequired, requireRole(...SUPER_ADMIN_ROLES))");
   assert.ok(routes.indexOf("/plans/seller/:code/impact") > auth);
+  assert.ok(routes.lastIndexOf("/plans/seller/:code/validate-stripe") > auth);
   assert.ok(routes.indexOf("/plans/seller/:code\"") > auth);
   const section = controller.slice(controller.indexOf("export async function previewSuperAdminSellerPlanImpact"), controller.indexOf("export async function getSuperAdminBuyerPlans"));
   assert.match(section, /affectedShops/);
@@ -28,5 +29,7 @@ test("seller-plan mutations are SUPER_ADMIN protected, impact-aware, concurrent-
   assert.match(controller, /must be a valid/);
   assert.match(section, /Active paid seller plans require monthly and yearly Stripe Price IDs/);
   assert.match(section, /stripeReferencesConfigured/);
-  assert.match(section, /Scheduled migration date must be in the future/);
+  assert.match(section, /Future seller-plan scheduling is not enabled\. No changes were made\./);
+  assert.match(section, /validateSellerPlanStripeReferences/);
+  assert.match(section, /configuredProductId/);
 });

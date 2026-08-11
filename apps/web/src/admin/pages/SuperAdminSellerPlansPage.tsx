@@ -13,7 +13,11 @@ import {
 } from "../services/adminApi";
 import "../../styles/super-admin-seller-plans.css";
 
-type EditorMode = "edit" | "schedule";
+type PlanActionFeedback = {
+  planCode: string;
+  tone: "progress" | "success" | "error";
+  message: string;
+};
 
 const money = (cents = 0) =>
   new Intl.NumberFormat("en-US", {
@@ -38,24 +42,22 @@ function download(name: string, value: unknown) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function tomorrowLocalDateTime() {
-  const value = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  value.setMinutes(value.getMinutes() - value.getTimezoneOffset());
-  return value.toISOString().slice(0, 16);
-}
-
 export default function SuperAdminSellerPlansPage() {
   const [plans, setPlans] = useState<SellerPlanSummary[]>([]);
   const [yearly, setYearly] = useState(false);
   const [compare, setCompare] = useState(false);
   const [selected, setSelected] = useState<SellerPlanSummary | null>(null);
   const [ownerPreview, setOwnerPreview] = useState<SellerPlanSummary | null>(null);
+  const [schedulePreview, setSchedulePreview] =
+    useState<SellerPlanSummary | null>(null);
   const [editing, setEditing] = useState<SellerPlanSummary | null>(null);
-  const [editorMode, setEditorMode] = useState<EditorMode>("edit");
   const [impact, setImpact] = useState<SellerPlanImpact | null>(null);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [validatingPlan, setValidatingPlan] = useState("");
+  const [planFeedback, setPlanFeedback] =
+    useState<PlanActionFeedback | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -87,14 +89,16 @@ export default function SuperAdminSellerPlansPage() {
   }, [dirty]);
 
   useEffect(() => {
-    const dialogOpen = Boolean(editing || selected || ownerPreview);
+    const dialogOpen = Boolean(
+      editing || selected || ownerPreview || schedulePreview,
+    );
     if (!dialogOpen) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previous;
     };
-  }, [editing, selected, ownerPreview]);
+  }, [editing, selected, ownerPreview, schedulePreview]);
 
   const summary = useMemo(
     () => ({
@@ -110,19 +114,15 @@ export default function SuperAdminSellerPlansPage() {
     [plans],
   );
 
-  function openEditor(plan: SellerPlanSummary, mode: EditorMode = "edit") {
+  function openEditor(plan: SellerPlanSummary) {
     setEditing(plan);
-    setEditorMode(mode);
     setSelected(null);
     setOwnerPreview(null);
+    setSchedulePreview(null);
     setImpact(null);
     setDirty(false);
     setError("");
-    setNotice(
-      mode === "schedule"
-        ? "Choose a future effective date, review the impact, and publish the scheduled change."
-        : "",
-    );
+    setNotice("");
   }
 
   function closeEditor() {
@@ -133,29 +133,57 @@ export default function SuperAdminSellerPlansPage() {
     setError("");
   }
 
-  function validateReferences(plan: SellerPlanSummary) {
+  async function validateReferences(plan: SellerPlanSummary) {
     setError("");
+    setNotice("");
     if (!plan.isPaid) {
-      setNotice(`${plan.code} is a free plan and does not require Stripe prices.`);
+      setPlanFeedback({
+        planCode: plan.code,
+        tone: "success",
+        message: `${plan.code} does not require Stripe billing references.`,
+      });
       return;
     }
 
-    const missing = [
-      !plan.stripeMonthlyPriceId ? "monthly Price ID" : "",
-      !plan.stripeYearlyPriceId ? "yearly Price ID" : "",
-    ].filter(Boolean);
+    setValidatingPlan(plan.code);
+    setPlanFeedback({
+      planCode: plan.code,
+      tone: "progress",
+      message: `Validating ${plan.code} against Stripe…`,
+    });
 
-    if (missing.length) {
-      setNotice("");
-      setError(
-        `${plan.code} is missing its ${missing.join(" and ")}. Select Edit plan to add the Stripe references.`,
+    try {
+      const { validation } =
+        await adminApi.validateSellerPlanStripeReferences(plan.code);
+      const monthly = validation.prices.find(
+        (price) => price.billingInterval === "MONTH",
       );
-      return;
+      const yearlyPrice = validation.prices.find(
+        (price) => price.billingInterval === "YEAR",
+      );
+      const productName = validation.product?.name
+        ? ` for ${validation.product.name}`
+        : "";
+      setPlanFeedback({
+        planCode: plan.code,
+        tone: "success",
+        message:
+          `${plan.code}${productName} verified in Stripe: ` +
+          `${money(monthly?.amountCents)}/month and ` +
+          `${money(yearlyPrice?.amountCents)}/year are active and correctly linked.`,
+      });
+    } catch (cause) {
+      setPlanFeedback({
+        planCode: plan.code,
+        tone: "error",
+        message:
+          cause instanceof Error
+            ? cause.message
+            : `Unable to validate ${plan.code} with Stripe.`,
+      });
+    } finally {
+      setValidatingPlan("");
     }
-
-    setNotice(
-      `${plan.code} has valid-looking monthly and yearly Stripe Price IDs.`,
-    );
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -194,7 +222,7 @@ export default function SuperAdminSellerPlansPage() {
       commissionBps: Number(form.get("commissionBps")),
       supportLevel: form.get("supportLevel"),
       status: form.get("status"),
-      scheduledMigrationAt: form.get("scheduledMigrationAt") || null,
+      scheduledMigrationAt: null,
       grandfatherExisting: form.get("grandfatherExisting") === "on",
       expectedVersion: editing.version,
       features: editing.features || [],
@@ -214,14 +242,11 @@ export default function SuperAdminSellerPlansPage() {
       if (!confirmed) return;
 
       await adminApi.updateSellerPlan(editing.code, input);
-      const wasScheduled = Boolean(input.scheduledMigrationAt);
       setEditing(null);
       setDirty(false);
       setImpact(null);
       setNotice(
-        wasScheduled
-          ? "Seller-plan change saved with its future effective date and audit record."
-          : "Seller plan updated. Existing subscribers were preserved and the change was audited.",
+        "Seller plan updated. Existing subscribers were preserved and the change was audited.",
       );
       await load();
     } catch (cause) {
@@ -309,20 +334,26 @@ export default function SuperAdminSellerPlansPage() {
         ))}
       </section>
 
-      <div className="seller-plan-billing-toggle" aria-label="Displayed billing period">
-        <span className={!yearly ? "is-active" : ""}>Monthly</span>
+      <div
+        className="seller-plan-billing-toggle"
+        role="group"
+        aria-label="Displayed billing period"
+      >
         <button
           type="button"
-          role="switch"
-          aria-checked={yearly}
-          onClick={() => setYearly((value) => !value)}
+          aria-pressed={!yearly}
+          onClick={() => setYearly(false)}
         >
-          <span aria-hidden="true" />
-          <span className="sr-only">
-            Show {yearly ? "monthly" : "yearly"} pricing
-          </span>
+          Monthly
         </button>
-        <span className={yearly ? "is-active" : ""}>Yearly</span>
+        <button
+          type="button"
+          aria-pressed={yearly}
+          onClick={() => setYearly(true)}
+        >
+          Yearly
+          <span>Save 2 months</span>
+        </button>
       </div>
 
       {loading ? (
@@ -345,12 +376,26 @@ export default function SuperAdminSellerPlansPage() {
                   code: `${plan.code}_COPY`,
                   status: "DRAFT",
                 });
-                setNotice(
-                  `${plan.code} duplicate draft exported. Only approved seller-plan codes can be published.`,
-                );
+                setPlanFeedback({
+                  planCode: plan.code,
+                  tone: "success",
+                  message:
+                    `${plan.code} duplicate draft downloaded. No live plan was created or changed.`,
+                });
               }}
-              onSchedule={() => openEditor(plan, "schedule")}
-              onValidate={() => validateReferences(plan)}
+              onSchedule={() => {
+                setSchedulePreview(plan);
+                setSelected(null);
+                setOwnerPreview(null);
+                setEditing(null);
+                setError("");
+                setNotice("");
+              }}
+              onValidate={() => void validateReferences(plan)}
+              validating={validatingPlan === plan.code}
+              feedback={
+                planFeedback?.planCode === plan.code ? planFeedback : null
+              }
             />
           ))}
         </section>
@@ -369,10 +414,16 @@ export default function SuperAdminSellerPlansPage() {
         />
       ) : null}
 
+      {schedulePreview ? (
+        <ScheduleUnavailableDialog
+          plan={schedulePreview}
+          onClose={() => setSchedulePreview(null)}
+        />
+      ) : null}
+
       {editing ? (
         <Editor
           plan={editing}
-          mode={editorMode}
           dirty={dirty}
           saving={saving}
           impact={impact}
@@ -395,6 +446,8 @@ function PlanCard({
   onDuplicate,
   onSchedule,
   onValidate,
+  validating,
+  feedback,
 }: {
   plan: SellerPlanSummary;
   yearly: boolean;
@@ -404,6 +457,8 @@ function PlanCard({
   onDuplicate: () => void;
   onSchedule: () => void;
   onValidate: () => void;
+  validating: boolean;
+  feedback: PlanActionFeedback | null;
 }) {
   const stripeClass =
     plan.stripeSyncStatus === "CONFIGURED"
@@ -421,6 +476,13 @@ function PlanCard({
           <div className="seller-plan-card__price">
             {money(yearly ? plan.yearlyPriceCents : plan.monthlyPriceCents)}
             <span>/{yearly ? "year" : "month"}</span>
+          </div>
+          <div className="seller-plan-card__price-note">
+            {plan.isPaid
+              ? yearly
+                ? `${money(Math.round(Number(plan.yearlyPriceCents || 0) / 12))}/month equivalent · save ${money(plan.annualSavingsCents || 0)}`
+                : "Billed monthly"
+              : "No subscription charge"}
           </div>
         </div>
         <span className="seller-plan-status">{plan.status || "ACTIVE"}</span>
@@ -463,15 +525,29 @@ function PlanCard({
           Preview owner-facing plan
         </button>
         <button className="btn btn-secondary" type="button" onClick={onDuplicate}>
-          Duplicate plan
+          Download duplicate draft
         </button>
         <button className="btn btn-secondary" type="button" onClick={onSchedule}>
           Schedule future change
         </button>
-        <button className="btn btn-secondary" type="button" onClick={onValidate}>
-          Validate Stripe references
+        <button
+          className="btn btn-secondary"
+          type="button"
+          onClick={onValidate}
+          disabled={validating}
+        >
+          {validating ? "Validating with Stripe…" : "Validate Stripe references"}
         </button>
       </div>
+      {feedback ? (
+        <div
+          className={`seller-plan-action-result seller-plan-action-result--${feedback.tone}`}
+          role={feedback.tone === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {feedback.message}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -592,6 +668,31 @@ function OwnerPreviewDialog({
   );
 }
 
+function ScheduleUnavailableDialog({
+  plan,
+  onClose,
+}: {
+  plan: SellerPlanSummary;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog title={`Schedule ${plan.code} changes`} onClose={onClose}>
+      <div className="seller-plan-schedule-unavailable" role="status">
+        <strong>Future scheduling is not enabled yet.</strong>
+        <p>
+          No pricing, Stripe reference, entitlement, or subscriber change was
+          made. Use Edit plan only when the change should take effect
+          immediately.
+        </p>
+        <p>
+          A background effective-date engine and cancellation controls must be
+          enabled before future seller-plan changes can be published safely.
+        </p>
+      </div>
+    </Dialog>
+  );
+}
+
 function Dialog({
   title,
   onClose,
@@ -629,7 +730,6 @@ function Dialog({
 
 function Editor({
   plan,
-  mode,
   dirty,
   saving,
   impact,
@@ -639,7 +739,6 @@ function Editor({
   onClose,
 }: {
   plan: SellerPlanSummary;
-  mode: EditorMode;
   dirty: boolean;
   saving: boolean;
   impact: SellerPlanImpact | null;
@@ -649,7 +748,7 @@ function Editor({
   onClose: () => void;
 }) {
   const paid = Boolean(plan.isPaid);
-  const focusMonthly = paid && !plan.stripeMonthlyPriceId && mode === "edit";
+  const focusMonthly = paid && !plan.stripeMonthlyPriceId;
 
   return (
     <div
@@ -669,7 +768,7 @@ function Editor({
         <header>
           <div>
             <h2 id="edit-seller-plan">
-              {mode === "schedule" ? "Schedule changes for" : "Edit"} {plan.code}
+              Edit {plan.code}
             </h2>
             <p>
               Saving first previews subscriber impact, then asks for confirmation.
@@ -716,7 +815,7 @@ function Editor({
               disabled={!paid}
               pattern="^price_[A-Za-z0-9]+$"
               placeholder="price_..."
-              autoFocus={paid && !focusMonthly && !plan.stripeYearlyPriceId && mode === "edit"}
+              autoFocus={paid && !focusMonthly && !plan.stripeYearlyPriceId}
             />
             <Field
               name="stripeProductId"
@@ -830,14 +929,6 @@ function Editor({
               name="grandfatherExisting"
               label="Grandfather existing subscribers"
               value={false}
-            />
-            <Field
-              name="scheduledMigrationAt"
-              label="Future effective date"
-              type="datetime-local"
-              value={mode === "schedule" ? tomorrowLocalDateTime() : ""}
-              required={mode === "schedule"}
-              autoFocus={mode === "schedule"}
             />
           </div>
         </fieldset>

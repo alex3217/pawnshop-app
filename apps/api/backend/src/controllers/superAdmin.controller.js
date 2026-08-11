@@ -24,6 +24,8 @@ import {
   runSettlementTransition,
   settlementActorFromRequest,
 } from "../services/settlementStateMachine.service.js";
+import { getStripe } from "../lib/stripe.js";
+import { validateSellerPlanStripeReferences } from "../services/sellerPlanStripeValidation.service.js";
 
 
 const USER_ROLE_CODES = new Set(["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
@@ -83,6 +85,7 @@ function sendError(res, error, fallbackMessage = "Internal server error") {
   return res.status(status).json({
     success: false,
     error: error?.message || fallbackMessage,
+    ...(error?.code ? { code: error.code } : {}),
     ...(error?.details ? { details: error.details } : {}),
   });
 }
@@ -1625,6 +1628,46 @@ export async function previewSuperAdminSellerPlanImpact(req, res) {
   } catch (error) { return sendError(res, error); }
 }
 
+export async function validateSuperAdminSellerPlanStripeReferences(req, res) {
+  try {
+    assertSuperAdmin(req);
+    const code = getSellerPlanCodes().includes(normalizeUpper(req.params?.code))
+      ? normalizeUpper(req.params.code)
+      : null;
+    if (!code) throw badRequest("Unsupported seller plan.");
+
+    const [catalog, limitsRule] = await Promise.all([
+      mapSellerPlanCatalog(),
+      prisma.platformPricingRule.findUnique({
+        where: { key: `seller_plan_${code.toLowerCase()}_limits` },
+        select: { metadata: true },
+      }),
+    ]);
+    const metadata =
+      limitsRule?.metadata &&
+      typeof limitsRule.metadata === "object" &&
+      !Array.isArray(limitsRule.metadata)
+        ? limitsRule.metadata
+        : {};
+
+    const validation = await validateSellerPlanStripeReferences({
+      stripe: code === "FREE" ? null : getStripe(),
+      catalog,
+      planCode: code,
+      configuredProductId: metadata.stripeProductId || null,
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+    });
+
+    return res.json({ success: true, validation });
+  } catch (error) {
+    return sendError(
+      res,
+      error,
+      "Unable to validate seller-plan Stripe references.",
+    );
+  }
+}
+
 export async function updateSuperAdminSellerPlan(req, res) {
   try {
     assertSuperAdmin(req);
@@ -1636,9 +1679,8 @@ export async function updateSuperAdminSellerPlan(req, res) {
     const assignedShops = await prisma.pawnShop.count({ where: { isDeleted: false, subscriptionPlan: code } });
     const status = normalizeUpper(body.status, "ACTIVE");
     if (!["DRAFT", "ACTIVE", "DISABLED", "ARCHIVED"].includes(status)) throw badRequest("Plan status is invalid.");
-    if (["DISABLED", "ARCHIVED"].includes(status) && assignedShops > 0 && body.grandfatherExisting !== true && !body.scheduledMigrationAt) throw badRequest("Assigned plans require grandfathering or a scheduled migration before deactivation.");
-    if (body.scheduledMigrationAt && Number.isNaN(new Date(body.scheduledMigrationAt).getTime())) throw badRequest("Scheduled migration date is invalid.");
-    if (body.scheduledMigrationAt && new Date(body.scheduledMigrationAt).getTime() <= Date.now()) throw badRequest("Scheduled migration date must be in the future.");
+    if (body.scheduledMigrationAt) throw badRequest("Future seller-plan scheduling is not enabled. No changes were made.");
+    if (["DISABLED", "ARCHIVED"].includes(status) && assignedShops > 0 && body.grandfatherExisting !== true) throw badRequest("Assigned plans require grandfathering before deactivation.");
     const monthlyPriceCents = sellerPlanInteger(body.monthlyPriceCents ?? current.monthlyPriceCents, "Monthly price");
     const yearlyPriceCents = sellerPlanInteger(body.yearlyPriceCents ?? current.yearlyPriceCents, "Yearly price");
     const maxActiveListings = sellerPlanInteger(body.maxActiveListings ?? current.maxActiveListings, "Active-listing limit", true);
