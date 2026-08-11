@@ -14,6 +14,7 @@ import {
 
 function prismaWith({ subscription = null, savedSearches = 0, watchlistItems = 0 } = {}) {
   return {
+    user: { findUnique: async () => ({ stripeCustomerId: null }) },
     buyerSubscription: { findUnique: async () => subscription },
     savedSearch: { count: async () => savedSearches },
     watchlist: { count: async () => watchlistItems },
@@ -110,11 +111,30 @@ test("terminal and non-usable Stripe statuses fall back to Free entitlements", (
   }
 });
 
+test("billing management capabilities come from Stripe identifiers, not plan or status guesses", () => {
+  const paused = buildBuyerEntitlements({
+    subscription: { plan: "PLUS", status: "PAUSED", stripeCustomerId: "customer", stripeSubscriptionId: "subscription" },
+  });
+  assert.equal(paused.subscription.isPaid, false);
+  assert.equal(paused.subscription.canManageBilling, true);
+  assert.equal(paused.subscription.canManageSubscription, true);
+
+  const storedPaidWithoutStripe = buildBuyerEntitlements({ subscription: { plan: "PLUS", status: "ACTIVE" } });
+  assert.equal(storedPaidWithoutStripe.subscription.isPaid, true);
+  assert.equal(storedPaidWithoutStripe.subscription.canManageBilling, false);
+  assert.equal(storedPaidWithoutStripe.subscription.canManageSubscription, false);
+
+  const freeWithCustomer = buildBuyerEntitlements({ stripeCustomerId: "customer" });
+  assert.equal(freeWithCustomer.subscription.storedPlan, "FREE");
+  assert.equal(freeWithCustomer.subscription.canManageBilling, true);
+});
+
 function concurrentResourceClient({ savedSearches = [], watchlistItems = [] } = {}) {
   const state = { savedSearches: [...savedSearches], watchlistItems: [...watchlistItems] };
   let transactionTail = Promise.resolve();
   const transaction = {
     $queryRaw: async () => [{ pg_advisory_xact_lock: null }],
+    user: { findUnique: async () => ({ stripeCustomerId: null }) },
     buyerSubscription: { findUnique: async () => null },
     savedSearch: {
       count: async () => state.savedSearches.length,
