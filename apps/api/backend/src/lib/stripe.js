@@ -4,6 +4,10 @@ import {
   SELLER_PLAN_CODES,
   isPaidSellerPlanCode,
 } from "../config/sellerPlans.js";
+import {
+  BUYER_STRIPE_PRICE_ENV_MAP,
+  getBuyerStripePriceEnvName,
+} from "../config/buyerPlanStripePrices.js";
 
 const STRIPE_API_VERSION = "2025-01-27.acacia";
 
@@ -11,12 +15,6 @@ const SELLER_PLAN_PRICE_ENV_MAP = Object.freeze({
   [SELLER_PLAN_CODES.PRO]: "STRIPE_PRICE_PRO",
   [SELLER_PLAN_CODES.PREMIUM]: "STRIPE_PRICE_PREMIUM",
   [SELLER_PLAN_CODES.ULTRA]: "STRIPE_PRICE_ULTRA",
-});
-
-const BUYER_PLAN_PRICE_ENV_MAP = Object.freeze({
-  PLUS: "STRIPE_PRICE_BUYER_PLUS",
-  PREMIUM: "STRIPE_PRICE_BUYER_PREMIUM",
-  ULTRA: "STRIPE_PRICE_BUYER_ULTRA",
 });
 
 let stripeInstance = null;
@@ -62,17 +60,6 @@ function getSellerPlanPriceEnvName(planCode) {
   return envName;
 }
 
-function getBuyerPlanPriceEnvName(planCode) {
-  const normalized = normalizePlanCode(planCode);
-  const envName = BUYER_PLAN_PRICE_ENV_MAP[normalized];
-
-  if (!envName) {
-    throw new Error(`Unsupported buyer paid plan: ${normalized || "(empty)"}`);
-  }
-
-  return envName;
-}
-
 export function isStripeConfigured() {
   try {
     requireEnv("STRIPE_SECRET_KEY");
@@ -101,9 +88,9 @@ export function isStripePlanConfigured(planCode) {
   }
 }
 
-export function isStripeBuyerPlanConfigured(planCode) {
+export function isStripeBuyerPlanConfigured(planCode, billingInterval) {
   try {
-    requireEnv(getBuyerPlanPriceEnvName(planCode));
+    requireEnv(getBuyerStripePriceEnvName(planCode, billingInterval));
     return true;
   } catch {
     return false;
@@ -136,15 +123,15 @@ export function getSupportedPaidPlanCodes() {
 }
 
 export function getSupportedPaidBuyerPlanCodes() {
-  return Object.keys(BUYER_PLAN_PRICE_ENV_MAP);
+  return Object.keys(BUYER_STRIPE_PRICE_ENV_MAP);
 }
 
 export function getSubscriptionPriceId(planCode) {
   return requireEnv(getSellerPlanPriceEnvName(planCode));
 }
 
-export function getBuyerSubscriptionPriceId(planCode) {
-  return requireEnv(getBuyerPlanPriceEnvName(planCode));
+export function getBuyerSubscriptionPriceId(planCode, billingInterval) {
+  return requireEnv(getBuyerStripePriceEnvName(planCode, billingInterval));
 }
 
 export function toAmountCents(amount) {

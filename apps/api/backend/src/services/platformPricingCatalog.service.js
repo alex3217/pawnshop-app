@@ -2,6 +2,7 @@
 
 import { prisma } from "../lib/prisma.js";
 import { listBuyerPlans } from "../config/buyerPlans.js";
+import { readBuyerStripePriceConfiguration } from "../config/buyerPlanStripePrices.js";
 import {
   SELLER_PLANS,
   getPaidSellerPlanCodes,
@@ -168,6 +169,7 @@ async function getActivePricingRuleMap() {
 }
 
 function applyBuyerPlanPricingOverrides(plans, ruleMap) {
+  const environmentPrices = readBuyerStripePriceConfiguration();
   return plans.map((plan, rank) => {
     const code = normalizeRuleKey(plan.code);
     const monthlyRule = ruleMap.get(`buyer_plan_${code}_monthly`);
@@ -192,8 +194,8 @@ function applyBuyerPlanPricingOverrides(plans, ruleMap) {
       isPaid: !isFree,
       isFree,
       rank,
-      stripeMonthlyPriceId: normalizeOptionalText(monthlyRule?.stripePriceId),
-      stripeYearlyPriceId: normalizeOptionalText(yearlyRule?.stripePriceId),
+      stripeMonthlyPriceId: normalizeOptionalText(monthlyRule?.stripePriceId) || environmentPrices[plan.code]?.MONTH || null,
+      stripeYearlyPriceId: normalizeOptionalText(yearlyRule?.stripePriceId) || environmentPrices[plan.code]?.YEAR || null,
     };
   });
 }

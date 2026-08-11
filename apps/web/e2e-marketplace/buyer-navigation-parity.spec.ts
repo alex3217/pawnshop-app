@@ -31,15 +31,15 @@ async function installBuyer(page: Page, theme: "light" | "dark" = "light") {
     const pathname = new URL(route.request().url()).pathname;
     const body = pathname.endsWith("/buyer-plans/mine/usage") ? {
       success: true,
-      subscription: { id: null, storedPlan: "FREE", effectivePlan: "FREE", displayName: "Free", status: "ACTIVE", billingInterval: null, currentPeriodStart: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, isPaid: false },
+      subscription: { id: null, storedPlan: "FREE", effectivePlan: "FREE", displayName: "Free", status: "ACTIVE", billingInterval: null, currentPeriodStart: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, isPaid: false, canManageBilling: false, canManageSubscription: false },
       entitlements: { savedSearchLimit: 5, wishListLimit: null, favoriteLimit: null, comparisonLimit: null, alertLevel: "basic", notificationPriority: "standard", workspaceLevel: "fixed", workspaceCustomizationEnabled: false, collectionManagerEnabled: false, collectionItemLimit: null, marketIntelligenceLevel: "none", conciergeEnabled: false, supportLevel: "standard" },
       usage: { savedSearches: { used: 0, limit: 5, unlimited: false, remaining: 5, atLimit: false }, watchlistItems: { used: 0, limit: 25, unlimited: false, remaining: 25, atLimit: false }, wishLists: { used: 0, limit: null, unlimited: true, remaining: null, atLimit: false }, comparisons: { used: 0, limit: null, unlimited: true, remaining: null, atLimit: false }, collectionItems: { used: 0, limit: null, unlimited: true, remaining: null, atLimit: false }, aiRequests: { used: 0, limit: null, unlimited: true, remaining: null, atLimit: false }, activeAlerts: 0, referralRewards: 0, loyaltyPoints: 0 },
       implementation: {}, coreCommerce: {},
     } : pathname.endsWith("/buyer-plans") ? { success: true, plans: [
-      { code: "FREE", label: "Free", monthlyPriceCents: 0, yearlyPriceCents: 0, currency: "USD", annualSavingsCents: 0, isPaid: false, isFree: true, rank: 0, monthlyCheckoutConfigured: true, yearlyCheckoutConfigured: true, maxSavedSearches: 5, maxWatchlistItems: 25, features: ["Browse items and auctions"] },
-      { code: "PLUS", label: "Plus", monthlyPriceCents: 699, yearlyPriceCents: 6900, currency: "USD", annualSavingsCents: 1488, isPaid: true, isFree: false, rank: 1, monthlyCheckoutConfigured: true, yearlyCheckoutConfigured: true, maxSavedSearches: 50, maxWatchlistItems: 250, features: ["Instant alerts"] },
-      { code: "PREMIUM", label: "Premium", monthlyPriceCents: 1299, yearlyPriceCents: 12900, currency: "USD", annualSavingsCents: 2688, isPaid: true, isFree: false, rank: 2, monthlyCheckoutConfigured: true, yearlyCheckoutConfigured: false, maxSavedSearches: null, maxWatchlistItems: null, features: ["Advanced autobid tools"] },
-      { code: "ULTRA", label: "Ultra", monthlyPriceCents: 2499, yearlyPriceCents: 24900, currency: "USD", annualSavingsCents: 5088, isPaid: true, isFree: false, rank: 3, monthlyCheckoutConfigured: true, yearlyCheckoutConfigured: true, maxSavedSearches: null, maxWatchlistItems: null, features: ["Earliest premium inventory access"] },
+      { code: "FREE", label: "Free", monthlyPriceCents: 0, yearlyPriceCents: 0, currency: "USD", annualSavingsCents: 0, buyerFeeBps: 500, isPaid: false, isFree: true, rank: 0, monthlyCheckoutConfigured: true, yearlyCheckoutConfigured: true, unavailableIntervals: [], maxSavedSearches: 5, maxWatchlistItems: 25, features: ["Browse items and auctions"] },
+      { code: "PLUS", label: "Plus", monthlyPriceCents: 699, yearlyPriceCents: 6900, currency: "USD", annualSavingsCents: 1488, buyerFeeBps: 300, isPaid: true, isFree: false, rank: 1, monthlyCheckoutConfigured: true, yearlyCheckoutConfigured: true, unavailableIntervals: [], maxSavedSearches: 50, maxWatchlistItems: 250, features: ["Instant alerts"] },
+      { code: "PREMIUM", label: "Premium", monthlyPriceCents: 1299, yearlyPriceCents: 12900, currency: "USD", annualSavingsCents: 2688, buyerFeeBps: 150, isPaid: true, isFree: false, rank: 2, monthlyCheckoutConfigured: true, yearlyCheckoutConfigured: false, unavailableIntervals: ["YEAR"], maxSavedSearches: null, maxWatchlistItems: null, features: ["Advanced autobid tools"] },
+      { code: "ULTRA", label: "Ultra", monthlyPriceCents: 2499, yearlyPriceCents: 24900, currency: "USD", annualSavingsCents: 5088, buyerFeeBps: 50, isPaid: true, isFree: false, rank: 3, monthlyCheckoutConfigured: true, yearlyCheckoutConfigured: true, unavailableIntervals: [], maxSavedSearches: null, maxWatchlistItems: null, features: ["Earliest premium inventory access"] },
     ] } : {
       success: true, items: [], rows: [], data: [], shops: [], capabilities: {},
       notifications: [], pagination: { page: 1, limit: 25, total: 0, totalPages: 0 },
@@ -89,8 +89,8 @@ test("CONSUMER Buyer Tools exposes every supported unchanged URL and no privileg
 test("Buyer Subscription route resolves for CONSUMER without privileged controls", async ({ page }) => {
   await installBuyer(page);
   await page.goto("/buyer/subscription");
-  await expect(page.getByRole("heading", { name: "Buyer Subscription" })).toBeVisible();
-  const comparison = page.getByRole("region", { name: "Compare plans" });
+  await expect(page.getByRole("heading", { name: "Buyer Membership" })).toBeVisible();
+  const comparison = page.getByRole("region", { name: "Choose the membership that fits" });
   for (const plan of ["Free", "Plus", "Premium", "Ultra"]) {
     await expect(comparison.getByRole("heading", { name: plan, exact: true })).toBeVisible();
   }
@@ -108,9 +108,9 @@ test("Buyer Subscription interval selection fails closed and checkout sends only
   });
   await page.goto("/buyer/subscription");
   await page.getByLabel("Yearly").check();
-  await expect(page.getByText("$69.00 / year")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Choose Premium" })).toBeDisabled();
-  await expect(page.getByText("This billing interval is not configured yet.", { exact: false })).toBeVisible();
+  await expect(page.getByText("$69 / year")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Temporarily unavailable" })).toBeDisabled();
+  await expect(page.getByText("Some yearly options are temporarily unavailable.")).toBeVisible();
   await page.getByLabel("Monthly").check();
   await page.getByRole("button", { name: "Choose Plus" }).click();
   await expect.poll(() => checkoutBody).not.toBeNull();
@@ -128,7 +128,7 @@ test("active paid buyer manages another paid plan in the trusted Stripe portal w
   await installBuyer(page);
   await page.route("**/api/buyer-plans/mine/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
     success: true,
-    subscription: { id: "subscription-1", storedPlan: "PLUS", effectivePlan: "PLUS", displayName: "Plus", status: "ACTIVE", billingInterval: "MONTH", currentPeriodStart: "2026-08-01T00:00:00.000Z", currentPeriodEnd: "2026-09-01T00:00:00.000Z", cancelAtPeriodEnd: false, isPaid: true },
+    subscription: { id: "subscription-1", storedPlan: "PLUS", effectivePlan: "PLUS", displayName: "Plus", status: "ACTIVE", billingInterval: "MONTH", currentPeriodStart: "2026-08-01T00:00:00.000Z", currentPeriodEnd: "2026-09-01T00:00:00.000Z", cancelAtPeriodEnd: false, isPaid: true, canManageBilling: true, canManageSubscription: true },
     entitlements: {},
     usage: { savedSearches: { used: 1, limit: 50, unlimited: false, remaining: 49, atLimit: false }, watchlistItems: { used: 2, limit: 250, unlimited: false, remaining: 248, atLimit: false } },
     implementation: {}, coreCommerce: {},
@@ -143,7 +143,7 @@ test("active paid buyer manages another paid plan in the trusted Stripe portal w
   await page.goto("/buyer/subscription");
   await expect(page.getByRole("button", { name: "Manage Plus plan in Stripe" })).toHaveCount(0);
   await expect(page.getByText("Current plan", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Manage Premium plan in Stripe" }).click();
+  await page.getByRole("button", { name: "Upgrade in billing" }).first().click();
   await page.waitForURL("https://billing.stripe.com/session/test");
   expect(portalCalls).toBe(1);
   expect(checkoutCalls).toBe(0);
@@ -154,13 +154,13 @@ test("active paid buyer rejects an untrusted Billing Portal URL in the status ar
   await installBuyer(page);
   await page.route("**/api/buyer-plans/mine/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
     success: true,
-    subscription: { id: "subscription-1", storedPlan: "PLUS", effectivePlan: "PLUS", displayName: "Plus", status: "ACTIVE", billingInterval: "MONTH", currentPeriodStart: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, isPaid: true },
+    subscription: { id: "subscription-1", storedPlan: "PLUS", effectivePlan: "PLUS", displayName: "Plus", status: "ACTIVE", billingInterval: "MONTH", currentPeriodStart: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, isPaid: true, canManageBilling: true, canManageSubscription: true },
     entitlements: {}, usage: { savedSearches: { used: 0, limit: 50, unlimited: false, remaining: 50, atLimit: false }, watchlistItems: { used: 0, limit: 250, unlimited: false, remaining: 250, atLimit: false } }, implementation: {}, coreCommerce: {},
   }) }));
   await page.route("**/api/stripe/checkout/buyer-subscription", (route) => { checkoutCalls += 1; return route.abort(); });
   await page.route("**/api/stripe/billing-portal", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, url: "https://stripe.example.test/phishing" }) }));
   await page.goto("/buyer/subscription");
-  await page.getByRole("button", { name: "Manage Ultra plan in Stripe" }).click();
+  await page.getByRole("button", { name: "Upgrade in billing" }).last().click();
   await expect(page.getByRole("alert")).toContainText("Stripe returned an untrusted billing URL.");
   expect(checkoutCalls).toBe(0);
   await expect(page).toHaveURL(/\/buyer\/subscription$/);
@@ -170,7 +170,7 @@ test("paid cancellation schedules period end and scheduled cancellation offers r
   let cancelCalls = 0;
   let usageCalls = 0;
   await installBuyer(page);
-  const subscription = { id: "subscription-1", storedPlan: "PLUS", effectivePlan: "PLUS", displayName: "Plus", status: "ACTIVE", billingInterval: "MONTH", currentPeriodStart: null, currentPeriodEnd: "2026-09-01T00:00:00.000Z", cancelAtPeriodEnd: false, isPaid: true };
+  const subscription = { id: "subscription-1", storedPlan: "PLUS", effectivePlan: "PLUS", displayName: "Plus", status: "ACTIVE", billingInterval: "MONTH", currentPeriodStart: null, currentPeriodEnd: "2026-09-01T00:00:00.000Z", cancelAtPeriodEnd: false, isPaid: true, canManageBilling: true, canManageSubscription: true };
   await page.route("**/api/buyer-plans/mine/usage", (route) => {
     usageCalls += 1;
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
@@ -188,7 +188,7 @@ test("paid cancellation schedules period end and scheduled cancellation offers r
   await expect(page.getByText("Stripe confirmation is pending.")).toBeVisible();
   expect(cancelCalls).toBe(1);
   expect(usageCalls).toBe(usageCallsBeforeCancellation);
-  await expect(page.getByRole("button", { name: "Resume subscription" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resume membership" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Downgrade to Free" })).toHaveCount(0);
 });
 
@@ -197,7 +197,7 @@ test("failed cancellation preserves the paid state and permits a later retry", a
   await installBuyer(page);
   await page.route("**/api/buyer-plans/mine/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
     success: true,
-    subscription: { id: "subscription-1", storedPlan: "PLUS", effectivePlan: "PLUS", displayName: "Plus", status: "ACTIVE", billingInterval: "MONTH", currentPeriodStart: null, currentPeriodEnd: "2026-09-01T00:00:00.000Z", cancelAtPeriodEnd: false, isPaid: true },
+    subscription: { id: "subscription-1", storedPlan: "PLUS", effectivePlan: "PLUS", displayName: "Plus", status: "ACTIVE", billingInterval: "MONTH", currentPeriodStart: null, currentPeriodEnd: "2026-09-01T00:00:00.000Z", cancelAtPeriodEnd: false, isPaid: true, canManageBilling: true, canManageSubscription: true },
     entitlements: {}, usage: { savedSearches: { used: 0, limit: 50, unlimited: false, remaining: 50, atLimit: false }, watchlistItems: { used: 0, limit: 250, unlimited: false, remaining: 250, atLimit: false } }, implementation: {}, coreCommerce: {},
   }) }));
   await page.route("**/api/buyer-plans/mine/cancel-at-period-end", async (route) => {
@@ -208,7 +208,7 @@ test("failed cancellation preserves the paid state and permits a later retry", a
   await page.getByRole("button", { name: "Downgrade to Free" }).click();
   await expect(page.getByRole("alert")).toContainText("Stripe cancellation failed");
   await expect(page.getByRole("button", { name: "Downgrade to Free" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Resume subscription" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Resume membership" })).toHaveCount(0);
   expect(cancelCalls).toBe(1);
 });
 
@@ -217,7 +217,7 @@ test("ended buyer with effective Free can begin a new paid Checkout", async ({ p
   await installBuyer(page);
   await page.route("**/api/buyer-plans/mine/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
     success: true,
-    subscription: { id: "subscription-ended", storedPlan: "PLUS", effectivePlan: "FREE", displayName: "Free", status: "CANCELED", billingInterval: "MONTH", currentPeriodStart: null, currentPeriodEnd: "2026-07-01T00:00:00.000Z", cancelAtPeriodEnd: false, isPaid: false },
+    subscription: { id: "subscription-ended", storedPlan: "PLUS", effectivePlan: "FREE", displayName: "Free", status: "CANCELED", billingInterval: "MONTH", currentPeriodStart: null, currentPeriodEnd: "2026-07-01T00:00:00.000Z", cancelAtPeriodEnd: false, isPaid: false, canManageBilling: false, canManageSubscription: false },
     entitlements: {}, usage: { savedSearches: { used: 0, limit: 5, unlimited: false, remaining: 5, atLimit: false }, watchlistItems: { used: 0, limit: 25, unlimited: false, remaining: 25, atLimit: false } }, implementation: {}, coreCommerce: {},
   }) }));
   await page.route("**/api/stripe/checkout/buyer-subscription", async (route) => {
@@ -232,19 +232,66 @@ test("ended buyer with effective Free can begin a new paid Checkout", async ({ p
   expect(checkoutCalls).toBe(1);
 });
 
+test("paused buyer retains explicit Billing Portal management despite Free entitlement fallback", async ({ page }) => {
+  let portalCalls = 0;
+  await installBuyer(page);
+  await page.route("**/api/buyer-plans/mine/usage", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+    success: true,
+    subscription: { id: "subscription-paused", storedPlan: "PLUS", effectivePlan: "FREE", displayName: "Free", status: "PAUSED", billingInterval: "MONTH", currentPeriodStart: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, isPaid: false, canManageBilling: true, canManageSubscription: true },
+    entitlements: {}, usage: { savedSearches: { used: 2, limit: 5, unlimited: false, remaining: 3, atLimit: false }, watchlistItems: { used: 3, limit: 25, unlimited: false, remaining: 22, atLimit: false } }, implementation: {}, coreCommerce: {},
+  }) }));
+  await page.route("**/api/stripe/billing-portal", async (route) => {
+    portalCalls += 1;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, url: "https://billing.stripe.com/session/paused" }) });
+  });
+  await page.route("https://billing.stripe.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "Stripe portal" }));
+  await page.goto("/buyer/subscription");
+  await expect(page.getByText("Free access currently applies")).toBeVisible();
+  await page.getByRole("button", { name: "Manage billing" }).first().click();
+  await page.waitForURL("https://billing.stripe.com/session/paused");
+  expect(portalCalls).toBe(1);
+});
+
+test("new buyer rejects an untrusted Checkout redirect", async ({ page }) => {
+  await installBuyer(page);
+  await page.route("**/api/stripe/checkout/buyer-subscription", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, url: "https://checkout.stripe.example.test/phishing" }) }));
+  await page.goto("/buyer/subscription");
+  await page.getByRole("button", { name: "Choose Plus" }).click();
+  await expect(page.getByRole("alert")).toContainText("Stripe returned an untrusted checkout URL.");
+  await expect(page).toHaveURL(/\/buyer\/subscription$/);
+});
+
 test("Buyer Subscription remains usable on desktop/mobile in light/dark themes", async ({ page }) => {
   for (const theme of ["light", "dark"] as const) {
-    for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 768, height: 900 }, { width: 390, height: 844 }]) {
       await page.setViewportSize(viewport);
       await installBuyer(page, theme);
       await page.goto("/buyer/subscription");
-      await expect(page.getByRole("heading", { name: "Buyer Subscription" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Buyer Membership" })).toBeVisible();
       await expect(page.getByRole("group", { name: "Billing interval" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Choose Plus" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Usage and limits" })).toBeVisible();
+      await expect(page.getByText("0 of 5")).toBeVisible();
+      const cards = page.locator(".buyer-plan-card");
+      const boxes = await cards.evaluateAll((elements) => elements.map((element) => { const box = element.getBoundingClientRect(); return { x: Math.round(box.x), y: Math.round(box.y) }; }));
+      if (viewport.width === 1280) expect(new Set(boxes.map((box) => box.y)).size).toBe(1);
+      if (viewport.width === 768) expect([...new Set(boxes.map((box) => box.y))].length).toBe(2);
+      if (viewport.width === 390) expect(new Set(boxes.map((box) => box.y)).size).toBe(4);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow).toBeLessThanOrEqual(1);
     }
   }
+});
+
+test("billing interval is keyboard selectable with visible focus", async ({ page }) => {
+  await installBuyer(page);
+  await page.goto("/buyer/subscription");
+  const monthly = page.getByLabel("Monthly");
+  await monthly.focus();
+  await expect(monthly).toBeFocused();
+  expect(await monthly.locator("..").evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByLabel("Yearly")).toBeChecked();
 });
 
 test("Buyer Tools supports keyboard, Escape, outside click, focus return, and viewport containment", async ({ page }) => {
