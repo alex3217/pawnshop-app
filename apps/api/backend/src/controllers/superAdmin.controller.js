@@ -27,6 +27,7 @@ import {
 import { getStripe } from "../lib/stripe.js";
 import { validateSellerPlanStripeReferences } from "../services/sellerPlanStripeValidation.service.js";
 import { resolveEffectiveSellerPlan } from "../services/sellerPlan.service.js";
+import { resolveEffectiveRevision } from "../config/deployedEnvironment.js";
 
 
 const USER_ROLE_CODES = new Set(["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
@@ -1298,7 +1299,7 @@ export async function getSuperAdminSystemHealth(req, res) {
     const env = {
       nodeEnv: process.env.NODE_ENV || "development",
       port: process.env.PORT || null,
-      appVersion: process.env.APP_VERSION || process.env.npm_package_version || null,
+      appVersion: resolveEffectiveRevision(process.env) || process.env.npm_package_version || null,
       runtime: {
         node: process.version,
         platform: process.platform,
