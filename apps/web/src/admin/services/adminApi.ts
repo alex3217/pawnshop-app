@@ -390,6 +390,23 @@ export type SellerPlanSummary = {
 
 export type SellerPlanImpact = { affectedShops: number; affectedSubscriptions: number; currentMrrCents: number; projectedMrrCents: number; mrrDeltaCents: number; requiresGrandfathering: boolean };
 
+export type SellerPlanStripeValidation = {
+  valid: boolean;
+  notRequired: boolean;
+  planCode: string;
+  validatedAt: string;
+  product?: {
+    active: boolean;
+    name: string | null;
+  };
+  prices: Array<{
+    billingInterval: "MONTH" | "YEAR";
+    amountCents: number;
+    currency: string;
+    recurringInterval: "month" | "year";
+  }>;
+};
+
 export type BuyerPlanSummary = {
   code: string;
   label: string;
@@ -1303,6 +1320,19 @@ export const adminApi = {
 
   previewSellerPlanImpact: (code: string, input: Record<string, unknown>, signal?: AbortSignal) =>
     postJson<{ success: boolean; impact: SellerPlanImpact }>(`/super-admin/plans/seller/${encodeURIComponent(code)}/impact`, input, signal),
+
+  validateSellerPlanStripeReferences: (
+    code: string,
+    signal?: AbortSignal
+  ) =>
+    postJson<{
+      success: boolean;
+      validation: SellerPlanStripeValidation;
+    }>(
+      `/super-admin/plans/seller/${encodeURIComponent(code)}/validate-stripe`,
+      {},
+      signal
+    ),
 
   updateSellerPlan: (code: string, input: Record<string, unknown>, signal?: AbortSignal) =>
     patchJson<{ success: boolean; plans: SellerPlanSummary[] }>(`/super-admin/plans/seller/${encodeURIComponent(code)}`, input, signal),
