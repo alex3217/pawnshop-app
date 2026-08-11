@@ -194,3 +194,149 @@ body:has(.admin-subscriptions-readability) a[href="/admin"] {
   line-height: 1.15 !important;
 }
 /* END Admin Subscriptions shell tap-target polish. */
+
+/* Seller subscription cards.
+   Keep expanded disclosure content out of the action row so sibling links
+   never stretch into oversized pill/circle shapes. */
+.admin-subscriptions-readability :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.seller-subscription-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.seller-subscription-disclosure {
+  min-width: 0;
+}
+
+.seller-subscription-disclosure > summary {
+  list-style: none;
+}
+
+.seller-subscription-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.seller-subscription-disclosure > summary::before {
+  content: "▸";
+  margin-right: 8px;
+  transition: transform 120ms ease;
+}
+
+.seller-subscription-disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.seller-subscription-actions {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-subscriptions-readability .seller-subscription-action {
+  width: auto;
+  min-width: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 12px;
+  padding: 10px 14px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.seller-subscription-expanded-panel {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.28);
+}
+
+.seller-subscription-expanded-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin: 0;
+}
+
+.seller-subscription-expanded-grid div {
+  min-width: 0;
+}
+
+.seller-subscription-expanded-grid dt {
+  margin-bottom: 5px;
+  color: rgba(226, 232, 240, 0.68) !important;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.seller-subscription-expanded-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.seller-subscription-reference-note,
+.seller-subscription-separation-note {
+  margin: 12px 0 0;
+  color: rgba(226, 232, 240, 0.72) !important;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.seller-subscription-separation-note {
+  padding-top: 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.seller-subscription-status {
+  align-self: flex-start;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 999px;
+  padding: 9px 13px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.seller-subscription-status--healthy {
+  border-color: rgba(74, 222, 128, 0.36);
+  background: rgba(34, 197, 94, 0.18);
+  color: #dcfce7 !important;
+}
+
+.seller-subscription-status--attention {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(245, 158, 11, 0.18);
+  color: #fef3c7 !important;
+}
+
+.seller-subscription-status--neutral {
+  background: rgba(148, 163, 184, 0.16);
+  color: #e2e8f0 !important;
+}
+
+@media (max-width: 640px) {
+  .seller-subscription-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .admin-subscriptions-readability .seller-subscription-action {
+    width: 100%;
+  }
+
+  .seller-subscription-expanded-panel {
+    padding: 14px;
+  }
+}
