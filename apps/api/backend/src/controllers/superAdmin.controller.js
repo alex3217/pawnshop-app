@@ -26,6 +26,8 @@ import {
 } from "../services/settlementStateMachine.service.js";
 import { getStripe } from "../lib/stripe.js";
 import { validateSellerPlanStripeReferences } from "../services/sellerPlanStripeValidation.service.js";
+import { resolveEffectiveSellerPlan } from "../services/sellerPlan.service.js";
+import { resolveEffectiveRevision } from "../config/deployedEnvironment.js";
 
 
 const USER_ROLE_CODES = new Set(["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
@@ -267,7 +269,8 @@ function mapUserRow(user) {
   };
 }
 
-function mapShopRow(shop) {
+export function mapShopRow(shop) {
+  const effective = resolveEffectiveSellerPlan(shop);
   return {
     id: shop.id,
     name: shop.name,
@@ -279,9 +282,11 @@ function mapShopRow(shop) {
     ownerName: shop.owner?.name || null,
     ownerEmail: shop.owner?.email || null,
     isDeleted: Boolean(shop.isDeleted),
-    subscriptionPlan: normalizeUpper(shop.subscriptionPlan, "FREE"),
-    subscriptionStatus: normalizeUpper(shop.subscriptionStatus, "UNKNOWN"),
-    subscriptionBillingInterval: normalizeUpper(shop.subscriptionBillingInterval, "MONTHLY"),
+    subscriptionPlan: effective.effectivePlan,
+    effectiveSubscriptionPlan: effective.effectivePlan,
+    storedSubscriptionPlan: effective.storedPlan,
+    subscriptionStatus: effective.status,
+    subscriptionBillingInterval: effective.interval,
     subscriptionCurrentPeriodEnd: toIsoOrNull(shop.subscriptionCurrentPeriodEnd),
     cancelAtPeriodEnd: Boolean(shop.cancelAtPeriodEnd),
     stripeCustomerId: shop.stripeCustomerId || null,
@@ -1294,7 +1299,7 @@ export async function getSuperAdminSystemHealth(req, res) {
     const env = {
       nodeEnv: process.env.NODE_ENV || "development",
       port: process.env.PORT || null,
-      appVersion: process.env.APP_VERSION || process.env.npm_package_version || null,
+      appVersion: resolveEffectiveRevision(process.env) || process.env.npm_package_version || null,
       runtime: {
         node: process.version,
         platform: process.platform,

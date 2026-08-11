@@ -183,6 +183,8 @@ export type AdminShopRow = {
   ownerName?: string | null;
   ownerEmail?: string | null;
   subscriptionPlan?: string | null;
+  effectiveSubscriptionPlan?: string | null;
+  storedSubscriptionPlan?: string | null;
   subscriptionStatus?: string | null;
   subscriptionBillingInterval?: string | null;
   subscriptionCurrentPeriodEnd?: string | null;

@@ -20,6 +20,7 @@
     "test:customer-scan-marketplace-listing": "playwright test customer-scan-marketplace-listing.spec.ts --config playwright.marketplace.config.ts",
     "test:item-locator-empty-results": "playwright test item-locator-empty-results.spec.ts --config playwright.marketplace.config.ts",
     "test:buyer-parity": "playwright test buyer-navigation-parity.spec.ts --config playwright.marketplace.config.ts",
+    "test:ci:seller-subscription": "playwright test --config playwright.seller-subscription-ci.config.ts --grep \"Shop Management renders one primary action set|audit navigation reloads records for each shop target\"",
     "test:staging:list": "playwright test --config playwright.staging.config.ts --list",
     "test:staging:buyer": "playwright test --config playwright.staging.config.ts --project buyer-readonly",
     "test:staging:readonly": "playwright test --config playwright.staging.config.ts --grep @readonly"

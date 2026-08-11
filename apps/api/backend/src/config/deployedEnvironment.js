@@ -31,6 +31,10 @@ function clean(env, name) {
   return String(env[name] ?? "").trim();
 }
 
+export function resolveEffectiveRevision(env = process.env) {
+  return clean(env, "RENDER_GIT_COMMIT") || clean(env, "APP_VERSION") || null;
+}
+
 export function isLocalOrLoopbackHostname(value) {
   const hostname = String(value || "")
     .trim()
@@ -251,10 +255,11 @@ export function validateDeployedEnvironment(env, { environment } = {}) {
   if (requireValue(env, "APP_NAME", violations, { secret: false }) && clean(env, "APP_NAME") !== "pawnloop-api") {
     violations.push("APP_NAME must equal pawnloop-api");
   }
-  const revision = requireValue(env, "APP_VERSION", violations, { secret: false });
-  if (revision && (!/^[A-Za-z0-9][A-Za-z0-9._/-]{6,127}$/.test(revision) || /development|unknown|latest/i.test(revision))) {
+  const appVersion = requireValue(env, "APP_VERSION", violations, { secret: false });
+  if (appVersion && (!/^[A-Za-z0-9][A-Za-z0-9._/-]{6,127}$/.test(appVersion) || /development|unknown|latest/i.test(appVersion))) {
     violations.push("APP_VERSION must be immutable revision metadata");
   }
+  const revision = resolveEffectiveRevision(env);
 
   canonicalHttpsOrigin(env, "API_ORIGIN", violations);
   canonicalHttpsOrigin(env, "FRONTEND_URL", violations);

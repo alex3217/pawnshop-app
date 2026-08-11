@@ -5,6 +5,7 @@ import request from "supertest";
 
 import { createApp } from "../src/app.js";
 import {
+  resolveEffectiveRevision,
   validateCurrentDeployedEnvironment,
   validateDeployedEnvironment,
 } from "../src/config/deployedEnvironment.js";
@@ -66,6 +67,36 @@ test("complete staging and production environments return sanitized metadata", (
     assert.equal(metadata.revision, "git-0123456789abcdef");
     for (const secret of secretValues) assert.equal(JSON.stringify(metadata).includes(secret), false);
   }
+});
+
+test("Render commit overrides APP_VERSION as the effective revision", () => {
+  const env = validEnvironment("staging");
+  env.RENDER_GIT_COMMIT = "render-abcdef0123456789";
+
+  assert.equal(resolveEffectiveRevision(env), "render-abcdef0123456789");
+  assert.equal(
+    validateDeployedEnvironment(env, { environment: "staging" }).revision,
+    "render-abcdef0123456789",
+  );
+});
+
+test("APP_VERSION is the effective revision fallback", () => {
+  assert.equal(
+    resolveEffectiveRevision({ RENDER_GIT_COMMIT: "  ", APP_VERSION: "app-abcdef0123456789" }),
+    "app-abcdef0123456789",
+  );
+  assert.equal(resolveEffectiveRevision({}), null);
+});
+
+test("deployed environments still require APP_VERSION when Render provides a commit", () => {
+  const env = validEnvironment("staging");
+  delete env.APP_VERSION;
+  env.RENDER_GIT_COMMIT = "render-abcdef0123456789";
+
+  assert.throws(
+    () => validateDeployedEnvironment(env, { environment: "staging" }),
+    /APP_VERSION is required/,
+  );
 });
 
 const invalidCases = [
@@ -272,21 +303,34 @@ test("production preflight accepts a synthetic valid contract without network wo
 });
 
 test("health and readiness expose revision without process internals", async () => {
-  const prior = process.env.APP_VERSION;
+  const prior = {
+    APP_VERSION: process.env.APP_VERSION,
+    RENDER_GIT_COMMIT: process.env.RENDER_GIT_COMMIT,
+    JWT_SECRET: process.env.JWT_SECRET,
+  };
   process.env.APP_VERSION = "git-health-01234567";
+  process.env.RENDER_GIT_COMMIT = "render-health-89abcdef";
+  process.env.JWT_SECRET = "health-endpoint-must-not-expose-this-secret";
   try {
     const app = createApp({
       readinessCheck: async () => true,
       authRateLimitConfig: { enabled: false },
     });
-    for (const path of ["/api/health", "/api/ready"]) {
+    for (const path of ["/health", "/api/health", "/ready", "/api/ready"]) {
       const response = await request(app).get(path).expect(200);
-      assert.equal(response.body.revision, "git-health-01234567");
-      assert.equal(response.body.pid, undefined);
-      assert.equal(response.body.memory, undefined);
+      assert.equal(response.body.revision, "render-health-89abcdef");
+      for (const name of ["pid", "memory", "uptime", "envVars", "environmentVariables"]) {
+        assert.equal(response.body[name], undefined);
+      }
+      assert.equal(Number.isInteger(response.body.uptimeSeconds), true);
+      assert.ok(response.body.uptimeSeconds >= 0);
+      assert.equal(JSON.stringify(response.body).includes("git-health-01234567"), false);
+      assert.equal(JSON.stringify(response.body).includes(process.env.JWT_SECRET), false);
     }
   } finally {
-    if (prior === undefined) delete process.env.APP_VERSION; else process.env.APP_VERSION = prior;
+    for (const [name, value] of Object.entries(prior)) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
   }
 });
 

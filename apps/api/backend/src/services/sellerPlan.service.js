@@ -32,6 +32,7 @@ const SHOP_PLAN_SELECT = Object.freeze({
   isDeleted: true,
   subscriptionPlan: true,
   subscriptionStatus: true,
+  subscriptionBillingInterval: true,
   subscriptionCurrentPeriodEnd: true,
   cancelAtPeriodEnd: true,
   stripeCustomerId: true,
@@ -110,25 +111,32 @@ function isExpiredSellerTrial(shop, now = Date.now()) {
   return Number.isFinite(periodEnd) && periodEnd <= now;
 }
 
-function isShopSubscriptionUsable(shop) {
-  const subscriptionStatus = normalizeStoredSubscriptionStatus(shop);
+export function resolveEffectiveSellerPlan(shop, now = Date.now()) {
+  const storedPlan = normalizeStoredPlan(shop);
+  const status = normalizeStoredSubscriptionStatus(shop);
+  const interval = ["MONTH", "YEAR"].includes(
+    normalizeTrimmedString(shop?.subscriptionBillingInterval).toUpperCase(),
+  )
+    ? normalizeTrimmedString(shop.subscriptionBillingInterval).toUpperCase()
+    : null;
+  const isUsable =
+    isSubscriptionUsable(status) && !isExpiredSellerTrial(shop, now);
+  const effectivePlan =
+    storedPlan === DEFAULT_SELLER_PLAN || !isUsable
+      ? DEFAULT_SELLER_PLAN
+      : storedPlan;
 
-  return (
-    isSubscriptionUsable(subscriptionStatus) &&
-    !isExpiredSellerTrial(shop)
-  );
+  return {
+    storedPlan,
+    effectivePlan,
+    status,
+    interval,
+    isUsable,
+  };
 }
 
 function getEffectivePlanCode(shop) {
-  const storedPlan = normalizeStoredPlan(shop);
-
-  if (storedPlan === DEFAULT_SELLER_PLAN) {
-    return DEFAULT_SELLER_PLAN;
-  }
-
-  return isShopSubscriptionUsable(shop)
-    ? storedPlan
-    : DEFAULT_SELLER_PLAN;
+  return resolveEffectiveSellerPlan(shop).effectivePlan;
 }
 
 function getCountedListingStatuses() {
@@ -140,12 +148,10 @@ function buildEntitlements(
   activeListingCount,
   planOverride = null
 ) {
-  const storedPlan = normalizeStoredPlan(shop);
-  const normalizedStatus =
-    normalizeStoredSubscriptionStatus(shop);
-
-  const effectivePlanCode =
-    getEffectivePlanCode(shop);
+  const effective = resolveEffectiveSellerPlan(shop);
+  const storedPlan = effective.storedPlan;
+  const normalizedStatus = effective.status;
+  const effectivePlanCode = effective.effectivePlan;
 
   const fallbackPlan =
     getSellerPlanSummary(effectivePlanCode);
@@ -221,7 +227,8 @@ function buildEntitlements(
       storedPlan,
       effectivePlan: effectivePlanCode,
       status: normalizedStatus,
-      isUsable: isShopSubscriptionUsable(shop),
+      isUsable: effective.isUsable,
+      interval: effective.interval,
       isPaid: Boolean(plan.isPaid),
       isFree: Boolean(plan.isFree),
       rank: Number(plan.rank || 0),
@@ -254,6 +261,7 @@ function buildEntitlements(
       canFeatureListings:
         Boolean(plan.canFeatureListings),
       analyticsLevel: plan.analyticsLevel,
+      planFeatures: [...(plan.features || [])],
     },
 
     billing: {
@@ -348,6 +356,61 @@ function assertListingCapacity(entitlements, requestedSlots = 1) {
         projectedActiveListingCount,
         reason: "ACTIVE_LISTING_LIMIT_REACHED",
       }
+    );
+  }
+
+  return entitlements;
+}
+
+function assertLocationCapacity(entitlements, locationCount) {
+  const safeLocationCount = toSafeNonNegativeInteger(locationCount);
+  const maxLocations = entitlements.limits.maxLocations;
+
+  if (maxLocations !== null && safeLocationCount >= toSafeNonNegativeInteger(maxLocations)) {
+    throw createPlanError(
+      `Plan limit reached. ${entitlements.subscription.effectivePlan} allows ${maxLocations} location${maxLocations === 1 ? "" : "s"}.`,
+      "PLAN_LOCATION_LIMIT_REACHED",
+      403,
+      {
+        ...entitlements,
+        locationCount: safeLocationCount,
+        projectedLocationCount: safeLocationCount + 1,
+        reason: "LOCATION_LIMIT_REACHED",
+      },
+    );
+  }
+
+  return { ...entitlements, usage: { ...entitlements.usage, locationCount: safeLocationCount } };
+}
+
+function assertAnalyticsAccess(entitlements) {
+  const analyticsLevel = normalizeTrimmedString(
+    entitlements.features.analyticsLevel,
+  ).toLowerCase();
+
+  if (!analyticsLevel || analyticsLevel === "none") {
+    throw createPlanError(
+      `${entitlements.subscription.effectivePlan} plan does not include seller analytics.`,
+      "PLAN_ANALYTICS_DISABLED",
+      403,
+      { ...entitlements, reason: "ANALYTICS_NOT_INCLUDED" },
+    );
+  }
+
+  return entitlements;
+}
+
+function assertAiListingAssistantAccess(entitlements) {
+  const planFeatures = (entitlements.features.planFeatures || []).map((feature) =>
+    normalizeTrimmedString(feature).toLowerCase(),
+  );
+
+  if (!planFeatures.includes("advanced scan/upload tools")) {
+    throw createPlanError(
+      `${entitlements.subscription.effectivePlan} plan does not include the AI listing assistant.`,
+      "PLAN_AI_LISTING_ASSISTANT_DISABLED",
+      403,
+      { ...entitlements, reason: "AI_LISTING_ASSISTANT_NOT_INCLUDED" },
     );
   }
 
@@ -466,6 +529,53 @@ export async function assertCanCreateAuctionForShop(shopId) {
   );
 }
 
+export async function assertCanAccessSellerAnalyticsForShop(shopId) {
+  const entitlements = await getSellerEntitlementsForShop(shopId);
+  return assertAnalyticsAccess(entitlements);
+}
+
+export async function assertCanUseAiListingAssistantForShop(shopId) {
+  const entitlements = await getSellerEntitlementsForShop(shopId);
+  return assertAiListingAssistantAccess(entitlements);
+}
+
+export async function assertCanCreateLocationForOwner(ownerId) {
+  const safeOwnerId = normalizeTrimmedString(ownerId);
+  if (!safeOwnerId) {
+    throw createPlanError("Owner id is required.", "OWNER_ID_REQUIRED", 400);
+  }
+
+  const [shops, catalog] = await Promise.all([
+    prisma.pawnShop.findMany({
+      where: { ownerId: safeOwnerId, isDeleted: false },
+      select: SHOP_PLAN_SELECT,
+    }),
+    getSellerPlanCatalog(),
+  ]);
+
+  const locationCount = shops.length;
+  const candidates = shops.length
+    ? shops.map((shop) => {
+        const effectivePlan = getEffectivePlanCode(shop);
+        const planOverride = catalog.find(
+          (plan) => normalizeSellerPlanCode(plan?.code) === effectivePlan,
+        );
+        return buildEntitlements(shop, 0, planOverride || null);
+      })
+    : [
+        buildEntitlements(
+          { id: "new-location", ownerId: safeOwnerId, subscriptionPlan: DEFAULT_SELLER_PLAN },
+          0,
+          catalog.find((plan) => normalizeSellerPlanCode(plan?.code) === DEFAULT_SELLER_PLAN) || null,
+        ),
+      ];
+
+  const entitlements = candidates.sort(
+    (left, right) => right.subscription.rank - left.subscription.rank,
+  )[0];
+  return assertLocationCapacity(entitlements, locationCount);
+}
+
 export async function assertCanFeatureListingForShop(shopId) {
   const entitlements = await getSellerEntitlementsForShop(shopId);
 
@@ -482,6 +592,9 @@ export {
   ACTIVE_LISTING_STATUSES,
   SHOP_PLAN_SELECT,
   assertFeatureEnabled,
+  assertAiListingAssistantAccess,
+  assertAnalyticsAccess,
+  assertLocationCapacity,
   assertListingCapacity,
   buildEntitlements,
   createPlanError,

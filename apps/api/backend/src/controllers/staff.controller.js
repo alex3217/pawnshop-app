@@ -11,6 +11,7 @@ import {
   assertShopPermission,
   getAccessibleShopScope,
 } from "../services/shopAccess.service.js";
+import { getSellerEntitlementsForShop, PlanRestrictionError } from "../services/sellerPlan.service.js";
 
 const STAFF_ROLES =
   new Set(SHOP_STAFF_ROLES);
@@ -304,6 +305,26 @@ export async function createStaffMember(req, res) {
       shopId,
       "staff:write",
     );
+
+    const existingStaff = await prisma.staff.findUnique({
+      where: { shopId_email: { shopId, email } },
+      select: { id: true },
+    });
+    if (!existingStaff) {
+      const [entitlements, staffCount] = await Promise.all([
+        getSellerEntitlementsForShop(shopId),
+        prisma.staff.count({ where: { shopId, status: { in: ["INVITED", "ACTIVE"] } } }),
+      ]);
+      const limit = entitlements.limits.maxStaffUsers;
+      if (limit !== null && staffCount >= limit) {
+        throw new PlanRestrictionError(
+          `${entitlements.subscription.effectivePlan} plan allows ${limit} staff users.`,
+          "PLAN_STAFF_LIMIT_REACHED",
+          403,
+          { shopId, effectivePlan: entitlements.subscription.effectivePlan, maxStaffUsers: limit },
+        );
+      }
+    }
 
     const linkedUser = await findUserByEmail(email);
 

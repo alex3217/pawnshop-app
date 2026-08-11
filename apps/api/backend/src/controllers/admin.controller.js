@@ -2,6 +2,10 @@
 
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
+import {
+  assertCanCreateLocationForOwner,
+  resolveEffectiveSellerPlan,
+} from "../services/sellerPlan.service.js";
 import { validatePassword } from "../services/passwordPolicy.service.js";
 import {
   runGovernedCreateMutation,
@@ -73,9 +77,10 @@ function serializeAdminUser(user) {
   };
 }
 
-function serializeAdminShop(shop) {
+export function serializeAdminShop(shop) {
   if (!shop) return null;
 
+  const effective = resolveEffectiveSellerPlan(shop);
   return {
     id: shop.id,
     name: shop.name,
@@ -86,8 +91,11 @@ function serializeAdminShop(shop) {
     ownerId: shop.ownerId,
     ownerName: shop.owner?.name || null,
     ownerEmail: shop.owner?.email || null,
-    subscriptionPlan: shop.subscriptionPlan || null,
-    subscriptionStatus: shop.subscriptionStatus || null,
+    subscriptionPlan: effective.effectivePlan,
+    effectiveSubscriptionPlan: effective.effectivePlan,
+    storedSubscriptionPlan: effective.storedPlan,
+    subscriptionStatus: effective.status,
+    subscriptionBillingInterval: effective.interval,
     isDeleted: shop.isDeleted,
     createdAt: shop.createdAt,
     updatedAt: shop.updatedAt,
@@ -363,6 +371,10 @@ export async function createAdminShop(req, res) {
       const error = new Error("Owner user not found.");
       error.statusCode = 404;
       throw error;
+    }
+
+    if (String(req.user?.role || "").toUpperCase() !== "SUPER_ADMIN") {
+      await assertCanCreateLocationForOwner(data.ownerId);
     }
 
     const shop = await runGovernedCreateMutation({
@@ -696,18 +708,7 @@ export async function adminListShops(req, res) {
       include: { owner: true },
     });
 
-    return res.json(
-      shops.map((s) => ({
-        id: s.id,
-        name: s.name,
-        address: s.address,
-        phone: s.phone,
-        ownerId: s.ownerId,
-        ownerEmail: s.owner?.email,
-        isDeleted: s.isDeleted,
-        createdAt: s.createdAt,
-      })),
-    );
+    return res.json(shops.map(serializeAdminShop));
   } catch (error) {
     return sendError(res, error);
   }

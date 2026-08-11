@@ -490,14 +490,13 @@ function parsePositiveInt(value, fallback, max) {
   return Math.min(Math.floor(parsed), max);
 }
 
-export async function listSuperAdminAuditLogs(req, res) {
-  const page = parsePositiveInt(req.query?.page, 1, 100000);
-  const limit = parsePositiveInt(req.query?.limit, 50, 250);
-  const q = String(req.query?.q || "").trim();
-  const action = String(req.query?.action || "").trim();
-  const actorEmail = String(req.query?.actorEmail || "").trim();
-  const targetType = String(req.query?.targetType || "").trim();
-  const successRaw = String(req.query?.success || "").trim().toLowerCase();
+export function buildSuperAdminAuditWhere(query = {}) {
+  const q = String(query.q || "").trim();
+  const action = String(query.action || "").trim();
+  const actorEmail = String(query.actorEmail || "").trim();
+  const targetType = String(query.targetType || "").trim();
+  const targetId = String(query.targetId || "").trim();
+  const successRaw = String(query.success || "").trim().toLowerCase();
 
   const where = {};
 
@@ -520,8 +519,9 @@ export async function listSuperAdminAuditLogs(req, res) {
     where.actorEmail = { contains: actorEmail, mode: "insensitive" };
   }
 
-  if (targetType) {
-    where.targetType = { contains: targetType, mode: "insensitive" };
+  if (targetType) where.targetType = targetType.toUpperCase();
+  if (targetId) {
+    where.targetId = targetId;
   }
 
   if (successRaw === "true") {
@@ -530,20 +530,31 @@ export async function listSuperAdminAuditLogs(req, res) {
     where.success = false;
   }
 
+  return where;
+}
+
+export async function querySuperAdminAuditLogs(query = {}, prismaClient = prisma) {
+  const page = parsePositiveInt(query.page, 1, 100000);
+  const limit = parsePositiveInt(query.limit, 50, 250);
+  const where = buildSuperAdminAuditWhere(query);
   const [rows, total] = await Promise.all([
-    prisma.superAdminAuditLog.findMany({
+    prismaClient.superAdminAuditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
     }),
-    prisma.superAdminAuditLog.count({ where }),
+    prismaClient.superAdminAuditLog.count({ where }),
   ]);
 
-  return res.json({
+  return {
     page,
     limit,
     total,
     rows,
-  });
+  };
+}
+
+export async function listSuperAdminAuditLogs(req, res) {
+  return res.json(await querySuperAdminAuditLogs(req.query));
 }

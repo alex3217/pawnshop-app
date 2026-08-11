@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { mapStripeSubscriptionStatus } from "../lib/stripe.js";
 import { isPaidSellerPlanCode } from "../config/sellerPlans.js";
+import { resolveEffectiveSellerPlan } from "./sellerPlan.service.js";
 
 export const STRIPE_SUBSCRIPTION_WEBHOOK_TYPES = new Set([
   "invoice.paid",
@@ -283,6 +284,78 @@ function isUniqueError(error) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
+function activationAuditData(event, previousState, resultingShop) {
+  const effective = resolveEffectiveSellerPlan(resultingShop);
+  const periodEnd = new Date(resultingShop.subscriptionCurrentPeriodEnd || "").getTime();
+  const periodExpired = Number.isFinite(periodEnd) && periodEnd <= Date.now();
+  if (
+    effective.status !== "ACTIVE" ||
+    !isPaidSellerPlanCode(effective.effectivePlan) ||
+    !effective.isUsable ||
+    periodExpired
+  ) {
+    return null;
+  }
+  const subscriptionId = text(resultingShop.stripeSubscriptionId);
+  if (!subscriptionId) return null;
+  return {
+    idempotencyKey: `seller-subscription-activated:${subscriptionId}`,
+    actorRole: "SYSTEM",
+    action: "SELLER_SUBSCRIPTION_ACTIVATED",
+    method: "WEBHOOK",
+    path: "/api/stripe/webhook",
+    routeKey: "seller-subscriptions",
+    targetType: "SHOP",
+    targetId: resultingShop.id,
+    statusCode: 200,
+    success: true,
+    requestId: event.id,
+    metadata: {
+      shopId: resultingShop.id,
+      subscriptionId,
+      previousPlan: previousState.plan || "FREE",
+      effectivePlan: effective.effectivePlan,
+      interval: effective.interval,
+      status: effective.status,
+      source: `STRIPE_${String(event.type || "WEBHOOK").toUpperCase().replaceAll(".", "_")}`,
+      stripeEventId: event.id,
+    },
+  };
+}
+
+async function createActivationAudit(tx, event, previousState, resultingShop) {
+  const data = activationAuditData(event, previousState, resultingShop);
+  if (!data || !tx.superAdminAuditLog?.upsert) return null;
+  return tx.superAdminAuditLog.upsert({
+    where: { idempotencyKey: data.idempotencyKey },
+    update: {},
+    create: data,
+  });
+}
+
+export async function reconcileSellerSubscriptionAudit({ shopId, prismaClient = prisma }) {
+  return prismaClient.$transaction(async (tx) => {
+    const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: STATE_SELECT });
+    if (!shop) throw Object.assign(new Error("Shop not found."), { code: "SHOP_NOT_FOUND" });
+    const subscriptionId = text(shop.stripeSubscriptionId);
+    if (!subscriptionId) throw Object.assign(new Error("Shop has no Stripe subscription reference."), { code: "SELLER_SUBSCRIPTION_NOT_LINKED" });
+    const effectivePlan = resolveEffectiveSellerPlan(shop).effectivePlan;
+    const data = {
+      idempotencyKey: `seller-subscription-reconciled:${subscriptionId}`,
+      actorRole: "SYSTEM",
+      action: "SELLER_SUBSCRIPTION_RECONCILED",
+      method: "RECONCILE",
+      path: "/internal/seller-subscriptions/reconcile",
+      routeKey: "seller-subscriptions",
+      targetType: "SHOP",
+      targetId: shop.id,
+      success: true,
+      metadata: { shopId: shop.id, subscriptionId, previousPlan: shop.subscriptionPlan, effectivePlan, interval: shop.subscriptionBillingInterval || null, status: shop.subscriptionStatus, source: "LOCAL_RECONCILIATION" },
+    };
+    return tx.superAdminAuditLog.upsert({ where: { idempotencyKey: data.idempotencyKey }, update: {}, create: data });
+  });
+}
+
 export async function syncStripeSubscriptionEvent({
   event,
   prismaClient = prisma,
@@ -348,6 +421,7 @@ export async function syncStripeSubscriptionEvent({
             skipDuplicates: true,
           });
         }
+        await createActivationAudit(tx, event, previousState, resultingShop);
       }
 
       const audit = await tx.stripeSubscriptionBillingEvent.create({

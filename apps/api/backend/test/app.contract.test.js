@@ -150,13 +150,9 @@ for (const path of [
       "Expected a valid ISO timestamp",
     );
 
-    assert.equal(
-      Number.isInteger(response.body.uptimeSeconds),
-      true,
-    );
-
     assert.equal(response.body.pid, undefined);
     assert.equal(response.body.memory, undefined);
+    assert.equal(Number.isInteger(response.body.uptimeSeconds), true);
 
     assert.equal(
       response.headers["cache-control"],
