@@ -110,14 +110,26 @@ async function requireBuyerSubscriptionModel() {
   }
 }
 
+export function serializeBuyerPlanCatalog(catalog) {
+  return catalog.map(({ stripeMonthlyPriceId, stripeYearlyPriceId, ...plan }) => {
+    const monthlyCheckoutConfigured = plan.isFree || Boolean(stripeMonthlyPriceId);
+    const yearlyCheckoutConfigured = plan.isFree || Boolean(stripeYearlyPriceId);
+    return {
+      ...plan,
+      monthlyCheckoutConfigured,
+      yearlyCheckoutConfigured,
+      unavailableIntervals: plan.isFree ? [] : [
+        ...(!monthlyCheckoutConfigured ? ["MONTH"] : []),
+        ...(!yearlyCheckoutConfigured ? ["YEAR"] : []),
+      ],
+    };
+  });
+}
+
 export async function listAvailableBuyerPlans(_req, res) {
   try {
     const catalog = await getBuyerPlanCatalog();
-    const plans = catalog.map(({ stripeMonthlyPriceId, stripeYearlyPriceId, ...plan }) => ({
-      ...plan,
-      monthlyCheckoutConfigured: plan.isFree || Boolean(stripeMonthlyPriceId),
-      yearlyCheckoutConfigured: plan.isFree || Boolean(stripeYearlyPriceId),
-    }));
+    const plans = serializeBuyerPlanCatalog(catalog);
 
     return res.json({
       success: true,

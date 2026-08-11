@@ -13,8 +13,9 @@ test("buyer checkout requires auth and intentionally permits only consumer and a
 test("billing portal remains limited to authenticated supported roles", () => assert.match(stripeRoutes, /"\/billing-portal", authRequired, requireRole\("CONSUMER", "OWNER"\)/));
 test("direct consumer buyer-plan mutation stays forbidden", () => { assert.match(planRoutes, /router\.put\([\s\S]*requireRole\(\.\.\.BUYER_ROLES\)/); assert.match(planController, /req\?\.user\?\.role === "CONSUMER"/); assert.match(planRoutes, /router\.delete\([\s\S]*requireRole\(\.\.\.ADMIN_ROLES\)/); });
 test("public plan catalog exposes checkout availability without Stripe Price IDs", () => {
-  assert.match(planController, /monthlyCheckoutConfigured:[\s\S]*yearlyCheckoutConfigured:/);
+  assert.match(planController, /monthlyCheckoutConfigured,[\s\S]*yearlyCheckoutConfigured,/);
   assert.match(planController, /stripeMonthlyPriceId, stripeYearlyPriceId, \.\.\.plan/);
+  assert.doesNotMatch(planController, /requiredEnvironmentVariable|STRIPE_PRICE_BUYER/);
 });
 test("buyer checkout return paths are server-created from the validated request origin", () => {
   const checkoutController = stripeController.match(/export async function createBuyerSubscriptionCheckoutSession[\s\S]*?^}/m)?.[0] || "";

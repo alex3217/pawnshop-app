@@ -45,7 +45,7 @@ function effectivePlan(subscription) {
     : BUYER_PLAN_CODES.FREE;
 }
 
-export function buildBuyerEntitlements({ subscription = null, counts = {} } = {}) {
+export function buildBuyerEntitlements({ subscription = null, stripeCustomerId = null, counts = {} } = {}) {
   const storedPlan = normalizeBuyerPlanCode(subscription?.plan || "FREE");
   const effectivePlanCode = effectivePlan(subscription);
   const plan = getBuyerPlanConfig(effectivePlanCode);
@@ -62,6 +62,8 @@ export function buildBuyerEntitlements({ subscription = null, counts = {} } = {}
       currentPeriodEnd: subscription?.currentPeriodEnd || null,
       cancelAtPeriodEnd: Boolean(subscription?.cancelAtPeriodEnd),
       isPaid: effectivePlanCode !== BUYER_PLAN_CODES.FREE,
+      canManageBilling: Boolean(stripeCustomerId || subscription?.stripeCustomerId),
+      canManageSubscription: Boolean(subscription?.stripeSubscriptionId),
     },
     entitlements: {
       savedSearchLimit: plan.maxSavedSearches,
@@ -110,13 +112,15 @@ export function buildBuyerEntitlements({ subscription = null, counts = {} } = {}
 }
 
 export async function getBuyerEntitlementsForUser(userId, prismaClient = prisma) {
-  const [subscription, savedSearches, watchlistItems] = await Promise.all([
+  const [user, subscription, savedSearches, watchlistItems] = await Promise.all([
+    prismaClient.user.findUnique({ where: { id: userId }, select: { stripeCustomerId: true } }),
     prismaClient.buyerSubscription.findUnique({ where: { userId } }),
     prismaClient.savedSearch.count({ where: { userId } }),
     prismaClient.watchlist.count({ where: { userId } }),
   ]);
   return buildBuyerEntitlements({
     subscription,
+    stripeCustomerId: user?.stripeCustomerId,
     counts: {
       savedSearches,
       watchlistItems,
