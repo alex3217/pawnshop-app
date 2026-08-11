@@ -670,20 +670,13 @@ export async function handleStripeWebhook(req, res) {
           : null;
 
         if (shopId && planCode) {
-          let subscriptionStatus = "ACTIVE";
-          let subscriptionCurrentPeriodEnd = null;
-          let cancelAtPeriodEnd = false;
+          let subscription = null;
 
           if (stripeSubscriptionId) {
             try {
-              const subscription = await stripe.subscriptions.retrieve(
+              subscription = await stripe.subscriptions.retrieve(
                 stripeSubscriptionId
               );
-              subscriptionStatus = mapStripeSubscriptionStatus(subscription?.status);
-              subscriptionCurrentPeriodEnd = unixToIsoOrNull(
-                subscription?.current_period_end
-              );
-              cancelAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
             } catch (err) {
               console.warn(
                 "[stripe.webhook] failed to retrieve subscription after checkout.session.completed",
@@ -694,16 +687,20 @@ export async function handleStripeWebhook(req, res) {
               );
             }
           }
-
-          await prisma.pawnShop.update({
-            where: { id: shopId },
-            data: {
-              subscriptionPlan: planCode,
-              subscriptionStatus,
-              stripeCustomerId,
-              stripeSubscriptionId,
-              subscriptionCurrentPeriodEnd,
-              cancelAtPeriodEnd,
+          await syncStripeSubscriptionEvent({
+            prismaClient: prisma,
+            event: {
+              ...event,
+              type: "customer.subscription.created",
+              data: {
+                object: subscription || {
+                  id: stripeSubscriptionId,
+                  customer: stripeCustomerId,
+                  status: "active",
+                  metadata: { shopId, planCode, billingInterval: session?.metadata?.billingInterval },
+                  items: { data: [] },
+                },
+              },
             },
           });
         }

@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { calculateSettlementRevenueContext } from "../services/revenue/settlementRevenueAdapter.service.js";
 import { persistSettlementOperationAudit } from "../services/settlementStateMachine.service.js";
+import { resolveEffectiveSellerPlan } from "../services/sellerPlan.service.js";
 
 const SAFE_SHOP_SELECT = {
   id: true,
@@ -11,6 +12,9 @@ const SAFE_SHOP_SELECT = {
   hours: true,
   ownerId: true,
   subscriptionPlan: true,
+  subscriptionStatus: true,
+  subscriptionCurrentPeriodEnd: true,
+  subscriptionBillingInterval: true,
   createdAt: true,
   updatedAt: true,
   isDeleted: true,
@@ -114,7 +118,7 @@ async function upsertSettlementForAcceptedOffer(tx, offer, amount) {
     throw err;
   }
 
-  const sellerPlanCode = offer.item?.shop?.subscriptionPlan || "FREE";
+  const sellerPlanCode = resolveEffectiveSellerPlan(offer.item?.shop).effectivePlan;
 
   const revenueContext = await calculateSettlementRevenueContext({
     amount: finalPrice,

@@ -13,6 +13,7 @@ import "../../styles/admin-subscriptions-readability.css";
 
 type AdminSubscriptionRecord = {
   id: string;
+  shopId: string;
   shopName: string;
   ownerName: string;
   plan: string;
@@ -63,8 +64,8 @@ function billingMethodSummary(subscription: AdminSubscriptionRecord) {
 
   if (subscription.stripeSubscriptionId) {
     return subscription.status === "ACTIVE"
-      ? "Not synced to PawnLoop · Stripe subscription active"
-      : "Not synced to PawnLoop · Stripe subscription linked";
+      ? "Subscription payment managed by Stripe · Active"
+      : "Subscription payment managed by Stripe · Linked";
   }
 
   return "Not configured";
@@ -95,8 +96,10 @@ function normalizeSubscription(
   shop: AdminShopRow,
   index: number,
 ): AdminSubscriptionRecord {
+  const shopId = String(shop.id || `subscription-${index}`);
   return {
-    id: String(shop.id || `subscription-${index}`),
+    id: shopId,
+    shopId,
     shopName: String(shop.name || `Shop ${index + 1}`),
     ownerName: String(shop.ownerName || shop.ownerEmail || "Unknown owner"),
     ownerEmail: String(shop.ownerEmail || ""),
@@ -399,7 +402,7 @@ export default function AdminSubscriptionsPage() {
                     </Link>
                     <Link
                       className="btn btn-secondary seller-subscription-action"
-                      to={`/super-admin/audit?q=${encodeURIComponent(subscription.id)}`}
+                      to={`/super-admin/audit?targetType=SHOP&targetId=${encodeURIComponent(subscription.shopId)}`}
                     >
                       Audit history
                     </Link>
