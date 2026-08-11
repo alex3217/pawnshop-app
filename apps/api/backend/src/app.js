@@ -46,6 +46,7 @@ import {
 } from "./config/authRateLimit.js";
 import { createAuthRateLimiters } from "./middleware/authRateLimit.js";
 import { createCorsOriginHandler, parseAllowedOrigins } from "./cors.js";
+import { resolveEffectiveRevision } from "./config/deployedEnvironment.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -159,7 +160,7 @@ function createHealthPayload(serviceName, env) {
     success: true,
     service: serviceName,
     env,
-    revision: process.env.APP_VERSION || null,
+    revision: resolveEffectiveRevision(process.env),
     ts: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),
   };
