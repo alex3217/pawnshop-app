@@ -1229,3 +1229,31 @@
   gap: 10px !important;
 }
 /* END Buyer Dashboard tap-target polish. */
+
+
+/* Buyer dashboard contrast on its always-dark hero surface.
+   Explicit text colors prevent global light-theme heading rules from painting dark text on navy. */
+.buyer-dashboard .bd-hero h1,
+.buyer-dashboard .bd-hero .bd-hero-grid strong {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.buyer-dashboard .bd-hero p,
+.buyer-dashboard .bd-hero .bd-hero-grid span {
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+}
+
+.buyer-dashboard .bd-hero .bd-pill,
+.buyer-dashboard .bd-hero .bd-hero-panel-top,
+.buyer-dashboard .bd-hero .bd-hero-panel-top a {
+  color: #e0e7ff !important;
+  -webkit-text-fill-color: #e0e7ff !important;
+}
+
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-stat-card span,
+:root:not([data-theme="dark"]) .buyer-dashboard .bd-stat-card small {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+}

@@ -33,6 +33,15 @@ test("Core CI installs Chromium and runs the focused seller subscription browser
   assert.doesNotMatch(job, /continue-on-error/);
 });
 
+test("Core CI runs payment methods and buyer dashboard contrast regressions", () => {
+  const job = browserJobSource();
+
+  assert.match(
+    job,
+    /playwright test payment-methods\.spec\.ts buyer-dashboard-light-readability\.spec\.ts --config playwright\.marketplace\.config\.ts/,
+  );
+});
+
 test("browser gate selects every changed subscription test by exact title", () => {
   const command = packageJson.scripts["test:ci:seller-subscription"];
 

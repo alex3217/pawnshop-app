@@ -83,7 +83,7 @@ export function createPaymentMethodsService({ prismaClient = prisma, stripeClien
     if (activeStatuses.has(status) && eligibleRemaining.length === 0) throw error("The only eligible payment method supporting an active subscription cannot be removed", 409, "ACTIVE_SUBSCRIPTION_REQUIRES_METHOD");
     await stripe().paymentMethods.detach(clean(paymentMethodId)); return listMethods({ user, shopId });
   }
-  async function portal({ user, shopId, returnUrl }) { const value = await profile({ user, shopId }); if (!value.customerId) throw error("No Stripe billing profile is configured", 409, "NOT_CONFIGURED"); const session = await stripe().billingPortal.sessions.create({ customer: value.customerId, return_url: returnUrl }); return { url: session.url }; }
+  async function portal({ user, shopId, returnUrl }) { const value = await profile({ user, shopId, createCustomer: true }); const session = await stripe().billingPortal.sessions.create({ customer: value.customerId, return_url: returnUrl }); return { url: session.url }; }
   return { profile, listMethods, createSetupSession, setDefault, remove, portal };
 }
 
