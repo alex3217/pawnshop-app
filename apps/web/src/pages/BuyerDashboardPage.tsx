@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import PrimaryListingImage from "../components/PrimaryListingImage";
 import "../styles/buyer-dashboard.css";
 import {
   getBuyerDashboardDiscovery,
@@ -111,6 +112,12 @@ function ItemCard({
   return (
     <article className={compact ? "bd-item-card bd-item-card-compact" : "bd-item-card"}>
       <div className="bd-item-image">
+        <PrimaryListingImage
+          images={[item.image]}
+          alt={`${item.title} marketplace photo`}
+          imageClassName="bd-item-image-photo"
+          placeholderClassName="bd-item-image-placeholder"
+        />
         <span className="bd-item-badge">{item.badge}</span>
         <span className="bd-item-distance">{item.distance}</span>
       </div>
@@ -142,6 +149,13 @@ function ItemCard({
 function AuctionMiniCard({ auction }: { auction: BuyerDashboardAuction }) {
   return (
     <article className="bd-auction-mini-card">
+      <PrimaryListingImage
+        images={[auction.image]}
+        alt={`${auction.title} auction photo`}
+        imageClassName="bd-auction-mini-image"
+        placeholderClassName="bd-auction-mini-image bd-auction-mini-image--empty"
+      />
+
       <div>
         <span>{auction.status}</span>
         <h3>{auction.title}</h3>

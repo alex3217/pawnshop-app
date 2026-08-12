@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
+import PrimaryListingImage from "../components/PrimaryListingImage";
 import { deleteItem, getMyItems, markItemSold, type Item } from "../services/items";
 import "../styles/owner-inventory-readability.css";
 
@@ -563,6 +564,19 @@ export default function OwnerInventoryPage() {
 
           return (
             <article key={item.id} style={styles.card}>
+              <Link
+                to={`/items/${encodeURIComponent(String(item.id || ""))}`}
+                className="owner-inventory-item-media"
+                aria-label={`View ${item.title || "inventory item"}`}
+              >
+                <PrimaryListingImage
+                  images={item.images}
+                  alt={`${item.title || "Inventory item"} photo`}
+                  imageClassName="owner-inventory-item-image"
+                  placeholderClassName="owner-inventory-item-image owner-inventory-item-image--empty"
+                />
+              </Link>
+
               <label className="owner-inventory-select-row">
                 <input
                   type="checkbox"
@@ -588,12 +602,12 @@ export default function OwnerInventoryPage() {
               {item.description ? <p style={styles.description}>{item.description}</p> : null}
 
               <div style={styles.actionRow}>
-                <Link to={`/items/${item.id}`} style={styles.linkButton}>
-                  View
+                <Link to={`/owner/items/${item.id}/edit`} style={styles.primarySmallLink}>
+                  Edit Item
                 </Link>
 
-                <Link to={`/owner/items/${item.id}/edit`} style={styles.primarySmallLink}>
-                  Edit
+                <Link to={`/items/${item.id}`} style={styles.linkButton}>
+                  View Listing
                 </Link>
 
                 {item.pawnShopId ? (

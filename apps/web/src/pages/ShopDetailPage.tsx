@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import PrimaryListingImage from "../components/PrimaryListingImage";
 import { getShopItems, type Shop, type ShopItem } from "../services/shops";
-import { firstUsableImage } from "../utils/imageUrl";
 import "../styles/shop-detail-readability.css";
 
 function formatPrice(value: string | number) {
@@ -365,22 +365,20 @@ export default function ShopDetailPage() {
         ) : (
           <div className="shop-detail-grid">
             {filteredItems.map((item) => {
-              const imageUrl = firstUsableImage(item.images);
               return (
                 <article key={item.id} className="shop-detail-card shop-detail-item-card">
                   <div className="shop-detail-item-media">
-                    {imageUrl ? (
-                      <img src={imageUrl} alt={item.title} />
-                    ) : (
-                      <div
-                        className="shop-detail-image-placeholder"
-                        role="img"
-                        aria-label={`No image available for ${item.title}`}
-                      >
-                        <span aria-hidden="true">◇</span>
-                        <span>No image available</span>
-                      </div>
-                    )}
+                    <PrimaryListingImage
+                      images={item.images}
+                      alt={`${item.title} photo`}
+                      placeholderClassName="shop-detail-image-placeholder"
+                      placeholder={(
+                        <>
+                          <span aria-hidden="true">◇</span>
+                          <span>No image available</span>
+                        </>
+                      )}
+                    />
                   </div>
                   <div className="shop-detail-item-body">
                     <h3>{item.title}</h3>

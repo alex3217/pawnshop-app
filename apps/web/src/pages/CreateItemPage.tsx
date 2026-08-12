@@ -17,6 +17,7 @@ import {
 import {
   createItemPageController,
 } from "../services/ownerPhotoWorkflows";
+import ItemImagePicker from "../components/ItemImagePicker";
 import { getMyShops, type Shop } from "../services/shops";
 import "../styles/owner-workspace-readability.css";
 
@@ -613,18 +614,13 @@ export default function CreateItemPage() {
             </p>
           </div>
 
-          <label style={fieldStyle}>
-            Item photos
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              disabled={saving}
-              onChange={(event) => setPhotoFiles(Array.from(event.target.files || []).slice(0, 10))}
-            />
-            <span className="muted">JPEG, PNG, or WebP. Up to 10 files and 10 MiB each.</span>
-            {photoFiles.length ? <span className="muted">{photoFiles.length} photo(s) selected.</span> : null}
-          </label>
+          <ItemImagePicker
+            files={photoFiles}
+            onChange={setPhotoFiles}
+            disabled={saving}
+            cameraLabel="Take Item Photo"
+            galleryLabel="Choose Files"
+          />
 
           <Link className="btn" to="/owner/inventory">
             Back to Inventory

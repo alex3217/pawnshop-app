@@ -13,6 +13,7 @@ import {
   type ItemPriceComparisonResponse,
 } from "../services/items";
 import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
+import { isUsableImageUrl } from "../utils/imageUrl";
 import { addToWatchlist } from "../services/watchlist";
 import "../styles/item-detail-v2.css";
 
@@ -182,7 +183,7 @@ function itemDirectionsUrl(item: Item): string | null {
 
 
 function itemImages(item: Item) {
-  return Array.isArray(item.images) ? item.images.filter(Boolean) : [];
+  return Array.isArray(item.images) ? item.images.filter(isUsableImageUrl) : [];
 }
 
 function isAvailable(status: string | null | undefined) {
@@ -556,7 +557,13 @@ export default function ItemDetailPage() {
         <div className="item-detail-gallery">
           <div className="item-detail-main-image">
             {selectedImage ? (
-              <img src={selectedImage} alt={item.title} />
+              <img
+                src={selectedImage}
+                alt={`${item.title} photo`}
+                onError={() => {
+                  setSelectedImage(images.find((image) => image !== selectedImage) || "");
+                }}
+              />
             ) : (
               <div className="item-detail-placeholder">PawnLoop</div>
             )}
