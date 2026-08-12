@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { loadDurableUploadConfig } from "../config/uploads.js";
 
 function publicObjectUrl(baseUrl, key) {
@@ -14,6 +14,7 @@ export function createS3UploadStorage(config = loadDurableUploadConfig(), option
         throw error;
       },
       async delete() {},
+      async check() { return { enabled: false }; },
     };
   }
 
@@ -44,6 +45,12 @@ export function createS3UploadStorage(config = loadDurableUploadConfig(), option
       await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }), {
         abortSignal: AbortSignal.timeout(config.limits.storageTimeoutMs),
       });
+    },
+    async check() {
+      await client.send(new HeadBucketCommand({ Bucket: config.bucket }), {
+        abortSignal: AbortSignal.timeout(config.limits.storageTimeoutMs),
+      });
+      return { enabled: true };
     },
   };
 }

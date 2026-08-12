@@ -83,6 +83,24 @@ test("new item creates once, uploads against the returned ID, and persists befor
   assert.deepEqual(calls[2][2].images, ["https://assets.invalid/item-0.jpg"]);
 });
 
+test("existing item replacement preserves the requested kept images and persists new uploads", async () => {
+  const { calls, dependencies } = fakeDependencies();
+  const workflows = workflowModule.createOwnerPhotoWorkflows(dependencies);
+  const item = { id: "item-1", pawnShopId: "shop-1", images: ["https://assets.invalid/old.jpg", "https://assets.invalid/keep.jpg"] };
+  await workflows.updateItemWithPhotos(item, { images: ["https://assets.invalid/keep.jpg"] }, [{ name: "new.jpg" }]);
+  const update = calls.find(([name]) => name === "updateItem");
+  assert.deepEqual(update[2].images, ["https://assets.invalid/keep.jpg", "https://assets.invalid/item-0.jpg"]);
+});
+
+test("existing item image deletion persists without making an upload call", async () => {
+  const { calls, dependencies } = fakeDependencies();
+  const workflows = workflowModule.createOwnerPhotoWorkflows(dependencies);
+  const item = { id: "item-1", pawnShopId: "shop-1", images: ["https://assets.invalid/remove.jpg"] };
+  await workflows.updateItemWithPhotos(item, { images: [] }, []);
+  assert.deepEqual(calls.map(([name]) => name), ["updateItem"]);
+  assert.deepEqual(calls[0][2].images, []);
+});
+
 test("upload failure retains the original item ID and retry never creates a duplicate", async () => {
   let uploadAttempts = 0;
   const { calls, dependencies } = fakeDependencies({

@@ -1,15 +1,46 @@
+import crypto from "node:crypto";
+import { createClient } from "redis";
+
 function keyFor(req, type) {
   if (type === "user") return String(req.user?.sub || req.user?.id || "");
   return String(req.ip || req.socket?.remoteAddress || "unknown");
 }
 
-export function createUploadProtection({ limits, now = Date.now } = {}) {
+export class RedisUploadRateLimitStore {
+  constructor({ url, client } = {}) {
+    this.client = client || createClient({ url });
+    this.connecting = null;
+  }
+  async ready() {
+    if (this.client.isReady) return;
+    this.connecting ||= this.client.connect().finally(() => { this.connecting = null; });
+    await this.connecting;
+  }
+  async increment(key, windowMs) {
+    await this.ready();
+    const redisKey = `uploads:rate:${crypto.createHash("sha256").update(key).digest("hex")}`;
+    const count = Number(await this.client.eval(
+      "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]) end; return n",
+      { keys: [redisKey], arguments: [String(windowMs)] },
+    ));
+    const ttl = Number(await this.client.pTTL(redisKey));
+    return { count, resetAt: Date.now() + Math.max(1, ttl) };
+  }
+}
+
+export function createUploadProtection({ limits, now = Date.now, store } = {}) {
   const counters = new Map();
   const maxCounterEntries = 10_000;
   let active = 0;
 
-  function consume(type, key, maximum) {
+  const distributedStore = store || (process.env.REDIS_URL ? new RedisUploadRateLimitStore({ url: process.env.REDIS_URL }) : null);
+
+  async function consume(type, key, maximum) {
     const mapKey = `${type}:${key}`;
+    if (distributedStore) {
+      const current = await distributedStore.increment(mapKey, limits.rateLimitWindowMs);
+      return current.count <= maximum;
+    }
     const timestamp = now();
     const current = counters.get(mapKey);
     if (!current || current.resetAt <= timestamp) {
@@ -26,12 +57,17 @@ export function createUploadProtection({ limits, now = Date.now } = {}) {
     return current.count <= maximum;
   }
 
-  function rateLimit(req, res, next) {
-    const userAllowed = consume("user", keyFor(req, "user"), limits.rateLimitUserMax);
-    const ipAllowed = userAllowed && consume("ip", keyFor(req, "ip"), limits.rateLimitIpMax);
-    if (ipAllowed) return next();
-    res.setHeader("Retry-After", String(Math.ceil(limits.rateLimitWindowMs / 1000)));
-    return res.status(429).json({ success: false, error: "Upload rate limit exceeded", requestId: req.requestId });
+  async function rateLimit(req, res, next) {
+    try {
+      const userAllowed = await consume("user", keyFor(req, "user"), limits.rateLimitUserMax);
+      const ipAllowed = userAllowed && await consume("ip", keyFor(req, "ip"), limits.rateLimitIpMax);
+      if (ipAllowed) return next();
+      res.setHeader("Retry-After", String(Math.ceil(limits.rateLimitWindowMs / 1000)));
+      return res.status(429).json({ success: false, error: "Upload rate limit exceeded", requestId: req.requestId });
+    } catch (error) {
+      console.error("[uploads]", { event: "rate_limit_store_failed", requestId: req.requestId, reason: error?.name || "Error" });
+      return res.status(503).json({ success: false, error: "Upload protection is temporarily unavailable", requestId: req.requestId });
+    }
   }
 
   function concurrency(req, res, next) {

@@ -173,6 +173,8 @@ for (const path of [
       assert.equal(response.body.ready, true);
       assert.deepEqual(response.body.dependencies, {
         database: "ok",
+        storage: "ok",
+        imageProcessing: "ok",
       });
     }
   });
@@ -198,6 +200,8 @@ test(
       assert.equal(response.body.error, "Service unavailable");
       assert.deepEqual(response.body.dependencies, {
         database: "unavailable",
+        storage: "unavailable",
+        imageProcessing: "unavailable",
       });
 
       assertRequestId(response.body.requestId);

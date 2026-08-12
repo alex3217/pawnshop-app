@@ -39,6 +39,7 @@ import notificationsRoutes from "./routes/notifications.routes.js";
 import trainingRoutes from "./routes/training.routes.js";
 import { createUploadsRouter } from "./routes/uploads.routes.js";
 import { createS3UploadStorage } from "./services/uploadStorage.service.js";
+import { checkImageRuntime } from "./services/uploads.service.js";
 import { prisma } from "./lib/prisma.js";
 import {
   loadAuthRateLimitConfig,
@@ -297,15 +298,25 @@ export function createApp(options = {}) {
   };
 
   const readinessHandler = async (req, res) => {
+    const dependencies = {
+      database: "pending",
+      storage: "pending",
+      imageProcessing: "pending",
+    };
     try {
       await runWithTimeout(readinessCheck, readinessTimeoutMs);
+      dependencies.database = "ok";
+      if (typeof uploadStorage.check === "function") {
+        await runWithTimeout(() => uploadStorage.check(), readinessTimeoutMs);
+      }
+      dependencies.storage = "ok";
+      await runWithTimeout(options.imageRuntimeCheck || checkImageRuntime, readinessTimeoutMs);
+      dependencies.imageProcessing = "ok";
 
       return res.status(200).json({
         ...createHealthPayload(serviceName, env),
         ready: true,
-        dependencies: {
-          database: "ok",
-        },
+        dependencies,
       });
     } catch (error) {
       if (process.env.NODE_ENV !== "test") {
@@ -313,7 +324,11 @@ export function createApp(options = {}) {
           "[readiness] Database connectivity check failed.",
           {
             requestId: req.requestId,
-            message: error?.message || String(error),
+            dependency:
+              error?.name === "SharpError"
+                ? "imageProcessing"
+                : "storageOrDatabase",
+            reason: error?.name || "Error",
           }
         );
       }
@@ -324,9 +339,12 @@ export function createApp(options = {}) {
         success: false,
         ready: false,
         error: "Service unavailable",
-        dependencies: {
-          database: "unavailable",
-        },
+        dependencies: Object.fromEntries(
+          Object.entries(dependencies).map(([name, state]) => [
+            name,
+            state === "pending" ? "unavailable" : state,
+          ]),
+        ),
         requestId: req.requestId,
       });
     }

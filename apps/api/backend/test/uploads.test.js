@@ -28,6 +28,9 @@ let putFailureAt;
 let deleteFailure;
 let warnings;
 let png;
+let jpeg;
+let webp;
+let assetRows;
 
 function token(id) {
   return jwt.sign({ sub: id, role: users.get(id).role, authVersion: 0 }, SECRET);
@@ -51,7 +54,21 @@ before(async () => {
   }] : [];
   prisma.item.findUnique = async ({ where }) => where.id === "item" ? { id: "item", isDeleted: false, shop: { id: "shop", ownerId: "owner", isDeleted: false } } : null;
   prisma.pawnShop.findUnique = async ({ where }) => where.id === "shop" ? { id: "shop", ownerId: "owner", isDeleted: false } : null;
+  prisma.uploadAsset.create = async ({ data }) => { assetRows.set(data.id, { ...data, status: "TEMPORARY" }); return assetRows.get(data.id); };
+  prisma.uploadAsset.updateMany = async ({ where, data }) => {
+    let count = 0;
+    const ids = where.id?.in || [where.id];
+    for (const id of ids) {
+      if (assetRows.get(id)?.status === where.status) {
+        assetRows.set(id, { ...assetRows.get(id), ...data });
+        count += 1;
+      }
+    }
+    return { count };
+  };
   png = await sharp({ create: { width: 8, height: 6, channels: 3, background: "red" } }).png().toBuffer();
+  jpeg = await sharp(png).jpeg().toBuffer();
+  webp = await sharp(png).webp().toBuffer();
   app = appModule.createApp({
     readinessCheck: async () => true,
     uploadLimits: limits,
@@ -73,6 +90,7 @@ beforeEach(() => {
   putFailureAt = 0;
   deleteFailure = false;
   warnings = [];
+  assetRows = new Map();
 });
 
 test("upload router is mounted once at the frontend API path", async () => {
@@ -110,6 +128,17 @@ test("single item upload returns the frontend-compatible durable asset contract"
   assert.equal(response.body.file.width, 8);
   assert.equal(response.body.file.height, 6);
   assert.equal(response.body.file.key, undefined);
+  assert.equal(assetRows.get(response.body.file.id)?.shopId, "shop");
+  assert.equal(assetRows.get(response.body.file.id)?.itemId, "item");
+});
+
+test("JPEG and WebP uploads are decoded, normalized, and tracked without provider network calls", async () => {
+  const jpgResponse = await upload("/api/uploads").field("kind", "SHOP_LOGO").field("shopId", "shop").attach("logo", jpeg, { filename: "photo.jpg", contentType: "image/jpeg" }).expect(201);
+  const webpResponse = await upload("/api/uploads").field("kind", "SHOP_BANNER").field("shopId", "shop").attach("banner", webp, { filename: "photo.webp", contentType: "image/webp" }).expect(201);
+  assert.equal(jpgResponse.body.file.mimeType, "image/jpeg");
+  assert.equal(webpResponse.body.file.mimeType, "image/webp");
+  assert.equal(stored.length, 2);
+  assert.equal(assetRows.size, 2);
 });
 
 test("bulk uploads are atomic and preserve input order", async () => {
@@ -154,11 +183,13 @@ test("provider failures are sanitized", async () => {
   assert.equal(JSON.stringify(response.body).includes("provider secret detail"), false);
 });
 
-test("partial bulk provider failure removes objects created in the request", async () => {
+test("partial bulk provider failure removes objects and retains terminal lifecycle records", async () => {
   putFailureAt = 2;
   await upload("/api/uploads/bulk").field("kind", "SHOP_BANNER").field("shopId", "shop").attach("images", png, { filename: "1.png", contentType: "image/png" }).attach("images", png, { filename: "2.png", contentType: "image/png" }).expect(502);
   assert.equal(deleted.length, 1);
   assert.equal(deleted[0].key, stored[0].key);
+  assert.equal(assetRows.size, 1);
+  assert.equal([...assetRows.values()][0].status, "DELETED");
 });
 
 test("cleanup failures are sanitized and observable without replacing the original response", async () => {
@@ -169,6 +200,7 @@ test("cleanup failures are sanitized and observable without replacing the origin
   assert.deepEqual(warnings, [{ message: "[uploads] durable cleanup incomplete", details: { requestId: warnings[0].details.requestId, cleanupFailureCount: 1 } }]);
   assert.equal(JSON.stringify(warnings).includes("private provider"), false);
   assert.equal(JSON.stringify(warnings).includes("uploads/"), false);
+  assert.equal([...assetRows.values()][0].status, "DELETE_PENDING");
 });
 
 test("aggregate storage rejects while receiving and does not retain the overflowing file", async () => {
@@ -190,15 +222,15 @@ test("immutable upload ceilings and limit relationships fail closed", () => {
   assert.throws(() => loadUploadLimits({ UPLOAD_MAX_WIDTH: "10", UPLOAD_MAX_HEIGHT: "10", UPLOAD_MAX_PIXELS: "101" }), /WIDTH.*HEIGHT/);
 });
 
-test("upload protection enforces user, IP, and bounded concurrency without a queue", () => {
+test("upload protection enforces user, IP, and bounded concurrency without a queue", async () => {
   const protection = createUploadProtection({ limits: { ...limits, rateLimitUserMax: 1, rateLimitIpMax: 2, maxConcurrent: 1 }, now: () => 100 });
   const next = () => {};
   function response() { const value = new EventEmitter(); value.headers = {}; value.setHeader = (k, v) => { value.headers[k] = v; }; value.status = (status) => { value.statusCode = status; return value; }; value.json = (body) => { value.body = body; return value; }; return value; }
   const req = { user: { sub: "u1" }, ip: "127.0.0.1" };
-  protection.rateLimit(req, response(), next);
-  const userLimited = response(); protection.rateLimit(req, userLimited, next); assert.equal(userLimited.statusCode, 429);
-  const secondUser = response(); protection.rateLimit({ user: { sub: "u2" }, ip: "127.0.0.1" }, secondUser, next); assert.equal(secondUser.statusCode, undefined);
-  const ipLimited = response(); protection.rateLimit({ user: { sub: "u3" }, ip: "127.0.0.1" }, ipLimited, next); assert.equal(ipLimited.statusCode, 429);
+  await protection.rateLimit(req, response(), next);
+  const userLimited = response(); await protection.rateLimit(req, userLimited, next); assert.equal(userLimited.statusCode, 429);
+  const secondUser = response(); await protection.rateLimit({ user: { sub: "u2" }, ip: "127.0.0.1" }, secondUser, next); assert.equal(secondUser.statusCode, undefined);
+  const ipLimited = response(); await protection.rateLimit({ user: { sub: "u3" }, ip: "127.0.0.1" }, ipLimited, next); assert.equal(ipLimited.statusCode, 429);
   const held = response(); protection.concurrency(req, held, next);
   const capacity = response(); protection.concurrency(req, capacity, next); assert.equal(capacity.statusCode, 503); assert.equal(protection.active, 1);
   held.emit("finish"); assert.equal(protection.active, 0);

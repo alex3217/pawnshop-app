@@ -16,9 +16,10 @@ dimensions, and kind.
   require a real, non-deleted target. Consumers and unapproved owners are denied.
 
 Object keys contain only a server-generated random ID and normalized extension;
-the client cannot choose an object key or destination URL. Deletion is not part of
-the current frontend workflow and is intentionally not exposed by this version;
-future deletion must use a persisted asset ID and repeat the ownership check.
+the client cannot choose an object key or destination URL. The response ID also
+identifies a tenant-scoped `UploadAsset` lifecycle row. `DELETE /api/uploads/:id`
+can remove only the caller's own unattached temporary asset. Attached assets must
+be removed through their owning item or shop update, which repeats authorization.
 
 ## Formats, limits, and lifecycle
 
@@ -29,18 +30,27 @@ bulk request, 50 MiB aggregate input, 12,000 pixels per dimension, and 40 millio
 pixels total. Environment settings may lower but cannot raise these ceilings.
 Aggregate bytes are counted while multipart data arrives, and an overflowing
 file is discarded rather than retained. Uploads are limited per authenticated
-user and source IP (20 and 60 requests per 60 seconds by default), with at most
-one active upload request per API process by default (hard ceiling four) and no
+user and source IP (20 and 60 requests per 60 seconds by default). When `REDIS_URL`
+is configured, counters use Redis atomically across API instances and fail closed
+if the store is unavailable. Local/test environments use bounded memory counters.
+At most one upload request is processed per API process by default (hard ceiling
+four), with no
 waiting queue. Provider writes
 and cleanup deletes time out after 10 seconds by default (30-second hard ceiling).
 
-Bulk uploads are atomic from the API consumer's perspective. If validation or a
-provider write fails, objects already written for that request are deleted on a
-best-effort basis and the request fails without returning partial results. Provider
-lifecycle rules should additionally expire incomplete multipart uploads and clean
-unreferenced objects according to the operator's retention policy. Malware scanning
-is not implemented; production operators must assess and configure an external
-scanner if policy or risk requirements demand one.
+Bulk uploads remain atomic from the API consumer's perspective. Each provider write
+gets a temporary lifecycle row. Validation, provider, or lifecycle persistence
+failure removes prior objects and temporary rows before the request fails. Item and
+branding updates attach new rows in the same transaction as URL persistence.
+Replaced rows become deletion-pending in that transaction and physical deletion
+starts only after commit. Failed deletes remain retryable. A 15-minute idempotent
+cleanup job processes expired temporary and deletion-pending rows; temporary rows
+expire after 24 hours.
+
+Malware scanning is not implemented and remains a public-launch risk decision. The
+decoder/re-encoder rejects malformed and non-raster payloads and strips metadata,
+but is not a malware scanner. Launch requires explicit risk acceptance or approval
+of a scanning provider; this change does not select an external vendor.
 
 Cleanup failures never replace the original upload error. The API emits a
 sanitized structured warning containing only request correlation and failure count.
@@ -55,8 +65,22 @@ Persisted success is terminal for that page controller: observer or navigation
 callback failures cannot replace the workflow result or permit another item create.
 Existing-item uploads append and persist URLs. Shop creation
 and Location editing similarly persist returned logo/banner URLs through the
-ownership-checked shop update contract. Abandoned or removed objects are handled
-by provider retention policy; this version intentionally exposes no deletion API.
+ownership-checked shop update contract. Abandoned and removed managed objects are
+handled by the application cleanup job and the provider lifecycle backstop.
+
+## Bucket CORS and lifecycle
+
+Keep bucket listing disabled. Permit browser `GET` and `HEAD` only from configured
+PawnLoop frontend origins when the asset domain serves objects directly. Uploads
+and deletes are server-to-server, so browser `PUT`, `POST`, and `DELETE` CORS methods
+are unnecessary. Expose only required headers such as `Content-Type`, `ETag`, and
+`Cache-Control`.
+
+Configure a lifecycle rule to abort incomplete multipart uploads after one day. As
+a defense-in-depth backstop, expire unreferenced temporary objects under `uploads/`
+after an operational recovery window longer than the application's 24-hour window
+(seven days is recommended). Never apply blanket expiry to attached production
+objects. Bucket rules remain deployment configuration and are not stored here.
 
 ## Provider configuration
 
@@ -86,6 +110,10 @@ Staging and production validation rejects enabled uploads with incomplete, local
 credential-bearing, or non-HTTPS provider URLs. There is no filesystem fallback.
 Provider credentials and bucket/CORS/domain configuration remain deployment work
 and must never be committed.
+
+Readiness checks cover database connectivity, S3-compatible bucket access, and a
+real Sharp encode operation. Responses and structured failure logs expose dependency
+state and error class only—never credentials, object keys, or signed URLs.
 
 Backend tests inject an in-memory fake adapter into `createApp`; frontend
 behavioral tests execute the production workflow and Create Item recovery

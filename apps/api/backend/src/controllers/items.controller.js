@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { canAccessShopWithStaffPermission, getStaffAccessibleShopIds } from "../middleware/staffAccess.middleware.js";
 import { assertCanCreateListingForShop } from "../services/sellerPlan.service.js";
 import { recordItemIntakeScan } from "../services/itemIntake.service.js";
+import { deleteTrackedAssets, lockItemImagesForUpdate, reconcileAssetUrls, rollbackTemporaryAssets } from "../services/uploadAssets.service.js";
 import {
   calculateItemPriceComparison,
   coordinatesAreValid,
@@ -784,6 +785,7 @@ export async function updateItem(req, res) {
       where: { id },
       select: {
         id: true,
+        images: true,
         isDeleted: true,
         shop: { select: { id: true, ownerId: true } },
       },
@@ -853,10 +855,42 @@ export async function updateItem(req, res) {
         : {}),
     };
 
-    const updated = await prisma.item.update({
-      where: { id },
-      data,
-      select: await buildItemSelect({ includeShop: true }),
+    let removedAssets = [];
+    let updated;
+    try {
+      const select = await buildItemSelect({ includeShop: true });
+      updated = await prisma.$transaction(async (tx) => {
+        const previous = await lockItemImagesForUpdate(tx, id);
+        if (!previous || previous.isDeleted || previous.pawnShopId !== item.shop.id) {
+          throw createHttpError(404, "Item not found");
+        }
+        const result = await tx.item.update({ where: { id }, data, select });
+        if (rawBody.images !== undefined) {
+          removedAssets = await reconcileAssetUrls({
+            tx,
+            shopId: item.shop.id,
+            itemId: id,
+            previousUrls: previous.images || [],
+            nextUrls: result.images || [],
+          });
+        }
+        return result;
+      });
+    } catch (error) {
+      if (rawBody.images !== undefined) {
+        await rollbackTemporaryAssets({
+          urls: images || [],
+          shopId: item.shop.id,
+          storage: req.app.locals.uploadStorage,
+          requestId: req.requestId,
+        }).catch(() => {});
+      }
+      throw error;
+    }
+    await deleteTrackedAssets({
+      assets: removedAssets,
+      storage: req.app.locals.uploadStorage,
+      requestId: req.requestId,
     });
 
     return res.json(updated);
@@ -876,6 +910,7 @@ export async function deleteItem(req, res) {
       where: { id },
       select: {
         id: true,
+        images: true,
         isDeleted: true,
         shop: { select: { id: true, ownerId: true } },
       },
@@ -891,16 +926,17 @@ export async function deleteItem(req, res) {
 
     const itemColumns = await getTableColumns("Item");
 
-    if (itemColumns.has("isDeleted")) {
-      await prisma.item.update({
-        where: { id },
-        data: { isDeleted: true },
-      });
-    } else {
-      await prisma.item.delete({
-        where: { id },
-      });
-    }
+    let removedAssets = [];
+    await prisma.$transaction(async (tx) => {
+      const previous = await lockItemImagesForUpdate(tx, id);
+      if (!previous || previous.isDeleted || previous.pawnShopId !== item.shop.id) {
+        throw createHttpError(404, "Item not found");
+      }
+      if (itemColumns.has("isDeleted")) await tx.item.update({ where: { id }, data: { isDeleted: true } });
+      else await tx.item.delete({ where: { id } });
+      removedAssets = await reconcileAssetUrls({ tx, shopId: previous.pawnShopId, itemId: id, previousUrls: previous.images || [], nextUrls: [] });
+    });
+    await deleteTrackedAssets({ assets: removedAssets, storage: req.app.locals.uploadStorage, requestId: req.requestId });
 
     return res.status(204).end();
   } catch (err) {
