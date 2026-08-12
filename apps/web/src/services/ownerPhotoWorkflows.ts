@@ -168,7 +168,7 @@ export function createOwnerPhotoWorkflows(dependencies: OwnerPhotoWorkflowDepend
     async updateItemWithPhotos(item: Item, input: UpdateItemInput, files: File[]): Promise<Item> {
       if (!files.length) return dependencies.updateItem(item.id, input);
       const uploaded = await dependencies.uploadItemImages(item.id, files);
-      return dependencies.updateItem(item.id, { ...input, images: [...(item.images || []), ...uploaded.map(({ url }) => url)] });
+      return dependencies.updateItem(item.id, { ...input, images: [...(input.images ?? item.images ?? []), ...uploaded.map(({ url }) => url)] });
     },
 
     async createShopWithBranding(input: CreateShopInput, logo: File | null, banner: File | null, recoverableShopId = ""): Promise<Shop> {

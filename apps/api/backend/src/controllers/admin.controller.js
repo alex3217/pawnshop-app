@@ -13,6 +13,7 @@ import {
   runGovernedShopMutation,
   runGovernedUserMutation,
 } from "../services/superAdminAudit.service.js";
+import { deleteTrackedAssets, reconcileAssetUrls } from "../services/uploadAssets.service.js";
 
 function sendError(res, error, fallbackMessage = "Internal server error") {
   const status =
@@ -660,16 +661,20 @@ export async function adminListItems(req, res) {
 export async function softDeleteItem(req, res) {
   try {
     const { id } = req.params;
+    let removedAssets = [];
     const item = await runGovernedItemMutation({
       req,
       action: "MODERATE_ITEM_REMOVE",
       targetItemId: id,
       metadata: { moderationType: "soft_delete" },
-      mutation: (tx) => tx.item.update({
-        where: { id },
-        data: { isDeleted: true },
-      }),
+      mutation: async (tx) => {
+        const current = await tx.item.findUnique({ where: { id }, select: { id: true, pawnShopId: true, images: true } });
+        const updated = await tx.item.update({ where: { id }, data: { isDeleted: true } });
+        if (current) removedAssets = await reconcileAssetUrls({ tx, shopId: current.pawnShopId, itemId: id, previousUrls: current.images, nextUrls: [] });
+        return updated;
+      },
     });
+    await deleteTrackedAssets({ assets: removedAssets, storage: req.app.locals.uploadStorage, requestId: req.requestId });
 
     return res.json({ ok: true, id: item.id, isDeleted: item.isDeleted });
   } catch (error) {
@@ -717,12 +722,18 @@ export async function adminListShops(req, res) {
 export async function softDeleteShop(req, res) {
   try {
     const { id } = req.params;
+    const current = await prisma.pawnShop.findUnique({ where: { id }, select: { logoUrl: true, bannerUrl: true } });
+    let removedAssets = [];
     const shop = await runGovernedShopMutation({
       req,
       targetShopId: id,
       update: { isDeleted: true },
       action: "ADMIN_DISABLE_SHOP",
+      afterUpdate: async (tx) => {
+        removedAssets = await reconcileAssetUrls({ tx, shopId: id, previousUrls: [current?.logoUrl, current?.bannerUrl].filter(Boolean), nextUrls: [] });
+      },
     });
+    await deleteTrackedAssets({ assets: removedAssets, storage: req.app.locals.uploadStorage, requestId: req.requestId });
 
     return res.json({ ok: true, id: shop.id, isDeleted: shop.isDeleted });
   } catch (error) {

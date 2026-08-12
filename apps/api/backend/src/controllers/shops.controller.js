@@ -6,6 +6,7 @@ import {
 } from "../services/sellerPlan.service.js";
 import { calculateOwnerSetupProgress } from "../../../../../shared/ownerSetupChecklist.mjs";
 import { isKnownSellerPlanCode } from "../config/sellerPlans.js";
+import { deleteTrackedAssets, reconcileAssetUrls, rollbackTemporaryAssets } from "../services/uploadAssets.service.js";
 
 /**
  * Why this controller is defensive:
@@ -250,11 +251,34 @@ export async function updateShop(req, res) {
 
     const data = pickShopWriteData(req.body);
 
-    const updated = await prisma.pawnShop.update({
-      where: { id },
-      data,
-      select,
-    });
+    const brandingChanged = req.body?.logoUrl !== undefined || req.body?.bannerUrl !== undefined;
+    const nextBranding = [
+      req.body?.logoUrl !== undefined ? data.logoUrl : shop.logoUrl,
+      req.body?.bannerUrl !== undefined ? data.bannerUrl : shop.bannerUrl,
+    ].filter(Boolean);
+    let removedAssets = [];
+    let updated;
+    try {
+      updated = await prisma.$transaction(async (tx) => {
+        const result = await tx.pawnShop.update({ where: { id }, data, select });
+        if (brandingChanged) removedAssets = await reconcileAssetUrls({
+          tx,
+          shopId: id,
+          previousUrls: [shop.logoUrl, shop.bannerUrl].filter(Boolean),
+          nextUrls: nextBranding,
+        });
+        return result;
+      });
+    } catch (error) {
+      if (brandingChanged) await rollbackTemporaryAssets({
+        urls: nextBranding,
+        shopId: id,
+        storage: req.app.locals.uploadStorage,
+        requestId: req.requestId,
+      }).catch(() => {});
+      throw error;
+    }
+    await deleteTrackedAssets({ assets: removedAssets, storage: req.app.locals.uploadStorage, requestId: req.requestId });
 
     return res.json(updated);
   } catch (error) {

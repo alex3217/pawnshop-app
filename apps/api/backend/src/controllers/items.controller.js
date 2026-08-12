@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { canAccessShopWithStaffPermission, getStaffAccessibleShopIds } from "../middleware/staffAccess.middleware.js";
 import { assertCanCreateListingForShop } from "../services/sellerPlan.service.js";
 import { recordItemIntakeScan } from "../services/itemIntake.service.js";
+import { deleteTrackedAssets, reconcileAssetUrls, rollbackTemporaryAssets } from "../services/uploadAssets.service.js";
 import {
   calculateItemPriceComparison,
   coordinatesAreValid,
@@ -784,6 +785,7 @@ export async function updateItem(req, res) {
       where: { id },
       select: {
         id: true,
+        images: true,
         isDeleted: true,
         shop: { select: { id: true, ownerId: true } },
       },
@@ -853,10 +855,38 @@ export async function updateItem(req, res) {
         : {}),
     };
 
-    const updated = await prisma.item.update({
-      where: { id },
-      data,
-      select: await buildItemSelect({ includeShop: true }),
+    let removedAssets = [];
+    let updated;
+    try {
+      const select = await buildItemSelect({ includeShop: true });
+      updated = await prisma.$transaction(async (tx) => {
+        const result = await tx.item.update({ where: { id }, data, select });
+        if (rawBody.images !== undefined) {
+          removedAssets = await reconcileAssetUrls({
+            tx,
+            shopId: item.shop.id,
+            itemId: item.id,
+            previousUrls: item.images || [],
+            nextUrls: images || [],
+          });
+        }
+        return result;
+      });
+    } catch (error) {
+      if (rawBody.images !== undefined) {
+        await rollbackTemporaryAssets({
+          urls: images || [],
+          shopId: item.shop.id,
+          storage: req.app.locals.uploadStorage,
+          requestId: req.requestId,
+        }).catch(() => {});
+      }
+      throw error;
+    }
+    await deleteTrackedAssets({
+      assets: removedAssets,
+      storage: req.app.locals.uploadStorage,
+      requestId: req.requestId,
     });
 
     return res.json(updated);
@@ -876,6 +906,7 @@ export async function deleteItem(req, res) {
       where: { id },
       select: {
         id: true,
+        images: true,
         isDeleted: true,
         shop: { select: { id: true, ownerId: true } },
       },
@@ -891,16 +922,13 @@ export async function deleteItem(req, res) {
 
     const itemColumns = await getTableColumns("Item");
 
-    if (itemColumns.has("isDeleted")) {
-      await prisma.item.update({
-        where: { id },
-        data: { isDeleted: true },
-      });
-    } else {
-      await prisma.item.delete({
-        where: { id },
-      });
-    }
+    let removedAssets = [];
+    await prisma.$transaction(async (tx) => {
+      if (itemColumns.has("isDeleted")) await tx.item.update({ where: { id }, data: { isDeleted: true } });
+      else await tx.item.delete({ where: { id } });
+      removedAssets = await reconcileAssetUrls({ tx, shopId: item.shop.id, itemId: item.id, previousUrls: item.images || [], nextUrls: [] });
+    });
+    await deleteTrackedAssets({ assets: removedAssets, storage: req.app.locals.uploadStorage, requestId: req.requestId });
 
     return res.status(204).end();
   } catch (err) {

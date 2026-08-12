@@ -244,6 +244,7 @@ export async function runGovernedShopMutation({
   include,
   select,
   metadata,
+  afterUpdate,
   statusCode = 200,
   prismaClient = prisma,
 }) {
@@ -256,6 +257,7 @@ export async function runGovernedShopMutation({
       ...(include ? { include } : {}),
       ...(select ? { select } : {}),
     });
+    if (afterUpdate) await afterUpdate(tx, updated);
 
     if (!tx.superAdminAuditLog?.create) {
       throw new Error("Super Admin audit persistence is unavailable.");

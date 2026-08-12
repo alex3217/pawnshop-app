@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import sharp from "sharp";
 import { prisma } from "../lib/prisma.js";
 import { canAccessShopWithStaffPermission } from "../middleware/staffAccess.middleware.js";
+import { recordUploadedAsset } from "./uploadAssets.service.js";
 
 const SUPPORTED = Object.freeze({
   jpeg: { mimeType: "image/jpeg", extension: "jpg" },
@@ -102,7 +103,12 @@ export async function validateAndNormalizeImage(file, limits) {
   return { body: data, mimeType: supported.mimeType, extension: supported.extension, width: info.width, height: info.height, size: data.length };
 }
 
-export async function uploadImages({ req, files, input, storage, limits, logger = console }) {
+export async function checkImageRuntime() {
+  await sharp({ create: { width: 1, height: 1, channels: 3, background: "#000000" } }).png().toBuffer();
+  return true;
+}
+
+export async function uploadImages({ req, files, input, storage, limits, logger = console, prismaClient = prisma }) {
   if (!Array.isArray(files) || files.length === 0) throw httpError("At least one image is required", 400, "UPLOAD_FILES_REQUIRED");
   if (files.length > limits.maxFiles) throw httpError("Too many images", 413, "UPLOAD_FILE_COUNT_EXCEEDED");
   const aggregate = files.reduce((total, file) => total + Number(file?.size || file?.buffer?.length || 0), 0);
@@ -120,11 +126,24 @@ export async function uploadImages({ req, files, input, storage, limits, logger 
         body: normalized.body,
         contentType: normalized.mimeType,
       });
-      created.push({ key, file: { id, url: stored.url, mimeType: normalized.mimeType, mimetype: normalized.mimeType, size: normalized.size, kind: target.kind, width: normalized.width, height: normalized.height } });
+      let asset;
+      try {
+        asset = await recordUploadedAsset({ id, target, uploaderId: userId(req), key, url: stored.url, kind: target.kind, prismaClient });
+      } catch (error) {
+        await storage.delete({ key }).catch(() => {});
+        throw error;
+      }
+      created.push({ key, assetId: asset.id, file: { id, url: stored.url, mimeType: normalized.mimeType, mimetype: normalized.mimeType, size: normalized.size, kind: target.kind, width: normalized.width, height: normalized.height } });
+      logger.info?.("[uploads]", { event: "upload_succeeded", requestId: req.requestId, assetId: asset.id, shopId: target.shopId, kind: target.kind });
     }
     return created.map(({ file }) => file);
   } catch (error) {
+    logger.error?.("[uploads]", { event: "upload_failed", requestId: req.requestId, reason: error?.name || "Error", createdCount: created.length });
     const cleanup = await Promise.allSettled(created.map(({ key }) => storage.delete({ key })));
+    const assetIds = created.map(({ assetId }) => assetId).filter(Boolean);
+    if (assetIds.length) {
+      await prismaClient.uploadAsset.deleteMany({ where: { id: { in: assetIds }, status: "TEMPORARY" } }).catch(() => {});
+    }
     const cleanupFailureCount = cleanup.filter(({ status }) => status === "rejected").length;
     if (cleanupFailureCount > 0) {
       logger.warn("[uploads] durable cleanup incomplete", {
