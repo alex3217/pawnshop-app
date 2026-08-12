@@ -306,7 +306,7 @@ export default function OwnerItemEditPage() {
 
   return (
     <div className="page-stack owner-readable-page owner-edit-item-page" style={styles.page}>
-      <div style={styles.header}>
+      <div className="owner-edit-item-header" style={styles.header}>
         <div>
           <h2 style={styles.title}>Edit Item</h2>
           <p style={styles.subtitle}>Update listing details and manage inventory status.</p>

@@ -212,6 +212,12 @@
 .owner-edit-item-page {
   width: 100%;
   box-sizing: border-box;
+  padding: clamp(18px, 2.4vw, 28px);
+  padding-bottom: 7rem;
+}
+
+.owner-edit-item-header {
+  min-width: 0;
 }
 
 .owner-edit-item-page .item-image-picker {
@@ -228,11 +234,30 @@
   color: var(--owner-text);
 }
 
+.owner-edit-item-page .item-image-picker .btn-primary {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
 .owner-create-item-page .btn-primary {
   color: #ffffff;
 }
 
 @media (max-width: 560px) {
+  .owner-edit-item-page {
+    padding: 16px 14px 6rem;
+  }
+
+  .owner-edit-item-header,
+  .owner-edit-item-header > div:last-child {
+    width: 100%;
+  }
+
+  .owner-edit-item-header > div:last-child > * {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
   .owner-create-shop-actions > * {
     width: 100%;
     text-align: center;
