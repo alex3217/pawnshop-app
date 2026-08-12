@@ -140,10 +140,12 @@ export async function uploadImages({ req, files, input, storage, limits, logger 
   } catch (error) {
     logger.error?.("[uploads]", { event: "upload_failed", requestId: req.requestId, reason: error?.name || "Error", createdCount: created.length });
     const cleanup = await Promise.allSettled(created.map(({ key }) => storage.delete({ key })));
-    const assetIds = created.map(({ assetId }) => assetId).filter(Boolean);
-    if (assetIds.length) {
-      await prismaClient.uploadAsset.deleteMany({ where: { id: { in: assetIds }, status: "TEMPORARY" } }).catch(() => {});
-    }
+    await Promise.allSettled(created.map(({ assetId }, index) => prismaClient.uploadAsset.updateMany({
+      where: { id: assetId, status: "TEMPORARY" },
+      data: cleanup[index]?.status === "fulfilled"
+        ? { status: "DELETED", deletedAt: new Date(), deleteAfter: null, lastError: null }
+        : { status: "DELETE_PENDING", deleteAfter: new Date(), lastError: "StorageError" },
+    })));
     const cleanupFailureCount = cleanup.filter(({ status }) => status === "rejected").length;
     if (cleanupFailureCount > 0) {
       logger.warn("[uploads] durable cleanup incomplete", {
