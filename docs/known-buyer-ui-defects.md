@@ -6,5 +6,4 @@ presentation defects are intentionally out of scope for
 
 - The Buyer dashboard heading has insufficient contrast.
 - The setup/instructions overlay obstructs desktop and mobile content.
-- Payment Methods content slightly exceeds its container.
 - Shops filter labels render at 11px.
