@@ -56,6 +56,64 @@
   flex-wrap: wrap;
 }
 
+.create-auction-page .create-auction-empty-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: flex-start;
+  padding: 24px;
+  border: 1px solid #c7d2fe;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
+}
+
+.create-auction-page .create-auction-empty-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 14px;
+  background: #4f46e5;
+  color: #ffffff;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.create-auction-page .create-auction-empty-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.create-auction-page .create-auction-empty-copy h2 {
+  margin: 0;
+  color: #172554;
+  font-size: clamp(1.15rem, 2vw, 1.35rem);
+  line-height: 1.25;
+}
+
+.create-auction-page .create-auction-empty-copy p {
+  max-width: 720px;
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.create-auction-page .create-auction-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.create-auction-page .create-auction-photo-prompt {
+  padding: 14px 16px;
+  border: 1px dashed #a5b4fc;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+}
+
 :root[data-theme="dark"] .create-auction-page {
   color: #f8fafc;
 }
@@ -79,6 +137,25 @@
 
 :root[data-theme="dark"] .create-auction-page .create-auction-card .muted {
   color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .create-auction-page .create-auction-empty-state {
+  border-color: #4338ca;
+  background: linear-gradient(135deg, #1e1b4b 0%, #172033 100%);
+}
+
+:root[data-theme="dark"] .create-auction-page .create-auction-empty-copy h2 {
+  color: #eef2ff;
+}
+
+:root[data-theme="dark"] .create-auction-page .create-auction-empty-copy p,
+:root[data-theme="dark"] .create-auction-page .create-auction-photo-prompt {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .create-auction-page .create-auction-photo-prompt {
+  border-color: #6366f1;
+  background: #111827;
 }
 
 :root[data-theme="dark"] .create-auction-page .create-auction-secondary-link,
@@ -108,6 +185,15 @@
   }
 
   .create-auction-page .create-auction-header .create-auction-secondary-link {
+    width: 100%;
+  }
+
+  .create-auction-page .create-auction-empty-state {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .create-auction-page .create-auction-empty-actions .btn {
     width: 100%;
   }
 }

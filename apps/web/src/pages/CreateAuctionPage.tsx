@@ -129,6 +129,7 @@ export default function CreateAuctionPage() {
     ),
     [existingAuctionItemIds, writableItems],
   );
+  const hasEligibleItems = eligibleItems.length > 0;
   const selectedItem = eligibleItems.find((item) => String(item.id) === form.itemId) || null;
   const canEditSelectedItem = Boolean(selectedItem && shopHasPermission(
     shopAccess,
@@ -322,14 +323,18 @@ export default function CreateAuctionPage() {
 
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
           <label style={{ display: "grid", gap: 6 }}>
-            <span>Item ID</span>
+            <span>Inventory item</span>
             <select
                 value={form.itemId}
                 onChange={(event) => updateForm("itemId", event.target.value)}
-                disabled={submitting || loadingInventory || eligibleItems.length === 0}
+                disabled={submitting || loadingInventory || !hasEligibleItems}
               >
                 <option value="">
-                  {loadingInventory ? "Loading inventory…" : "Select item"}
+                  {loadingInventory
+                    ? "Loading inventory…"
+                    : hasEligibleItems
+                      ? "Select an inventory item"
+                      : "No auction-ready inventory"}
                 </option>
                 {eligibleItems.map((item) => (
                     <option key={item.id} value={item.id}>
@@ -337,9 +342,11 @@ export default function CreateAuctionPage() {
                     </option>
                   ))}
               </select>
-            <small className="muted">
-              {requestedItemId ? "Preselected from inventory. You can choose another item if needed." : "Use an existing item from owner inventory."}
-            </small>
+            {hasEligibleItems ? (
+              <small className="muted">
+                {requestedItemId ? "Preselected from inventory. You can choose another item if needed." : "Choose an item from your shop inventory."}
+              </small>
+            ) : null}
           </label>
 
           {inventoryLoadError ? (
@@ -349,42 +356,76 @@ export default function CreateAuctionPage() {
           ) : null}
 
           {!loadingInventory && !inventoryLoadError && items.length === 0 ? (
-            <div className="alert alert-warning" role="status">
-              No inventory items were found. Create an inventory item before starting an auction. {" "}
-              <Link to="/owner/items/new">Create inventory item</Link>
-            </div>
+            <section className="create-auction-empty-state" role="status">
+              <div className="create-auction-empty-icon" aria-hidden="true">+</div>
+              <div className="create-auction-empty-copy">
+                <h2>Add your first auction item</h2>
+                <p>
+                  Auctions begin with a saved inventory item. Add the item and its photos first, then return here to set the bidding details.
+                </p>
+                <div className="create-auction-empty-actions">
+                  <Link className="btn btn-primary" to="/owner/items/new">Create Inventory Item</Link>
+                  <Link className="btn create-auction-secondary-link" to="/owner/inventory">View Inventory</Link>
+                </div>
+              </div>
+            </section>
           ) : null}
 
           {!loadingInventory && !inventoryLoadError && items.length > 0 && writableItems.length === 0 ? (
-            <div className="alert alert-warning" role="status">
-              Inventory exists, but none of the items are in a shop where you have auction write permission.
-            </div>
+            <section className="create-auction-empty-state" role="status">
+              <div className="create-auction-empty-icon" aria-hidden="true">!</div>
+              <div className="create-auction-empty-copy">
+                <h2>No auction-ready items</h2>
+                <p>Your inventory exists, but your current shop access does not include auction permission for those items.</p>
+                <div className="create-auction-empty-actions">
+                  <Link className="btn create-auction-secondary-link" to="/owner/inventory">Review Inventory</Link>
+                  <Link className="btn create-auction-secondary-link" to="/owner/auctions">Manage Auctions</Link>
+                </div>
+              </div>
+            </section>
           ) : null}
 
           {!loadingInventory && !inventoryLoadError && writableItems.length > 0 && eligibleItems.length === 0 ? (
-            <div className="alert alert-warning" role="status">
-              Every eligible inventory item is already attached to an auction. Create another inventory item or manage the existing auctions.
-            </div>
+            <section className="create-auction-empty-state" role="status">
+              <div className="create-auction-empty-icon" aria-hidden="true">✓</div>
+              <div className="create-auction-empty-copy">
+                <h2>All eligible items are already in auctions</h2>
+                <p>Create another inventory item or manage an existing auction before starting a new one.</p>
+                <div className="create-auction-empty-actions">
+                  <Link className="btn btn-primary" to="/owner/items/new">Add Another Item</Link>
+                  <Link className="btn create-auction-secondary-link" to="/owner/auctions">Manage Auctions</Link>
+                </div>
+              </div>
+            </section>
           ) : null}
 
-          <ItemImagePicker
-            files={photoFiles}
-            onChange={(files) => {
-              setPhotoFiles(files);
-              photoWorkflowRef.current.reset();
-            }}
-            existingImages={selectedItem?.images || []}
-            disabled={submitting || !selectedItem || !canEditSelectedItem}
-            disabledReason={
-              !selectedItem
-                ? "Select an eligible inventory item to enable auction photo capture."
-                : !canEditSelectedItem
-                  ? "You can create this auction, but inventory:write permission is required to add or remove item photos."
-                  : ""
-            }
-            cameraLabel="Take Auction Photo"
-            galleryLabel="Choose Auction Images"
-          />
+          {hasEligibleItems ? (
+            selectedItem ? (
+              <ItemImagePicker
+                files={photoFiles}
+                onChange={(files) => {
+                  setPhotoFiles(files);
+                  photoWorkflowRef.current.reset();
+                }}
+                existingImages={selectedItem.images || []}
+                disabled={submitting || !canEditSelectedItem}
+                disabledReason={
+                  !canEditSelectedItem
+                    ? "You can create this auction, but inventory:write permission is required to add or remove item photos."
+                    : ""
+                }
+                cameraLabel="Take Auction Photo"
+                galleryLabel="Choose Auction Images"
+              />
+            ) : (
+              <div className="create-auction-photo-prompt">
+                Select an inventory item above to review or add auction photos.
+              </div>
+            )
+          ) : null}
+
+          {hasEligibleItems ? (
+            <>
 
           <div
             style={{
@@ -484,6 +525,8 @@ export default function CreateAuctionPage() {
               View Auctions
             </Link>
           </div>
+            </>
+          ) : null}
         </form>
       </div>
     </div>
