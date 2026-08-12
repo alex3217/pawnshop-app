@@ -55,9 +55,15 @@ before(async () => {
   prisma.item.findUnique = async ({ where }) => where.id === "item" ? { id: "item", isDeleted: false, shop: { id: "shop", ownerId: "owner", isDeleted: false } } : null;
   prisma.pawnShop.findUnique = async ({ where }) => where.id === "shop" ? { id: "shop", ownerId: "owner", isDeleted: false } : null;
   prisma.uploadAsset.create = async ({ data }) => { assetRows.set(data.id, { ...data, status: "TEMPORARY" }); return assetRows.get(data.id); };
-  prisma.uploadAsset.deleteMany = async ({ where }) => {
+  prisma.uploadAsset.updateMany = async ({ where, data }) => {
     let count = 0;
-    for (const id of where.id.in) if (assetRows.get(id)?.status === where.status) { assetRows.delete(id); count += 1; }
+    const ids = where.id?.in || [where.id];
+    for (const id of ids) {
+      if (assetRows.get(id)?.status === where.status) {
+        assetRows.set(id, { ...assetRows.get(id), ...data });
+        count += 1;
+      }
+    }
     return { count };
   };
   png = await sharp({ create: { width: 8, height: 6, channels: 3, background: "red" } }).png().toBuffer();
@@ -177,12 +183,13 @@ test("provider failures are sanitized", async () => {
   assert.equal(JSON.stringify(response.body).includes("provider secret detail"), false);
 });
 
-test("partial bulk provider failure removes objects created in the request", async () => {
+test("partial bulk provider failure removes objects and retains terminal lifecycle records", async () => {
   putFailureAt = 2;
   await upload("/api/uploads/bulk").field("kind", "SHOP_BANNER").field("shopId", "shop").attach("images", png, { filename: "1.png", contentType: "image/png" }).attach("images", png, { filename: "2.png", contentType: "image/png" }).expect(502);
   assert.equal(deleted.length, 1);
   assert.equal(deleted[0].key, stored[0].key);
-  assert.equal(assetRows.size, 0);
+  assert.equal(assetRows.size, 1);
+  assert.equal([...assetRows.values()][0].status, "DELETED");
 });
 
 test("cleanup failures are sanitized and observable without replacing the original response", async () => {
@@ -193,6 +200,7 @@ test("cleanup failures are sanitized and observable without replacing the origin
   assert.deepEqual(warnings, [{ message: "[uploads] durable cleanup incomplete", details: { requestId: warnings[0].details.requestId, cleanupFailureCount: 1 } }]);
   assert.equal(JSON.stringify(warnings).includes("private provider"), false);
   assert.equal(JSON.stringify(warnings).includes("uploads/"), false);
+  assert.equal([...assetRows.values()][0].status, "DELETE_PENDING");
 });
 
 test("aggregate storage rejects while receiving and does not retain the overflowing file", async () => {
