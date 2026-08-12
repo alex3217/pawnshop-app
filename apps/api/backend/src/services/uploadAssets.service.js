@@ -86,8 +86,8 @@ export async function deleteUploadAssetForActor({ assetId, actorId, shopId, stor
 }
 
 export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUrls = [], nextUrls = [] }) {
-  const previous = new Set(previousUrls.filter(Boolean));
-  const next = new Set(nextUrls.filter(Boolean));
+  const previous = new Set((previousUrls || []).filter(Boolean));
+  const next = new Set((nextUrls || []).filter(Boolean));
   const added = [...next].filter((url) => !previous.has(url));
   const removed = [...previous].filter((url) => !next.has(url));
 
