@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import PrimaryListingImage from "../components/PrimaryListingImage";
 import {
   getAuctions,
   type Auction,
@@ -1284,9 +1285,6 @@ export default function AuctionsPage() {
         {!loading && filteredRows.length > 0 ? (
           <section className="auctions-card-grid">
             {pagedRows.map((auction) => {
-              const image =
-                auction.item?.images?.[0] || "";
-
               const status = normalizeUpper(
                 auction.status,
                 "UNKNOWN",
@@ -1303,21 +1301,12 @@ export default function AuctionsPage() {
                   key={auction.id}
                   className="auction-result-card"
                 >
-                  {image ? (
-                    <img
-                      src={image}
-                      alt={
-                        auction.item?.title ||
-                        "Auction item"
-                      }
-                      className="auction-result-image"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="auction-result-image auction-result-image--empty">
-                      No image
-                    </div>
-                  )}
+                  <PrimaryListingImage
+                    images={auction.item?.images}
+                    alt={`${auction.item?.title || "Auction item"} photo`}
+                    imageClassName="auction-result-image"
+                    placeholderClassName="auction-result-image auction-result-image--empty"
+                  />
 
                   <div className="auction-result-body">
                     <div className="auction-result-heading">
