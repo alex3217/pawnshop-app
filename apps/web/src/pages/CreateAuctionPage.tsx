@@ -1,6 +1,6 @@
 // File: apps/web/src/pages/CreateAuctionPage.tsx
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import type { FormEvent } from "react";
 import {
   Link,
@@ -18,6 +18,8 @@ import {
   shopHasPermission,
 } from "../services/shopAccess";
 import "../styles/create-auction-page.css";
+import ItemImagePicker from "../components/ItemImagePicker";
+import { createAuctionPagePhotoWorkflow } from "../services/auctionPhotoWorkflow";
 
 type FormState = {
   itemId: string;
@@ -89,6 +91,9 @@ export default function CreateAuctionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [existingAuctionItemIds, setExistingAuctionItemIds] = useState<string[]>([]);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const photoWorkflowRef = useRef(createAuctionPagePhotoWorkflow());
+  const submittingRef = useRef(false);
 
 
   const token = getAuthToken();
@@ -116,6 +121,12 @@ export default function CreateAuctionPage() {
       ),
     [items, shopAccess],
   );
+  const selectedItem = writableItems.find((item) => String(item.id) === form.itemId) || null;
+  const canEditSelectedItem = Boolean(selectedItem && shopHasPermission(
+    shopAccess,
+    selectedItem.pawnShopId || selectedItem.shop?.id,
+    "inventory:write",
+  ));
 
   const startsAtIso = toIsoOrNull(form.startsAt);
   const endsAtIso = toIsoOrNull(form.endsAt);
@@ -147,11 +158,16 @@ export default function CreateAuctionPage() {
 
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
+    if (key === "itemId" && value !== form.itemId) {
+      setPhotoFiles([]);
+      photoWorkflowRef.current.reset();
+    }
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current) return;
     setMsg(null);
 
     if (!token) {
@@ -188,6 +204,11 @@ export default function CreateAuctionPage() {
       return;
     }
 
+    if (photoFiles.length && !canEditSelectedItem) {
+      setMsg("inventory:write permission is required to add auction photos.");
+      return;
+    }
+
     const startPrice = Number(form.startPrice);
     if (!Number.isFinite(startPrice) || startPrice <= 0) {
       setMsg("Enter a valid starting price.");
@@ -218,23 +239,32 @@ export default function CreateAuctionPage() {
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
 
     try {
-      const auction = await createAuction({
+      const auctionInput = {
         itemId,
         shopId,
         startingPrice: startPrice,
         minIncrement,
         startsAt: startsAtIso,
         endsAt: endsAtIso,
-      });
+      };
+      const auction = photoFiles.length
+        ? await photoWorkflowRef.current.submit(
+            selectedItem,
+            photoFiles,
+            auctionInput,
+          )
+        : await createAuction(auctionInput);
 
       setMsg("Auction created.");
       navigate(`/auctions/${auction.id}`);
     } catch (err: unknown) {
       setMsg(err instanceof Error ? err.message : "Failed to create auction.");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -296,6 +326,25 @@ export default function CreateAuctionPage() {
               {requestedItemId ? "Preselected from inventory. You can choose another item if needed." : "Use an existing item from owner inventory."}
             </small>
           </label>
+
+          {selectedItem ? (
+            <ItemImagePicker
+              files={photoFiles}
+              onChange={(files) => {
+                setPhotoFiles(files);
+                photoWorkflowRef.current.reset();
+              }}
+              existingImages={selectedItem.images || []}
+              disabled={submitting || !canEditSelectedItem}
+              disabledReason={
+                !canEditSelectedItem
+                  ? "You can create this auction, but inventory:write permission is required to add or remove item photos."
+                  : ""
+              }
+              cameraLabel="Take Auction Photo"
+              galleryLabel="Choose Auction Images"
+            />
+          ) : null}
 
           <div
             style={{
