@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import ItemImagePicker from "../components/ItemImagePicker";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { getAuthToken } from "../services/auth";
 import {
@@ -9,6 +10,7 @@ import {
   type Item,
 } from "../services/items";
 import { updateItemWithPhotos } from "../services/ownerPhotoWorkflows";
+import "../styles/owner-workspace-readability.css";
 
 function formatPrice(value: string | number) {
   const num = Number(value);
@@ -35,32 +37,32 @@ function getItemStatusTone(status: string): CSSProperties {
 
   if (["AVAILABLE", "ACTIVE"].includes(normalized)) {
     return {
-      color: "#7ef0b3",
-      background: "rgba(46, 204, 113, 0.12)",
-      border: "1px solid rgba(46, 204, 113, 0.24)",
+      color: "var(--owner-success-text)",
+      background: "var(--owner-success-surface)",
+      border: "1px solid var(--owner-success-border)",
     };
   }
 
   if (["PENDING"].includes(normalized)) {
     return {
-      color: "#ffd98a",
-      background: "rgba(255, 193, 7, 0.12)",
-      border: "1px solid rgba(255, 193, 7, 0.24)",
+      color: "var(--owner-warning-text)",
+      background: "var(--owner-warning-surface)",
+      border: "1px solid var(--owner-warning-border)",
     };
   }
 
   if (["SOLD", "INACTIVE", "REMOVED"].includes(normalized)) {
     return {
-      color: "#ffb2bc",
-      background: "rgba(255, 128, 143, 0.10)",
-      border: "1px solid rgba(255, 128, 143, 0.18)",
+      color: "var(--owner-danger-text)",
+      background: "var(--owner-danger-surface)",
+      border: "1px solid var(--owner-danger-border)",
     };
   }
 
   return {
-    color: "#c7d2fe",
-    background: "rgba(199, 210, 254, 0.10)",
-    border: "1px solid rgba(199, 210, 254, 0.18)",
+    color: "var(--owner-info-text)",
+    background: "var(--owner-info-surface)",
+    border: "1px solid var(--owner-info-border)",
   };
 }
 
@@ -213,11 +215,17 @@ export default function OwnerItemEditPage() {
     }
   }
 
-  if (loading) return <div style={styles.card}>Loading item...</div>;
+  if (loading) {
+    return (
+      <div className="page-stack owner-readable-page owner-edit-item-page" style={styles.page}>
+        <div className="owner-readable-card" style={styles.card}>Loading item...</div>
+      </div>
+    );
+  }
 
   if (error && !item) {
     return (
-      <div style={styles.page}>
+      <div className="page-stack owner-readable-page owner-edit-item-page" style={styles.page}>
         <div style={styles.error}>{error}</div>
         <Link to="/owner/inventory" style={styles.secondaryLink}>
           Back to Inventory
@@ -228,8 +236,8 @@ export default function OwnerItemEditPage() {
 
   if (!item) {
     return (
-      <div style={styles.page}>
-        <div style={styles.card}>Item not found.</div>
+      <div className="page-stack owner-readable-page owner-edit-item-page" style={styles.page}>
+        <div className="owner-readable-card" style={styles.card}>Item not found.</div>
         <Link to="/owner/inventory" style={styles.secondaryLink}>
           Back to Inventory
         </Link>
@@ -238,7 +246,7 @@ export default function OwnerItemEditPage() {
   }
 
   return (
-    <div style={styles.page}>
+    <div className="page-stack owner-readable-page owner-edit-item-page" style={styles.page}>
       <div style={styles.header}>
         <div>
           <h2 style={styles.title}>Edit Item</h2>
@@ -255,7 +263,7 @@ export default function OwnerItemEditPage() {
         </div>
       </div>
 
-      <section style={styles.card}>
+      <section className="owner-readable-card owner-edit-item-card" style={styles.card}>
         <div style={styles.statusRow}>
           <span style={{ ...styles.metaPill, ...getItemStatusTone(itemStatus) }}>
             {itemStatus}
@@ -279,19 +287,14 @@ export default function OwnerItemEditPage() {
             />
           </label>
 
-          <label style={styles.field}>
-            Add item photos
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              disabled={saving}
-              onChange={(event) => setPhotoFiles(Array.from(event.target.files || []).slice(0, 10))}
-              style={styles.input}
-            />
-            <span style={styles.help}>New photos are uploaded and appended to the saved item.</span>
-            {photoFiles.length ? <span style={styles.help}>{photoFiles.length} photo(s) selected.</span> : null}
-          </label>
+          <ItemImagePicker
+            files={photoFiles}
+            onChange={setPhotoFiles}
+            existingImages={item.images || []}
+            disabled={saving || actionLoading !== ""}
+            cameraLabel="Take Item Photo"
+            galleryLabel="Choose Files"
+          />
 
           <label style={styles.field}>
             Description
@@ -400,7 +403,7 @@ const styles: Record<string, CSSProperties> = {
   page: {
     display: "grid",
     gap: 20,
-    color: "#eef2ff",
+    color: "var(--owner-text)",
   },
   header: {
     display: "flex",
@@ -416,14 +419,14 @@ const styles: Record<string, CSSProperties> = {
   },
   subtitle: {
     marginTop: 8,
-    color: "#a7b0d8",
+    color: "var(--owner-text-secondary)",
   },
   card: {
-    background: "#121935",
-    border: "1px solid rgba(255,255,255,0.08)",
+    background: "var(--owner-surface)",
+    border: "1px solid var(--owner-border)",
     borderRadius: 18,
     padding: 18,
-    boxShadow: "0 20px 50px rgba(0,0,0,0.18)",
+    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
   },
   statusRow: {
     display: "flex",
@@ -434,9 +437,9 @@ const styles: Record<string, CSSProperties> = {
   metaPill: {
     padding: "8px 12px",
     borderRadius: 999,
-    background: "rgba(110,168,254,0.12)",
-    color: "#cfe0ff",
-    border: "1px solid rgba(110,168,254,0.2)",
+    background: "var(--owner-info-surface)",
+    color: "var(--owner-info-text)",
+    border: "1px solid var(--owner-info-border)",
     fontSize: 13,
     fontWeight: 700,
   },
@@ -447,14 +450,14 @@ const styles: Record<string, CSSProperties> = {
   field: {
     display: "grid",
     gap: 8,
-    color: "#d7def7",
+    color: "var(--owner-text)",
     fontWeight: 700,
   },
   input: {
     width: "100%",
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "#0c1330",
-    color: "#eef2ff",
+    border: "1px solid var(--owner-border)",
+    background: "var(--owner-input)",
+    color: "var(--owner-text)",
     padding: "10px 12px",
     borderRadius: 12,
     font: "inherit",
@@ -472,26 +475,26 @@ const styles: Record<string, CSSProperties> = {
   },
   primaryButton: {
     border: "none",
-    color: "#08111f",
-    background: "#6ea8fe",
+    color: "var(--owner-primary-text)",
+    background: "var(--owner-primary)",
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 800,
     cursor: "pointer",
   },
   secondaryButton: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#eef2ff",
-    background: "#121935",
+    border: "1px solid var(--owner-border)",
+    color: "var(--owner-text)",
+    background: "var(--owner-surface)",
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 700,
     cursor: "pointer",
   },
   dangerButton: {
-    border: "1px solid rgba(248,113,113,0.35)",
-    color: "#fecaca",
-    background: "rgba(220,38,38,0.14)",
+    border: "1px solid var(--owner-danger-border)",
+    color: "var(--owner-danger-text)",
+    background: "var(--owner-danger-surface)",
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 800,
@@ -504,30 +507,30 @@ const styles: Record<string, CSSProperties> = {
   primaryLink: {
     textDecoration: "none",
     border: "none",
-    color: "#08111f",
-    background: "#6ea8fe",
+    color: "var(--owner-primary-text)",
+    background: "var(--owner-primary)",
     padding: "10px 14px",
     borderRadius: 12,
     fontWeight: 800,
   },
   secondaryLink: {
-    color: "#c7d2fe",
+    color: "var(--owner-primary)",
     textDecoration: "none",
     fontWeight: 700,
     padding: "10px 2px",
   },
   notice: {
-    color: "#c7f9d3",
+    color: "var(--owner-success-text)",
     fontWeight: 700,
     marginBottom: 12,
   },
   error: {
-    color: "#ff9ead",
+    color: "var(--owner-danger-text)",
     fontWeight: 700,
     marginBottom: 12,
   },
   help: {
-    color: "#a7b0d8",
+    color: "var(--owner-text-secondary)",
     fontSize: 13,
     fontWeight: 500,
   },

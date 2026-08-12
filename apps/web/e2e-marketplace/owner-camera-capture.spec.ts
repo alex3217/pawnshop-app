@@ -68,3 +68,15 @@ test("owner inventory Edit opens the protected owner item editor", async ({ page
   expect(inventorySource).toContain("Edit Item");
   expect(inventorySource).toContain("View Listing");
 });
+
+test("owner item editor uses readable theme styles and the shared camera picker", async ({ page }) => {
+  await page.goto("/");
+  const editPageSource = await page.request
+    .get("/src/pages/OwnerItemEditPage.tsx")
+    .then((response) => response.text());
+  expect(editPageSource).toContain('className="page-stack owner-readable-page owner-edit-item-page"');
+  expect(editPageSource).toContain("<ItemImagePicker");
+  expect(editPageSource).toContain('cameraLabel="Take Item Photo"');
+  expect(editPageSource).toContain('galleryLabel="Choose Files"');
+  expect(editPageSource).toContain("existingImages={item.images || []}");
+});
