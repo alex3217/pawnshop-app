@@ -153,4 +153,31 @@ html[data-theme="dark"] .owner-inventory-page {
   align-items: center !important;
   cursor: pointer !important;
 }
+
+.owner-inventory-item-media {
+  display: block;
+  width: 100%;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--owner-inv-soft-border);
+  border-radius: 14px;
+  background: var(--owner-inv-neutral-bg);
+  aspect-ratio: 16 / 9;
+}
+
+.owner-inventory-item-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.owner-inventory-item-image--empty {
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  color: var(--owner-inv-muted);
+  font-weight: 800;
+  text-align: center;
+}
 /* END Owner Inventory checkbox tap-target polish. */

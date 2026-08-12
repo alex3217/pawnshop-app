@@ -1,4 +1,5 @@
 import { api } from "./apiClient";
+import { firstUsableImage } from "../utils/imageUrl";
 
 type ApiObject = Record<string, unknown>;
 
@@ -12,6 +13,7 @@ export type BuyerDashboardItem = {
   badge: string;
   action: string;
   href: string;
+  image: string;
   x: number;
   y: number;
 };
@@ -34,6 +36,7 @@ export type BuyerDashboardAuction = {
   status: string;
   endsAt: string;
   href: string;
+  image: string;
 };
 
 export type BuyerDashboardDiscovery = {
@@ -127,6 +130,7 @@ function mapItem(item: ApiObject, index: number): BuyerDashboardItem {
     badge: status,
     action: "View item",
     href: itemHref(item),
+    image: firstUsableImage(item.images),
     x,
     y,
   };
@@ -169,6 +173,7 @@ function mapAuction(auction: ApiObject, index: number): BuyerDashboardAuction {
     status: asText(auction.status, "LIVE"),
     endsAt: asText(auction.extendedEndsAt ?? auction.endsAt, ""),
     href: id ? `/auctions/${encodeURIComponent(id)}` : "/auctions",
+    image: firstUsableImage(item?.images),
   };
 }
 
