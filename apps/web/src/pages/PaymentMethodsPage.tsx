@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { paymentMethodsApi, type SafePaymentMethod } from "../services/paymentMethods";
 import "../styles/payment-methods.css";
@@ -31,6 +31,8 @@ export default function PaymentMethodsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const consentInputRef = useRef<HTMLInputElement>(null);
+  const setupCardRef = useRef<HTMLElement>(null);
 
   async function load() {
     setLoading(true);
@@ -52,6 +54,17 @@ export default function PaymentMethodsPage() {
   }
 
   useEffect(() => { void load(); }, [shopId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function startSetupFromWallet() {
+    if (consent) {
+      void setup();
+      return;
+    }
+    setError("");
+    setNotice("Review and authorize the secure setup, then select Add payment method.");
+    setupCardRef.current?.scrollIntoView({ block: "center" });
+    consentInputRef.current?.focus({ preventScroll: true });
+  }
 
   async function setup() {
     if (!consent) {
@@ -170,7 +183,14 @@ export default function PaymentMethodsPage() {
             <div className="payment-methods-empty" role="status">Loading masked payment methods…</div>
           ) : methods.length === 0 ? (
             <div className="payment-methods-empty">
-              <span className="payment-methods-empty-icon" aria-hidden="true">+</span>
+              <button
+                type="button"
+                className="payment-methods-empty-icon"
+                aria-label="Start secure payment method setup"
+                onClick={startSetupFromWallet}
+              >
+                +
+              </button>
               <h3>No saved payment methods</h3>
               <p>Add a card or eligible bank account securely through Stripe.</p>
             </div>
@@ -219,7 +239,7 @@ export default function PaymentMethodsPage() {
         </section>
 
         <aside className="payment-methods-sidebar" aria-label="Payment method actions">
-          <section className="payment-methods-card payment-methods-setup" aria-labelledby="secure-setup-heading">
+          <section ref={setupCardRef} className="payment-methods-card payment-methods-setup" aria-labelledby="secure-setup-heading">
             <p className="payment-methods-eyebrow">Secure setup</p>
             <h2 id="secure-setup-heading">{setupLabel}</h2>
             <p id="payment-method-consent-description">
@@ -227,6 +247,7 @@ export default function PaymentMethodsPage() {
             </p>
             <label className="payment-methods-consent">
               <input
+                ref={consentInputRef}
                 type="checkbox"
                 checked={consent}
                 onChange={(event) => setConsent(event.target.checked)}
@@ -248,8 +269,8 @@ export default function PaymentMethodsPage() {
             <p className="payment-methods-eyebrow">Billing & receipts</p>
             <h2 id="billing-portal-heading">Manage billing</h2>
             <p>Open Stripe to review invoices, update subscription billing, and manage additional payment options.</p>
-            <button className="btn btn-secondary" disabled={busy} onClick={() => void portal()}>
-              Open Stripe billing portal
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void portal()}>
+              {busy ? "Opening Stripe…" : "Open Stripe billing portal"}
             </button>
           </section>
         </aside>
