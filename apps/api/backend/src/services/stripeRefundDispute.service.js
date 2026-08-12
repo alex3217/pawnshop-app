@@ -66,6 +66,14 @@ function refundStatus(value) {
   })[normalized] || "PENDING";
 }
 
+const TERMINAL_REFUND_STATUSES = new Set(["SUCCEEDED", "FAILED", "CANCELED"]);
+
+export function canApplyRefundStatus(previousStatus, nextStatus) {
+  const previous = text(previousStatus).toUpperCase();
+  const next = text(nextStatus).toUpperCase();
+  return previous === next || !TERMINAL_REFUND_STATUSES.has(previous);
+}
+
 function disputeStatus(value) {
   const normalized = text(value).toLowerCase().toUpperCase();
   return [
@@ -78,6 +86,19 @@ function disputeStatus(value) {
     "LOST",
     "PREVENTED",
   ].includes(normalized) ? normalized : "UNKNOWN";
+}
+
+const TERMINAL_DISPUTE_STATUSES = new Set([
+  "WARNING_CLOSED",
+  "WON",
+  "LOST",
+  "PREVENTED",
+]);
+
+export function canApplyDisputeStatus(previousStatus, nextStatus) {
+  const previous = text(previousStatus).toUpperCase();
+  const next = text(nextStatus).toUpperCase();
+  return previous === next || !TERMINAL_DISPUTE_STATUSES.has(previous);
 }
 
 function isUniqueError(error) {
@@ -471,25 +492,34 @@ export async function syncStripeRefundEvent({
 
   const target = await targetForRefundRecord(record, prismaClient);
   const nextStatus = eventType === "refund.failed" ? "FAILED" : refundStatus(stripeRefund?.status);
-  const previousStatus = record.status;
   const result = await prismaClient.$transaction(async (tx) => {
     if (stripeEventId) {
       const prior = await tx.stripeRefundAuditEvent.findUnique({ where: { stripeEventId } });
       if (prior) return { refund: record, idempotent: true };
     }
+    if (typeof tx.$queryRaw === "function") {
+      await tx.$queryRaw`SELECT "id" FROM "StripeRefund" WHERE "id" = ${record.id} FOR UPDATE`;
+    }
+    const locked =
+      (await tx.stripeRefund.findUnique({ where: { id: record.id } })) || record;
+    const lockedPreviousStatus = locked.status;
+    const applyStatus = canApplyRefundStatus(lockedPreviousStatus, nextStatus);
+    const effectiveStatus = applyStatus ? nextStatus : lockedPreviousStatus;
     const updated = await tx.stripeRefund.update({
       where: { id: record.id },
       data: {
         stripeRefundId: refundId,
         chargeId: stripeId(stripeRefund?.charge) || record.chargeId,
         stripeReason: text(stripeRefund?.reason) || record.stripeReason,
-        status: nextStatus,
-        failureCode: text(stripeRefund?.failure_reason) || null,
-        failureMessage: nextStatus === "FAILED"
-          ? text(stripeRefund?.failure_reason) || "Stripe refund failed"
-          : null,
-        succeededAt: nextStatus === "SUCCEEDED" ? new Date() : record.succeededAt,
-        failedAt: nextStatus === "FAILED" ? new Date() : null,
+        status: effectiveStatus,
+        ...(applyStatus ? {
+          failureCode: text(stripeRefund?.failure_reason) || null,
+          failureMessage: nextStatus === "FAILED"
+            ? text(stripeRefund?.failure_reason) || "Stripe refund failed"
+            : null,
+          succeededAt: nextStatus === "SUCCEEDED" ? new Date() : locked.succeededAt,
+          failedAt: nextStatus === "FAILED" ? new Date() : null,
+        } : {}),
       },
     });
     await appendRefundAudit(tx, {
@@ -499,13 +529,14 @@ export async function syncStripeRefundEvent({
       reason: updated.reason,
       snapshot: {
         stripeRefundId: refundId,
-        previousStatus,
-        status: nextStatus,
+        previousStatus: lockedPreviousStatus,
+        status: effectiveStatus,
+        ignoredStatusRegression: !applyStatus,
         amountCents: updated.amountCents,
         failureReason: text(stripeRefund?.failure_reason) || null,
       },
     });
-    if (nextStatus === "SUCCEEDED" && previousStatus !== "SUCCEEDED") {
+    if (applyStatus && nextStatus === "SUCCEEDED" && lockedPreviousStatus !== "SUCCEEDED") {
       const previous = await tx.stripeRefund.aggregate({
         where: {
           ...(target.settlementId
@@ -525,7 +556,11 @@ export async function syncStripeRefundEvent({
       });
       await updateRefundedTarget(tx, target, before + updated.amountCents);
     }
-    return { refund: updated, idempotent: previousStatus === nextStatus };
+    return {
+      refund: updated,
+      idempotent: lockedPreviousStatus === nextStatus,
+      ignoredStatusRegression: !applyStatus,
+    };
   });
   return { handled: true, ...result };
 }
@@ -601,82 +636,113 @@ export async function syncStripeDisputeEvent({
   if (!resolved) return { handled: false, reason: "PAYMENT_NOT_FOUND" };
   const { target } = resolved;
   const recovery = await recoveryState({ target, prismaClient });
-  return prismaClient.$transaction(async (tx) => {
-    const prior = await tx.stripeDisputeEvent.findUnique({ where: { stripeEventId } });
-    if (prior) return { handled: true, idempotent: true };
-    const status = disputeStatus(dispute?.status);
-    const fundsWithdrawn =
-      eventType === "charge.dispute.funds_reinstated"
-        ? false
-        : (resolved.existing?.fundsWithdrawn || WITHDRAWN_EVENT_TYPES.has(eventType));
-    const stored = await tx.stripeDispute.upsert({
-      where: { stripeDisputeId: dispute.id },
-      update: {
-        status,
-        paymentIntentId: resolved.paymentIntentId || null,
-        chargeId: resolved.chargeId,
-        reason: required(dispute?.reason || "unknown", "dispute reason", 200),
-        fundsWithdrawn,
-        fundsReinstated:
-          eventType === "charge.dispute.funds_reinstated" || resolved.existing?.fundsReinstated || false,
-        evidenceDueAt: unixDate(dispute?.evidence_details?.due_by),
-        closedAt: eventType === "charge.dispute.closed" ? new Date() : resolved.existing?.closedAt,
-        ...recovery,
-      },
-      create: {
-        stripeDisputeId: dispute.id,
-        settlementId: target.settlementId,
-        marketplaceTransactionId: target.marketplaceTransactionId,
-        paymentIntentId: resolved.paymentIntentId || null,
-        chargeId: required(resolved.chargeId, "Stripe charge id", 255),
-        buyerUserId: target.buyerUserId,
-        sellerUserId: target.sellerUserId,
-        shopId: target.shopId,
-        amountCents: positiveCents(Number(dispute?.amount)),
-        currency: currency(dispute?.currency),
-        reason: required(dispute?.reason || "unknown", "dispute reason", 200),
-        status,
-        fundsWithdrawn,
-        fundsReinstated: eventType === "charge.dispute.funds_reinstated",
-        evidenceDueAt: unixDate(dispute?.evidence_details?.due_by),
-        closedAt: eventType === "charge.dispute.closed" ? new Date() : null,
-        ...recovery,
-      },
-    });
-    await tx.stripeDisputeEvent.create({
-      data: {
-        disputeId: stored.id,
-        stripeEventId: required(stripeEventId, "Stripe event id", 255),
-        eventType,
-        snapshot: {
+  try {
+    return await prismaClient.$transaction(async (tx) => {
+      const prior = await tx.stripeDisputeEvent.findUnique({ where: { stripeEventId } });
+      if (prior) return { handled: true, idempotent: true };
+      if (typeof tx.$queryRaw === "function") {
+        if (target.settlementId) {
+          await tx.$queryRaw`SELECT "id" FROM "Settlement" WHERE "id" = ${target.settlementId} FOR UPDATE`;
+        } else {
+          await tx.$queryRaw`SELECT "id" FROM "MarketplaceTransaction" WHERE "id" = ${target.marketplaceTransactionId} FOR UPDATE`;
+        }
+      }
+      const lockedExisting =
+        (await tx.stripeDispute.findUnique({
+          where: { stripeDisputeId: dispute.id },
+        })) || resolved.existing;
+      const incomingStatus = disputeStatus(dispute?.status);
+      const applyStatus = canApplyDisputeStatus(
+        lockedExisting?.status,
+        incomingStatus,
+      );
+      const status = applyStatus ? incomingStatus : lockedExisting.status;
+      const fundsWithdrawn =
+        eventType === "charge.dispute.funds_reinstated"
+          ? false
+          : (lockedExisting?.fundsWithdrawn || WITHDRAWN_EVENT_TYPES.has(eventType));
+      const stored = await tx.stripeDispute.upsert({
+        where: { stripeDisputeId: dispute.id },
+        update: {
           status,
-          amountCents: stored.amountCents,
+          paymentIntentId: resolved.paymentIntentId || null,
+          chargeId: resolved.chargeId,
+          reason: required(dispute?.reason || "unknown", "dispute reason", 200),
           fundsWithdrawn,
-          fundsReinstated: stored.fundsReinstated,
+          fundsReinstated:
+            eventType === "charge.dispute.funds_reinstated" || lockedExisting?.fundsReinstated || false,
+          evidenceDueAt: unixDate(dispute?.evidence_details?.due_by),
+          closedAt: eventType === "charge.dispute.closed" ? new Date() : lockedExisting?.closedAt,
           ...recovery,
         },
-      },
-    });
-    if (WITHDRAWN_EVENT_TYPES.has(eventType)) {
-      await createDisputeLedgerEntry(tx, { dispute: stored, target, type: "REFUND_DEBIT", suffix: "withdrawn" });
-    }
-    if (eventType === "charge.dispute.funds_reinstated") {
-      await createDisputeLedgerEntry(tx, { dispute: stored, target, type: "REVERSAL_CREDIT", suffix: "reinstated" });
-    }
-    if (target.kind === "settlement") {
-      await tx.settlement.updateMany({
-        where: { id: target.settlementId, status: { in: ["CHARGED", "DISPUTED"] } },
-        data: { status: status === "WON" || status === "PREVENTED" ? "CHARGED" : "DISPUTED" },
-      });
-    } else {
-      await tx.marketplaceTransaction.updateMany({
-        where: {
-          id: target.marketplaceTransactionId,
-          status: { in: ["PAID", "FULFILLING", "COMPLETED", "DISPUTED"] },
+        create: {
+          stripeDisputeId: dispute.id,
+          settlementId: target.settlementId,
+          marketplaceTransactionId: target.marketplaceTransactionId,
+          paymentIntentId: resolved.paymentIntentId || null,
+          chargeId: required(resolved.chargeId, "Stripe charge id", 255),
+          buyerUserId: target.buyerUserId,
+          sellerUserId: target.sellerUserId,
+          shopId: target.shopId,
+          amountCents: positiveCents(Number(dispute?.amount)),
+          currency: currency(dispute?.currency),
+          reason: required(dispute?.reason || "unknown", "dispute reason", 200),
+          status,
+          fundsWithdrawn,
+          fundsReinstated: eventType === "charge.dispute.funds_reinstated",
+          evidenceDueAt: unixDate(dispute?.evidence_details?.due_by),
+          closedAt: eventType === "charge.dispute.closed" ? new Date() : null,
+          ...recovery,
         },
-        data: { status: status === "WON" || status === "PREVENTED" ? "PAID" : "DISPUTED" },
       });
-    }
-    return { handled: true, idempotent: false, dispute: stored };
-  });
+      await tx.stripeDisputeEvent.create({
+        data: {
+          disputeId: stored.id,
+          stripeEventId: required(stripeEventId, "Stripe event id", 255),
+          eventType,
+          snapshot: {
+            status,
+            amountCents: stored.amountCents,
+            fundsWithdrawn,
+            fundsReinstated: stored.fundsReinstated,
+            ignoredStatusRegression: !applyStatus,
+            ...recovery,
+          },
+        },
+      });
+      if (WITHDRAWN_EVENT_TYPES.has(eventType)) {
+        await createDisputeLedgerEntry(tx, { dispute: stored, target, type: "REFUND_DEBIT", suffix: "withdrawn" });
+      }
+      if (eventType === "charge.dispute.funds_reinstated") {
+        await createDisputeLedgerEntry(tx, { dispute: stored, target, type: "REVERSAL_CREDIT", suffix: "reinstated" });
+      }
+      if (target.kind === "settlement") {
+        await tx.settlement.updateMany({
+          where: { id: target.settlementId, status: { in: ["CHARGED", "DISPUTED"] } },
+          data: { status: status === "WON" || status === "PREVENTED" ? "CHARGED" : "DISPUTED" },
+        });
+      } else {
+        await tx.marketplaceTransaction.updateMany({
+          where: {
+            id: target.marketplaceTransactionId,
+            status: { in: ["PAID", "FULFILLING", "COMPLETED", "DISPUTED"] },
+          },
+          data: { status: status === "WON" || status === "PREVENTED" ? "PAID" : "DISPUTED" },
+        });
+      }
+      return {
+        handled: true,
+        idempotent: false,
+        ignoredStatusRegression: !applyStatus,
+        dispute: stored,
+      };
+    });
+  } catch (error) {
+    if (!isUniqueError(error)) throw error;
+    const prior = await prismaClient.stripeDisputeEvent.findUnique({
+      where: { stripeEventId },
+    });
+    if (!prior) throw error;
+    return { handled: true, idempotent: true };
+  }
 }
