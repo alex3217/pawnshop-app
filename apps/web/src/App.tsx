@@ -340,7 +340,7 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner/onboarding", element: <OwnerOnboardingPage /> },
   { path: "/owner/shops/new", element: <CreateShopPage /> },
   { path: "/owner/items/new", element: <CreateItemPage /> },
-  { path: "items/:id/edit", element: <OwnerItemEditPage /> },
+  { path: "/owner/items/:id/edit", element: <OwnerItemEditPage /> },
   { path: "/owner/inventory", element: <OwnerInventoryPage /> },
   { path: "/owner/item-intakes", element: <OwnerItemIntakesPage /> },
   { path: "/owner/integrations", element: <OwnerIntegrationsPage /> },

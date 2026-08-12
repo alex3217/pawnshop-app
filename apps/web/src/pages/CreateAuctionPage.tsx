@@ -1,6 +1,6 @@
 // File: apps/web/src/pages/CreateAuctionPage.tsx
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import type { FormEvent } from "react";
 import {
   Link,
@@ -18,6 +18,8 @@ import {
   shopHasPermission,
 } from "../services/shopAccess";
 import "../styles/create-auction-page.css";
+import ItemImagePicker from "../components/ItemImagePicker";
+import { createAuctionPagePhotoWorkflow } from "../services/auctionPhotoWorkflow";
 
 type FormState = {
   itemId: string;
@@ -87,8 +89,13 @@ export default function CreateAuctionPage() {
 
   const [msg, setMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingInventory, setLoadingInventory] = useState(true);
+  const [inventoryLoadError, setInventoryLoadError] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [existingAuctionItemIds, setExistingAuctionItemIds] = useState<string[]>([]);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const photoWorkflowRef = useRef(createAuctionPagePhotoWorkflow());
+  const submittingRef = useRef(false);
 
 
   const token = getAuthToken();
@@ -116,11 +123,26 @@ export default function CreateAuctionPage() {
       ),
     [items, shopAccess],
   );
+  const eligibleItems = useMemo(
+    () => writableItems.filter(
+      (item) => !existingAuctionItemIds.includes(String(item.id)),
+    ),
+    [existingAuctionItemIds, writableItems],
+  );
+  const hasEligibleItems = eligibleItems.length > 0;
+  const selectedItem = eligibleItems.find((item) => String(item.id) === form.itemId) || null;
+  const canEditSelectedItem = Boolean(selectedItem && shopHasPermission(
+    shopAccess,
+    selectedItem.pawnShopId || selectedItem.shop?.id,
+    "inventory:write",
+  ));
 
   const startsAtIso = toIsoOrNull(form.startsAt);
   const endsAtIso = toIsoOrNull(form.endsAt);
   useEffect(() => {
     (async () => {
+      setLoadingInventory(true);
+      setInventoryLoadError("");
       try {
         const [itemsData, auctionsRaw] = await Promise.all([
           getMyItems(),
@@ -141,17 +163,27 @@ export default function CreateAuctionPage() {
       } catch {
         setItems([]);
         setExistingAuctionItemIds([]);
+        setInventoryLoadError(
+          "Inventory could not be loaded. Refresh the page or open Inventory to confirm your items are available.",
+        );
+      } finally {
+        setLoadingInventory(false);
       }
     })();
   }, []);
 
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
+    if (key === "itemId" && value !== form.itemId) {
+      setPhotoFiles([]);
+      photoWorkflowRef.current.reset();
+    }
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current) return;
     setMsg(null);
 
     if (!token) {
@@ -188,6 +220,11 @@ export default function CreateAuctionPage() {
       return;
     }
 
+    if (photoFiles.length && !canEditSelectedItem) {
+      setMsg("inventory:write permission is required to add auction photos.");
+      return;
+    }
+
     const startPrice = Number(form.startPrice);
     if (!Number.isFinite(startPrice) || startPrice <= 0) {
       setMsg("Enter a valid starting price.");
@@ -218,23 +255,32 @@ export default function CreateAuctionPage() {
       return;
     }
 
+    submittingRef.current = true;
     setSubmitting(true);
 
     try {
-      const auction = await createAuction({
+      const auctionInput = {
         itemId,
         shopId,
         startingPrice: startPrice,
         minIncrement,
         startsAt: startsAtIso,
         endsAt: endsAtIso,
-      });
+      };
+      const auction = photoFiles.length
+        ? await photoWorkflowRef.current.submit(
+            selectedItem,
+            photoFiles,
+            auctionInput,
+          )
+        : await createAuction(auctionInput);
 
       setMsg("Auction created.");
       navigate(`/auctions/${auction.id}`);
     } catch (err: unknown) {
       setMsg(err instanceof Error ? err.message : "Failed to create auction.");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -277,25 +323,109 @@ export default function CreateAuctionPage() {
 
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
           <label style={{ display: "grid", gap: 6 }}>
-            <span>Item ID</span>
+            <span>Inventory item</span>
             <select
                 value={form.itemId}
                 onChange={(event) => updateForm("itemId", event.target.value)}
-                disabled={submitting}
+                disabled={submitting || loadingInventory || !hasEligibleItems}
               >
-                <option value="">Select item</option>
-                {writableItems
-                  .filter((item) => !existingAuctionItemIds.includes(String(item.id)))
-                  .map((item) => (
+                <option value="">
+                  {loadingInventory
+                    ? "Loading inventory…"
+                    : hasEligibleItems
+                      ? "Select an inventory item"
+                      : "No auction-ready inventory"}
+                </option>
+                {eligibleItems.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.title || "Untitled Item"}
                     </option>
                   ))}
               </select>
-            <small className="muted">
-              {requestedItemId ? "Preselected from inventory. You can choose another item if needed." : "Use an existing item from owner inventory."}
-            </small>
+            {hasEligibleItems ? (
+              <small className="muted">
+                {requestedItemId ? "Preselected from inventory. You can choose another item if needed." : "Choose an item from your shop inventory."}
+              </small>
+            ) : null}
           </label>
+
+          {inventoryLoadError ? (
+            <div className="alert alert-danger" role="alert">
+              {inventoryLoadError}
+            </div>
+          ) : null}
+
+          {!loadingInventory && !inventoryLoadError && items.length === 0 ? (
+            <section className="create-auction-empty-state" role="status">
+              <div className="create-auction-empty-icon" aria-hidden="true">+</div>
+              <div className="create-auction-empty-copy">
+                <h2>Add your first auction item</h2>
+                <p>
+                  Auctions begin with a saved inventory item. Add the item and its photos first, then return here to set the bidding details.
+                </p>
+                <div className="create-auction-empty-actions">
+                  <Link className="btn btn-primary" to="/owner/items/new">Create Inventory Item</Link>
+                  <Link className="btn create-auction-secondary-link" to="/owner/inventory">View Inventory</Link>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {!loadingInventory && !inventoryLoadError && items.length > 0 && writableItems.length === 0 ? (
+            <section className="create-auction-empty-state" role="status">
+              <div className="create-auction-empty-icon" aria-hidden="true">!</div>
+              <div className="create-auction-empty-copy">
+                <h2>No auction-ready items</h2>
+                <p>Your inventory exists, but your current shop access does not include auction permission for those items.</p>
+                <div className="create-auction-empty-actions">
+                  <Link className="btn create-auction-secondary-link" to="/owner/inventory">Review Inventory</Link>
+                  <Link className="btn create-auction-secondary-link" to="/owner/auctions">Manage Auctions</Link>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {!loadingInventory && !inventoryLoadError && writableItems.length > 0 && eligibleItems.length === 0 ? (
+            <section className="create-auction-empty-state" role="status">
+              <div className="create-auction-empty-icon" aria-hidden="true">✓</div>
+              <div className="create-auction-empty-copy">
+                <h2>All eligible items are already in auctions</h2>
+                <p>Create another inventory item or manage an existing auction before starting a new one.</p>
+                <div className="create-auction-empty-actions">
+                  <Link className="btn btn-primary" to="/owner/items/new">Add Another Item</Link>
+                  <Link className="btn create-auction-secondary-link" to="/owner/auctions">Manage Auctions</Link>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {hasEligibleItems ? (
+            selectedItem ? (
+              <ItemImagePicker
+                files={photoFiles}
+                onChange={(files) => {
+                  setPhotoFiles(files);
+                  photoWorkflowRef.current.reset();
+                }}
+                existingImages={selectedItem.images || []}
+                disabled={submitting || !canEditSelectedItem}
+                disabledReason={
+                  !canEditSelectedItem
+                    ? "You can create this auction, but inventory:write permission is required to add or remove item photos."
+                    : ""
+                }
+                cameraLabel="Take Auction Photo"
+                galleryLabel="Choose Auction Images"
+              />
+            ) : (
+              <div className="create-auction-photo-prompt">
+                Select an inventory item above to review or add auction photos.
+              </div>
+            )
+          ) : null}
+
+          {hasEligibleItems ? (
+            <>
 
           <div
             style={{
@@ -395,6 +525,8 @@ export default function CreateAuctionPage() {
               View Auctions
             </Link>
           </div>
+            </>
+          ) : null}
         </form>
       </div>
     </div>
