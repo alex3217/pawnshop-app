@@ -61,12 +61,23 @@ test("buyer wallet lists only masked methods and supports default and removal ac
 
 test("secure setup clearly requires explicit future-charge consent", async ({ page }) => {
   await page.route("**/api/stripe/payment-methods", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ success: true, methods: [], defaultPaymentMethodId: null, syncStatus: "NOT_CONFIGURED" }) }));
+  let releaseSetup!: () => void;
+  const setupRequested = new Promise<void>((resolve) => { releaseSetup = resolve; });
+  await page.route("**/api/stripe/payment-methods/setup-session", async (route) => {
+    const payload = route.request().postDataJSON() as { consent: { accepted: boolean; termsVersion: string } };
+    expect(payload.consent).toEqual({ accepted: true, termsVersion: "payment-method-consent-v1" });
+    expect(route.request().headers()["idempotency-key"]).toBeTruthy();
+    await setupRequested;
+    await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ success: true, sessionId: "cs_plus", url: "https://checkout.stripe.com/setup/plus" }) });
+  });
+  await page.route("https://checkout.stripe.com/setup/plus", (route) => route.fulfill({ contentType: "text/html", body: "<h1>Secure Stripe setup</h1>" }));
   await page.goto("/account/payment-methods");
   const setupButton = page.getByRole("button", { name: "Add payment method" });
+  const plusButton = page.getByRole("button", { name: "Start secure payment method setup" });
   await expect(setupButton).toBeDisabled();
   await expect(page.getByText("Select the authorization checkbox to continue.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "No saved payment methods" })).toBeVisible();
-  await page.getByRole("button", { name: "Start secure payment method setup" }).click();
+  await plusButton.click();
   await expect(page.getByRole("checkbox")).toBeFocused();
   await expect(page.getByRole("status")).toContainText("Review and authorize the secure setup");
   await page.getByRole("checkbox").check();
@@ -81,6 +92,12 @@ test("secure setup clearly requires explicit future-charge consent", async ({ pa
   expect(shell!.x).toBeGreaterThanOrEqual(16);
   expect(shell!.x + shell!.width).toBeLessThanOrEqual(viewport!.width - 16);
   expect(checkbox!.width).toBeLessThanOrEqual(24);
+
+  await plusButton.click();
+  await expect(plusButton).toBeDisabled();
+  releaseSetup();
+  await expect(page).toHaveURL("https://checkout.stripe.com/setup/plus");
+  await expect(page.getByRole("heading", { name: "Secure Stripe setup" })).toBeVisible();
 });
 
 test("billing portal opens a trusted Stripe session", async ({ page }) => {

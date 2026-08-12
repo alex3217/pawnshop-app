@@ -103,12 +103,23 @@ test("buyer dashboard keeps hero and summary text readable in light mode", async
     hero,
   );
   await expectContrast(page.getByRole("link", { name: "Browse all" }), hero);
-  await expectContrast(
-    page.locator(".bd-hero-grid span").first(),
-    hero,
-  );
+  await expectContrast(page.locator(".bd-hero-panel-top span"), hero);
 
-  const firstStat = page.locator(".bd-stat-card").first();
-  await expectContrast(firstStat.locator("span"), firstStat);
-  await expectContrast(firstStat.locator("small"), firstStat);
+  const heroLabels = page.locator(".bd-hero-grid span");
+  const heroNumbers = page.locator(".bd-hero-grid strong");
+  await expect(heroLabels).toHaveCount(4);
+  await expect(heroNumbers).toHaveCount(4);
+  for (let index = 0; index < 4; index += 1) {
+    await expectContrast(heroLabels.nth(index), hero);
+    await expectContrast(heroNumbers.nth(index), hero, 7);
+  }
+
+  const statCards = page.locator(".bd-stat-card");
+  await expect(statCards).toHaveCount(5);
+  for (let index = 0; index < 5; index += 1) {
+    const card = statCards.nth(index);
+    await expectContrast(card.locator("span"), card);
+    await expectContrast(card.locator("strong"), card, 7);
+    await expectContrast(card.locator("small"), card);
+  }
 });

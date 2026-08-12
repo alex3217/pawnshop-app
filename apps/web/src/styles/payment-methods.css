@@ -177,6 +177,11 @@
   box-shadow: 0 8px 18px rgba(67, 56, 202, 0.28);
 }
 
+.payment-methods-empty-icon:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .payment-methods-empty-icon:focus-visible {
   outline: 3px solid rgba(67, 56, 202, 0.3);
   outline-offset: 3px;

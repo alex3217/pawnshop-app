@@ -187,6 +187,7 @@ export default function PaymentMethodsPage() {
                 type="button"
                 className="payment-methods-empty-icon"
                 aria-label="Start secure payment method setup"
+                disabled={busy}
                 onClick={startSetupFromWallet}
               >
                 +

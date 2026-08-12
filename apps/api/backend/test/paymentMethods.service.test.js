@@ -55,7 +55,7 @@ test("billing portal creates a missing Stripe customer before opening", async ()
   const result = await service.portal({ user: { id: "user_1" }, returnUrl: "https://app.example.test/account/payment-methods" });
 
   assert.equal(result.url, "https://billing.stripe.com/session");
-  assert.ok(updates.some(([kind, params]) => kind === "customer-create" && params.metadata.pawnloopUserId === "user_1"));
+  assert.ok(updates.some(([kind, params, options]) => kind === "customer-create" && params.metadata.pawnloopUserId === "user_1" && options.idempotencyKey === "pawnloop-user-customer-user_1"));
   assert.ok(updates.some(([kind, data]) => kind === "user" && data.stripeCustomerId === "cus_created"));
   assert.ok(updates.some(([kind, params]) => kind === "portal" && params.customer === "cus_created" && params.return_url === "https://app.example.test/account/payment-methods"));
 });
