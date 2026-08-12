@@ -214,6 +214,10 @@ jobs:
       - name: Run seller subscription browser tests
         run: npm --prefix apps/web run test:ci:seller-subscription
 
+      - name: Run payment methods browser tests
+        working-directory: apps/web
+        run: npx playwright test payment-methods.spec.ts --config playwright.marketplace.config.ts
+
       - name: Upload Playwright failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
