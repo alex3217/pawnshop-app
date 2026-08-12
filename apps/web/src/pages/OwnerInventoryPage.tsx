@@ -588,12 +588,12 @@ export default function OwnerInventoryPage() {
               {item.description ? <p style={styles.description}>{item.description}</p> : null}
 
               <div style={styles.actionRow}>
-                <Link to={`/items/${item.id}`} style={styles.linkButton}>
-                  View
+                <Link to={`/owner/items/${item.id}/edit`} style={styles.primarySmallLink}>
+                  Edit Item
                 </Link>
 
-                <Link to={`/owner/items/${item.id}/edit`} style={styles.primarySmallLink}>
-                  Edit
+                <Link to={`/items/${item.id}`} style={styles.linkButton}>
+                  View Listing
                 </Link>
 
                 {item.pawnShopId ? (

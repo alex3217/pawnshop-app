@@ -55,3 +55,16 @@ test("both owner creation pages use the shared picker with clear action labels",
   expect(auctionPage).toContain("Add your first auction item");
   expect(auctionPage).toContain("All eligible items are already in auctions");
 });
+
+test("owner inventory Edit opens the protected owner item editor", async ({ page }) => {
+  await page.goto("/");
+  const [appSource, inventorySource] = await Promise.all([
+    page.request.get("/src/App.tsx").then((response) => response.text()),
+    page.request.get("/src/pages/OwnerInventoryPage.tsx").then((response) => response.text()),
+  ]);
+  expect(appSource).toContain('path: "/owner/items/:id/edit"');
+  expect(inventorySource).toContain('to: `/owner/items/${item.id}/edit`');
+  expect(inventorySource).toContain('to: `/items/${item.id}`');
+  expect(inventorySource).toContain("Edit Item");
+  expect(inventorySource).toContain("View Listing");
+});
