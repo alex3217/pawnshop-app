@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
+import PrimaryListingImage from "../components/PrimaryListingImage";
 import { SOCKET_PATH, SOCKET_URL } from "../config";
 import { getAuthRole, getAuthToken } from "../services/auth";
 import { getAuction, placeBid as placeBidApi } from "../services/auctions";
@@ -524,11 +525,6 @@ export default function AuctionDetailPage() {
   }
 
   const success = msg === "Bid placed!";
-  const itemImage =
-    Array.isArray(auction.item?.images) && auction.item.images.length
-      ? auction.item.images[0]
-      : null;
-
   const itemId = auction.item?.id || "";
   const shopId = auction.shop?.id || "";
 
@@ -537,15 +533,11 @@ export default function AuctionDetailPage() {
       <section className="auction2-hero">
         <div className="auction2-gallery-card">
           <div className="auction2-image-frame">
-            {itemImage ? (
-              <img
-                src={itemImage}
-                alt={auction.item?.title ?? "Auction item"}
-                loading="lazy"
-              />
-            ) : (
-              <div className="auction2-image-placeholder">No item image available</div>
-            )}
+            <PrimaryListingImage
+              images={auction.item?.images}
+              alt={`${auction.item?.title || "Auction item"} photo`}
+              placeholderClassName="auction2-image-placeholder"
+            />
 
             <span className={isLive ? "auction2-status live" : "auction2-status"}>
               {statusLabel}
