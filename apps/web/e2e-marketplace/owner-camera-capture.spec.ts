@@ -71,9 +71,14 @@ test("owner inventory Edit opens the protected owner item editor", async ({ page
 
 test("owner item editor uses readable theme styles and the shared camera picker", async ({ page }) => {
   await page.goto("/");
-  const editPageSource = await page.request
-    .get("/src/pages/OwnerItemEditPage.tsx")
-    .then((response) => response.text());
+  const [editPageSource, readabilityStyles] = await Promise.all([
+    page.request
+      .get("/src/pages/OwnerItemEditPage.tsx")
+      .then((response) => response.text()),
+    page.request
+      .get("/src/styles/owner-workspace-readability.css")
+      .then((response) => response.text()),
+  ]);
   expect(editPageSource).toContain('className="page-stack owner-readable-page owner-edit-item-page"');
   expect(editPageSource).toContain("<ItemImagePicker");
   expect(editPageSource).toContain('cameraLabel="Take Item Photo"');
@@ -82,4 +87,8 @@ test("owner item editor uses readable theme styles and the shared camera picker"
   expect(editPageSource).toContain("getMyItemById");
   expect(editPageSource).toContain("Restore Item");
   expect(editPageSource).toContain("Archive Item");
+  expect(editPageSource).toContain('className="owner-edit-item-header"');
+  expect(readabilityStyles).toContain("padding: clamp(18px, 2.4vw, 28px)");
+  expect(readabilityStyles).toContain(".owner-edit-item-page .item-image-picker .btn-primary");
+  expect(readabilityStyles).toContain("-webkit-text-fill-color: #ffffff");
 });
