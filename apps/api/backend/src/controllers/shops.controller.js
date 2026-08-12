@@ -6,7 +6,7 @@ import {
 } from "../services/sellerPlan.service.js";
 import { calculateOwnerSetupProgress } from "../../../../../shared/ownerSetupChecklist.mjs";
 import { isKnownSellerPlanCode } from "../config/sellerPlans.js";
-import { deleteTrackedAssets, reconcileAssetUrls, rollbackTemporaryAssets } from "../services/uploadAssets.service.js";
+import { deleteTrackedAssets, lockShopBrandingForUpdate, reconcileAssetUrls, rollbackTemporaryAssets } from "../services/uploadAssets.service.js";
 
 /**
  * Why this controller is defensive:
@@ -252,26 +252,29 @@ export async function updateShop(req, res) {
     const data = pickShopWriteData(req.body);
 
     const brandingChanged = req.body?.logoUrl !== undefined || req.body?.bannerUrl !== undefined;
-    const nextBranding = [
-      req.body?.logoUrl !== undefined ? data.logoUrl : shop.logoUrl,
-      req.body?.bannerUrl !== undefined ? data.bannerUrl : shop.bannerUrl,
-    ].filter(Boolean);
+    const submittedBranding = [data.logoUrl, data.bannerUrl].filter(Boolean);
     let removedAssets = [];
     let updated;
     try {
       updated = await prisma.$transaction(async (tx) => {
+        const previous = await lockShopBrandingForUpdate(tx, id);
+        if (!previous || previous.isDeleted) {
+          const error = new Error("Shop not found");
+          error.statusCode = 404;
+          throw error;
+        }
         const result = await tx.pawnShop.update({ where: { id }, data, select });
         if (brandingChanged) removedAssets = await reconcileAssetUrls({
           tx,
           shopId: id,
-          previousUrls: [shop.logoUrl, shop.bannerUrl].filter(Boolean),
-          nextUrls: nextBranding,
+          previousUrls: [previous.logoUrl, previous.bannerUrl].filter(Boolean),
+          nextUrls: [result.logoUrl, result.bannerUrl].filter(Boolean),
         });
         return result;
       });
     } catch (error) {
       if (brandingChanged) await rollbackTemporaryAssets({
-        urls: nextBranding,
+        urls: submittedBranding,
         shopId: id,
         storage: req.app.locals.uploadStorage,
         requestId: req.requestId,

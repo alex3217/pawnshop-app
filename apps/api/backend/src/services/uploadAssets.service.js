@@ -25,6 +25,45 @@ export async function recordUploadedAsset({ id, target, uploaderId, key, url, ki
   });
 }
 
+export async function lockShopBrandingForUpdate(tx, shopId) {
+  const rows = await tx.$queryRaw`
+    SELECT "id", "logoUrl", "bannerUrl", "isDeleted"
+    FROM "PawnShop"
+    WHERE "id" = ${shopId}
+    FOR UPDATE
+  `;
+  return rows?.[0] || null;
+}
+
+export async function lockItemImagesForUpdate(tx, itemId) {
+  const rows = await tx.$queryRaw`
+    SELECT "id", "pawnShopId", "images", "isDeleted"
+    FROM "Item"
+    WHERE "id" = ${itemId}
+    FOR UPDATE
+  `;
+  return rows?.[0] || null;
+}
+
+async function lockUploadAssetByUrl(tx, deliveryUrl) {
+  const rows = await tx.$queryRaw`
+    SELECT "id", "objectKey", "deliveryUrl", "shopId", "itemId", "status"
+    FROM "UploadAsset"
+    WHERE "deliveryUrl" = ${deliveryUrl}
+    FOR UPDATE
+  `;
+  return rows?.[0] || null;
+}
+
+async function lockUploadAssetsByUrl(tx, urls) {
+  const assets = [];
+  for (const url of [...urls].sort()) {
+    const asset = await lockUploadAssetByUrl(tx, url);
+    if (asset) assets.push(asset);
+  }
+  return assets;
+}
+
 export async function deleteUploadAssetForActor({ assetId, actorId, shopId, storage, prismaClient = prisma, logger = console, requestId }) {
   const asset = await prismaClient.uploadAsset.findFirst({
     where: { id: assetId, uploaderId: actorId, ...(shopId ? { shopId } : {}), status: { in: ["TEMPORARY", "ATTACHED", "DELETE_PENDING"] } },
@@ -53,7 +92,7 @@ export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUr
   const removed = [...previous].filter((url) => !next.has(url));
 
   if (added.length) {
-    const assets = await tx.uploadAsset.findMany({ where: { deliveryUrl: { in: added } } });
+    const assets = await lockUploadAssetsByUrl(tx, added);
     const byUrl = new Map(assets.map((asset) => [asset.deliveryUrl, asset]));
     for (const url of added) {
       const asset = byUrl.get(url);
@@ -64,17 +103,21 @@ export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUr
         throw error;
       }
     }
-    await tx.uploadAsset.updateMany({
+    const attached = await tx.uploadAsset.updateMany({
       where: { deliveryUrl: { in: added }, shopId, ...(itemId ? { itemId } : {}), status: { in: ["TEMPORARY", "ATTACHED"] } },
       data: { status: "ATTACHED", attachedAt: new Date(), deleteAfter: null, lastError: null },
     });
+    if (attached.count !== assets.length) {
+      const error = new Error("Uploaded image state changed before attachment");
+      error.statusCode = 409;
+      throw error;
+    }
   }
 
   if (!removed.length) return [];
-  const owned = await tx.uploadAsset.findMany({
-    where: { deliveryUrl: { in: removed }, shopId, ...(itemId ? { itemId } : {}), status: { in: ["TEMPORARY", "ATTACHED"] } },
-    select: { id: true, objectKey: true },
-  });
+  const owned = (await lockUploadAssetsByUrl(tx, removed))
+    .filter((asset) => asset && asset.shopId === shopId && (!itemId || asset.itemId === itemId) && ["TEMPORARY", "ATTACHED"].includes(asset.status))
+    .map(({ id, objectKey }) => ({ id, objectKey }));
   if (owned.length) {
     await tx.uploadAsset.updateMany({
       where: { id: { in: owned.map(({ id }) => id) } },
@@ -88,7 +131,42 @@ export async function deleteTrackedAssets({ assets, storage, prismaClient = pris
   const results = [];
   for (const asset of assets) {
     try {
-      await storage.delete({ key: asset.objectKey });
+      const current = await prismaClient.uploadAsset.findUnique({
+        where: { id: asset.id },
+        select: { id: true, objectKey: true, deliveryUrl: true, shopId: true, itemId: true, status: true },
+      });
+      if (!current || current.status !== "DELETE_PENDING") {
+        results.push({ id: asset.id, deleted: false, skipped: true });
+        continue;
+      }
+
+      const [brandingReference, itemReference] = await Promise.all([
+        prismaClient.pawnShop.findFirst({
+          where: {
+            id: current.shopId,
+            isDeleted: false,
+            OR: [{ logoUrl: current.deliveryUrl }, { bannerUrl: current.deliveryUrl }],
+          },
+          select: { id: true },
+        }),
+        current.itemId
+          ? prismaClient.item.findFirst({
+              where: { id: current.itemId, isDeleted: false, images: { has: current.deliveryUrl } },
+              select: { id: true },
+            })
+          : null,
+      ]);
+      if (brandingReference || itemReference) {
+        await prismaClient.uploadAsset.updateMany({
+          where: { id: current.id, status: "DELETE_PENDING" },
+          data: { status: "ATTACHED", deleteAfter: null, lastError: null },
+        });
+        log(logger, "warn", "delete_skipped_referenced", { requestId, assetId: current.id });
+        results.push({ id: current.id, deleted: false, skipped: true });
+        continue;
+      }
+
+      await storage.delete({ key: current.objectKey });
       await prismaClient.uploadAsset.updateMany({
         where: { id: asset.id, status: "DELETE_PENDING" },
         data: { status: "DELETED", deletedAt: new Date(), lastError: null },
@@ -143,6 +221,6 @@ export async function cleanupStaleUploadAssets({ storage, prismaClient = prisma,
   return {
     examined: candidates.length,
     deleted: results.filter(({ deleted }) => deleted).length,
-    failed: results.filter(({ deleted }) => !deleted).length,
+    failed: results.filter(({ deleted, skipped }) => !deleted && !skipped).length,
   };
 }

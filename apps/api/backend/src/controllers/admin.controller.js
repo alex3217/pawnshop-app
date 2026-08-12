@@ -13,7 +13,7 @@ import {
   runGovernedShopMutation,
   runGovernedUserMutation,
 } from "../services/superAdminAudit.service.js";
-import { deleteTrackedAssets, reconcileAssetUrls } from "../services/uploadAssets.service.js";
+import { deleteTrackedAssets, lockItemImagesForUpdate, lockShopBrandingForUpdate, reconcileAssetUrls } from "../services/uploadAssets.service.js";
 
 function sendError(res, error, fallbackMessage = "Internal server error") {
   const status =
@@ -668,7 +668,7 @@ export async function softDeleteItem(req, res) {
       targetItemId: id,
       metadata: { moderationType: "soft_delete" },
       mutation: async (tx) => {
-        const current = await tx.item.findUnique({ where: { id }, select: { id: true, pawnShopId: true, images: true } });
+        const current = await lockItemImagesForUpdate(tx, id);
         const updated = await tx.item.update({ where: { id }, data: { isDeleted: true } });
         if (current) removedAssets = await reconcileAssetUrls({ tx, shopId: current.pawnShopId, itemId: id, previousUrls: current.images, nextUrls: [] });
         return updated;
@@ -722,14 +722,14 @@ export async function adminListShops(req, res) {
 export async function softDeleteShop(req, res) {
   try {
     const { id } = req.params;
-    const current = await prisma.pawnShop.findUnique({ where: { id }, select: { logoUrl: true, bannerUrl: true } });
     let removedAssets = [];
     const shop = await runGovernedShopMutation({
       req,
       targetShopId: id,
       update: { isDeleted: true },
       action: "ADMIN_DISABLE_SHOP",
-      afterUpdate: async (tx) => {
+      beforeUpdate: (tx) => lockShopBrandingForUpdate(tx, id),
+      afterUpdate: async (tx, _updated, current) => {
         removedAssets = await reconcileAssetUrls({ tx, shopId: id, previousUrls: [current?.logoUrl, current?.bannerUrl].filter(Boolean), nextUrls: [] });
       },
     });
