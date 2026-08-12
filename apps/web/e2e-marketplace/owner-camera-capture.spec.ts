@@ -9,6 +9,9 @@ test("shared item picker configures accessible rear-camera and gallery inputs", 
   expect(source).toContain('"aria-label": galleryLabel');
   expect(source).toContain('cameraRef.current?.click()');
   expect(source).toContain('galleryRef.current?.click()');
+  expect(source).toContain("navigator.mediaDevices.getUserMedia");
+  expect(source).toContain("Capture Photo");
+  expect(source).toContain('canvas.toBlob(resolve, "image/jpeg", 0.92)');
 });
 
 test("camera and gallery files append through the shared 10-image selection behavior", async ({ page }) => {
