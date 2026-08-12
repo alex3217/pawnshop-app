@@ -216,7 +216,7 @@ jobs:
 
       - name: Run payment methods browser tests
         working-directory: apps/web
-        run: npx playwright test payment-methods.spec.ts --config playwright.marketplace.config.ts
+        run: npx playwright test payment-methods.spec.ts buyer-dashboard-light-readability.spec.ts --config playwright.marketplace.config.ts
 
       - name: Upload Playwright failure artifacts
         if: failure()
