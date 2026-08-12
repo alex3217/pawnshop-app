@@ -18,6 +18,7 @@ import {
   startMarketplaceReservationScheduler,
   stopMarketplaceReservationScheduler,
 } from "./services/marketplaceTransactionReservationScheduler.service.js";
+import { startUploadCleanupScheduler, stopUploadCleanupScheduler } from "./services/uploadCleanupScheduler.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -154,6 +155,7 @@ server.listen(PORT, HOST, () => {
     });
   }
   startSchedulersOnce();
+  startUploadCleanupScheduler({ storage: app.locals.uploadStorage });
 });
 
 function shutdown(signal) {
@@ -179,6 +181,8 @@ function shutdown(signal) {
       err,
     );
   }
+
+  stopUploadCleanupScheduler();
 
   server.close((err) => {
     if (err) {

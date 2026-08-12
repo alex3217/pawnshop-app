@@ -147,7 +147,7 @@ test("admin inventory mutations create one governed audit each and all=true retu
   const removed = await request(app)
     .delete(`/api/admin/items/${itemId}`)
     .set("Authorization", authorization(admin));
-  assert.equal(removed.status, 200);
+  assert.equal(removed.status, 200, JSON.stringify(removed.body));
   assert.deepEqual(removed.body, { ok: true, id: itemId, isDeleted: true });
 
   audits = await auditsFor(itemId);

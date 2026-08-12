@@ -6,6 +6,7 @@ import { loadUploadLimits } from "../config/uploads.js";
 import { uploadImages } from "../services/uploads.service.js";
 import { createAggregateMemoryStorage } from "../middleware/aggregateMemoryStorage.js";
 import { createUploadProtection } from "../middleware/uploadProtection.js";
+import { deleteUploadAssetForActor } from "../services/uploadAssets.service.js";
 
 function uploadError(error, req, res, next) {
   if (!(error instanceof multer.MulterError)) return next(error);
@@ -51,6 +52,22 @@ export function createUploadsRouter({ storage, limits = loadUploadLimits(), prot
     try {
       const files = await uploadImages({ req, files: req.files, input: req.body, storage, limits, logger });
       return res.status(201).json({ files });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.delete("/:id", ...authorize, async (req, res, next) => {
+    try {
+      await deleteUploadAssetForActor({
+        assetId: String(req.params.id || ""),
+        actorId: String(req.user?.sub || req.user?.id || ""),
+        shopId: req.query.shopId ? String(req.query.shopId) : undefined,
+        storage,
+        logger,
+        requestId: req.requestId,
+      });
+      return res.status(204).end();
     } catch (error) {
       return next(error);
     }

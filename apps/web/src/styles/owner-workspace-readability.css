@@ -8,6 +8,18 @@
   --owner-input: #ffffff;
   --owner-primary: #1d4ed8;
   --owner-primary-text: #ffffff;
+  --owner-success-text: #166534;
+  --owner-success-surface: #dcfce7;
+  --owner-success-border: #86efac;
+  --owner-warning-text: #92400e;
+  --owner-warning-surface: #fef3c7;
+  --owner-warning-border: #fcd34d;
+  --owner-danger-text: #991b1b;
+  --owner-danger-surface: #fee2e2;
+  --owner-danger-border: #fca5a5;
+  --owner-info-text: #1e3a8a;
+  --owner-info-surface: #eff6ff;
+  --owner-info-border: #bfdbfe;
   min-width: 0;
   padding-bottom: 7rem;
   color: var(--owner-text);
@@ -23,6 +35,18 @@
   --owner-input: #0c1330;
   --owner-primary: #2563eb;
   --owner-primary-text: #ffffff;
+  --owner-success-text: #bbf7d0;
+  --owner-success-surface: rgba(22, 101, 52, 0.28);
+  --owner-success-border: #166534;
+  --owner-warning-text: #fde68a;
+  --owner-warning-surface: rgba(146, 64, 14, 0.28);
+  --owner-warning-border: #92400e;
+  --owner-danger-text: #fecaca;
+  --owner-danger-surface: rgba(153, 27, 27, 0.28);
+  --owner-danger-border: #991b1b;
+  --owner-info-text: #bfdbfe;
+  --owner-info-surface: rgba(30, 58, 138, 0.28);
+  --owner-info-border: #1e40af;
 }
 
 .owner-readable-page :is(h1, h2, h3, h4, strong),
@@ -185,11 +209,55 @@
   color: var(--owner-text);
 }
 
+.owner-edit-item-page {
+  width: 100%;
+  box-sizing: border-box;
+  padding: clamp(18px, 2.4vw, 28px);
+  padding-bottom: 7rem;
+}
+
+.owner-edit-item-header {
+  min-width: 0;
+}
+
+.owner-edit-item-page .item-image-picker {
+  padding: 16px;
+  border: 1px solid var(--owner-border);
+  border-radius: 14px;
+  background: var(--owner-surface-secondary);
+  color: var(--owner-text);
+}
+
+.owner-edit-item-page .item-image-picker .btn:not(.btn-primary) {
+  border-color: var(--owner-border);
+  background: var(--owner-surface);
+  color: var(--owner-text);
+}
+
+.owner-edit-item-page .item-image-picker .btn-primary {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
 .owner-create-item-page .btn-primary {
   color: #ffffff;
 }
 
 @media (max-width: 560px) {
+  .owner-edit-item-page {
+    padding: 16px 14px 6rem;
+  }
+
+  .owner-edit-item-header,
+  .owner-edit-item-header > div:last-child {
+    width: 100%;
+  }
+
+  .owner-edit-item-header > div:last-child > * {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
   .owner-create-shop-actions > * {
     width: 100%;
     text-align: center;

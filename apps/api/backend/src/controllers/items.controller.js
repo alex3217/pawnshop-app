@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { canAccessShopWithStaffPermission, getStaffAccessibleShopIds } from "../middleware/staffAccess.middleware.js";
 import { assertCanCreateListingForShop } from "../services/sellerPlan.service.js";
 import { recordItemIntakeScan } from "../services/itemIntake.service.js";
+import { deleteTrackedAssets, lockItemImagesForUpdate, reconcileAssetUrls, rollbackTemporaryAssets } from "../services/uploadAssets.service.js";
 import {
   calculateItemPriceComparison,
   coordinatesAreValid,
@@ -697,6 +698,36 @@ export async function listMyItems(req, res) {
   }
 }
 
+export async function getMyItem(req, res) {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      return res.status(400).json({ error: "Missing item id" });
+    }
+
+    const shopIds = await getInventoryReadableShopIds(req);
+    if (shopIds.length === 0) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    const item = await prisma.item.findFirst({
+      where: {
+        id,
+        pawnShopId: { in: shopIds },
+      },
+      select: await buildItemSelect({ includeShop: true }),
+    });
+
+    if (!item) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    return res.json(item);
+  } catch (err) {
+    return handleControllerError(res, err, "Failed to get owner item");
+  }
+}
+
 export async function createItem(req, res) {
   try {
     const rawBody = req.body || {};
@@ -784,6 +815,7 @@ export async function updateItem(req, res) {
       where: { id },
       select: {
         id: true,
+        images: true,
         isDeleted: true,
         shop: { select: { id: true, ownerId: true } },
       },
@@ -853,10 +885,42 @@ export async function updateItem(req, res) {
         : {}),
     };
 
-    const updated = await prisma.item.update({
-      where: { id },
-      data,
-      select: await buildItemSelect({ includeShop: true }),
+    let removedAssets = [];
+    let updated;
+    try {
+      const select = await buildItemSelect({ includeShop: true });
+      updated = await prisma.$transaction(async (tx) => {
+        const previous = await lockItemImagesForUpdate(tx, id);
+        if (!previous || previous.isDeleted || previous.pawnShopId !== item.shop.id) {
+          throw createHttpError(404, "Item not found");
+        }
+        const result = await tx.item.update({ where: { id }, data, select });
+        if (rawBody.images !== undefined) {
+          removedAssets = await reconcileAssetUrls({
+            tx,
+            shopId: item.shop.id,
+            itemId: id,
+            previousUrls: previous.images || [],
+            nextUrls: result.images || [],
+          });
+        }
+        return result;
+      });
+    } catch (error) {
+      if (rawBody.images !== undefined) {
+        await rollbackTemporaryAssets({
+          urls: images || [],
+          shopId: item.shop.id,
+          storage: req.app.locals.uploadStorage,
+          requestId: req.requestId,
+        }).catch(() => {});
+      }
+      throw error;
+    }
+    await deleteTrackedAssets({
+      assets: removedAssets,
+      storage: req.app.locals.uploadStorage,
+      requestId: req.requestId,
     });
 
     return res.json(updated);
@@ -876,6 +940,7 @@ export async function deleteItem(req, res) {
       where: { id },
       select: {
         id: true,
+        images: true,
         isDeleted: true,
         shop: { select: { id: true, ownerId: true } },
       },
@@ -891,20 +956,76 @@ export async function deleteItem(req, res) {
 
     const itemColumns = await getTableColumns("Item");
 
-    if (itemColumns.has("isDeleted")) {
-      await prisma.item.update({
-        where: { id },
-        data: { isDeleted: true },
-      });
-    } else {
-      await prisma.item.delete({
-        where: { id },
-      });
-    }
+    let removedAssets = [];
+    await prisma.$transaction(async (tx) => {
+      const previous = await lockItemImagesForUpdate(tx, id);
+      if (!previous || previous.isDeleted || previous.pawnShopId !== item.shop.id) {
+        throw createHttpError(404, "Item not found");
+      }
+      if (itemColumns.has("isDeleted")) {
+        await tx.item.update({
+          where: { id },
+          data: {
+            isDeleted: true,
+            ...(itemColumns.has("images") ? { images: [] } : {}),
+          },
+        });
+      }
+      else await tx.item.delete({ where: { id } });
+      removedAssets = await reconcileAssetUrls({ tx, shopId: previous.pawnShopId, itemId: id, previousUrls: previous.images || [], nextUrls: [] });
+    });
+    await deleteTrackedAssets({ assets: removedAssets, storage: req.app.locals.uploadStorage, requestId: req.requestId });
 
     return res.status(204).end();
   } catch (err) {
     return handleControllerError(res, err, "Failed to delete item");
+  }
+}
+
+export async function restoreItem(req, res) {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      return res.status(400).json({ error: "Missing item id" });
+    }
+
+    const item = await prisma.item.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        isDeleted: true,
+        shop: { select: { id: true, ownerId: true } },
+      },
+    });
+
+    if (!item) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    if (!canWriteInventoryForShop(req, item.shop?.id, item.shop?.ownerId)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const itemColumns = await getTableColumns("Item");
+    const select = await buildItemSelect({ includeShop: true });
+
+    if (!item.isDeleted || !itemColumns.has("isDeleted")) {
+      const current = await prisma.item.findUnique({ where: { id }, select });
+      return res.json(current);
+    }
+
+    const restored = await prisma.item.update({
+      where: { id },
+      data: {
+        isDeleted: false,
+        ...(itemColumns.has("images") ? { images: [] } : {}),
+      },
+      select,
+    });
+
+    return res.json(restored);
+  } catch (err) {
+    return handleControllerError(res, err, "Failed to restore item");
   }
 }
 

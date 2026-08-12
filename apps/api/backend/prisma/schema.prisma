@@ -83,6 +83,7 @@ model User {
   pawnShopLeadSuppressions        PawnShopLeadSuppression[]        @relation("PawnShopLeadSuppressionCreator")
   paymentMethodConsents           PaymentMethodConsent[]
   trainingProgress                TrainingProgress[]
+  uploadAssets                    UploadAsset[]                    @relation("UploadAssetUploader")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -383,6 +384,7 @@ model PawnShop {
   claimedGrowthLeads                 PawnShopLead[]                   @relation("PawnShopLeadClaimedShop")
   stripeDisputes                     StripeDispute[]                  @relation("StripeDisputeShop")
   stripeSubscriptionBillingEvents    StripeSubscriptionBillingEvent[]
+  uploadAssets                       UploadAsset[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, createdAt])
@@ -460,10 +462,44 @@ model Item {
   watchlistEntries        Watchlist[]              @relation("ItemWatchlist")
   marketplaceListings     MarketplaceListing[]
   customerSellAcquisition CustomerSellFulfillment? @relation("CustomerSellAcquiredItem")
+  uploadAssets            UploadAsset[]
 
   @@index([pawnShopId, status, isDeleted])
   @@index([category, status, isDeleted])
   @@index([createdAt])
+}
+
+enum UploadAssetStatus {
+  TEMPORARY
+  ATTACHED
+  DELETE_PENDING
+  DELETED
+}
+
+model UploadAsset {
+  id          String            @id @default(cuid())
+  objectKey   String            @unique
+  deliveryUrl String            @unique
+  kind        String
+  status      UploadAssetStatus @default(TEMPORARY)
+  uploaderId  String
+  shopId      String
+  itemId      String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  attachedAt  DateTime?
+  deleteAfter DateTime?
+  deletedAt   DateTime?
+  lastError   String?
+
+  uploader User     @relation("UploadAssetUploader", fields: [uploaderId], references: [id], onDelete: Restrict)
+  shop     PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  item     Item?    @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, status, createdAt])
+  @@index([uploaderId, status, createdAt])
+  @@index([itemId, status])
+  @@index([status, deleteAfter])
 }
 
 model Inquiry {

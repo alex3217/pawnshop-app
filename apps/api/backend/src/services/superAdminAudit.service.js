@@ -244,18 +244,22 @@ export async function runGovernedShopMutation({
   include,
   select,
   metadata,
+  beforeUpdate,
+  afterUpdate,
   statusCode = 200,
   prismaClient = prisma,
 }) {
   requireGovernanceActor(req);
 
   return prismaClient.$transaction(async (tx) => {
+    const previous = beforeUpdate ? await beforeUpdate(tx) : undefined;
     const updated = await tx.pawnShop.update({
       where: { id: targetShopId },
       data: update,
       ...(include ? { include } : {}),
       ...(select ? { select } : {}),
     });
+    if (afterUpdate) await afterUpdate(tx, updated, previous);
 
     if (!tx.superAdminAuditLog?.create) {
       throw new Error("Super Admin audit persistence is unavailable.");

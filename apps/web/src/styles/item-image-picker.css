@@ -1,0 +1,138 @@
+.item-image-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.item-image-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.item-camera-backdrop {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(2 6 23 / 78%);
+  backdrop-filter: blur(6px);
+}
+
+.item-camera-dialog {
+  display: grid;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #cbd5e1;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgb(2 6 23 / 35%);
+  color: #0f172a;
+}
+
+.item-camera-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.item-camera-header h2,
+.item-camera-header p {
+  margin: 0;
+}
+
+.item-camera-header p {
+  margin-top: 5px;
+  color: #475569;
+}
+
+.item-camera-close {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.item-camera-preview {
+  position: relative;
+  min-height: 320px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #020617;
+}
+
+.item-camera-preview video {
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  max-height: 62vh;
+  object-fit: contain;
+}
+
+.item-camera-loading {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.item-camera-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+:root[data-theme="dark"] .item-camera-dialog {
+  border-color: #475569;
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .item-camera-header p {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .item-camera-close {
+  border-color: #64748b;
+  background: #1e293b;
+  color: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .item-camera-backdrop {
+    padding: 0;
+  }
+
+  .item-camera-dialog {
+    width: 100%;
+    min-height: 100%;
+    max-height: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .item-camera-preview,
+  .item-camera-preview video {
+    min-height: 50vh;
+  }
+
+  .item-camera-actions .btn {
+    flex: 1;
+  }
+}

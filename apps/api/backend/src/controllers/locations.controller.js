@@ -1,6 +1,7 @@
 // File: apps/api/backend/src/controllers/locations.controller.js
 
 import { prisma } from "../lib/prisma.js";
+import { deleteTrackedAssets, lockShopBrandingForUpdate, reconcileAssetUrls, rollbackTemporaryAssets } from "../services/uploadAssets.service.js";
 
 const LOCATION_SAFE_FIELDS = [
   "id",
@@ -307,11 +308,28 @@ export async function updateLocation(req, res) {
 
     const data = pickLocationWriteData(req.body);
 
-    const updated = await prisma.pawnShop.update({
-      where: { id },
-      data,
-      select,
-    });
+    const brandingChanged = req.body?.logoUrl !== undefined || req.body?.bannerUrl !== undefined;
+    const submittedBranding = [data.logoUrl, data.bannerUrl].filter(Boolean);
+    let removedAssets = [];
+    let updated;
+    try {
+      updated = await prisma.$transaction(async (tx) => {
+        const previous = await lockShopBrandingForUpdate(tx, id);
+        if (!previous || previous.isDeleted) throw notFound();
+        const result = await tx.pawnShop.update({ where: { id }, data, select });
+        if (brandingChanged) removedAssets = await reconcileAssetUrls({
+          tx,
+          shopId: id,
+          previousUrls: [previous.logoUrl, previous.bannerUrl].filter(Boolean),
+          nextUrls: [result.logoUrl, result.bannerUrl].filter(Boolean),
+        });
+        return result;
+      });
+    } catch (error) {
+      if (brandingChanged) await rollbackTemporaryAssets({ urls: submittedBranding, shopId: id, storage: req.app.locals.uploadStorage, requestId: req.requestId }).catch(() => {});
+      throw error;
+    }
+    await deleteTrackedAssets({ assets: removedAssets, storage: req.app.locals.uploadStorage, requestId: req.requestId });
 
     return res.json(mapLocation(updated));
   } catch (error) {
