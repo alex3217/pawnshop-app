@@ -117,6 +117,7 @@ function createCorsOptions(allowedOrigins) {
       "Authorization",
       "X-Requested-With",
       "X-Request-Id",
+      "Idempotency-Key",
       "Stripe-Signature",
     ],
   };

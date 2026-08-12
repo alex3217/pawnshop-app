@@ -274,6 +274,35 @@ test("an allowed browser origin receives CORS headers", async () => {
   );
 });
 
+test("buyer subscription checkout preflight allows the idempotency header", async () => {
+  const response = await request(app)
+    .options("/api/stripe/checkout/buyer-subscription")
+    .set("Origin", "https://allowed.example")
+    .set("Access-Control-Request-Method", "POST")
+    .set(
+      "Access-Control-Request-Headers",
+      "authorization,content-type,idempotency-key",
+    )
+    .expect(204);
+
+  assert.equal(
+    response.headers["access-control-allow-origin"],
+    "https://allowed.example",
+  );
+  assert.equal(
+    response.headers["access-control-allow-credentials"],
+    "true",
+  );
+  assert.match(
+    response.headers["access-control-allow-methods"],
+    /(?:^|,\s*)POST(?:,|$)/,
+  );
+  assert.match(
+    response.headers["access-control-allow-headers"],
+    /(?:^|,\s*)Idempotency-Key(?:,|$)/,
+  );
+});
+
 test("an unapproved browser origin is rejected", async () => {
   const response = await request(app)
     .get("/api/health")
