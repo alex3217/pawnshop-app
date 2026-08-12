@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import ItemImagePicker from "../components/ItemImagePicker";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
+import { ApiError } from "../services/apiClient";
 import { getAuthToken } from "../services/auth";
 import {
   deleteItem,
   getItemById,
+  getMyItemById,
   markItemSold,
+  restoreItem,
   type Item,
 } from "../services/items";
 import { updateItemWithPhotos } from "../services/ownerPhotoWorkflows";
@@ -32,6 +35,20 @@ function normalizeOption(value: string, options: readonly string[], fallback: st
   return options.includes(value) ? value : fallback;
 }
 
+async function getEditableOwnerItem(id: string) {
+  try {
+    return await getMyItemById(id);
+  } catch (error) {
+    const ownerRouteUnavailable =
+      error instanceof ApiError &&
+      error.status === 404 &&
+      /^Cannot GET /i.test(error.message);
+
+    if (!ownerRouteUnavailable) throw error;
+    return getItemById(id);
+  }
+}
+
 function getItemStatusTone(status: string): CSSProperties {
   const normalized = String(status || "").toUpperCase();
 
@@ -43,7 +60,7 @@ function getItemStatusTone(status: string): CSSProperties {
     };
   }
 
-  if (["PENDING"].includes(normalized)) {
+  if (["PENDING", "ARCHIVED"].includes(normalized)) {
     return {
       color: "var(--owner-warning-text)",
       background: "var(--owner-warning-surface)",
@@ -68,7 +85,6 @@ function getItemStatusTone(status: string): CSSProperties {
 
 export default function OwnerItemEditPage() {
   const { id = "" } = useParams();
-  const nav = useNavigate();
   const token = getAuthToken();
 
   const [item, setItem] = useState<Item | null>(null);
@@ -85,7 +101,11 @@ export default function OwnerItemEditPage() {
   const [error, setError] = useState<string | null>(null);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
 
-  const itemStatus = useMemo(() => item?.status || "UNKNOWN", [item]);
+  const archived = Boolean(item?.isDeleted);
+  const itemStatus = useMemo(
+    () => (item?.isDeleted ? "ARCHIVED" : item?.status || "UNKNOWN"),
+    [item],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -102,7 +122,7 @@ export default function OwnerItemEditPage() {
       setNotice(null);
 
       try {
-        const nextItem = await getItemById(id);
+        const nextItem = await getEditableOwnerItem(id);
 
         if (cancelled) return;
 
@@ -140,6 +160,11 @@ export default function OwnerItemEditPage() {
 
     if (!id || !item) {
       setError("Missing item.");
+      return;
+    }
+
+    if (archived) {
+      setError("Restore this item before editing it.");
       return;
     }
 
@@ -183,7 +208,7 @@ export default function OwnerItemEditPage() {
 
     try {
       await markItemSold(id);
-      const refreshed = await getItemById(id);
+      const refreshed = await getEditableOwnerItem(id);
       setItem(refreshed);
       setNotice("Item marked as sold.");
     } catch (err) {
@@ -197,7 +222,7 @@ export default function OwnerItemEditPage() {
     if (!id || !item || actionLoading) return;
 
     const confirmed = window.confirm(
-      "Delete/archive this item? This action removes it from active owner inventory."
+      "Archive this item? It will be hidden from active inventory and public listings until restored."
     );
     if (!confirmed) return;
 
@@ -207,9 +232,29 @@ export default function OwnerItemEditPage() {
 
     try {
       await deleteItem(id);
-      nav("/owner/inventory");
+      setItem({ ...item, isDeleted: true, images: [] });
+      setPhotoFiles([]);
+      setNotice("Item archived. Use Restore Item to return it to active inventory.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete item.");
+      setError(err instanceof Error ? err.message : "Failed to archive item.");
+    } finally {
+      setActionLoading("");
+    }
+  }
+
+  async function handleRestore() {
+    if (!id || !item || actionLoading || !archived) return;
+
+    setActionLoading("restore");
+    setError(null);
+    setNotice(null);
+
+    try {
+      const restored = await restoreItem(id);
+      setItem(restored);
+      setNotice("Item restored to active inventory.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to restore item.");
     } finally {
       setActionLoading("");
     }
@@ -224,12 +269,26 @@ export default function OwnerItemEditPage() {
   }
 
   if (error && !item) {
+    const missingItem = error === "Item not found";
+
     return (
       <div className="page-stack owner-readable-page owner-edit-item-page" style={styles.page}>
-        <div style={styles.error}>{error}</div>
-        <Link to="/owner/inventory" style={styles.secondaryLink}>
-          Back to Inventory
-        </Link>
+        <section className="owner-readable-card owner-edit-item-card" style={styles.card}>
+          <h2 style={styles.title}>{missingItem ? "Item unavailable" : "Unable to load item"}</h2>
+          <p style={styles.subtitle}>
+            {missingItem
+              ? "This item is no longer active. It may have been archived or removed. Return to Inventory to choose another item, or create a replacement."
+              : error}
+          </p>
+          <div style={styles.actions}>
+            <Link to="/owner/inventory" style={styles.primaryLink}>
+              Back to Inventory
+            </Link>
+            <Link to="/owner/items/new" style={styles.secondaryLink}>
+              Create New Item
+            </Link>
+          </div>
+        </section>
       </div>
     );
   }
@@ -257,9 +316,11 @@ export default function OwnerItemEditPage() {
           <Link to="/owner/inventory" style={styles.secondaryLink}>
             Back to Inventory
           </Link>
-          <Link to={`/items/${item.id}`} style={styles.primaryLink}>
-            View Public Listing
-          </Link>
+          {!archived ? (
+            <Link to={`/items/${item.id}`} style={styles.primaryLink}>
+              View Public Listing
+            </Link>
+          ) : null}
         </div>
       </div>
 
@@ -275,13 +336,35 @@ export default function OwnerItemEditPage() {
         {notice ? <div style={styles.notice}>{notice}</div> : null}
         {error ? <div style={styles.error}>{error}</div> : null}
 
+        {archived ? (
+          <div style={styles.archivedPanel}>
+            <div>
+              <strong>Archived item</strong>
+              <p style={{ ...styles.subtitle, marginBottom: 0 }}>
+                Restore this item before changing its details or publishing it again.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleRestore()}
+              disabled={actionLoading !== ""}
+              style={{
+                ...styles.primaryButton,
+                ...(actionLoading !== "" ? styles.disabledButton : {}),
+              }}
+            >
+              {actionLoading === "restore" ? "Restoring..." : "Restore Item"}
+            </button>
+          </div>
+        ) : null}
+
         <form onSubmit={onSubmit} style={styles.form}>
           <label style={styles.field}>
             Title
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              disabled={saving}
+              disabled={saving || archived}
               required
               style={styles.input}
             />
@@ -291,7 +374,7 @@ export default function OwnerItemEditPage() {
             files={photoFiles}
             onChange={setPhotoFiles}
             existingImages={item.images || []}
-            disabled={saving || actionLoading !== ""}
+            disabled={saving || actionLoading !== "" || archived}
             cameraLabel="Take Item Photo"
             galleryLabel="Choose Files"
           />
@@ -301,7 +384,7 @@ export default function OwnerItemEditPage() {
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              disabled={saving}
+              disabled={saving || archived}
               rows={6}
               style={{ ...styles.input, resize: "vertical", paddingTop: 10 }}
             />
@@ -313,7 +396,7 @@ export default function OwnerItemEditPage() {
               <input
                 value={price}
                 onChange={(event) => setPrice(event.target.value)}
-                disabled={saving}
+                disabled={saving || archived}
                 type="number"
                 min="0"
                 step="0.01"
@@ -327,7 +410,7 @@ export default function OwnerItemEditPage() {
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
-                disabled={saving}
+                disabled={saving || archived}
                 required
                 style={styles.input}
               >
@@ -345,7 +428,7 @@ export default function OwnerItemEditPage() {
             <select
               value={condition}
               onChange={(event) => setCondition(event.target.value)}
-              disabled={saving}
+              disabled={saving || archived}
               required
               style={styles.input}
             >
@@ -360,7 +443,7 @@ export default function OwnerItemEditPage() {
           <div style={styles.actions}>
             <button
               type="submit"
-              disabled={saving || actionLoading !== ""}
+              disabled={saving || actionLoading !== "" || archived}
               style={{
                 ...styles.primaryButton,
                 ...(saving || actionLoading !== "" ? styles.disabledButton : {}),
@@ -372,7 +455,7 @@ export default function OwnerItemEditPage() {
             <button
               type="button"
               onClick={handleMarkSold}
-              disabled={saving || actionLoading !== "" || String(itemStatus).toUpperCase() === "SOLD"}
+              disabled={saving || actionLoading !== "" || archived || String(itemStatus).toUpperCase() === "SOLD"}
               style={{
                 ...styles.secondaryButton,
                 ...(saving || actionLoading !== "" ? styles.disabledButton : {}),
@@ -384,13 +467,13 @@ export default function OwnerItemEditPage() {
             <button
               type="button"
               onClick={handleDelete}
-              disabled={saving || actionLoading !== ""}
+              disabled={saving || actionLoading !== "" || archived}
               style={{
                 ...styles.dangerButton,
                 ...(saving || actionLoading !== "" ? styles.disabledButton : {}),
               }}
             >
-              {actionLoading === "delete" ? "Deleting..." : "Delete / Archive"}
+              {actionLoading === "delete" ? "Archiving..." : "Archive Item"}
             </button>
           </div>
         </form>
@@ -433,6 +516,19 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     flexWrap: "wrap",
     marginBottom: 16,
+  },
+  archivedPanel: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 16,
+    flexWrap: "wrap",
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 14,
+    color: "var(--owner-warning-text)",
+    background: "var(--owner-warning-surface)",
+    border: "1px solid var(--owner-warning-border)",
   },
   metaPill: {
     padding: "8px 12px",

@@ -79,4 +79,7 @@ test("owner item editor uses readable theme styles and the shared camera picker"
   expect(editPageSource).toContain('cameraLabel="Take Item Photo"');
   expect(editPageSource).toContain('galleryLabel="Choose Files"');
   expect(editPageSource).toContain("existingImages={item.images || []}");
+  expect(editPageSource).toContain("getMyItemById");
+  expect(editPageSource).toContain("Restore Item");
+  expect(editPageSource).toContain("Archive Item");
 });

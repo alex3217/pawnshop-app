@@ -23,6 +23,7 @@ export type Item = {
   category?: string | null;
   condition?: string | null;
   images?: string[] | null;
+  isDeleted?: boolean;
   shop?: ItemShop | null;
 };
 
@@ -177,6 +178,18 @@ export async function getMyItems(signal?: AbortSignal): Promise<Item[]> {
   return normalizeItems(data);
 }
 
+export async function getMyItemById(
+  id: string,
+  signal?: AbortSignal,
+): Promise<Item> {
+  if (!id) throw new Error("Missing item id.");
+  const data = await api.get<unknown>(
+    `/items/mine/${encodeURIComponent(id)}`,
+    { signal },
+  );
+  return unwrapItem(data);
+}
+
 export async function createItem(
   input: CreateItemInput,
   signal?: AbortSignal,
@@ -248,6 +261,19 @@ export async function deleteItem(
 ): Promise<unknown> {
   if (!id) throw new Error("Missing item id.");
   return api.delete<unknown>(`/items/${encodeURIComponent(id)}`, { signal });
+}
+
+export async function restoreItem(
+  id: string,
+  signal?: AbortSignal,
+): Promise<Item> {
+  if (!id) throw new Error("Missing item id.");
+  const data = await api.patch<unknown>(
+    `/items/${encodeURIComponent(id)}/restore`,
+    undefined,
+    { signal },
+  );
+  return unwrapItem(data);
 }
 
 export type MarketplaceItemFilters = {

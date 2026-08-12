@@ -7,8 +7,10 @@ import {
   getItemPriceComparison,
   createItem,
   listMyItems,
+  getMyItem,
   updateItem,
   deleteItem,
+  restoreItem,
   scanItem,
   sellItem,
 } from "../controllers/items.controller.js";
@@ -20,6 +22,7 @@ router.get("/", listItems);
 
 // Owner/Admin special route must come before "/:id"
 router.get("/mine", authRequired, requireOwnerAdminOrStaffPermission("inventory:read"), listMyItems);
+router.get("/mine/:id", authRequired, requireOwnerAdminOrStaffPermission("inventory:read"), getMyItem);
 
 // Owner/Admin scan + mutations
 router.post("/scan", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), scanItem);
@@ -29,6 +32,7 @@ router.post("/:id/sell", authRequired, requireOwnerAdminOrStaffPermission("inven
 router.post("/", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), createItem);
 router.put("/:id", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), updateItem);
 router.delete("/:id", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), deleteItem);
+router.patch("/:id/restore", authRequired, requireOwnerAdminOrStaffPermission("inventory:write"), restoreItem);
 
 // Public item pricing intelligence and single-item lookup
 router.get("/:id/price-comparison", getItemPriceComparison);
