@@ -2,9 +2,27 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildRefundIdempotencyKey,
+  canApplyDisputeStatus,
+  canApplyRefundStatus,
   requestStripeRefund,
   StripeFinancialLifecycleError,
 } from "../src/services/stripeRefundDispute.service.js";
+
+test("delayed refund events cannot regress terminal provider state", () => {
+  for (const terminal of ["SUCCEEDED", "FAILED", "CANCELED"]) {
+    assert.equal(canApplyRefundStatus(terminal, "PENDING"), false);
+    assert.equal(canApplyRefundStatus(terminal, terminal), true);
+  }
+  assert.equal(canApplyRefundStatus("PENDING", "SUCCEEDED"), true);
+});
+
+test("delayed dispute events cannot reopen a terminal dispute", () => {
+  for (const terminal of ["WARNING_CLOSED", "WON", "LOST", "PREVENTED"]) {
+    assert.equal(canApplyDisputeStatus(terminal, "UNDER_REVIEW"), false);
+    assert.equal(canApplyDisputeStatus(terminal, terminal), true);
+  }
+  assert.equal(canApplyDisputeStatus("UNDER_REVIEW", "WON"), true);
+});
 
 function marketplacePrisma({ alreadyRefundedCents = 0 } = {}) {
   const transaction = {
