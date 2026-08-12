@@ -89,6 +89,8 @@ export default function CreateAuctionPage() {
 
   const [msg, setMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingInventory, setLoadingInventory] = useState(true);
+  const [inventoryLoadError, setInventoryLoadError] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [existingAuctionItemIds, setExistingAuctionItemIds] = useState<string[]>([]);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
@@ -121,7 +123,13 @@ export default function CreateAuctionPage() {
       ),
     [items, shopAccess],
   );
-  const selectedItem = writableItems.find((item) => String(item.id) === form.itemId) || null;
+  const eligibleItems = useMemo(
+    () => writableItems.filter(
+      (item) => !existingAuctionItemIds.includes(String(item.id)),
+    ),
+    [existingAuctionItemIds, writableItems],
+  );
+  const selectedItem = eligibleItems.find((item) => String(item.id) === form.itemId) || null;
   const canEditSelectedItem = Boolean(selectedItem && shopHasPermission(
     shopAccess,
     selectedItem.pawnShopId || selectedItem.shop?.id,
@@ -132,6 +140,8 @@ export default function CreateAuctionPage() {
   const endsAtIso = toIsoOrNull(form.endsAt);
   useEffect(() => {
     (async () => {
+      setLoadingInventory(true);
+      setInventoryLoadError("");
       try {
         const [itemsData, auctionsRaw] = await Promise.all([
           getMyItems(),
@@ -152,6 +162,11 @@ export default function CreateAuctionPage() {
       } catch {
         setItems([]);
         setExistingAuctionItemIds([]);
+        setInventoryLoadError(
+          "Inventory could not be loaded. Refresh the page or open Inventory to confirm your items are available.",
+        );
+      } finally {
+        setLoadingInventory(false);
       }
     })();
   }, []);
@@ -311,12 +326,12 @@ export default function CreateAuctionPage() {
             <select
                 value={form.itemId}
                 onChange={(event) => updateForm("itemId", event.target.value)}
-                disabled={submitting}
+                disabled={submitting || loadingInventory || eligibleItems.length === 0}
               >
-                <option value="">Select item</option>
-                {writableItems
-                  .filter((item) => !existingAuctionItemIds.includes(String(item.id)))
-                  .map((item) => (
+                <option value="">
+                  {loadingInventory ? "Loading inventory…" : "Select item"}
+                </option>
+                {eligibleItems.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.title || "Untitled Item"}
                     </option>
@@ -327,24 +342,49 @@ export default function CreateAuctionPage() {
             </small>
           </label>
 
-          {selectedItem ? (
-            <ItemImagePicker
-              files={photoFiles}
-              onChange={(files) => {
-                setPhotoFiles(files);
-                photoWorkflowRef.current.reset();
-              }}
-              existingImages={selectedItem.images || []}
-              disabled={submitting || !canEditSelectedItem}
-              disabledReason={
-                !canEditSelectedItem
+          {inventoryLoadError ? (
+            <div className="alert alert-danger" role="alert">
+              {inventoryLoadError}
+            </div>
+          ) : null}
+
+          {!loadingInventory && !inventoryLoadError && items.length === 0 ? (
+            <div className="alert alert-warning" role="status">
+              No inventory items were found. Create an inventory item before starting an auction. {" "}
+              <Link to="/owner/items/new">Create inventory item</Link>
+            </div>
+          ) : null}
+
+          {!loadingInventory && !inventoryLoadError && items.length > 0 && writableItems.length === 0 ? (
+            <div className="alert alert-warning" role="status">
+              Inventory exists, but none of the items are in a shop where you have auction write permission.
+            </div>
+          ) : null}
+
+          {!loadingInventory && !inventoryLoadError && writableItems.length > 0 && eligibleItems.length === 0 ? (
+            <div className="alert alert-warning" role="status">
+              Every eligible inventory item is already attached to an auction. Create another inventory item or manage the existing auctions.
+            </div>
+          ) : null}
+
+          <ItemImagePicker
+            files={photoFiles}
+            onChange={(files) => {
+              setPhotoFiles(files);
+              photoWorkflowRef.current.reset();
+            }}
+            existingImages={selectedItem?.images || []}
+            disabled={submitting || !selectedItem || !canEditSelectedItem}
+            disabledReason={
+              !selectedItem
+                ? "Select an eligible inventory item to enable auction photo capture."
+                : !canEditSelectedItem
                   ? "You can create this auction, but inventory:write permission is required to add or remove item photos."
                   : ""
-              }
-              cameraLabel="Take Auction Photo"
-              galleryLabel="Choose Auction Images"
-            />
-          ) : null}
+            }
+            cameraLabel="Take Auction Photo"
+            galleryLabel="Choose Auction Images"
+          />
 
           <div
             style={{

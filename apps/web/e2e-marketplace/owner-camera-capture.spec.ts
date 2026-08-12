@@ -48,4 +48,7 @@ test("both owner creation pages use the shared picker with clear action labels",
   expect(auctionPage).toContain("Choose Auction Images");
   expect(auctionPage).toContain('"inventory:write"');
   expect(auctionPage).toContain("inventory:write permission is required");
+  expect(auctionPage).toContain("Select an eligible inventory item to enable auction photo capture.");
+  expect(auctionPage).toContain("No inventory items were found.");
+  expect(auctionPage).toContain("Every eligible inventory item is already attached to an auction.");
 });
