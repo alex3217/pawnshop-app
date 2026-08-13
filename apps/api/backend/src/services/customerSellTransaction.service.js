@@ -2,12 +2,13 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "../lib/prisma.js";
 import { appendMarketplaceTransactionEvent } from "./marketplaceTransactionEvent.service.js";
+import { audit, closeDistribution, notify } from "./submissionDistribution.service.js";
 
 const MAX_ACCEPTANCE_ATTEMPTS = 3;
 const MAX_PRISMA_CONNECTOR_DIAGNOSTIC_LENGTH = 4096;
 const ACCEPTABLE_SUBMISSION_STATUS = "OFFERED";
 const CUSTOMER_SALE_INTENTS = new Set(["SELL", "SELL_OFFERS"]);
-const PAWN_INTENTS = new Set(["PAWN", "PAWN_OFFERS"]);
+const PAWN_INTENTS = new Set(["PAWN", "PAWN_OFFERS", "BOTH"]);
 const RETRYABLE_POSTGRES_CODES = new Set(["40P01", "40001"]);
 const HANDOFF_UNIQUENESS_IDENTIFIERS = new Set([
   "MarketplaceTransaction_submissionId_key",
@@ -183,6 +184,7 @@ function loadAcceptedPawnResult(offer, existingTransaction, offerId) {
 async function acceptSubmissionOfferOnce({ offerId, customerId, prismaClient = prisma }) {
   return prismaClient.$transaction(
     async (tx) => {
+      if (typeof tx.$queryRaw === "function") await tx.$queryRaw`SELECT s.id FROM "BuyerItemSubmission" s JOIN "BuyerItemSubmissionOffer" o ON o."submissionId" = s.id WHERE o.id = ${offerId} FOR UPDATE OF s, o`;
       const existing = await tx.buyerItemSubmissionOffer.findUnique({
         where: { id: offerId },
         include: OFFER_INCLUDE,
@@ -232,8 +234,16 @@ async function acceptSubmissionOfferOnce({ offerId, customerId, prismaClient = p
 
       const submission = await tx.buyerItemSubmission.update({
         where: { id: existing.submissionId },
-        data: { status: "ACCEPTED", reviewMessage: "Buyer accepted a shop offer." },
+        data: { status: "ACCEPTED", reviewMessage: "Seller accepted a pawnshop offer.", closedAt: respondedAt },
       });
+
+      await closeDistribution({ tx, submissionId: existing.submissionId, actorUserId: customerId, reason: "PAWNSHOP_OFFER_ACCEPTED", winningShopId: existing.shopId });
+      if (existing.submission.marketplaceListingId) {
+        const listing = await tx.marketplaceListing.findUnique({ where: { id: existing.submission.marketplaceListingId } });
+        if (listing && !["SOLD", "RESERVED"].includes(listing.status)) await tx.marketplaceListing.update({ where: { id: listing.id }, data: { status: listing.status === "ACTIVE" ? "RESERVED" : "CANCELED" } });
+      }
+      await audit(tx, { submissionId: existing.submissionId, shopId: existing.shopId, actorUserId: customerId, eventType: "PAWNSHOP_OFFER_ACCEPTED", idempotencyKey: `submission-offer-accepted:${offerId}`, data: { offerId } });
+      await notify(tx, { userId: existing.ownerId, type: "SHOP_OFFER_ACCEPTED", title: "Your pawnshop offer was accepted", message: existing.submission.title, actionUrl: `/owner/submissions?shopId=${existing.shopId}`, dedupeKey: `submission-offer-accepted:${offerId}` });
 
       let transaction = null;
       if (intentKind === "CUSTOMER_SALE") {

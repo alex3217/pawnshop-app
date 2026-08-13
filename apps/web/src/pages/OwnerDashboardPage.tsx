@@ -635,10 +635,15 @@ export default function OwnerDashboardPage() {
     reviewMessage?: string,
   ) {
     try {
+      if (!selectedShopId) {
+        setPageError("Select a shop before responding.");
+        return;
+      }
       setBuyerSubmissionActionId(id);
       setPageError(null);
 
       const updated = await reviewBuyerItemSubmission(id, {
+        shopId: selectedShopId,
         status,
         reviewMessage,
       });

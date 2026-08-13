@@ -30,6 +30,11 @@ export type BuyerItemSubmission = {
   radiusMiles: number;
   status: BuyerItemSubmissionStatus;
   reviewMessage?: string | null;
+  distributionMode?: SubmissionDistributionMode | null;
+  distributionExpiresAt?: string | null;
+  marketplaceListingId?: string | null;
+  withdrawnAt?: string | null;
+  closedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -65,6 +70,25 @@ export type CreateBuyerItemSubmissionInput = {
   intent: BuyerItemSubmissionIntent;
   radiusMiles: number;
 };
+
+export type SubmissionDistributionMode = "ONE_SHOP" | "SELECTED_SHOPS" | "NEARBY_SHOPS" | "MARKETPLACE" | "SELECTED_SHOPS_AND_MARKETPLACE" | "NEARBY_SHOPS_AND_MARKETPLACE";
+export type DistributionShop = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; distanceMiles?: number | null };
+export type DistributeSubmissionInput = { distributionMode: SubmissionDistributionMode; shopIds?: string[]; radiusMiles?: number; latitude?: number; longitude?: number; expiresAt?: string; marketplace?: { marketplaceListingId?: string; price?: number; quantity?: number; pickupAvailable?: boolean; shippingAvailable?: boolean } };
+
+export async function searchSubmissionShops(query: string, signal?: AbortSignal): Promise<{ shops: DistributionShop[]; selectedShopLimit: number }> {
+  return api.get(`/buyer/item-submissions/distribution/shops?q=${encodeURIComponent(query)}`, { signal });
+}
+
+export async function distributeBuyerItemSubmission(submissionId: string, input: DistributeSubmissionInput, signal?: AbortSignal): Promise<BuyerItemSubmission> {
+  const data = await api.post<unknown>(`/buyer/item-submissions/${encodeURIComponent(submissionId)}/distribute`, input, { signal });
+  return unwrapSubmission(data);
+}
+export type SubmissionDashboardTarget = { id: string; status: string; deliveredAt?: string | null; viewedAt?: string | null; conversation?: { id: string } | null; unreadMessageCount: number; shop: DistributionShop; offer?: BuyerItemSubmissionOffer | null };
+export type SubmissionComparisonDashboard = BuyerItemSubmission & { distributionMode?: SubmissionDistributionMode | null; distributionExpiresAt?: string | null; marketplaceListing?: { id: string; status: string; expiresAt?: string | null } | null; targets: SubmissionDashboardTarget[] };
+export async function getSubmissionComparisonDashboard(submissionId: string, signal?: AbortSignal): Promise<SubmissionComparisonDashboard> {
+  const data = await api.get<{ submission: SubmissionComparisonDashboard }>(`/buyer/item-submissions/${encodeURIComponent(submissionId)}/dashboard`, { signal });
+  return data.submission;
+}
 
 export type BuyerItemScanDestination =
   | "CUSTOMER_MARKETPLACE"
