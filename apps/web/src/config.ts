@@ -17,3 +17,6 @@ export const ENVIRONMENT = resolveEnvironmentContract({
 export const API_BASE = ENVIRONMENT.apiBase;
 export const SOCKET_URL = ENVIRONMENT.socketUrl;
 export const SOCKET_PATH = ENVIRONMENT.socketPath;
+export const GOOGLE_MAPS_BROWSER_API_KEY = String(
+  import.meta.env.VITE_GOOGLE_MAPS_BROWSER_API_KEY || "",
+).trim();

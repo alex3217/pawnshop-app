@@ -15,6 +15,8 @@ import {
 import { directionsUrl, distanceMiles, formatMiles, type GeoPoint } from "../utils/geoDistance";
 import { isUsableImageUrl } from "../utils/imageUrl";
 import { addToWatchlist } from "../services/watchlist";
+import ShopMap from "../components/ShopMap";
+import { formatShopAddress } from "../utils/shopAddress";
 import "../styles/item-detail-v2.css";
 
 function normalizeLabel(value: string | null | undefined, fallback: string) {
@@ -178,7 +180,10 @@ function itemShopDistanceLabel(item: Item, userPoint: GeoPoint | null): string {
 }
 
 function itemDirectionsUrl(item: Item): string | null {
-  return directionsUrl(itemShopPoint(item));
+  return directionsUrl(
+    itemShopPoint(item),
+    formatShopAddress(item.shop?.address, item.shop?.city, item.shop?.state, item.shop?.zip),
+  );
 }
 
 
@@ -205,6 +210,7 @@ export default function ItemDetailPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [locationState, setLocationState] = useState<"idle" | "requesting" | "enabled" | "denied" | "unavailable" | "timed-out">("idle");
   const [priceComparison, setPriceComparison] =
     useState<ItemPriceComparisonResponse | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(true);
@@ -433,10 +439,12 @@ export default function ItemDetailPage() {
 
   function handleUseLocation() {
     if (!navigator.geolocation) {
+      setLocationState("unavailable");
       setLocationMessage("Location is not available in this browser.");
       return;
     }
 
+    setLocationState("requesting");
     setLocationMessage("Requesting your location...");
 
     navigator.geolocation.getCurrentPosition(
@@ -445,10 +453,18 @@ export default function ItemDetailPage() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         });
+        setLocationState("enabled");
         setLocationMessage("Location enabled. Shop distance is now shown from your current area.");
       },
-      () => {
-        setLocationMessage("Location permission was not enabled. You can still open directions to the shop.");
+      (locationError) => {
+        const timedOut = locationError.code === locationError.TIMEOUT;
+        const denied = locationError.code === locationError.PERMISSION_DENIED;
+        setLocationState(timedOut ? "timed-out" : denied ? "denied" : "unavailable");
+        setLocationMessage(timedOut
+          ? "Location request timed out. Try again, or open directions to the shop."
+          : denied
+            ? "Location permission was denied. You can retry or open directions to the shop."
+            : "Your location is unavailable. You can retry or open directions to the shop.");
       },
       { enableHighAccuracy: false, timeout: 8000 },
     );
@@ -535,10 +551,12 @@ export default function ItemDetailPage() {
   }
 
   const shopName = normalizeLabel(item.shop?.name, "Unknown pawnshop");
-  const shopAddress = normalizeLabel(item.shop?.address, "Shop address not listed");
+  const shopAddress = formatShopAddress(item.shop?.address, item.shop?.city, item.shop?.state, item.shop?.zip);
   const shopPhone = normalizeLabel(item.shop?.phone, "Shop phone not listed");
   const shopDirectionsHref = itemDirectionsUrl(item);
-  const shopDistanceText = userPoint ? itemShopDistanceLabel(item, userPoint) : "Enable location to show distance";
+  const shopDistanceText = userPoint
+    ? (itemShopDistanceMiles(item, userPoint) === null ? "Shop coordinates unavailable" : itemShopDistanceLabel(item, userPoint))
+    : "Use your location to calculate distance";
   const available = isAvailable(item.status);
   const comparison = priceComparison?.comparison ?? null;
   const comparisonStatistics = comparison?.statistics ?? null;
@@ -620,20 +638,18 @@ export default function ItemDetailPage() {
           {locationMessage ? <div className="item-detail-notice">{locationMessage}</div> : null}
 
           <div className="item-detail-actions">
-            <button type="button" onClick={handleSaveItem} disabled={savingWatchlist} className="item-detail-action-force-label item-detail-primary-action item-detail-watch-action item-detail-big-button" data-label="Watch item" aria-label="Watch item" title="Watch item">
+            <button type="button" onClick={handleSaveItem} disabled={savingWatchlist} className="item-detail-action item-detail-primary-action">
               {savingWatchlist ? "Saving..." : "Watch item"}
             </button>
 
-            <Link to={shopHrefFor(item)} className="item-detail-action-force-label item-detail-secondary-action item-detail-shop-action item-detail-big-button" data-label="View shop" aria-label="View shop" title="View shop">View shop</Link>
-            <button type="button" onClick={handleUseLocation} className="item-detail-action-force-label item-detail-big-button item-detail-location-action" data-label="Use my location" aria-label="Use my location" title="Use my location">
-              Use my location
+            <Link to={shopHrefFor(item)} className="item-detail-action item-detail-secondary-action">View shop</Link>
+            <button type="button" onClick={handleUseLocation} disabled={locationState === "requesting"} className="item-detail-action item-detail-location-action">
+              {locationState === "requesting" ? "Requesting location…" : locationState === "idle" || locationState === "enabled" ? "Use my location" : "Retry location"}
             </button>
             <button
               type="button"
               onClick={handleOpenOfferForm}
-              className="item-detail-action-force-label item-detail-primary-action item-detail-offer-action item-detail-big-button"
-              data-label="Make offer"
-              aria-label="Make offer"
+              className="item-detail-action item-detail-primary-action"
               aria-controls="item-offer-form"
               title="Make offer"
             >
@@ -1290,13 +1306,7 @@ export default function ItemDetailPage() {
             </div>
           </div>
 
-          <div className="item-detail-map-card">
-            <div className="item-detail-map-user">Shop</div>
-            <div className="item-detail-map-note">
-              <strong>Shop location</strong>
-              <span>{shopDistanceText}</span>
-            </div>
-          </div>
+          <ShopMap point={itemShopPoint(item)} shopName={shopName} address={shopAddress} />
 
           <div className="item-detail-shop-actions">
             <Link to={shopHrefFor(item)}>Open storefront</Link>

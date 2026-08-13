@@ -50,8 +50,13 @@ export function formatMiles(value: number | null | undefined): string {
   return `${value.toFixed(1)} mi away`;
 }
 
-export function directionsUrl(point: GeoPoint): string | null {
-  if (!hasCoordinates(point)) return null;
+export function directionsUrl(point: GeoPoint, fallbackAddress?: string | null): string | null {
+  const normalizedAddress = String(fallbackAddress || "").trim();
+
+  if (!hasCoordinates(point)) {
+    if (!normalizedAddress || normalizedAddress === "Shop address not listed") return null;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(normalizedAddress)}`;
+  }
   const latitude = toNumber(point.latitude);
   const longitude = toNumber(point.longitude);
 
