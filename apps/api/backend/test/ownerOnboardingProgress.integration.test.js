@@ -29,6 +29,13 @@ before(async () => {
   assert.equal(decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\/+/, "")), "pawnshop_test");
   ({ createApp: app } = await import("../src/app.js"));
   app = app();
+  app.locals.shopGeocoder = {
+    geocode: async (address) => ({
+      address,
+      latitude: 41.88,
+      longitude: -87.63,
+    }),
+  };
   ({ prisma } = await import("../src/lib/prisma.js"));
 
   const email = `owner${DOMAIN}`;
@@ -77,7 +84,10 @@ test("all nine checklist destinations persist the facts used by progress", async
     ["hours", "shop-hours", "Mon-Fri 9-5"],
     ["description", "shop-description", "A persisted onboarding description"],
   ]) {
-    const saved = await authenticated(request(app).patch(`/api/locations/${shopId}`)).send({ [field]: value });
+    const payload = field === "address"
+      ? { address: value, city: "Chicago", state: "IL", zip: "60601", country: "US" }
+      : { [field]: value };
+    const saved = await authenticated(request(app).patch(`/api/locations/${shopId}`)).send(payload);
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     state = (await progress(shopId)).completionById;
     assert.equal(state[itemId], true, `${itemId} did not change after saving ${field}`);
