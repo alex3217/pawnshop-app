@@ -24,6 +24,8 @@ export type Auction = {
   version?: number;
   createdAt?: string;
   updatedAt?: string;
+  ownerReviewedAt?: string | null;
+  bidCount?: number;
   item?: {
     id?: string;
     title?: string | null;
