@@ -16,7 +16,6 @@ import {
   endAuctionWithSettlement,
   getOwnerAuctions,
   type Auction,
-  type AuctionStatus,
 } from "../services/auctions";
 import { getAuthRole, getAuthToken } from "../services/auth";
 import type {
@@ -30,6 +29,14 @@ import {
   type FulfillmentStatus,
 } from "../services/settlements";
 import "../styles/owner-auctions-readability.css";
+import {
+  formatAuctionDateTime,
+  getAuctionCountdown,
+  getAuctionStatusSummary,
+  getEffectiveAuctionEnd,
+  getEffectiveAuctionStatus,
+  isAwaitingPostAuctionReview,
+} from "../../../../shared/auctionStatus.mjs";
 
 type StatusFilter = "ALL" | "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED";
 
@@ -108,15 +115,7 @@ function formatMoney(value: string | number | null | undefined) {
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "—";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-
-  return date.toLocaleString();
-}
-
-function statusLabel(status: AuctionStatus | null | undefined) {
-  return String(status || "UNKNOWN").toUpperCase();
+  return formatAuctionDateTime(value);
 }
 
 function getStatusBadgeStyle(label: string): CSSProperties {
@@ -362,45 +361,16 @@ function getEndAuctionSuccessMessage(result: Awaited<ReturnType<typeof endAuctio
 
 function formatOwnerAuctionDateTime(value: unknown) {
   if (!value) return "Not set";
-
-  const date = new Date(String(value));
-
-  if (Number.isNaN(date.getTime())) return "Not set";
-
-  return date.toLocaleString();
+  const formatted = formatAuctionDateTime(value);
+  return formatted === "Unavailable" ? "Not set" : formatted;
 }
 
-function getOwnerAuctionTimeState(auction: Auction) {
-  const label = statusLabel(auction.status);
-  const now = Date.now();
-  const startsAt = auction.startsAt ? new Date(String(auction.startsAt)).getTime() : 0;
-  const endsAt = auction.endsAt ? new Date(String(auction.endsAt)).getTime() : 0;
-
+function getOwnerAuctionTimeState(auction: Auction, now: Date) {
+  const label = getEffectiveAuctionStatus(auction, now);
   if (label === "CANCELED") return "Canceled — no active owner action needed.";
-  if (label === "ENDED") return `Closed ${formatOwnerAuctionDateTime(auction.endsAt)}.`;
-  if (label === "SCHEDULED") return `Scheduled to start ${formatOwnerAuctionDateTime(auction.startsAt)}.`;
-
-  if (label === "LIVE" && endsAt > now) {
-    const minutes = Math.max(1, Math.round((endsAt - now) / 60000));
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-
-    if (hours > 0) {
-      return `Live — ${hours}h ${remainingMinutes}m remaining.`;
-    }
-
-    return `Live — ${minutes}m remaining.`;
-  }
-
-  if (startsAt && startsAt > now) {
-    return `Upcoming — starts ${formatOwnerAuctionDateTime(auction.startsAt)}.`;
-  }
-
-  if (endsAt && endsAt < now) {
-    return `Past auction — ended ${formatOwnerAuctionDateTime(auction.endsAt)}.`;
-  }
-
-  return "Auction timing needs review.";
+  if (label === "ENDED") return `Ended ${formatDateTime(auction.extendedEndsAt || auction.endsAt)}.`;
+  if (label === "SCHEDULED") return `${getAuctionCountdown(auction, now)} · Starts ${formatDateTime(auction.startsAt)}.`;
+  return `LIVE · ${getAuctionCountdown(auction, now)} · Closes ${formatDateTime(auction.extendedEndsAt || auction.endsAt)}.`;
 }
 
 function OwnerAuctionDetailCell({
@@ -440,22 +410,22 @@ function getAuctionPrice(auction: Auction) {
   return Number(auction.currentPrice ?? auction.startingPrice ?? 0);
 }
 
-function isEndingSoonAuction(auction: Auction) {
-  const label = statusLabel(auction.status);
+function isEndingSoonAuction(auction: Auction, now: Date) {
+  const label = getEffectiveAuctionStatus(auction, now);
 
   if (label !== "LIVE" && label !== "SCHEDULED") return false;
 
-  const endsAt = getAuctionTimestamp(auction.endsAt);
+  const endsAt = getAuctionTimestamp(auction.extendedEndsAt || auction.endsAt);
   if (!endsAt) return false;
 
-  const now = Date.now();
+  const nowMs = now.getTime();
   const twentyFourHours = 24 * 60 * 60 * 1000;
 
-  return endsAt >= now && endsAt - now <= twentyFourHours;
+  return endsAt >= nowMs && endsAt - nowMs <= twentyFourHours;
 }
 
-function isNeedsAttentionAuction(auction: Auction) {
-  const label = statusLabel(auction.status);
+function isNeedsAttentionAuction(auction: Auction, now = new Date()) {
+  const label = getEffectiveAuctionStatus(auction, now);
 
   if (label === "LIVE" && !auction.endsAt) return true;
   if (label === "SCHEDULED" && !auction.startsAt) return true;
@@ -468,12 +438,13 @@ function isNeedsAttentionAuction(auction: Auction) {
 function ownerAuctionMatchesViewFilter(
   auction: Auction,
   viewFilter: OwnerAuctionViewFilter,
+  now = new Date(),
 ) {
-  const label = statusLabel(auction.status);
+  const label = getEffectiveAuctionStatus(auction, now);
 
   if (viewFilter === "ALL") return true;
-  if (viewFilter === "ENDING_SOON") return isEndingSoonAuction(auction);
-  if (viewFilter === "NEEDS_ATTENTION") return isNeedsAttentionAuction(auction);
+  if (viewFilter === "ENDING_SOON") return isEndingSoonAuction(auction, now);
+  if (viewFilter === "NEEDS_ATTENTION") return isNeedsAttentionAuction(auction, now);
 
   return label === viewFilter;
 }
@@ -481,6 +452,7 @@ function ownerAuctionMatchesViewFilter(
 function sortOwnerAuctions(
   auctions: Auction[],
   sortKey: OwnerAuctionSortKey,
+  now: Date,
 ) {
   return [...auctions].sort((left, right) => {
     if (sortKey === "highestPrice") {
@@ -502,11 +474,15 @@ function sortOwnerAuctions(
     }
 
     if (sortKey === "status") {
-      return statusLabel(left.status).localeCompare(statusLabel(right.status));
+      return getEffectiveAuctionStatus(left, now).localeCompare(
+        getEffectiveAuctionStatus(right, now),
+      );
     }
 
-    const leftEnd = getAuctionTimestamp(left.endsAt) || Number.MAX_SAFE_INTEGER;
-    const rightEnd = getAuctionTimestamp(right.endsAt) || Number.MAX_SAFE_INTEGER;
+    const leftEnd =
+      getAuctionTimestamp(getEffectiveAuctionEnd(left)) || Number.MAX_SAFE_INTEGER;
+    const rightEnd =
+      getAuctionTimestamp(getEffectiveAuctionEnd(right)) || Number.MAX_SAFE_INTEGER;
 
     return leftEnd - rightEnd;
   });
@@ -605,8 +581,8 @@ function ownerAuctionUsesDeletedItem(auction: Auction) {
   );
 }
 
-function isClosedOwnerAuction(auction: Auction) {
-  const label = statusLabel(auction.status);
+function isClosedOwnerAuction(auction: Auction, now = new Date()) {
+  const label = getEffectiveAuctionStatus(auction, now);
   return label === "ENDED" || label === "CANCELED";
 }
 
@@ -621,9 +597,9 @@ function getOwnerAuctionRelistPath(auction: Auction) {
   return query ? `/owner/auctions/new?${query}` : "/owner/auctions/new";
 }
 
-function getOwnerAuctionOperationalWarnings(auction: Auction) {
+function getOwnerAuctionOperationalWarnings(auction: Auction, now: Date) {
   const warnings: string[] = [];
-  const label = statusLabel(auction.status);
+  const label = getEffectiveAuctionStatus(auction, now);
 
   if (!auction.itemId) warnings.push("Missing linked inventory item.");
   if (!auction.shopId) warnings.push("Missing shop context.");
@@ -711,13 +687,20 @@ export default function OwnerAuctionsPage() {
     Record<string, AuctionAction>
   >({});
   const [fulfillmentActioningId, setFulfillmentActioningId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const now = useMemo(() => new Date(nowMs), [nowMs]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const actionInProgress = Object.keys(actionLoadingById).length > 0;
 
   const counts = useMemo(() => {
     return auctions.reduce<Record<StatusFilter, number>>(
       (acc, auction) => {
-        const key = statusLabel(auction.status) as StatusFilter;
+        const key = getEffectiveAuctionStatus(auction, now) as StatusFilter;
 
         acc.ALL += 1;
 
@@ -735,12 +718,14 @@ export default function OwnerAuctionsPage() {
         CANCELED: 0,
       },
     );
-  }, [auctions]);
+  }, [auctions, now]);
 
-  const liveCount = counts.LIVE;
-  const scheduledCount = counts.SCHEDULED;
   const endedCount = counts.ENDED;
   const canceledCount = counts.CANCELED;
+  const statusSummary = useMemo(
+    () => getAuctionStatusSummary(auctions, now),
+    [auctions, now],
+  );
 
   const load = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -822,7 +807,7 @@ export default function OwnerAuctionsPage() {
       return;
     }
 
-    const status = statusLabel(auction.status);
+    const status = getEffectiveAuctionStatus(auction);
 
     if (!canEndAuction(status)) {
       setMessage({
@@ -937,7 +922,7 @@ export default function OwnerAuctionsPage() {
       return;
     }
 
-    const status = statusLabel(auction.status);
+    const status = getEffectiveAuctionStatus(auction);
 
     if (!canCancelAuction(status)) {
       setMessage({
@@ -978,7 +963,7 @@ export default function OwnerAuctionsPage() {
 
     const visible = auctions
       .filter((auction) => showArchivedTestHistory || !ownerAuctionUsesDeletedItem(auction))
-      .filter((auction) => ownerAuctionMatchesViewFilter(auction, viewFilter))
+      .filter((auction) => ownerAuctionMatchesViewFilter(auction, viewFilter, now))
       .filter((auction) =>
         ownerAuctionMatchesFulfillmentQueueFilter(auction, fulfillmentFilter),
       )
@@ -997,8 +982,8 @@ export default function OwnerAuctionsPage() {
           .some((value) => String(value).toLowerCase().includes(needle));
       });
 
-    return prioritizeOwnerAuctionFulfillment(sortOwnerAuctions(visible, sortKey));
-  }, [auctions, fulfillmentFilter, query, showArchivedTestHistory, sortKey, viewFilter]);
+    return prioritizeOwnerAuctionFulfillment(sortOwnerAuctions(visible, sortKey, now));
+  }, [auctions, fulfillmentFilter, now, query, showArchivedTestHistory, sortKey, viewFilter]);
 
   const auctionFiltersActive =
     query.trim().length > 0 ||
@@ -1019,7 +1004,7 @@ export default function OwnerAuctionsPage() {
   }
 
   function getViewFilterCount(filter: OwnerAuctionViewFilter) {
-    return auctions.filter((auction) => ownerAuctionMatchesViewFilter(auction, filter)).length;
+    return auctions.filter((auction) => ownerAuctionMatchesViewFilter(auction, filter, now)).length;
   }
 
   function getFulfillmentFilterCount(filter: FulfillmentQueueFilter) {
@@ -1046,8 +1031,16 @@ export default function OwnerAuctionsPage() {
   }
 
   const closedAuctions = useMemo(
-    () => auctions.filter((auction) => isClosedOwnerAuction(auction)),
-    [auctions],
+    () => auctions.filter((auction) => isClosedOwnerAuction(auction, now)),
+    [auctions, now],
+  );
+
+  const awaitingReviewAuctions = useMemo(
+    () => auctions.filter((auction) =>
+      isAwaitingPostAuctionReview(auction, now) &&
+      !reviewedAuctionIds.has(String(auction.id)),
+    ),
+    [auctions, now, reviewedAuctionIds],
   );
 
   const reviewedClosedAuctionCount = useMemo(
@@ -1060,9 +1053,9 @@ export default function OwnerAuctionsPage() {
   const warningAuctionCount = useMemo(
     () =>
       auctions.filter(
-        (auction) => getOwnerAuctionOperationalWarnings(auction).length > 0,
+        (auction) => getOwnerAuctionOperationalWarnings(auction, now).length > 0,
       ).length,
-    [auctions],
+    [auctions, now],
   );
 
   function markClosedAuctionsReviewed() {
@@ -1224,6 +1217,18 @@ export default function OwnerAuctionsPage() {
           </div>
         ) : null}
 
+        <section aria-labelledby="auction-status-summary-heading">
+          <h2 id="auction-status-summary-heading" style={{ margin: "0 0 10px" }}>
+            Current Auction Status
+          </h2>
+          <div style={metricGridStyle}>
+            <Metric label="Live" value={String(statusSummary.live)} strong={statusSummary.live > 0} />
+            <Metric label="Scheduled" value={String(statusSummary.scheduled)} />
+            <Metric label="Awaiting Review" value={String(awaitingReviewAuctions.length)} />
+            <Metric label="Needs Attention" value={String(warningAuctionCount)} />
+          </div>
+        </section>
+
         <section
           style={{
             border: "1px solid var(--owner-auction-command-border)",
@@ -1297,6 +1302,7 @@ export default function OwnerAuctionsPage() {
           </div>
         </section>
 
+        {awaitingReviewAuctions.length > 0 ? (
         <section
           data-owner-auction-operational-actions="true"
           className="page-card"
@@ -1318,10 +1324,10 @@ export default function OwnerAuctionsPage() {
             >
               Operational Actions
             </div>
-            <h2 style={{ margin: "4px 0 0" }}>Closed Auction Workflow</h2>
+            <h2 style={{ margin: "4px 0 0" }}>Post-Auction Workflow</h2>
             <p className="muted" style={{ margin: "6px 0 0" }}>
-              Mark ended/canceled auctions reviewed locally, relist closed inventory,
-              and scan for missing price/time data before creating the next auction.
+              Review ended or canceled auctions and complete any settlement or
+              fulfillment follow-up. Live auctions never appear in this workflow.
             </p>
           </div>
 
@@ -1333,8 +1339,8 @@ export default function OwnerAuctionsPage() {
             }}
           >
             <Metric
-              label="Closed auctions"
-              value={String(closedAuctions.length)}
+              label="Awaiting review"
+              value={String(awaitingReviewAuctions.length)}
               strong
             />
             <Metric
@@ -1376,6 +1382,16 @@ export default function OwnerAuctionsPage() {
             ) : null}
           </div>
         </section>
+        ) : (
+          <details data-owner-auction-operational-actions="true" className="page-card">
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>
+              Post-Auction Workflow
+            </summary>
+            <p className="muted" style={{ marginBottom: 0 }}>
+              No auctions are awaiting post-auction review.
+            </p>
+          </details>
+        )}
 
         {message ? (
           <div className={`alert alert-${message.type}`}>{message.text}</div>
@@ -1453,8 +1469,6 @@ export default function OwnerAuctionsPage() {
 
         <div style={metricGridStyle}>
           <Metric label="Total Loaded" value={String(counts.ALL)} strong />
-          <Metric label="Live" value={String(liveCount)} />
-          <Metric label="Scheduled" value={String(scheduledCount)} />
           <Metric label="Ended" value={String(endedCount)} />
           <Metric label="Canceled" value={String(canceledCount)} />
         </div>
@@ -1603,13 +1617,19 @@ export default function OwnerAuctionsPage() {
         ) : (
           <div style={cardGridStyle}>
             {filteredAuctions.map((auction) => {
-              const label = statusLabel(auction.status);
+              const label = getEffectiveAuctionStatus(auction, now);
               const cancelable = canCancelAuction(label);
               const endable = canEndAuction(label);
               const rowAction = actionLoadingById[auction.id];
-              const operationalWarnings = getOwnerAuctionOperationalWarnings(auction);
-              const closedAuction = isClosedOwnerAuction(auction);
+              const operationalWarnings = getOwnerAuctionOperationalWarnings(auction, now);
+              const closedAuction = isClosedOwnerAuction(auction, now);
               const reviewedAuction = reviewedAuctionIds.has(String(auction.id));
+              const effectiveEnd = getEffectiveAuctionEnd(auction);
+              const hasDistinctExtendedEnd = Boolean(
+                auction.extendedEndsAt &&
+                getAuctionTimestamp(auction.extendedEndsAt) !==
+                  getAuctionTimestamp(auction.endsAt),
+              );
               const rowBusy = Boolean(rowAction);
               const itemId = getItemId(auction);
               const shopId = getShopId(auction);
@@ -1652,7 +1672,13 @@ export default function OwnerAuctionsPage() {
                       <small className="muted">{itemSubtitle(auction)}</small>
                     </div>
 
-                    <span style={getStatusBadgeStyle(label)}>{label}</span>
+                    <span
+                      role="status"
+                      aria-label={`Auction status: ${label}`}
+                      style={getStatusBadgeStyle(label)}
+                    >
+                      {label}
+                    </span>
                   </div>
 
 
@@ -1674,6 +1700,9 @@ export default function OwnerAuctionsPage() {
                       label="Reserve"
                       value={formatMoney(auction.reservePrice)}
                     />
+                    {typeof auction.bidCount === "number" ? (
+                      <Metric label="Bid Count" value={String(auction.bidCount)} />
+                    ) : null}
                   </div>
 
                   <div
@@ -1794,9 +1823,15 @@ export default function OwnerAuctionsPage() {
                       value={formatOwnerAuctionDateTime(auction.startsAt)}
                     />
                     <OwnerAuctionDetailCell
-                      label="Ends"
-                      value={formatOwnerAuctionDateTime(auction.endsAt)}
+                      label={auction.extendedEndsAt ? "Extended end" : "Ends"}
+                      value={formatOwnerAuctionDateTime(effectiveEnd)}
                     />
+                    {hasDistinctExtendedEnd ? (
+                      <OwnerAuctionDetailCell
+                        label="Original scheduled end"
+                        value={formatOwnerAuctionDateTime(auction.endsAt)}
+                      />
+                    ) : null}
                   </div>
 
                   <div
@@ -1812,7 +1847,7 @@ export default function OwnerAuctionsPage() {
                       marginTop: 10,
                     }}
                   >
-                    {getOwnerAuctionTimeState(auction)}
+                    {getOwnerAuctionTimeState(auction, now)}
                   </div>
 
                   {closedAuction &&
@@ -1958,7 +1993,8 @@ export default function OwnerAuctionsPage() {
                         type="button"
                         onClick={() => void onCancelAuction(auction)}
                         disabled={rowBusy}
-                        title="Cancel auction"
+                        title="Cancel auction without creating a final auction result"
+                        aria-label={`Cancel auction for ${itemTitle(auction)}`}
                       >
                         {rowAction === "cancel" ? "Canceling…" : "Cancel Auction"}
                       </button>
@@ -1970,7 +2006,8 @@ export default function OwnerAuctionsPage() {
                         type="button"
                         onClick={() => void onEndAuction(auction)}
                         disabled={rowBusy}
-                        title="End auction"
+                        title="End auction now and create the final result"
+                        aria-label={`End auction now for ${itemTitle(auction)}`}
                       >
                         {rowAction === "end" ? "Ending…" : "End Auction"}
                       </button>

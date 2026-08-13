@@ -23,6 +23,10 @@ import {
   removeFromWatchlist,
 } from "../services/watchlist";
 import "../styles/auctions-readable-fix.css";
+import {
+  formatAuctionDateTime,
+  getEffectiveAuctionStatus,
+} from "../../../../shared/auctionStatus.mjs";
 
 type AuctionStatusFilter =
   | "SCHEDULED"
@@ -87,7 +91,7 @@ function formatDateTime(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unavailable";
 
-  return date.toLocaleString();
+  return formatAuctionDateTime(date);
 }
 
 function auctionEndTime(auction: Auction) {
@@ -593,7 +597,7 @@ export default function AuctionsPage() {
       const endingSoonMatches =
         !endingSoonOnly ||
         (
-          normalizeUpper(auction.status) ===
+          getEffectiveAuctionStatus(auction, new Date()) ===
             "LIVE" &&
           endTime > now &&
           endTime - now <= ENDING_SOON_MS
@@ -629,7 +633,7 @@ export default function AuctionsPage() {
 
     const endingSoon = rows.filter((auction) => {
       if (
-        normalizeUpper(auction.status) !== "LIVE"
+        getEffectiveAuctionStatus(auction, new Date()) !== "LIVE"
       ) {
         return false;
       }
@@ -1285,10 +1289,7 @@ export default function AuctionsPage() {
         {!loading && filteredRows.length > 0 ? (
           <section className="auctions-card-grid">
             {pagedRows.map((auction) => {
-              const status = normalizeUpper(
-                auction.status,
-                "UNKNOWN",
-              );
+              const status = getEffectiveAuctionStatus(auction, new Date());
 
               const viewLabel =
                 role === "CONSUMER" &&
@@ -1327,6 +1328,8 @@ export default function AuctionsPage() {
                       </div>
 
                       <span
+                        role="status"
+                        aria-label={`Auction status: ${status}`}
                         className={`auction-status-badge ${getStatusClass(
                           status,
                         )}`}
