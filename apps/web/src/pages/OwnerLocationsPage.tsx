@@ -9,7 +9,7 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
-import { getMyLocations, updateLocation } from "../services/locations";
+import { getMyLocations, updateLocation, verifyLocation } from "../services/locations";
 import { getMyShops } from "../services/shops";
 import { updateShopBranding } from "../services/ownerPhotoWorkflows";
 import "../styles/owner-locations-readability.css";
@@ -19,6 +19,12 @@ type LocationRecord = {
   id: string;
   name: string;
   address: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
   phone: string;
   hours: string;
   description: string;
@@ -33,6 +39,13 @@ type ApiLocationRecord = Partial<{
   shopName: string;
   title: string;
   address: string;
+  city: string;
+  state: string;
+  zip: string;
+  postalCode: string;
+  country: string;
+  latitude: number;
+  longitude: number;
   location: string;
   phone: string;
   hours: string;
@@ -43,7 +56,7 @@ type ApiLocationRecord = Partial<{
   status: string;
 }>;
 
-type LocationEditForm = Pick<LocationRecord, "name" | "address" | "phone" | "hours" | "description">;
+type LocationEditForm = Pick<LocationRecord, "name" | "address" | "city" | "state" | "zip" | "country" | "phone" | "hours" | "description">;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -63,7 +76,13 @@ function normalizeLocation(
     name: String(
       row.name || row.shopName || row.title || `Location ${index + 1}`,
     ),
-    address: String(row.address || row.location || "Address not available"),
+    address: String(row.address || row.location || ""),
+    city: String(row.city || ""),
+    state: String(row.state || ""),
+    zip: String(row.zip || row.postalCode || ""),
+    country: String(row.country || "US"),
+    latitude: Number.isFinite(row.latitude) ? Number(row.latitude) : null,
+    longitude: Number.isFinite(row.longitude) ? Number(row.longitude) : null,
     phone: String(row.phone || "—"),
     hours: String(row.hours || "—"),
     description: String(row.description || ""),
@@ -148,9 +167,14 @@ export default function OwnerLocationsPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
+  const [verificationFailures, setVerificationFailures] = useState<Set<string>>(new Set());
   const [editForm, setEditForm] = useState<LocationEditForm>({
     name: "",
     address: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "US",
     phone: "",
     hours: "",
     description: "",
@@ -205,6 +229,10 @@ export default function OwnerLocationsPage() {
     setEditForm({
       name: location.name || "",
       address: location.address || "",
+      city: location.city,
+      state: location.state,
+      zip: location.zip,
+      country: location.country || "US",
       phone: location.phone === "—" ? "" : location.phone,
       hours: location.hours === "—" ? "" : location.hours,
       description: location.description || "",
@@ -219,6 +247,10 @@ export default function OwnerLocationsPage() {
     setEditForm({
       name: "",
       address: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: "US",
       phone: "",
       hours: "",
       description: "",
@@ -241,13 +273,21 @@ export default function OwnerLocationsPage() {
 
     try {
       const address = editForm.address.trim();
+      const city = editForm.city.trim();
+      const state = editForm.state.trim();
+      const postalCode = editForm.zip.trim();
+      const country = editForm.country.trim().toUpperCase();
       const phone = editForm.phone.trim();
       const hours = editForm.hours.trim();
       const description = editForm.description.trim();
 
-      await updateLocation(id, {
+      const updated = await updateLocation(id, {
         name,
         address,
+        city,
+        state,
+        postalCode,
+        country,
         phone,
         hours,
         description,
@@ -263,7 +303,13 @@ export default function OwnerLocationsPage() {
               ? {
                   ...item,
                   name,
-                  address: address || "Address not available",
+                  address,
+                  city,
+                  state,
+                  zip: postalCode,
+                  country,
+                  latitude: updated.latitude ?? null,
+                  longitude: updated.longitude ?? null,
                   phone: phone || "—",
                   hours: hours || "—",
                   description,
@@ -277,11 +323,38 @@ export default function OwnerLocationsPage() {
       setLogoFile(null);
       setBannerFile(null);
       setActionMessage("Location details updated.");
+      setVerificationFailures((current) => { const next = new Set(current); next.delete(id); return next; });
       window.dispatchEvent(new CustomEvent("pawnloop:owner-setup-updated"));
     } catch (err) {
       setActionError(
         err instanceof Error ? err.message : "Failed to update location.",
       );
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function verifyMapLocation(id: string) {
+    setSavingId(id);
+    setActionMessage("");
+    setActionError("");
+    try {
+      const updated = await verifyLocation(id);
+      setLocations((current) => current.map((item) => item.id === id ? {
+        ...item,
+        address: updated.address ?? item.address,
+        city: updated.city ?? item.city,
+        state: updated.state ?? item.state,
+        zip: updated.zip ?? updated.postalCode ?? item.zip,
+        country: updated.country ?? item.country,
+        latitude: updated.latitude ?? null,
+        longitude: updated.longitude ?? null,
+      } : item));
+      setVerificationFailures((current) => { const next = new Set(current); next.delete(id); return next; });
+      setActionMessage("Map location verified.");
+    } catch (err) {
+      setVerificationFailures((current) => new Set(current).add(id));
+      setActionError(err instanceof Error ? err.message : "Location verification failed.");
     } finally {
       setSavingId(null);
     }
@@ -387,7 +460,7 @@ export default function OwnerLocationsPage() {
                 <div>
                   <h2 style={styles.cardTitle}>{location.name}</h2>
                   <div style={styles.metaRow}>
-                    <span>{location.address}</span>
+                    <span>{[location.address, location.city, location.state, location.zip, location.country].filter(Boolean).join(", ") || "Address not available"}</span>
                     <span>•</span>
                     <span>Status: {location.status}</span>
                   </div>
@@ -397,6 +470,10 @@ export default function OwnerLocationsPage() {
               </div>
 
               <div style={styles.detailGrid}>
+                <div>
+                  <div style={styles.detailLabel}>Map location</div>
+                  <div style={styles.detailValue}>{verificationFailures.has(location.id) ? "Verification failed" : location.latitude !== null && location.longitude !== null ? "Verified" : "Missing coordinates"}</div>
+                </div>
                 <div>
                   <div style={styles.detailLabel}>Phone</div>
                   <div style={styles.detailValue}>{location.phone}</div>
@@ -447,7 +524,7 @@ export default function OwnerLocationsPage() {
                       </label>
 
                       <label id="shop-address" style={styles.fieldLabel}>
-                        Address
+                        Street address
                         <input
                           value={editForm.address}
                           onChange={(event) =>
@@ -459,6 +536,10 @@ export default function OwnerLocationsPage() {
                           style={styles.input}
                         />
                       </label>
+                      <label style={styles.fieldLabel}>City<input value={editForm.city} onChange={(event) => setEditForm((current) => ({ ...current, city: event.target.value }))} style={styles.input} autoComplete="address-level2" /></label>
+                      <label style={styles.fieldLabel}>State / region<input value={editForm.state} onChange={(event) => setEditForm((current) => ({ ...current, state: event.target.value }))} style={styles.input} autoComplete="address-level1" /></label>
+                      <label style={styles.fieldLabel}>ZIP / postal code<input value={editForm.zip} onChange={(event) => setEditForm((current) => ({ ...current, zip: event.target.value }))} style={styles.input} autoComplete="postal-code" /></label>
+                      <label style={styles.fieldLabel}>Country code<input value={editForm.country} onChange={(event) => setEditForm((current) => ({ ...current, country: event.target.value }))} style={styles.input} maxLength={2} autoComplete="country" /></label>
                       <label id="shop-description" style={styles.fieldLabel}>
                         Shop description
                         <textarea value={editForm.description} onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} style={styles.input} rows={4} />
@@ -535,6 +616,10 @@ export default function OwnerLocationsPage() {
                     }}
                   >
                     Edit details
+                  </button>
+
+                  <button type="button" onClick={() => void verifyMapLocation(location.id)} disabled={savingId === location.id} style={styles.secondaryButton}>
+                    {location.latitude !== null && location.longitude !== null ? "Update map location" : "Verify location"}
                   </button>
 
                   <Link to="/owner/inventory" style={styles.secondaryLink}>

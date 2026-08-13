@@ -117,6 +117,10 @@ export default function OwnerOnboardingPage() {
 
   const [shopName, setShopName] = useState("");
   const [shopAddress, setShopAddress] = useState("");
+  const [shopCity, setShopCity] = useState("");
+  const [shopState, setShopState] = useState("");
+  const [shopPostalCode, setShopPostalCode] = useState("");
+  const [shopCountry, setShopCountry] = useState("US");
   const [shopPhone, setShopPhone] = useState("");
   const [shopHours, setShopHours] = useState("");
   const [shopDescription, setShopDescription] = useState("");
@@ -264,6 +268,10 @@ export default function OwnerOnboardingPage() {
       const created = await createShop({
         name,
         address: shopAddress.trim(),
+        city: shopCity.trim(),
+        state: shopState.trim(),
+        postalCode: shopPostalCode.trim(),
+        country: shopCountry.trim().toUpperCase(),
         phone: shopPhone.trim(),
         hours: shopHours.trim(),
         description: shopDescription.trim(),
@@ -603,16 +611,23 @@ export default function OwnerOnboardingPage() {
               </div>
 
               <label>
-                Shop address
+                Street address
                 <input
                   value={shopAddress}
                   onChange={(event) =>
                     setShopAddress(event.target.value)
                   }
-                  placeholder="123 Main Street, Houston, TX"
+                  placeholder="123 Main Street"
                   autoComplete="street-address"
                 />
               </label>
+
+              <div className="owner-onboarding-grid">
+                <label>City<input value={shopCity} onChange={(event) => setShopCity(event.target.value)} autoComplete="address-level2" /></label>
+                <label>State / region<input value={shopState} onChange={(event) => setShopState(event.target.value)} autoComplete="address-level1" /></label>
+                <label>ZIP / postal code<input value={shopPostalCode} onChange={(event) => setShopPostalCode(event.target.value)} autoComplete="postal-code" /></label>
+                <label>Country code<input value={shopCountry} onChange={(event) => setShopCountry(event.target.value)} maxLength={2} autoComplete="country" /></label>
+              </div>
 
               <label>
                 Operating hours
