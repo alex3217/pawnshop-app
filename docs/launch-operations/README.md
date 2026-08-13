@@ -11,6 +11,11 @@ This directory is the operator entry point for a paid-beta launch. Creating thes
 - [Rollback runbook](rollback-runbook.md): application/configuration rollback and database safety.
 - [Paid-beta launch checklist](paid-beta-launch-checklist.md): evidence-based go/no-go record.
 - [First 72 hours](first-72-hours.md): observation cadence, continuation decisions, and stop criteria.
+- [Public launch go/no-go](public-launch-go-no-go.md): unrestricted-launch evidence and decision record.
+- [Support, vendor, data, secrets, and access](support-vendor-access-matrix.md): escalation ownership and dependency/control inventories.
+- [Staging and production verification](staging-and-production-verification.md): release certification and bounded smoke evidence.
+- [Production backup and recovery](../production-backup-recovery-runbook-v1.md): guarded backup, isolated restore drill, approvals, and recovery evidence.
+- [Legal counsel review](../legal-counsel-review-checklist-v1.md): issue-spotting checklist; every conclusion remains pending counsel review.
 
 ## Repository-supported controls
 
