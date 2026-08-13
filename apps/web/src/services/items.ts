@@ -10,6 +10,7 @@ export type ItemShop = {
   latitude?: number | string | null;
   longitude?: number | string | null;
   phone?: string | null;
+  hours?: string | null;
 };
 
 export type Item = {

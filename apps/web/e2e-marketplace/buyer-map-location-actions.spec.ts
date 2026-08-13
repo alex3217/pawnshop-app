@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const item = {
   id: "map-item-1", pawnShopId: "shop-1", title: "Map Test Watch", description: "Verified local item", price: "125.00", status: "AVAILABLE", category: "Watches", condition: "GOOD", images: [],
-  shop: { id: "shop-1", name: "Loop Pawn", address: "123 Main St", city: "Chicago", state: "IL", zip: "60601", phone: "312-555-0100", latitude: 41.881832, longitude: -87.623177 },
+  shop: { id: "shop-1", name: "Loop Pawn", address: "123 Main St", city: "Chicago", state: "IL", zip: "60601", phone: "312-555-0100", hours: "Mon–Fri 9–6", latitude: 41.881832, longitude: -87.623177 },
 };
 
 async function mockItem(page: Page) {
@@ -60,30 +60,46 @@ test("item detail renders map fallback, directions, distance, and location state
   await mockItem(page);
   await page.goto("/items/map-item-1");
   await expect(page.getByText("Shop map unavailable")).toBeVisible();
-  await expect(page.locator(".item-detail-map-fallback").getByText("123 Main St Chicago, IL 60601")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open in Google Maps" })).toHaveAttribute("href", /google\.com\/maps/);
-  await expect(page.getByRole("link", { name: "Directions", exact: true })).toBeVisible();
+  await expect(page.getByText(/Google Maps could not load/)).toBeVisible();
+  const marker = page.getByRole("button", { name: "Shop", exact: true });
+  await marker.click();
+  const information = page.getByRole("dialog", { name: "Loop Pawn information" });
+  await expect(information.getByText("123 Main St Chicago, IL 60601")).toBeVisible();
+  await expect(information.getByText("312-555-0100")).toBeVisible();
+  await expect(information.getByText("Mon–Fri 9–6")).toBeVisible();
+  await expect(information.getByRole("link", { name: "View shop" })).toHaveAttribute("href", "/shops/shop-1");
+  await expect(information.getByRole("link", { name: "Directions" })).toHaveAttribute("href", /google\.com\/maps/);
+  await marker.click();
+  await expect(information).toBeHidden();
+  await marker.focus();
+  await marker.press("Enter");
+  await expect(information).toBeVisible();
+  await expect(page.locator(".item-detail-shop-actions").getByRole("link", { name: "Directions", exact: true })).toBeVisible();
 
   await page.evaluate(() => {
     Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition(success: PositionCallback) { success({ coords: { latitude: 41.89, longitude: -87.62, accuracy: 10 }, timestamp: Date.now() } as GeolocationPosition); } } });
   });
   await page.getByRole("button", { name: "Use my location" }).click();
-  await expect(page.getByText(/mi away/)).toBeVisible();
+  await expect(page.locator(".item-detail-shop-list").getByText(/mi away/)).toBeVisible();
 });
 
 test("browser key loads an interactive labeled marker at verified coordinates", async ({ page }) => {
-  await page.route("https://maps.googleapis.com/**", (route) => route.fulfill({ contentType: "application/javascript", body: `window.__mapCalls=[]; window.google={maps:{Map:class{constructor(_el, options){window.__mapCalls.push(['map',options.center]);}setCenter(point){window.__mapCalls.push(['center',point]);}},Marker:class{constructor(options){window.__mapCalls.push(['marker',options.position,options.title]);}setMap(){}setPosition(point){window.__mapCalls.push(['position',point]);}setTitle(title){window.__mapCalls.push(['title',title]);}setLabel(label){window.__mapCalls.push(['label',label.text]);}}}};` }));
+  await page.route("https://maps.googleapis.com/**", (route) => route.fulfill({ contentType: "application/javascript", body: `window.__mapCalls=[]; window.google={maps:{Map:class{constructor(_el, options){window.__mapCalls.push(['map',options.center,options.zoomControl,options.streetViewControl]);}setCenter(point){window.__mapCalls.push(['center',point]);}},Marker:class{constructor(options){window.__mapCalls.push(['marker',options.position,options.title]);}addListener(_name,callback){window.__markerClick=callback;return{remove(){}}}setMap(){}setPosition(point){window.__mapCalls.push(['position',point]);}setTitle(title){window.__mapCalls.push(['title',title]);}setLabel(label){window.__mapCalls.push(['label',label.text]);}}}};` }));
   await page.route("**/api/items/map-item-1/price-comparison", (route) => route.fulfill({ json: { success: true, itemId: item.id, reason: "NO_COMPARABLES", comparison: { comparables: [] } } }));
   await page.route("**/api/items/map-item-1", (route) => route.fulfill({ json: item }));
   await page.goto("/items/map-item-1");
   await expect(page.locator('[data-map-status="ready"]')).toBeVisible();
   const calls = await page.evaluate(() => (window as typeof window & { __mapCalls: unknown[] }).__mapCalls);
-  expect(calls).toContainEqual(["marker", { lat: 41.881832, lng: -87.623177 }, "Loop Pawn"]);
+  expect(calls).toContainEqual(["marker", { lat: 41.881832, lng: -87.623177 }, "Loop Pawn. Open shop information"]);
+  expect(calls).toContainEqual(["map", { lat: 41.881832, lng: -87.623177 }, true, true]);
+  await page.evaluate(() => (window as typeof window & { __markerClick: () => void }).__markerClick());
+  await expect(page.getByRole("dialog", { name: "Loop Pawn information" })).toBeVisible();
+  expect(await page.content()).not.toContain("test_browser_key");
 });
 
 test("interactive marker refreshes when verified shop coordinates change", async ({ page }) => {
   const updatedItem = { ...item, id: "map-item-2", shop: { ...item.shop, name: "Updated Loop Pawn", latitude: 41.9, longitude: -87.65 } };
-  await page.route("https://maps.googleapis.com/**", (route) => route.fulfill({ contentType: "application/javascript", body: `window.__mapCalls=[]; window.google={maps:{Map:class{constructor(_element,options){window.__mapCalls.push(['map',options.center]);}setCenter(point){window.__mapCalls.push(['center',point]);}},Marker:class{constructor(options){window.__mapCalls.push(['marker',options.position,options.title,options.label.text]);}setMap(){}setPosition(point){window.__mapCalls.push(['position',point]);}setTitle(title){window.__mapCalls.push(['title',title]);}setLabel(label){window.__mapCalls.push(['label',label.text]);}}}};` }));
+  await page.route("https://maps.googleapis.com/**", (route) => route.fulfill({ contentType: "application/javascript", body: `window.__mapCalls=[]; window.google={maps:{Map:class{constructor(_element,options){window.__mapCalls.push(['map',options.center]);}setCenter(point){window.__mapCalls.push(['center',point]);}},Marker:class{constructor(options){window.__mapCalls.push(['marker',options.position,options.title,options.label.text]);}addListener(){return{remove(){}}}setMap(){}setPosition(point){window.__mapCalls.push(['position',point]);}setTitle(title){window.__mapCalls.push(['title',title]);}setLabel(label){window.__mapCalls.push(['label',label.text]);}}}};` }));
   await page.route("**/api/items/**", (route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname.endsWith("/price-comparison")) return route.fulfill({ json: { success: true, reason: "NO_COMPARABLES", comparison: { comparables: [] } } });
@@ -96,7 +112,7 @@ test("interactive marker refreshes when verified shop coordinates change", async
     dispatchEvent(new PopStateEvent("popstate"));
   });
   await expect(page.getByRole("heading", { name: "Updated Loop Pawn" })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => (window as typeof window & { __mapCalls: unknown[] }).__mapCalls)).toContainEqual(["marker", { lat: 41.9, lng: -87.65 }, "Updated Loop Pawn", "U"]);
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __mapCalls: unknown[] }).__mapCalls)).toContainEqual(["marker", { lat: 41.9, lng: -87.65 }, "Updated Loop Pawn. Open shop information", "U"]);
   const calls = await page.evaluate(() => (window as typeof window & { __mapCalls: unknown[] }).__mapCalls);
   expect(calls).toContainEqual(["map", { lat: 41.9, lng: -87.65 }]);
 });
@@ -124,9 +140,20 @@ test("missing shop coordinates keeps address fallback and location action safe",
   await page.route("**/api/items/map-item-1", (route) => route.fulfill({ json: { ...item, shop: { ...item.shop, latitude: null, longitude: null } } }));
   await page.goto("/items/map-item-1");
   await expect(page.getByText("Shop map unavailable")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open in Google Maps" })).toHaveAttribute("href", /123%20Main%20St%20Chicago/);
-  await expect(page.getByRole("link", { name: "Directions", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Shop", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Loop Pawn information" }).getByRole("link", { name: "Directions" })).toHaveAttribute("href", /123%20Main%20St%20Chicago/);
+  await expect(page.locator(".item-detail-shop-actions").getByRole("link", { name: "Directions", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Use my location" })).toBeVisible();
+});
+
+test("Google Maps authentication failures are visible without exposing the browser key", async ({ page }) => {
+  await page.route("https://maps.googleapis.com/**", (route) => route.fulfill({ contentType: "application/javascript", body: "window.gm_authFailure();" }));
+  await page.route("**/api/items/map-item-1/price-comparison", (route) => route.fulfill({ json: { success: true, reason: "NO_COMPARABLES", comparison: { comparables: [] } } }));
+  await page.route("**/api/items/map-item-1", (route) => route.fulfill({ json: item }));
+  await page.goto("/items/map-item-1");
+  await expect(page.getByText(/API key, website referrer, or Maps JavaScript API settings/)).toBeVisible();
+  const markup = await page.locator("body").innerHTML();
+  expect(markup).not.toContain("test_browser_key");
 });
 
 test("missing browser geolocation is unavailable and retry can later succeed", async ({ page }) => {

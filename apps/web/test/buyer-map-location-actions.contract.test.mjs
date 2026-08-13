@@ -17,16 +17,21 @@ test("buyer actions retain real labels and visible interaction states", () => {
   assert.match(marketplaceCss, /white-space: nowrap !important/);
 });
 
-test("shop map uses only the browser key and updates map and marker coordinates", () => {
+test("shop map uses only the browser key, reports sanitized failures, and updates coordinates", () => {
   assert.match(shopMap, /GOOGLE_MAPS_BROWSER_API_KEY/);
   assert.match(config, /VITE_GOOGLE_MAPS_BROWSER_API_KEY/);
   assert.doesNotMatch(shopMap, /GOOGLE_GEOCODING_API_KEY/);
   assert.match(shopMap, /mapRef\.current\.setCenter\(position\)/);
   assert.match(shopMap, /markerRef\.current\.setPosition\(position\)/);
   assert.match(shopMap, /markerRef\.current\.setLabel/);
+  assert.match(shopMap, /gm_authFailure/);
+  assert.match(shopMap, /API key, website referrer, or Maps JavaScript API settings/);
+  assert.match(shopMap, /script\.remove\(\)/);
+  assert.match(shopMap, /addListener\("click"/);
   assert.match(shopMap, /point\.latitude, point\.longitude, shopName/);
   assert.match(shopMap, /Shop map unavailable/);
-  assert.match(shopMap, /Open in Google Maps/);
+  assert.match(shopMap, /item-detail-map-fallback-marker/);
+  for (const label of ["View shop", "Directions", "Message shop", "Business hours", "Distance", "Phone", "Address"]) assert.match(shopMap, new RegExp(label));
   assert.match(shopMap, /directionsUrl\(point, address\)/);
 });
 

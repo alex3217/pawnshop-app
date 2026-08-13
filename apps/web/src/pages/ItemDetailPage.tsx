@@ -553,6 +553,7 @@ export default function ItemDetailPage() {
   const shopName = normalizeLabel(item.shop?.name, "Unknown pawnshop");
   const shopAddress = formatShopAddress(item.shop?.address, item.shop?.city, item.shop?.state, item.shop?.zip);
   const shopPhone = normalizeLabel(item.shop?.phone, "Shop phone not listed");
+  const shopHours = normalizeLabel(item.shop?.hours, "Business hours not listed");
   const shopDirectionsHref = itemDirectionsUrl(item);
   const shopDistanceText = userPoint
     ? (itemShopDistanceMiles(item, userPoint) === null ? "Shop coordinates unavailable" : itemShopDistanceLabel(item, userPoint))
@@ -1306,7 +1307,16 @@ export default function ItemDetailPage() {
             </div>
           </div>
 
-          <ShopMap point={itemShopPoint(item)} shopName={shopName} address={shopAddress} />
+          <ShopMap
+            point={itemShopPoint(item)}
+            shopName={shopName}
+            address={shopAddress}
+            distance={userPoint && itemShopDistanceMiles(item, userPoint) !== null ? itemShopDistanceLabel(item, userPoint) : null}
+            phone={shopPhone}
+            hours={shopHours}
+            shopHref={shopHrefFor(item)}
+            messageHref={isAuthenticated() && getAuthRole() === "CONSUMER" ? `${shopHrefFor(item)}/message` : undefined}
+          />
 
           <div className="item-detail-shop-actions">
             <Link to={shopHrefFor(item)}>Open storefront</Link>
