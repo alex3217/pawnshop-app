@@ -56,11 +56,11 @@ function priceComparisonReasonMessage(
 ) {
   switch (reason) {
     case "SHOP_LOCATION_UNAVAILABLE":
-      return "This shop has not added coordinates yet, so nearby pricing cannot be calculated.";
+      return "Shop location unavailable. The shop owner must verify the map location before nearby pricing can be calculated.";
     case "NO_COMPARABLES":
-      return "No recent comparable items were found within the selected local area.";
+      return "No comparable items found within the selected local area and time range.";
     case "INSUFFICIENT_SAMPLE":
-      return "Some comparable items were found, but more shops and listings are needed for a reliable deal score.";
+      return "Insufficient sample for a Deal Score. Some comparable items were found, but more local data is needed.";
     default:
       return null;
   }

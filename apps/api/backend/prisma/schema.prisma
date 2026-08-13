@@ -322,6 +322,7 @@ model PawnShop {
   city                               String?
   state                              String?
   zip                                String?
+  country                            String?
   latitude                           Float?
   longitude                          Float?
   phone                              String?
