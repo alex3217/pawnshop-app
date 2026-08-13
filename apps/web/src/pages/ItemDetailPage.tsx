@@ -180,7 +180,10 @@ function itemShopDistanceLabel(item: Item, userPoint: GeoPoint | null): string {
 }
 
 function itemDirectionsUrl(item: Item): string | null {
-  return directionsUrl(itemShopPoint(item));
+  return directionsUrl(
+    itemShopPoint(item),
+    formatShopAddress(item.shop?.address, item.shop?.city, item.shop?.state, item.shop?.zip),
+  );
 }
 
 

@@ -374,6 +374,10 @@
 .item-detail-actions .item-detail-action:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
 .item-detail-actions .item-detail-action:active:not(:disabled) { filter: brightness(.94); transform: none; }
 .item-detail-actions .item-detail-action:disabled { opacity: 1; background: #64748b; color: #f8fafc !important; cursor: wait; }
+.item-detail-shop-actions a,
+.item-detail-shop-actions a:visited { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; white-space: nowrap; }
+.item-detail-shop-actions a:hover { filter: brightness(1.08); }
+.item-detail-shop-actions a:active { filter: brightness(.94); }
 
 .item-detail-map-user {
   position: absolute;

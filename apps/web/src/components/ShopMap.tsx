@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { GOOGLE_MAPS_BROWSER_API_KEY } from "../config";
 import { directionsUrl, hasCoordinates, type GeoPoint } from "../utils/geoDistance";
 
 type GoogleMap = { setCenter(point: { lat: number; lng: number }): void };
-type GoogleMarker = { setMap(map: GoogleMap | null): void; setPosition(point: { lat: number; lng: number }): void; setTitle(title: string): void };
+type GoogleMarker = { setMap(map: GoogleMap | null): void; setPosition(point: { lat: number; lng: number }): void; setTitle(title: string): void; setLabel(label: Record<string, string>): void };
 type GoogleMapsApi = {
   Map: new (element: HTMLElement, options: Record<string, unknown>) => GoogleMap;
   Marker: new (options: Record<string, unknown>) => GoogleMarker;
@@ -42,9 +43,9 @@ export default function ShopMap({ point, shopName, address }: { point: GeoPoint;
   const mapRef = useRef<GoogleMap | null>(null);
   const markerRef = useRef<GoogleMarker | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "fallback">("loading");
-  const apiKey = String(import.meta.env.VITE_GOOGLE_MAPS_BROWSER_API_KEY || "").trim();
+  const apiKey = GOOGLE_MAPS_BROWSER_API_KEY;
   const validPoint = hasCoordinates(point);
-  const directionsHref = directionsUrl(point);
+  const directionsHref = directionsUrl(point, address);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +57,12 @@ export default function ShopMap({ point, shopName, address }: { point: GeoPoint;
       if (!mapRef.current) mapRef.current = new maps.Map(elementRef.current, { center: position, zoom: 15, mapTypeControl: false, streetViewControl: false, fullscreenControl: false });
       else mapRef.current.setCenter(position);
       if (!markerRef.current) markerRef.current = new maps.Marker({ map: mapRef.current, position, title: shopName, label: { text: shopName.slice(0, 1).toUpperCase(), color: "#ffffff" } });
-      else { markerRef.current.setMap(mapRef.current); markerRef.current.setPosition(position); markerRef.current.setTitle(shopName); }
+      else {
+        markerRef.current.setMap(mapRef.current);
+        markerRef.current.setPosition(position);
+        markerRef.current.setTitle(shopName);
+        markerRef.current.setLabel({ text: shopName.slice(0, 1).toUpperCase(), color: "#ffffff" });
+      }
       setStatus("ready");
     }).catch(() => { if (!cancelled) setStatus("fallback"); });
     return () => { cancelled = true; };

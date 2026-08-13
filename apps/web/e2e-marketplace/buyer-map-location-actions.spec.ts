@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const item = {
   id: "map-item-1", pawnShopId: "shop-1", title: "Map Test Watch", description: "Verified local item", price: "125.00", status: "AVAILABLE", category: "Watches", condition: "GOOD", images: [],
@@ -11,22 +11,49 @@ async function mockItem(page: Page) {
   await page.route("**/api/items/map-item-1", (route) => route.fulfill({ json: item }));
 }
 
+async function expectReadableAction(action: Locator, label: string) {
+  await expect(action).toBeVisible();
+  await expect(action).toContainText(label);
+  const state = await action.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const box = element.getBoundingClientRect();
+    return {
+      color: style.color,
+      backgroundColor: style.backgroundColor,
+      width: box.width,
+      height: box.height,
+      overflow: style.overflow,
+      fontSize: Number.parseFloat(style.fontSize),
+    };
+  });
+  expect(state.width).toBeGreaterThan(60);
+  expect(state.height).toBeGreaterThan(43.9);
+  expect(state.overflow).toBe("visible");
+  expect(state.fontSize).toBeGreaterThan(0);
+  expect(state.color).not.toBe(state.backgroundColor);
+}
+
 test("marketplace action labels remain visible on hover, focus, themes, and mobile", async ({ page }) => {
   await page.route("**/api/items**", (route) => route.fulfill({ json: [item] }));
   await page.goto("/marketplace");
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((nextTheme) => { document.documentElement.dataset.theme = nextTheme; }, theme);
+    for (const label of ["View item", "Make offer", "Directions", "Watch"]) {
+      const action = label === "Watch" ? page.getByRole("button", { name: label, exact: true }).first() : page.getByRole("link", { name: label, exact: true }).first();
+      await expectReadableAction(action, label);
+      await action.hover();
+      await expectReadableAction(action, label);
+      await action.focus();
+      await expect(action).toBeFocused();
+      await expectReadableAction(action, label);
+      await expect(action).toHaveCSS("outline-style", "solid");
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   for (const label of ["View item", "Make offer", "Directions", "Watch"]) {
     const action = label === "Watch" ? page.getByRole("button", { name: label, exact: true }).first() : page.getByRole("link", { name: label, exact: true }).first();
-    await expect(action).toBeVisible();
-    await action.hover();
-    await expect(action).toContainText(label);
-    await action.focus();
-    await expect(action).toBeFocused();
-    await expect(action).toContainText(label);
+    await expectReadableAction(action, label);
   }
-  await page.evaluate(() => document.documentElement.dataset.theme = "dark");
-  await expect(page.getByRole("link", { name: "View item", exact: true }).first()).toBeVisible();
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("button", { name: "Watch", exact: true }).first()).toBeVisible();
 });
 
 test("item detail renders map fallback, directions, distance, and location states", async ({ page }) => {
@@ -45,13 +72,33 @@ test("item detail renders map fallback, directions, distance, and location state
 });
 
 test("browser key loads an interactive labeled marker at verified coordinates", async ({ page }) => {
-  await page.route("https://maps.googleapis.com/**", (route) => route.fulfill({ contentType: "application/javascript", body: `window.__mapCalls=[]; window.google={maps:{Map:class{constructor(_el, options){window.__mapCalls.push(['map',options.center]);}setCenter(point){window.__mapCalls.push(['center',point]);}},Marker:class{constructor(options){window.__mapCalls.push(['marker',options.position,options.title]);}setMap(){}setPosition(point){window.__mapCalls.push(['position',point]);}setTitle(title){window.__mapCalls.push(['title',title]);}}}};` }));
+  await page.route("https://maps.googleapis.com/**", (route) => route.fulfill({ contentType: "application/javascript", body: `window.__mapCalls=[]; window.google={maps:{Map:class{constructor(_el, options){window.__mapCalls.push(['map',options.center]);}setCenter(point){window.__mapCalls.push(['center',point]);}},Marker:class{constructor(options){window.__mapCalls.push(['marker',options.position,options.title]);}setMap(){}setPosition(point){window.__mapCalls.push(['position',point]);}setTitle(title){window.__mapCalls.push(['title',title]);}setLabel(label){window.__mapCalls.push(['label',label.text]);}}}};` }));
   await page.route("**/api/items/map-item-1/price-comparison", (route) => route.fulfill({ json: { success: true, itemId: item.id, reason: "NO_COMPARABLES", comparison: { comparables: [] } } }));
   await page.route("**/api/items/map-item-1", (route) => route.fulfill({ json: item }));
   await page.goto("/items/map-item-1");
   await expect(page.locator('[data-map-status="ready"]')).toBeVisible();
   const calls = await page.evaluate(() => (window as typeof window & { __mapCalls: unknown[] }).__mapCalls);
   expect(calls).toContainEqual(["marker", { lat: 41.881832, lng: -87.623177 }, "Loop Pawn"]);
+});
+
+test("interactive marker refreshes when verified shop coordinates change", async ({ page }) => {
+  const updatedItem = { ...item, id: "map-item-2", shop: { ...item.shop, name: "Updated Loop Pawn", latitude: 41.9, longitude: -87.65 } };
+  await page.route("https://maps.googleapis.com/**", (route) => route.fulfill({ contentType: "application/javascript", body: `window.__mapCalls=[]; window.google={maps:{Map:class{constructor(_element,options){window.__mapCalls.push(['map',options.center]);}setCenter(point){window.__mapCalls.push(['center',point]);}},Marker:class{constructor(options){window.__mapCalls.push(['marker',options.position,options.title,options.label.text]);}setMap(){}setPosition(point){window.__mapCalls.push(['position',point]);}setTitle(title){window.__mapCalls.push(['title',title]);}setLabel(label){window.__mapCalls.push(['label',label.text]);}}}};` }));
+  await page.route("**/api/items/**", (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname.endsWith("/price-comparison")) return route.fulfill({ json: { success: true, reason: "NO_COMPARABLES", comparison: { comparables: [] } } });
+    return route.fulfill({ json: pathname.endsWith("map-item-2") ? updatedItem : item });
+  });
+  await page.goto("/items/map-item-1");
+  await expect(page.locator('[data-map-status="ready"]')).toBeVisible();
+  await page.evaluate(() => {
+    history.pushState({}, "", "/items/map-item-2");
+    dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page.getByRole("heading", { name: "Updated Loop Pawn" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __mapCalls: unknown[] }).__mapCalls)).toContainEqual(["marker", { lat: 41.9, lng: -87.65 }, "Updated Loop Pawn", "U"]);
+  const calls = await page.evaluate(() => (window as typeof window & { __mapCalls: unknown[] }).__mapCalls);
+  expect(calls).toContainEqual(["map", { lat: 41.9, lng: -87.65 }]);
 });
 
 for (const scenario of [
@@ -77,6 +124,20 @@ test("missing shop coordinates keeps address fallback and location action safe",
   await page.route("**/api/items/map-item-1", (route) => route.fulfill({ json: { ...item, shop: { ...item.shop, latitude: null, longitude: null } } }));
   await page.goto("/items/map-item-1");
   await expect(page.getByText("Shop map unavailable")).toBeVisible();
-  await expect(page.getByText("Ask the shop for directions before visiting.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open in Google Maps" })).toHaveAttribute("href", /123%20Main%20St%20Chicago/);
+  await expect(page.getByRole("link", { name: "Directions", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Use my location" })).toBeVisible();
+});
+
+test("missing browser geolocation is unavailable and retry can later succeed", async ({ page }) => {
+  await mockItem(page);
+  await page.goto("/items/map-item-1");
+  await page.evaluate(() => { Object.defineProperty(navigator, "geolocation", { configurable: true, value: undefined }); });
+  await page.getByRole("button", { name: "Use my location" }).click();
+  await expect(page.getByText("Location is not available in this browser.")).toBeVisible();
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition(success: PositionCallback) { success({ coords: { latitude: 41.89, longitude: -87.62, accuracy: 10 }, timestamp: Date.now() } as GeolocationPosition); } } });
+  });
+  await page.getByRole("button", { name: "Retry location" }).click();
+  await expect(page.getByText(/mi away/)).toBeVisible();
 });

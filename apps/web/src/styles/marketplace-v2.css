@@ -1420,12 +1420,16 @@
 }
 
 .marketplace-v2 .mp2-item-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
   gap: 10px !important;
 }
 
 /* Keep marketplace action labels intact across every interaction state. */
 .marketplace-v2 .mp2-item-actions :is(a, button) {
   width: auto !important;
+  min-width: max-content !important;
+  flex: 1 1 auto !important;
   max-width: none !important;
   overflow: visible !important;
   white-space: nowrap !important;
