@@ -89,6 +89,10 @@ export async function startMfaEnrollment({
       secret = createTotpSecret();
       const encryptedTotpSecret = encryptTotpSecret(secret, encryptionKey);
       if (existing) {
+        await tx.mfaChallenge.updateMany({
+          where: { userId, consumedAt: null },
+          data: { consumedAt: now, attemptsRemaining: 0 },
+        });
         await tx.userMfaRecoveryCode.updateMany({
           where: {
             credentialId: existing.id,
@@ -261,6 +265,10 @@ export async function regenerateMfaRecoveryCodes({
   await prismaClient.$transaction(async (tx) => {
     await lockCredential(tx, credentialId);
     const credential = await tx.userMfaCredential.findUnique({ where: { id: credentialId } });
+    await tx.mfaChallenge.updateMany({
+      where: { userId: credential.userId, consumedAt: null },
+      data: { consumedAt: now, attemptsRemaining: 0 },
+    });
     await tx.userMfaRecoveryCode.updateMany({
       where: { credentialId, consumedAt: null, invalidatedAt: null },
       data: { invalidatedAt: now },
@@ -327,6 +335,7 @@ export async function createMfaChallenge({
   attempts = 5,
   prismaClient = prisma,
   now = new Date(),
+  audit,
 }) {
   if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 300) {
     throw new Error("MFA challenge TTL must be between 1 and 300 seconds");
@@ -344,7 +353,7 @@ export async function createMfaChallenge({
     `;
     const currentUser = users[0];
     if (!currentUser) throw mfaError("MFA_NOT_FOUND", "MFA user not found");
-    return tx.mfaChallenge.create({
+    const created = await tx.mfaChallenge.create({
       data: {
         userId,
         purpose,
@@ -354,8 +363,94 @@ export async function createMfaChallenge({
         expiresAt: new Date(now.getTime() + ttlSeconds * 1000),
       },
     });
+    await createMfaAuditEvent(tx, {
+      event: "CHALLENGE_ISSUED", ...auditContext(userId, audit),
+      metadata: { outcome: "issued", purpose },
+    });
+    return created;
   });
   return { challenge, credential };
+}
+
+export async function invalidatePendingMfaChallenges({
+  userId, prismaClient = prisma, now = new Date(),
+}) {
+  return prismaClient.mfaChallenge.updateMany({
+    where: { userId, consumedAt: null },
+    data: { consumedAt: now, attemptsRemaining: 0 },
+  });
+}
+
+export async function completeLoginMfaChallenge({
+  credential,
+  method,
+  code,
+  encryptionKey,
+  audit,
+  prismaClient = prisma,
+  now = new Date(),
+  epochSeconds = Math.floor(now.getTime() / 1000),
+}) {
+  const credentialDigest = digestMfaValue(credential, encryptionKey);
+  return prismaClient.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw`
+      SELECT c."id", c."userId", c."credentialDigest", c."purpose", c."expiresAt",
+             c."attemptsRemaining", c."consumedAt", c."authVersion",
+             u."authVersion" AS "currentAuthVersion", u."isActive",
+             m."id" AS "mfaCredentialId", m."encryptedTotpSecret", m."enabledAt",
+             m."lastAcceptedTotpCounter"
+      FROM "MfaChallenge" c
+      JOIN "User" u ON u."id" = c."userId"
+      JOIN "UserMfaCredential" m ON m."userId" = c."userId"
+      WHERE c."credentialDigest" = ${credentialDigest}
+      FOR UPDATE OF c, m
+    `;
+    const challenge = rows[0];
+    if (!challenge || !matchesMfaDigest(credential, challenge.credentialDigest, encryptionKey)
+      || challenge.purpose !== "LOGIN" || challenge.consumedAt || challenge.expiresAt <= now
+      || challenge.attemptsRemaining < 1 || challenge.authVersion !== challenge.currentAuthVersion
+      || !challenge.isActive || !challenge.enabledAt) {
+      throw mfaError("MFA_CHALLENGE_INVALID", "MFA challenge is invalid");
+    }
+
+    if (method === "recovery_code") {
+      const codeDigest = digestMfaValue(code, encryptionKey);
+      const codes = await tx.$queryRaw`
+        SELECT "id", "codeDigest" FROM "UserMfaRecoveryCode"
+        WHERE "credentialId" = ${challenge.mfaCredentialId}
+          AND "codeDigest" = ${codeDigest} AND "consumedAt" IS NULL AND "invalidatedAt" IS NULL
+        FOR UPDATE
+      `;
+      const stored = codes[0];
+      if (!stored || !matchesMfaDigest(code, stored.codeDigest, encryptionKey)) {
+        throw mfaError("MFA_CODE_INVALID", "MFA code is invalid");
+      }
+      await tx.userMfaRecoveryCode.update({ where: { id: stored.id }, data: { consumedAt: now } });
+      await createMfaAuditEvent(tx, {
+        event: "RECOVERY_CODE_USED", ...auditContext(challenge.userId, audit),
+        metadata: { outcome: "succeeded", purpose: "LOGIN" },
+      });
+    } else {
+      const secret = decryptTotpSecret(challenge.encryptedTotpSecret, encryptionKey);
+      const verified = await verifyTotpCode({
+        secret, token: code, epochSeconds,
+        lastAcceptedCounter: challenge.lastAcceptedTotpCounter,
+      });
+      if (!verified.valid) throw mfaError("MFA_CODE_INVALID", "MFA code is invalid");
+      await tx.userMfaCredential.update({
+        where: { id: challenge.mfaCredentialId }, data: { lastAcceptedTotpCounter: verified.counter },
+      });
+    }
+    await tx.mfaChallenge.update({
+      where: { id: challenge.id }, data: { consumedAt: now, attemptsRemaining: 0 },
+    });
+    await createMfaAuditEvent(tx, {
+      event: "CHALLENGE_SUCCEEDED", ...auditContext(challenge.userId, audit),
+      metadata: { outcome: "succeeded", purpose: "LOGIN", method },
+    });
+    const user = await tx.user.findUnique({ where: { id: challenge.userId } });
+    return { user };
+  });
 }
 
 export async function completeMfaChallenge({

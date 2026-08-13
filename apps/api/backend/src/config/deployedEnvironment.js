@@ -312,6 +312,7 @@ export function validateDeployedEnvironment(env, { environment } = {}) {
   } catch (error) { violations.push(error.message); }
 
   const mfaMode = requireValue(env, "MFA_MODE", violations, { secret: false }).toLowerCase();
+  requireValue(env, "REDIS_URL", violations);
   try { loadMfaConfig(env); } catch (error) { violations.push(error.message); }
   const schedulers = validateScheduler(env, violations);
   const durableUploadsEnabled = validateDurableUploads(env, violations);

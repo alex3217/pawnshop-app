@@ -42,6 +42,16 @@ function otpauthUri({ secret, issuer, accountName }) {
   return `otpauth://totp/${encodeURIComponent(label)}?${query.toString()}`;
 }
 
+export async function requireMfaEnrollmentEligible(req, res, next) {
+  if (["SUPER_ADMIN", "ADMIN", "OWNER"].includes(req.user.role)) return next();
+  const shopAdmin = await prisma.staff.findFirst({
+    where: { userId: req.user.sub, status: "ACTIVE", role: "SHOP_ADMIN" },
+    select: { id: true },
+  });
+  if (!shopAdmin) return res.status(403).json({ error: "Forbidden" });
+  return next();
+}
+
 export async function getMfaEnrollmentStatus(req, res) {
   const config = enrollmentConfig();
   const credential = await prisma.userMfaCredential.findUnique({

@@ -54,7 +54,15 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      const { token, user } = await login(email, password);
+      const result = await login(email, password);
+      if ("mfaRequired" in result) {
+        nav(`/login/mfa${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`, {
+          replace: true,
+          state: { challenge: result.challenge, expiresInSeconds: result.expiresInSeconds },
+        });
+        return;
+      }
+      const { token, user } = result;
 
       persistAuth(token, user.role, user);
 

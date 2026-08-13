@@ -5,6 +5,7 @@ import { authRequired, requireRole } from "../middleware/auth.js";
 import {
   register,
   login,
+  completeLoginMfa,
   myShopAccess,
   me,
   refresh,
@@ -18,6 +19,7 @@ import {
   beginMfaEnrollment,
   confirmEnrollment,
   getMfaEnrollmentStatus,
+  requireMfaEnrollmentEligible,
 } from "../controllers/mfaEnrollment.controller.js";
 
 const router = Router();
@@ -39,6 +41,7 @@ router.post("/register", asyncRoute(register));
  * POST /api/auth/login
  */
 router.post("/login", asyncRoute(login));
+router.post("/mfa/challenge", asyncRoute(completeLoginMfa));
 router.post("/resend-verification", asyncRoute(resendVerification));
 router.post("/verify-email", asyncRoute(verifyEmail));
 router.post("/forgot-password", asyncRoute(forgotPassword));
@@ -79,20 +82,23 @@ function enrollmentLimiter(name) {
 router.get(
   "/mfa/status",
   authRequired,
-  requireRole("SUPER_ADMIN"),
+  requireRole("SUPER_ADMIN", "ADMIN", "OWNER", "CONSUMER"),
+  asyncRoute(requireMfaEnrollmentEligible),
   asyncRoute(getMfaEnrollmentStatus),
 );
 router.post(
   "/mfa/enrollment",
   authRequired,
-  requireRole("SUPER_ADMIN"),
+  requireRole("SUPER_ADMIN", "ADMIN", "OWNER", "CONSUMER"),
+  asyncRoute(requireMfaEnrollmentEligible),
   enrollmentLimiter("mfaEnrollmentStart"),
   asyncRoute(beginMfaEnrollment),
 );
 router.post(
   "/mfa/enrollment/confirm",
   authRequired,
-  requireRole("SUPER_ADMIN"),
+  requireRole("SUPER_ADMIN", "ADMIN", "OWNER", "CONSUMER"),
+  asyncRoute(requireMfaEnrollmentEligible),
   enrollmentLimiter("mfaEnrollmentConfirm"),
   asyncRoute(confirmEnrollment),
 );
@@ -111,6 +117,7 @@ router.post(
 export const AUTH_ROUTE_MAP = Object.freeze({
   register: "POST /api/auth/register",
   login: "POST /api/auth/login",
+  completeMfaLogin: "POST /api/auth/mfa/challenge",
   resendVerification: "POST /api/auth/resend-verification",
   verifyEmail: "POST /api/auth/verify-email",
   forgotPassword: "POST /api/auth/forgot-password",

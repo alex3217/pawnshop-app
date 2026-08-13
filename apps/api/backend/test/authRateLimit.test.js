@@ -11,6 +11,7 @@ import {
 import {
   createAuthRateLimiters,
   MemoryRateLimitStore,
+  RedisAuthRateLimitStore,
 } from "../src/middleware/authRateLimit.js";
 
 const SECRET = "rate-limit-tests-only-secret-with-enough-entropy";
@@ -63,6 +64,7 @@ function createTestApp({
       "/api/auth/reset-password",
       "/api/auth/resend-verification",
       "/api/auth/verify-email",
+      "/api/auth/mfa/challenge",
     ],
     (req, res) => {
       onRequest(req);
@@ -255,6 +257,7 @@ test("all repeatable public credential endpoints receive focused protection", as
     ["/api/auth/resend-verification", { email: "verify@example.com" }],
     ["/api/auth/reset-password", { token: "reset-secret", password: "unused" }],
     ["/api/auth/verify-email", { token: "verification-secret" }],
+    ["/api/auth/mfa/challenge", { challenge: "opaque-challenge", code: "123456" }],
   ]) {
     const { app } = createTestApp();
     assert.equal((await request(app).post(path).send(payload)).status, 200);
@@ -262,6 +265,62 @@ test("all repeatable public credential endpoints receive focused protection", as
     const limited = await request(app).post(path).send(payload);
     assert.equal(limited.status, 429, path);
     assert.match(limited.headers["retry-after"], /^\d+$/);
+  }
+});
+
+test("deployed authentication requires Redis while development and test allow memory", () => {
+  for (const runtime of ["production", "staging"]) {
+    assert.throws(
+      () => createAuthRateLimiters({ config: config(), env: { APP_ENV: runtime } }),
+      /REDIS_URL is required/,
+    );
+  }
+  for (const runtime of ["development", "test"]) {
+    const limiters = createAuthRateLimiters({ config: config(), env: { APP_ENV: runtime } });
+    assert.ok(limiters.store instanceof MemoryRateLimitStore);
+  }
+});
+
+test("Redis unavailability fails requests and readiness closed", async () => {
+  const unavailable = {
+    async increment() { throw new Error("redis unavailable"); },
+    async check() { throw new Error("redis unavailable"); },
+  };
+  const { app } = createTestApp({ store: unavailable });
+  const response = await request(app).post("/api/auth/mfa/challenge").send({
+    challenge: "opaque-challenge", code: "123456",
+  });
+  assert.equal(response.status, 503);
+  assert.equal(response.body.error, "Authentication protection is temporarily unavailable");
+  const limiters = createAuthRateLimiters({ config: config(), store: unavailable });
+  await assert.rejects(limiters.check(), /redis unavailable/);
+});
+
+test("Redis stores only fixed-format digests and reuses then closes its client", async () => {
+  const observedKeys = [];
+  let connects = 0;
+  let quits = 0;
+  const client = {
+    isReady: false,
+    isOpen: true,
+    async connect() { connects += 1; this.isReady = true; },
+    async eval(_script, { keys }) { observedKeys.push(...keys); return 1; },
+    async pTTL() { return 1_000; },
+    async ping() { return "PONG"; },
+    async quit() { quits += 1; this.isOpen = false; },
+  };
+  const store = new RedisAuthRateLimitStore({ client });
+  const sensitive = ["person@example.test", "opaque-challenge", "recovery-code", "123456", "jwt-token"];
+  await store.increment(sensitive.join(":"), 1_000);
+  await store.increment(sensitive.join(":"), 1_000);
+  await store.check();
+  await store.close();
+  assert.equal(connects, 1);
+  assert.equal(quits, 1);
+  assert.equal(observedKeys.length, 2);
+  for (const key of observedKeys) {
+    assert.match(key, /^auth:rate:[a-f0-9]{64}$/);
+    for (const value of sensitive) assert.equal(key.includes(value), false);
   }
 });
 

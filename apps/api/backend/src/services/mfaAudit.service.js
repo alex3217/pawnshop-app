@@ -1,6 +1,7 @@
 const MFA_AUDIT_ACTIONS = Object.freeze({
   ENROLLMENT_STARTED: "MFA_ENROLLMENT_STARTED",
   MFA_ENABLED: "MFA_ENABLED",
+  CHALLENGE_ISSUED: "MFA_CHALLENGE_ISSUED",
   CHALLENGE_SUCCEEDED: "MFA_CHALLENGE_SUCCEEDED",
   CHALLENGE_FAILED: "MFA_CHALLENGE_FAILED",
   RECOVERY_CODE_USED: "MFA_RECOVERY_CODE_USED",
@@ -25,7 +26,7 @@ const SAFE_METADATA_KEYS = new Set([
 
 const SAFE_STRING_VALUES = Object.freeze({
   outcome: new Set([
-    "started", "enabled", "succeeded", "failed", "used", "regenerated",
+    "started", "enabled", "issued", "succeeded", "failed", "used", "regenerated",
     "disabled", "reset", "invalidated", "enforced",
   ]),
   reason: new Set([
