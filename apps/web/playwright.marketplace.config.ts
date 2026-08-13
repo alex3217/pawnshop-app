@@ -34,7 +34,7 @@ export default defineConfig({
 
   webServer: {
     command:
-      "VITE_STRIPE_PUBLISHABLE_KEY=pk_test_marketplace_browser_only npm run dev -- --host 127.0.0.1 --port 5186 --strictPort",
+      "VITE_STRIPE_PUBLISHABLE_KEY=pk_test_marketplace_browser_only VITE_GOOGLE_MAPS_BROWSER_API_KEY=test_browser_key npm run dev -- --host 127.0.0.1 --port 5186 --strictPort",
 
     url:
       "http://127.0.0.1:5186",

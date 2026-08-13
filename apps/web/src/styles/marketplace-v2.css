@@ -1422,6 +1422,32 @@
 .marketplace-v2 .mp2-item-actions {
   gap: 10px !important;
 }
+
+/* Keep marketplace action labels intact across every interaction state. */
+.marketplace-v2 .mp2-item-actions :is(a, button) {
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  font-size: 13px !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: currentColor !important;
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+.marketplace-v2 .mp2-item-actions .mp2-primary-small,
+.marketplace-v2 .mp2-item-actions .mp2-primary-small:visited {
+  background: #0f172a !important;
+  color: #fff !important;
+}
+.marketplace-v2 .mp2-item-actions .mp2-secondary-small,
+.marketplace-v2 .mp2-item-actions .mp2-secondary-small:visited { background: #e2e8f0 !important; color: #0f172a !important; }
+.marketplace-v2 .mp2-item-actions :is(a, button):hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); }
+.marketplace-v2 .mp2-item-actions :is(a, button):active:not(:disabled) { transform: translateY(0); filter: brightness(.94); }
+.marketplace-v2 .mp2-item-actions :is(a, button):focus-visible { outline: 3px solid #f59e0b !important; outline-offset: 3px; }
+.marketplace-v2 .mp2-item-actions button:disabled { opacity: 1 !important; background: #cbd5e1 !important; color: #334155 !important; }
+:root[data-theme="dark"] .marketplace-v2 .mp2-item-actions .mp2-primary-small { background: #6366f1 !important; color: #fff !important; }
+:root[data-theme="dark"] .marketplace-v2 .mp2-item-actions .mp2-secondary-small { background: #334155 !important; color: #f8fafc !important; }
+:root[data-theme="dark"] .marketplace-v2 .mp2-item-actions button:disabled { background: #475569 !important; color: #e2e8f0 !important; }
 /* END Marketplace tap-target polish. */
 
 /* Marketplace item-title tap-target polish.
