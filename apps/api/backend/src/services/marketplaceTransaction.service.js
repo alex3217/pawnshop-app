@@ -704,7 +704,6 @@ export async function reserveMarketplacePurchase({
   try {
     return await prisma.$transaction(
       async (tx) => {
-        if (typeof tx.$queryRaw === "function") await tx.$queryRaw`SELECT id FROM "MarketplaceListing" WHERE id = ${normalizedListingId} FOR UPDATE`;
         const buyer = await tx.user.findUnique({
           where: {
             id: normalizedBuyerUserId,

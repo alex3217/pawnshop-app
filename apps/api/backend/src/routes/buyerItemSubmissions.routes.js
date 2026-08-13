@@ -15,13 +15,12 @@ import {
   withdrawBuyerItemSubmission,
 } from "../controllers/buyerItemSubmissions.controller.js";
 import {
-  declineOpportunity, distribute, getConversation, searchShops,
-  sellerDashboard, sendMessage, shopOpportunities, viewOpportunity,
+  declineOpportunity, distribute, searchShops,
+  sellerDashboard, shopOpportunities, viewOpportunity,
 } from "../controllers/submissionDistribution.controller.js";
 
 const router = express.Router();
 const distributionLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
-const submissionMessageLimiter = rateLimit({ windowMs: 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false });
 
 router.post("/", authRequired, requireRole("CONSUMER", "ADMIN"), createBuyerItemSubmission);
 
@@ -56,8 +55,6 @@ router.post("/:id/offers", authRequired, requireRole("OWNER", "ADMIN"), createBu
 router.get("/offers/mine", authRequired, requireRole("CONSUMER", "ADMIN"), getMyBuyerItemSubmissionOffers);
 router.patch("/offers/:offerId/accept", authRequired, requireRole("CONSUMER", "ADMIN"), acceptBuyerItemSubmissionOffer);
 router.patch("/offers/:offerId/reject", authRequired, requireRole("CONSUMER", "ADMIN"), rejectBuyerItemSubmissionOffer);
-router.get("/conversations/:conversationId", authRequired, getConversation);
-router.post("/conversations/:conversationId/messages", authRequired, submissionMessageLimiter, sendMessage);
 
 
 export default router;

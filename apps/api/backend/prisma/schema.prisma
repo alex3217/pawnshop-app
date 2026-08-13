@@ -755,9 +755,9 @@ model BuyerItemSubmissionTarget {
   createdAt    DateTime                        @default(now())
   updatedAt    DateTime                        @updatedAt
 
-  submission    BuyerItemSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  shop          PawnShop            @relation(fields: [shopId], references: [id], onDelete: Restrict)
-  conversations ShopConversation[]
+  submission   BuyerItemSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  shop         PawnShop            @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  conversation ShopConversation?
 
   @@unique([submissionId, shopId])
   @@index([shopId, status, createdAt])
@@ -1802,7 +1802,7 @@ model ShopConversation {
   subject                     String
   contactReason               ShopContactReason
   buyerItemSubmissionId       String?
-  buyerItemSubmissionTargetId String?
+  buyerItemSubmissionTargetId String?                @unique
   marketplaceListingId        String?
   itemId                      String?
   offerId                     String?

@@ -21,7 +21,7 @@ function distanceMiles(aLat, aLon, bLat, bLon) {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(radians(aLat)) * Math.cos(radians(bLat)) * Math.sin(dLon / 2) ** 2;
   return 3958.8 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
-function publicShopWhere() { return { isDeleted: false, subscriptionStatus: "ACTIVE" }; }
+function publicShopWhere() { return { isDeleted: false, isActive: true, isPublic: true, subscriptionStatus: "ACTIVE" }; }
 const SHOP_SELECT = { id: true, name: true, address: true, city: true, state: true, zip: true, latitude: true, longitude: true, phone: true, description: true, ownerId: true };
 
 export async function selectedShopLimit(client = prisma) {
@@ -108,9 +108,15 @@ export async function distributeSubmission({ submissionId, sellerId, mode, shopI
     const now = new Date();
     const targetRows = requestedIds.length ? await Promise.all(requestedIds.map((shopId) => tx.buyerItemSubmissionTarget.create({ data: { submissionId, shopId, status: "DELIVERED", deliveredAt: now } }))) : [];
     for (const target of targetRows) {
-      await tx.buyerItemSubmissionConversation.create({ data: { submissionId, shopId: target.shopId, targetId: target.id } });
-      const shop = await tx.pawnShop.findUnique({ where: { id: target.shopId }, select: { ownerId: true } });
-      await notify(tx, { userId: shop.ownerId, type: "SELLER_ITEM_TARGETED", title: "A seller offered an item to your shop", message: submission.title, actionUrl: `/owner/submissions?shopId=${target.shopId}`, dedupeKey: `submission-target:${target.id}` });
+      const conversation = await tx.shopConversation.upsert({
+        where: { buyerItemSubmissionTargetId: target.id },
+        create: { shopId: target.shopId, sellerUserId: sellerId, subject: `Item opportunity: ${submission.title}`.slice(0, 120), contactReason: "PAWN_ITEM", buyerItemSubmissionId: submissionId, buyerItemSubmissionTargetId: target.id, sellerLastReadAt: now },
+        update: {},
+      });
+      await tx.shopConversationAuditEvent.create({ data: { conversationId: conversation.id, actorUserId: sellerId, action: "TARGET_DISTRIBUTED", metadata: { submissionId, targetId: target.id } } });
+      const shop = await tx.pawnShop.findUnique({ where: { id: target.shopId }, select: { ownerId: true, staffMembers: { where: { status: "ACTIVE", permissions: { has: "messages:read" } }, select: { userId: true } } } });
+      const recipients = [...new Set([shop.ownerId, ...shop.staffMembers.map((member) => member.userId)].filter(Boolean))];
+      await tx.notification.createMany({ data: recipients.map((userId) => ({ userId, type: "SELLER_ITEM_TARGETED", title: "A seller offered an item to your shop", message: submission.title, actionUrl: `/owner/messages/${conversation.id}`, dedupeKey: `submission-target:${target.id}:${userId}` })), skipDuplicates: true });
       await audit(tx, { submissionId, targetId: target.id, shopId: target.shopId, actorUserId: sellerId, eventType: "DISTRIBUTION_DELIVERED", idempotencyKey: `target-delivered:${target.id}`, data: { distributionMode } });
     }
     await audit(tx, { submissionId, actorUserId: sellerId, eventType: "DISTRIBUTION_CREATED", idempotencyKey: idempotencyKey || `distribution:${submissionId}`, data: { distributionMode, targetCount: targetRows.length, marketplaceListingId: listing?.id || null } });
@@ -137,6 +143,24 @@ export async function closeDistribution({ tx, submissionId, actorUserId, reason,
       await notify(tx, { userId: shop.ownerId, type: "SELLER_OPPORTUNITY_CLOSED", title: "Item opportunity closed", message: "The item is no longer available through this channel.", actionUrl: `/owner/submissions?shopId=${target.shopId}`, dedupeKey: `target-closed:${target.id}:${reason}` });
     }
   }
+}
+
+export async function expireDistributionIfNeeded(submissionId) {
+  const candidate = await prisma.buyerItemSubmission.findUnique({ where: { id: submissionId }, select: { id: true, distributionExpiresAt: true, closedAt: true } });
+  if (!candidate?.distributionExpiresAt || candidate.closedAt || candidate.distributionExpiresAt > new Date()) return false;
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "BuyerItemSubmission" WHERE id = ${submissionId} FOR UPDATE`;
+    const submission = await tx.buyerItemSubmission.findUnique({ where: { id: submissionId }, include: { marketplaceListing: true } });
+    if (!submission?.distributionExpiresAt || submission.closedAt || submission.distributionExpiresAt > new Date()) return false;
+    const now = new Date();
+    await tx.buyerItemSubmissionOffer.updateMany({ where: { submissionId, status: "PENDING" }, data: { status: "REJECTED", respondedAt: now } });
+    await closeDistribution({ tx, submissionId, actorUserId: null, reason: "DISTRIBUTION_EXPIRED" });
+    if (submission.marketplaceListingId && !["SOLD", "RESERVED"].includes(submission.marketplaceListing?.status)) await tx.marketplaceListing.update({ where: { id: submission.marketplaceListingId }, data: { status: "EXPIRED" } });
+    await audit(tx, { submissionId, actorUserId: null, eventType: "DISTRIBUTION_EXPIRED", idempotencyKey: `submission-expired:${submissionId}`, data: {} });
+    await notify(tx, { userId: submission.buyerId, type: "SUBMISSION_DISTRIBUTION_EXPIRED", title: "Your item opportunity expired", message: submission.title, actionUrl: `/buyer/sell-item?submissionId=${submissionId}`, dedupeKey: `submission-expired:${submissionId}` });
+    await tx.buyerItemSubmission.update({ where: { id: submissionId }, data: { status: "CLOSED", closedAt: now } });
+    return true;
+  }, { isolationLevel: "Serializable" });
 }
 
 export { problem, audit, notify, SHOP_SELECT };

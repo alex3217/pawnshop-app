@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { audit, assertTargetShopAccess, distributeSubmission, notify, searchDistributionShops, selectedShopLimit } from "../services/submissionDistribution.service.js";
+import { audit, assertTargetShopAccess, distributeSubmission, expireDistributionIfNeeded, notify, searchDistributionShops, selectedShopLimit } from "../services/submissionDistribution.service.js";
 
 const id = (req) => String(req.user?.id || req.user?.sub || req.user?.userId || "").trim();
 const value = (input) => String(input ?? "").trim();
@@ -26,6 +26,7 @@ export async function distribute(req, res) {
 export async function sellerDashboard(req, res) {
   try {
     const sellerId = id(req); const submissionId = value(req.params.id);
+    await expireDistributionIfNeeded(submissionId);
     const submission = await prisma.buyerItemSubmission.findFirst({
       where: { id: submissionId, buyerId: sellerId },
       include: {
@@ -45,6 +46,8 @@ export async function shopOpportunities(req, res) {
   try {
     const shopId = value(req.query?.shopId);
     await assertTargetShopAccessForList(req.user, shopId);
+    const expiring = await prisma.buyerItemSubmissionTarget.findMany({ where: { shopId, submission: { distributionExpiresAt: { lte: new Date() }, closedAt: null } }, select: { submissionId: true } });
+    for (const row of expiring) await expireDistributionIfNeeded(row.submissionId);
     const targets = await prisma.buyerItemSubmissionTarget.findMany({ where: { shopId }, include: { submission: true, conversation: { select: { id: true, messages: { where: { senderUserId: { not: id(req) }, readAt: null }, select: { id: true } } } } }, orderBy: { createdAt: "desc" }, take: 100 });
     return res.json({ success: true, opportunities: targets.map((target) => ({ ...target, submission: { ...target.submission, marketplaceListingId: undefined }, unreadMessageCount: target.conversation?.messages.length || 0 })) });
   } catch (error) { return send(res, error); }
@@ -85,37 +88,5 @@ export async function declineOpportunity(req, res) {
       return updated;
     });
     return res.json({ success: true, target: result });
-  } catch (error) { return send(res, error); }
-}
-
-async function conversationAccess(req, conversationId, write = false) {
-  const conversation = await prisma.buyerItemSubmissionConversation.findUnique({ where: { id: conversationId }, include: { submission: { select: { buyerId: true } }, target: true } });
-  if (!conversation) throw Object.assign(new Error("Conversation not found"), { statusCode: 404 });
-  const userId = id(req);
-  if (conversation.submission.buyerId === userId) return { conversation, userId, seller: true };
-  await assertTargetShopAccess({ user: req.user, submissionId: conversation.submissionId, shopId: conversation.shopId, permission: write ? "offers:write" : "offers:read" });
-  return { conversation, userId, seller: false };
-}
-export async function getConversation(req, res) {
-  try {
-    const access = await conversationAccess(req, value(req.params.conversationId));
-    await prisma.buyerItemSubmissionMessage.updateMany({ where: { conversationId: access.conversation.id, senderUserId: { not: access.userId }, readAt: null }, data: { readAt: new Date() } });
-    const messages = await prisma.buyerItemSubmissionMessage.findMany({ where: { conversationId: access.conversation.id }, orderBy: { createdAt: "asc" }, select: { id: true, senderUserId: true, body: true, readAt: true, createdAt: true } });
-    return res.json({ success: true, conversation: { id: access.conversation.id, submissionId: access.conversation.submissionId, shopId: access.conversation.shopId }, messages });
-  } catch (error) { return send(res, error); }
-}
-export async function sendMessage(req, res) {
-  try {
-    const access = await conversationAccess(req, value(req.params.conversationId), true); const body = value(req.body?.body);
-    if (!body || body.length > 2000) return res.status(400).json({ success: false, error: "Message must be between 1 and 2000 characters" });
-    const message = await prisma.$transaction(async (tx) => {
-      const created = await tx.buyerItemSubmissionMessage.create({ data: { conversationId: access.conversation.id, senderUserId: access.userId, body } });
-      await tx.buyerItemSubmissionConversation.update({ where: { id: access.conversation.id }, data: { updatedAt: new Date() } });
-      await audit(tx, { submissionId: access.conversation.submissionId, targetId: access.conversation.targetId, shopId: access.conversation.shopId, actorUserId: access.userId, eventType: "MESSAGE_SENT", idempotencyKey: `message-sent:${created.id}`, data: {} });
-      const recipientId = access.seller ? (await tx.pawnShop.findUnique({ where: { id: access.conversation.shopId }, select: { ownerId: true } })).ownerId : access.conversation.submission.buyerId;
-      await notify(tx, { userId: recipientId, type: "SUBMISSION_MESSAGE", title: "New private item message", message: body.slice(0, 160), actionUrl: access.seller ? `/owner/submissions?shopId=${access.conversation.shopId}` : `/buyer/sell-item?submissionId=${access.conversation.submissionId}`, dedupeKey: `submission-message:${created.id}` });
-      return created;
-    });
-    return res.status(201).json({ success: true, message });
   } catch (error) { return send(res, error); }
 }

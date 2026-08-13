@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PrismaClient } from "@prisma/client";
-import { assertTargetShopAccess, distributeSubmission, searchDistributionShops } from "../src/services/submissionDistribution.service.js";
+import { assertTargetShopAccess, distributeSubmission, expireDistributionIfNeeded, searchDistributionShops } from "../src/services/submissionDistribution.service.js";
 import { acceptSubmissionOffer } from "../src/services/customerSellTransaction.service.js";
 import { reserveMarketplacePurchase } from "../src/services/marketplaceTransaction.service.js";
 
@@ -15,9 +15,32 @@ test("one-shop targeting creates one durable target, private conversation, notif
   const seller = await user("seller-one"); const owner = await user("owner-one", "OWNER"); const targetShop = await shop(owner.id, 1); const item = await submission(seller.id);
   const result = await distributeSubmission({ submissionId: item.id, sellerId: seller.id, mode: "ONE_SHOP", shopIds: [targetShop.id], idempotencyKey: `one:${run}` });
   assert.equal(result.targets.length, 1); assert.equal(result.targets[0].status, "DELIVERED");
-  assert.equal(await prisma.buyerItemSubmissionConversation.count({ where: { submissionId: item.id, shopId: targetShop.id } }), 1);
-  assert.equal(await prisma.notification.count({ where: { dedupeKey: `submission-target:${result.targets[0].id}` } }), 1);
+  const conversation = await prisma.shopConversation.findUnique({ where: { buyerItemSubmissionTargetId: result.targets[0].id } });
+  assert.equal(conversation.buyerItemSubmissionId, item.id); assert.equal(conversation.shopId, targetShop.id); assert.equal(conversation.sellerUserId, seller.id);
+  assert.equal(await prisma.notification.count({ where: { dedupeKey: `submission-target:${result.targets[0].id}:${owner.id}` } }), 1);
   assert.equal(await prisma.buyerItemSubmissionAuditEvent.count({ where: { submissionId: item.id } }), 2);
+});
+
+test("distribution retries are idempotent for targets, canonical conversations, notifications, and audits", async () => {
+  const seller = await user("seller-retry"); const owner = await user("owner-retry", "OWNER"); const targetShop = await shop(owner.id, 16); const item = await submission(seller.id, "retry"); const key = `retry:${run}`;
+  const first = await distributeSubmission({ submissionId: item.id, sellerId: seller.id, mode: "ONE_SHOP", shopIds: [targetShop.id], idempotencyKey: key });
+  const replay = await distributeSubmission({ submissionId: item.id, sellerId: seller.id, mode: "ONE_SHOP", shopIds: [targetShop.id], idempotencyKey: key });
+  assert.equal(replay.id, first.id);
+  assert.equal(await prisma.buyerItemSubmissionTarget.count({ where: { submissionId: item.id } }), 1);
+  assert.equal(await prisma.shopConversation.count({ where: { buyerItemSubmissionId: item.id } }), 1);
+  assert.equal(await prisma.notification.count({ where: { dedupeKey: `submission-target:${first.targets[0].id}:${owner.id}` } }), 1);
+  assert.equal(await prisma.buyerItemSubmissionAuditEvent.count({ where: { submissionId: item.id } }), 2);
+});
+
+test("expired distributions close targets, offers, and canonical marketplace availability idempotently", async () => {
+  const seller = await user("seller-expire"); const owner = await user("owner-expire", "OWNER"); const targetShop = await shop(owner.id, 17); const item = await submission(seller.id, "expire");
+  const distributed = await distributeSubmission({ submissionId: item.id, sellerId: seller.id, mode: "SELECTED_SHOPS_AND_MARKETPLACE", shopIds: [targetShop.id], marketplace: { price: 125, quantity: 1, pickupAvailable: true }, expiresAt: new Date(Date.now() - 60_000).toISOString() });
+  const offer = await prisma.buyerItemSubmissionOffer.create({ data: { submissionId: item.id, shopId: targetShop.id, ownerId: owner.id, amount: "90.00" } });
+  assert.equal(await expireDistributionIfNeeded(item.id), true); assert.equal(await expireDistributionIfNeeded(item.id), false);
+  assert.equal((await prisma.buyerItemSubmissionTarget.findFirst({ where: { submissionId: item.id } })).status, "CLOSED");
+  assert.equal((await prisma.buyerItemSubmissionOffer.findUnique({ where: { id: offer.id } })).status, "REJECTED");
+  assert.equal((await prisma.marketplaceListing.findUnique({ where: { id: distributed.marketplaceListingId } })).status, "EXPIRED");
+  assert.equal(await prisma.buyerItemSubmissionAuditEvent.count({ where: { submissionId: item.id, eventType: "DISTRIBUTION_EXPIRED" } }), 1);
 });
 
 test("multi-shop selection rejects duplicates, inactive/deleted shops, and the configurable limit", async () => {

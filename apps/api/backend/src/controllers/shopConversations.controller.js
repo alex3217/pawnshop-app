@@ -117,8 +117,16 @@ export async function createConversation(req, res) {
         conversation = await tx.shopConversation.update({ where: { id: conversation.id }, data: { status: "OPEN", sellerLastReadAt: new Date() } });
         await tx.shopConversationAuditEvent.create({ data: { conversationId: conversation.id, actorUserId: sellerUserId, action: "REOPENED" } });
       } else {
-        conversation = await tx.shopConversation.create({ data: { shopId, sellerUserId, subject, contactReason, sellerLastReadAt: new Date(), ...context } });
-        await tx.shopConversationAuditEvent.create({ data: { conversationId: conversation.id, actorUserId: sellerUserId, action: "CREATED" } });
+        conversation = context.buyerItemSubmissionTargetId
+          ? await tx.shopConversation.findUnique({ where: { buyerItemSubmissionTargetId: context.buyerItemSubmissionTargetId } })
+          : null;
+        if (conversation) {
+          if (conversation.sellerUserId !== sellerUserId || conversation.shopId !== shopId || conversation.status === "BLOCKED") throw httpError(409, "This targeted conversation cannot be reused.");
+          if (conversation.status === "CLOSED") conversation = await tx.shopConversation.update({ where: { id: conversation.id }, data: { status: "OPEN", sellerLastReadAt: new Date() } });
+        } else {
+          conversation = await tx.shopConversation.create({ data: { shopId, sellerUserId, subject, contactReason, sellerLastReadAt: new Date(), ...context } });
+          await tx.shopConversationAuditEvent.create({ data: { conversationId: conversation.id, actorUserId: sellerUserId, action: "CREATED" } });
+        }
       }
       const message = await tx.shopMessage.create({ data: { conversationId: conversation.id, senderUserId: sellerUserId, body, idempotencyKey } });
       await createNotifications(tx, { ...conversation, shop }, "SELLER", message.id);
