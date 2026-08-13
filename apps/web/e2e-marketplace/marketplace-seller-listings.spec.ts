@@ -72,7 +72,7 @@ function listingRecord(
       2,
 
     images:
-      [],
+      ["https://assets.invalid/listing.jpg"],
 
     allowOffers:
       true,

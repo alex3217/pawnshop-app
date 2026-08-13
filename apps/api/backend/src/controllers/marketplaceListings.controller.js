@@ -453,6 +453,16 @@ function assertRequiredListingData(data, existing = null) {
   }
 }
 
+function assertShopToCustomerHasPhoto(data, existing = null) {
+  const listingType = data.listingType ?? existing?.listingType;
+  const images = data.images ?? existing?.images ?? [];
+  if (listingType === "SHOP_TO_CUSTOMER" && (!Array.isArray(images) || images.length === 0)) {
+    const error = new Error("At least one photo is required to publish a shop-to-customer listing");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
 
 export async function createMarketplaceListing(req, res) {
   try {
@@ -944,6 +954,7 @@ export async function publishMarketplaceListing(req, res) {
     }
 
     assertRequiredListingData({}, existing);
+    assertShopToCustomerHasPhoto({}, existing);
 
     const listing = await prisma.marketplaceListing.update({
       where: {

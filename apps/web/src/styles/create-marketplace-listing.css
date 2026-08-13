@@ -145,6 +145,12 @@
   color: var(--text-strong);
 }
 
+.create-listing-photo-requirement {
+  margin: 12px 0 0;
+  color: var(--danger);
+  font-weight: 750;
+}
+
 .create-listing-field-grid {
   display: grid;
   grid-template-columns:
@@ -217,6 +223,29 @@
 .create-listing-checkbox-grid input {
   width: 20px;
   min-height: 20px;
+}
+
+@media (max-width: 640px) {
+  .create-marketplace-listing-page {
+    width: min(100% - 1rem, 1060px);
+    padding-top: 12px;
+  }
+
+  .create-listing-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .create-listing-field-grid .wide {
+    grid-column: auto;
+  }
+
+  .create-listing-submit-row {
+    align-items: stretch;
+  }
+
+  .create-listing-submit-row :is(a, button) {
+    flex: 1;
+  }
 }
 
 .create-listing-help {

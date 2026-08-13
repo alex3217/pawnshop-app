@@ -15,19 +15,11 @@ import {
   updateMarketplaceListing,
   type MarketplaceListing,
 } from "../services/marketplaceListings";
+import ItemImagePicker from "../components/ItemImagePicker";
+import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
+import { durableImageUrls, normalizeListingOption, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
 
 import "../styles/create-marketplace-listing.css";
-
-function parseImages(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split(/[\n,]/)
-        .map((image) => image.trim())
-        .filter(Boolean),
-    ),
-  ).slice(0, 20);
-}
 
 function toLocalDateTime(
   value?: string | null,
@@ -128,9 +120,11 @@ export default function EditMarketplaceListingPage() {
   ] = useState("1");
 
   const [
-    imageUrls,
-    setImageUrls,
-  ] = useState("");
+    existingImages,
+    setExistingImages,
+  ] = useState<string[]>([]);
+
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
 
   const [
     allowOffers,
@@ -216,13 +210,9 @@ export default function EditMarketplaceListingPage() {
           found.description || "",
         );
 
-        setCategory(
-          found.category || "",
-        );
+        setCategory(normalizeListingOption(found.category || "", ITEM_CATEGORY_OPTIONS, "Other"));
 
-        setCondition(
-          found.condition || "",
-        );
+        setCondition(normalizeListingOption(found.condition || "", ITEM_CONDITION_OPTIONS, "Good"));
 
         setPrice(
           String(
@@ -236,13 +226,7 @@ export default function EditMarketplaceListingPage() {
           ),
         );
 
-        setImageUrls(
-          Array.isArray(
-            found.images,
-          )
-            ? found.images.join("\n")
-            : "",
-        );
+        setExistingImages(durableImageUrls(Array.isArray(found.images) ? found.images : []));
 
         setAllowOffers(
           found.allowOffers,
@@ -314,6 +298,16 @@ export default function EditMarketplaceListingPage() {
       return;
     }
 
+    if (!ITEM_CATEGORY_OPTIONS.includes(category as (typeof ITEM_CATEGORY_OPTIONS)[number])) {
+      setError("Select a valid category.");
+      return;
+    }
+
+    if (!ITEM_CONDITION_OPTIONS.includes(condition as (typeof ITEM_CONDITION_OPTIONS)[number])) {
+      setError("Select a valid condition.");
+      return;
+    }
+
     const parsedPrice =
       Number(price);
 
@@ -374,6 +368,7 @@ export default function EditMarketplaceListingPage() {
     setSubmitting(true);
 
     try {
+      const images = await persistMarketplaceListingPhotos(listing.itemId || "", existingImages, photoFiles);
       await updateMarketplaceListing(
         listing.id,
         {
@@ -383,13 +378,9 @@ export default function EditMarketplaceListingPage() {
             description.trim() ||
             null,
 
-          category:
-            category.trim() ||
-            null,
+          category,
 
-          condition:
-            condition.trim() ||
-            null,
+          condition,
 
           price:
             parsedPrice,
@@ -401,10 +392,7 @@ export default function EditMarketplaceListingPage() {
           quantity:
             parsedQuantity,
 
-          images:
-            parseImages(
-              imageUrls,
-            ),
+          images,
 
           allowOffers,
           pickupAvailable,
@@ -561,14 +549,17 @@ export default function EditMarketplaceListingPage() {
                 Category
               </span>
 
-              <input
+              <select
                 value={category}
                 onChange={(event) =>
                   setCategory(
                     event.target.value,
                   )
                 }
-              />
+                required
+              >
+                {ITEM_CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
             </label>
 
             <label>
@@ -576,14 +567,17 @@ export default function EditMarketplaceListingPage() {
                 Condition
               </span>
 
-              <input
+              <select
                 value={condition}
                 onChange={(event) =>
                   setCondition(
                     event.target.value,
                   )
                 }
-              />
+                required
+              >
+                {ITEM_CONDITION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
             </label>
 
             <label className="wide">
@@ -671,22 +665,19 @@ export default function EditMarketplaceListingPage() {
             Photos
           </h2>
 
-          <label>
-            <span>
-              Image URLs
-            </span>
-
-            <textarea
-              value={imageUrls}
-              onChange={(event) =>
-                setImageUrls(
-                  event.target.value,
-                )
-              }
-              rows={5}
-              placeholder="Enter one image URL per line"
-            />
-          </label>
+          <ItemImagePicker
+            files={photoFiles}
+            onChange={setPhotoFiles}
+            existingImages={existingImages}
+            onRemoveExisting={(url) => setExistingImages((current) => current.filter((image) => image !== url))}
+            disabled={submitting || !listing.itemId}
+            disabledReason={!listing.itemId ? "This listing is not linked to inventory. Link it before adding new durable photos." : ""}
+            cameraLabel="Take Photo"
+            galleryLabel="Choose Files"
+          />
+          {listing.listingType === "SHOP_TO_CUSTOMER" && existingImages.length + photoFiles.length === 0 ? (
+            <p className="create-listing-photo-requirement" role="status">A photo is required before this draft can be published to customers.</p>
+          ) : null}
         </section>
 
         <section className="create-listing-panel">

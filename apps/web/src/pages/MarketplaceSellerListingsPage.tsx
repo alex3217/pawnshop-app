@@ -535,6 +535,12 @@ export default function MarketplaceSellerListingsPage() {
     listing: MarketplaceListing,
     action: ListingAction,
   ) {
+    if (action === "publish" && listing.listingType === "SHOP_TO_CUSTOMER" && !(listing.images || []).length) {
+      setError("Add at least one photo before publishing this shop-to-customer listing.");
+      setNotice("");
+      return;
+    }
+
     if (
       action === "cancel" &&
       !window.confirm(
@@ -1014,20 +1020,19 @@ export default function MarketplaceSellerListingsPage() {
                       ) : null}
 
                       {canPublish(listing.status) ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void runAction(
-                              listing,
-                              "publish",
-                            )
-                          }
-                          disabled={actionKey !== null}
-                        >
-                          {actionKey === `${listing.id}:publish`
-                            ? "Publishing..."
-                            : "Publish"}
-                        </button>
+                        <div className="seller-listing-publish-action">
+                          <button
+                            type="button"
+                            onClick={() => void runAction(listing, "publish")}
+                            disabled={actionKey !== null || (listing.listingType === "SHOP_TO_CUSTOMER" && !(listing.images || []).length)}
+                            aria-describedby={listing.listingType === "SHOP_TO_CUSTOMER" && !(listing.images || []).length ? `photo-required-${listing.id}` : undefined}
+                          >
+                            {actionKey === `${listing.id}:publish` ? "Publishing..." : "Publish"}
+                          </button>
+                          {listing.listingType === "SHOP_TO_CUSTOMER" && !(listing.images || []).length ? (
+                            <span id={`photo-required-${listing.id}`} className="seller-listing-requirement">Add a photo to publish.</span>
+                          ) : null}
+                        </div>
                       ) : null}
 
                       {canPause(listing.status) ? (
