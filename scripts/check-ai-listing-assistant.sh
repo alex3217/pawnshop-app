@@ -32,18 +32,41 @@ fi
 
 echo "✅ Owner login"
 
+SHOP_ID="$(
+  curl -sS "$BASE_URL/shops/mine" \
+    -H "Authorization: Bearer $TOKEN" \
+    | node -e '
+      let s="";
+      process.stdin.on("data", d => s += d);
+      process.stdin.on("end", () => {
+        try {
+          const j = JSON.parse(s);
+          const shops = Array.isArray(j) ? j : j.shops || j.data?.shops || j.data || [];
+          process.stdout.write(String(shops[0]?.id || ""));
+        } catch { process.stdout.write(""); }
+      });
+    '
+)"
+
+if [ -z "$SHOP_ID" ]; then
+  echo "❌ Owner has no managed shop for the AI inventory smoke test."
+  exit 1
+fi
+
 RESPONSE="$(
   curl -sS -X POST "$BASE_URL/ai/listing-assistant" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
-    -d '{
-      "title": "used dewalt drill",
-      "description": "works good comes with battery",
-      "price": "89",
-      "category": "Tools",
-      "condition": "Good",
-      "shopName": "Smoke Test Shop"
-    }'
+    -d "{
+      \"context\": \"INVENTORY_ITEM\",
+      \"pawnShopId\": \"$SHOP_ID\",
+      \"title\": \"used dewalt drill\",
+      \"description\": \"works good comes with battery\",
+      \"price\": \"89\",
+      \"category\": \"Tools\",
+      \"condition\": \"Good\",
+      \"shopName\": \"Smoke Test Shop\"
+    }"
 )"
 
 node -e '
@@ -52,13 +75,11 @@ if (!payload.success) {
   console.error("❌ AI endpoint did not return success.");
   process.exit(1);
 }
-const suggestion = payload.suggestion || {};
-if (!suggestion.title || !suggestion.description) {
-  console.error("❌ AI suggestion missing title or description.");
+const description = payload.data?.description;
+if (!description) {
+  console.error("❌ AI response missing description.");
   process.exit(1);
 }
 console.log("✅ POST /ai/listing-assistant");
-console.log("Source:", suggestion.source || "openai");
-console.log("Title:", suggestion.title);
-console.log("Quality:", suggestion.qualityScore);
+console.log("Description:", description);
 ' "$RESPONSE"
