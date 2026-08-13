@@ -12,6 +12,7 @@ type ItemImagePickerProps = {
   files: File[];
   onChange: (files: File[]) => void;
   existingImages?: string[];
+  onRemoveExisting?: (url: string) => void;
   disabled?: boolean;
   disabledReason?: string;
   cameraLabel: string;
@@ -22,6 +23,7 @@ export default function ItemImagePicker({
   files,
   onChange,
   existingImages = [],
+  onRemoveExisting,
   disabled = false,
   disabledReason = "",
   cameraLabel,
@@ -162,7 +164,10 @@ export default function ItemImagePicker({
       {existingImages.length ? (
         <div aria-label="Existing item images" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {existingImages.map((src, index) => (
-            <img key={`${src}-${index}`} src={src} alt={`Existing item photo ${index + 1}`} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 10 }} />
+            <div key={src} className="item-image-picker-preview">
+              <img src={src} alt={`Existing item photo ${index + 1}`} />
+              {onRemoveExisting ? <button type="button" className="btn" disabled={disabled} onClick={() => onRemoveExisting(src)}>Remove</button> : null}
+            </div>
           ))}
         </div>
       ) : null}
@@ -182,8 +187,8 @@ export default function ItemImagePicker({
       {previews.length ? (
         <div aria-label="Selected image previews" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {previews.map(({ file, url }, index) => (
-            <div key={`${file.name}-${file.lastModified}-${index}`} style={{ display: "grid", gap: 4 }}>
-              <img src={url} alt={`Selected item photo ${index + 1}`} style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 10 }} />
+            <div key={`${file.name}-${file.lastModified}-${index}`} className="item-image-picker-preview">
+              <img src={url} alt={`Selected item photo ${index + 1}`} />
               <button type="button" className="btn" disabled={disabled} onClick={() => onChange(files.filter((_, fileIndex) => fileIndex !== index))}>Remove</button>
             </div>
           ))}

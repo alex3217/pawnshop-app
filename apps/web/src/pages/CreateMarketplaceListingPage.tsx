@@ -25,6 +25,9 @@ import {
   createMarketplaceListing,
   type MarketplaceListingType,
 } from "../services/marketplaceListings";
+import ItemImagePicker from "../components/ItemImagePicker";
+import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
+import { durableImageUrls, normalizeListingOption, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
 
 import {
   getMyShops,
@@ -90,20 +93,6 @@ function defaultListingType(
   return role === "OWNER"
     ? "SHOP_TO_CUSTOMER"
     : "CUSTOMER_TO_CUSTOMER";
-}
-
-function parseImages(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split(/[\n,]/)
-        .map(
-          (image) =>
-            image.trim(),
-        )
-        .filter(Boolean),
-    ),
-  ).slice(0, 20);
 }
 
 function queryValue(
@@ -240,10 +229,7 @@ export default function CreateMarketplaceListingPage() {
     setCategory,
   ] = useState(
     () =>
-      queryValue(
-        searchParams,
-        "category",
-      ),
+      normalizeListingOption(queryValue(searchParams, "category"), ITEM_CATEGORY_OPTIONS, "Other"),
   );
 
   const [
@@ -251,10 +237,7 @@ export default function CreateMarketplaceListingPage() {
     setCondition,
   ] = useState(
     () =>
-      queryValue(
-        searchParams,
-        "condition",
-      ),
+      normalizeListingOption(queryValue(searchParams, "condition"), ITEM_CONDITION_OPTIONS, "Good"),
   );
 
   const [
@@ -281,15 +264,11 @@ export default function CreateMarketplaceListingPage() {
   );
 
   const [
-    imageUrls,
-    setImageUrls,
-  ] = useState(
-    () =>
-      queryValue(
-        searchParams,
-        "imageUrls",
-      ),
-  );
+    existingImages,
+    setExistingImages,
+  ] = useState<string[]>(() => durableImageUrls(queryValue(searchParams, "imageUrls").split(/[\n,]/)));
+
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
 
   const [
     allowOffers,
@@ -452,6 +431,8 @@ export default function CreateMarketplaceListingPage() {
     setItemId(
       selectedItemId,
     );
+    setExistingImages([]);
+    setPhotoFiles([]);
 
     const item =
       items.find(
@@ -472,13 +453,9 @@ export default function CreateMarketplaceListingPage() {
       item.description || "",
     );
 
-    setCategory(
-      item.category || "",
-    );
+    setCategory(normalizeListingOption(item.category || "", ITEM_CATEGORY_OPTIONS, "Other"));
 
-    setCondition(
-      item.condition || "",
-    );
+    setCondition(normalizeListingOption(item.condition || "", ITEM_CONDITION_OPTIONS, "Good"));
 
     setPrice(
       String(
@@ -486,13 +463,8 @@ export default function CreateMarketplaceListingPage() {
       ),
     );
 
-    setImageUrls(
-      Array.isArray(
-        item.images,
-      )
-        ? item.images.join("\n")
-        : "",
-    );
+    setExistingImages(durableImageUrls(Array.isArray(item.images) ? item.images : []));
+    setPhotoFiles([]);
   }
 
   async function handleSubmit(
@@ -509,6 +481,16 @@ export default function CreateMarketplaceListingPage() {
         "Select pickup, shipping, or both.",
       );
 
+      return;
+    }
+
+    if (!ITEM_CATEGORY_OPTIONS.includes(category as (typeof ITEM_CATEGORY_OPTIONS)[number])) {
+      setError("Select a valid category.");
+      return;
+    }
+
+    if (!ITEM_CONDITION_OPTIONS.includes(condition as (typeof ITEM_CONDITION_OPTIONS)[number])) {
+      setError("Select a valid condition.");
       return;
     }
 
@@ -587,6 +569,7 @@ export default function CreateMarketplaceListingPage() {
     setSubmitting(true);
 
     try {
+      const images = await persistMarketplaceListingPhotos(itemId, existingImages, photoFiles);
       await createMarketplaceListing({
         listingType,
 
@@ -610,13 +593,9 @@ export default function CreateMarketplaceListingPage() {
           description.trim() ||
           null,
 
-        category:
-          category.trim() ||
-          null,
+        category,
 
-        condition:
-          condition.trim() ||
-          null,
+        condition,
 
         price:
           parsedPrice,
@@ -627,10 +606,7 @@ export default function CreateMarketplaceListingPage() {
         quantity:
           parsedQuantity,
 
-        images:
-          parseImages(
-            imageUrls,
-          ),
+        images,
 
         allowOffers,
         pickupAvailable,
@@ -890,15 +866,17 @@ export default function CreateMarketplaceListingPage() {
                 Category
               </span>
 
-              <input
+              <select
                 value={category}
                 onChange={(event) =>
                   setCategory(
                     event.target.value,
                   )
                 }
-                placeholder="Jewelry, electronics, tools..."
-              />
+                required
+              >
+                {ITEM_CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
             </label>
 
             <label>
@@ -906,15 +884,17 @@ export default function CreateMarketplaceListingPage() {
                 Condition
               </span>
 
-              <input
+              <select
                 value={condition}
                 onChange={(event) =>
                   setCondition(
                     event.target.value,
                   )
                 }
-                placeholder="New, excellent, good..."
-              />
+                required
+              >
+                {ITEM_CONDITION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
             </label>
 
             <label className="wide">
@@ -1002,22 +982,19 @@ export default function CreateMarketplaceListingPage() {
             Photos
           </h2>
 
-          <label>
-            <span>
-              Image URLs
-            </span>
-
-            <textarea
-              value={imageUrls}
-              onChange={(event) =>
-                setImageUrls(
-                  event.target.value,
-                )
-              }
-              rows={5}
-              placeholder="Enter one image URL per line"
-            />
-          </label>
+          <ItemImagePicker
+            files={photoFiles}
+            onChange={setPhotoFiles}
+            existingImages={existingImages}
+            onRemoveExisting={(url) => setExistingImages((current) => current.filter((image) => image !== url))}
+            disabled={submitting || !itemId}
+            disabledReason={!itemId ? "Select a linked inventory item to take or choose durable listing photos." : ""}
+            cameraLabel="Take Photo"
+            galleryLabel="Choose Files"
+          />
+          {listingType === "SHOP_TO_CUSTOMER" && existingImages.length + photoFiles.length === 0 ? (
+            <p className="create-listing-photo-requirement" role="status">A photo is required before this draft can be published to customers.</p>
+          ) : null}
         </section>
 
         <section className="create-listing-panel">

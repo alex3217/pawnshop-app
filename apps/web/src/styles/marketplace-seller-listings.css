@@ -83,6 +83,18 @@
   flex-wrap: wrap;
 }
 
+.seller-listing-publish-action {
+  display: grid;
+  gap: 5px;
+}
+
+.seller-listing-requirement {
+  max-width: 150px;
+  color: var(--seller-danger, #b91c1c);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .seller-listings-hero-actions button,
 .seller-listings-hero-actions a,
 .seller-listing-actions button,

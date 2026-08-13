@@ -9,6 +9,23 @@
   gap: 10px;
 }
 
+.item-image-picker-preview {
+  display: grid;
+  width: 112px;
+  gap: 6px;
+}
+
+.item-image-picker-preview img {
+  width: 112px;
+  height: 112px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.item-image-picker-preview .btn {
+  min-height: 36px;
+}
+
 .item-camera-backdrop {
   position: fixed;
   z-index: 10000;
