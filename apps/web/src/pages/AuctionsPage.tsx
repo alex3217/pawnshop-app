@@ -73,11 +73,19 @@ function normalizeUpper(value: unknown, fallback = "") {
 }
 
 function formatMoney(
-  value: string | number | null | undefined,
+  value: unknown,
 ) {
+  if (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && value.trim() === "")
+  ) {
+    return "Unavailable";
+  }
+
   const amount = Number(value);
 
-  if (!Number.isFinite(amount)) return "$0.00";
+  if (!Number.isFinite(amount)) return "Unavailable";
 
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -1302,12 +1310,14 @@ export default function AuctionsPage() {
                   key={auction.id}
                   className="auction-result-card"
                 >
-                  <PrimaryListingImage
-                    images={auction.item?.images}
-                    alt={`${auction.item?.title || "Auction item"} photo`}
-                    imageClassName="auction-result-image"
-                    placeholderClassName="auction-result-image auction-result-image--empty"
-                  />
+                  <div className="auction-result-image-frame">
+                    <PrimaryListingImage
+                      images={auction.item?.images}
+                      alt={`${auction.item?.title || "Auction item"} photo`}
+                      imageClassName="auction-result-image"
+                      placeholderClassName="auction-result-image auction-result-image--empty"
+                    />
+                  </div>
 
                   <div className="auction-result-body">
                     <div className="auction-result-heading">
