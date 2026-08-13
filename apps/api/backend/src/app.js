@@ -180,6 +180,7 @@ function createErrorResponse(err, req) {
         ? "Internal Server Error"
         : message,
     requestId: req.requestId,
+    ...(err?.code ? { code: String(err.code) } : {}),
   };
 
   if (process.env.NODE_ENV !== "production" && err?.details) {
@@ -191,6 +192,7 @@ function createErrorResponse(err, req) {
 
 export function createApp(options = {}) {
   const app = express();
+  app.locals.aiListingDependencies = options.aiListingDependencies;
   const trustProxyHops = loadTrustProxyConfig(process.env);
   const authRateLimitConfig =
     options.authRateLimitConfig || loadAuthRateLimitConfig(process.env);

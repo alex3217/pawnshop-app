@@ -17,11 +17,25 @@ test("create and edit listings use standard selects and the shared photo picker"
     expect(source).toContain('galleryLabel: "Choose Files"');
     expect(source).toContain("onRemoveExisting");
     expect(source).toContain("persistMarketplaceListingPhotos");
+    expect(source).toContain("_jsxDEV(AiDescriptionControl");
+    expect(source).toContain('context: "MARKETPLACE_LISTING"');
     expect(source).not.toContain("Image URLs");
     expect(source).not.toContain("Enter one image URL per line");
   }
   expect(options.ITEM_CATEGORY_OPTIONS).toContain("Electronics");
   expect(options.ITEM_CONDITION_OPTIONS).toContain("Good");
+});
+
+test("shared AI description UI protects manual text and exposes accessible states", async ({ page }) => {
+  await page.goto("/");
+  const source = await page.request.get("/src/components/AiDescriptionControl.tsx").then((response) => response.text());
+  expect(source).toContain("Generate with AI");
+  expect(source).toContain("Generating…");
+  expect(source).toContain("Regenerate");
+  expect(source).toContain("Clear generated description");
+  expect(source).toContain("window.confirm");
+  expect(source).toContain('"aria-live": "polite"');
+  expect(source).toContain('role: error ? "alert" : "status"');
 });
 
 test("linked inventory prefill normalizes details and preserves saved photos", async ({ page }) => {

@@ -8,6 +8,7 @@ import {
   type FormEvent,
 } from "react";
 import { Link } from "react-router-dom";
+import AiDescriptionControl from "../components/AiDescriptionControl";
 import {
   acceptBuyerItemSubmissionOffer,
   createBuyerItemSubmission,
@@ -1551,6 +1552,18 @@ export default function BuyerSellItemPage() {
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Include brand, model, serial/accessory notes, condition issues, and anything a shop should know."
               rows={5}
+            />
+            <AiDescriptionControl
+              value={description}
+              onChange={setDescription}
+              disabled={submitting}
+              input={{
+                context: intent === "MARKETPLACE_LISTING" ? "SELL_SUBMISSION" : "PAWN_SUBMISSION",
+                title,
+                price: estimatedValue,
+                category,
+                condition,
+              }}
             />
           </label>
 
