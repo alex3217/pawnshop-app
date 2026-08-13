@@ -528,7 +528,10 @@ test(
     });
 
     assert.equal(denied.status, 403);
-    assert.equal(denied.body.error, "Forbidden");
+    assert.equal(
+      denied.body.error,
+      "You do not have access to this shop.",
+    );
 
     const updated = await authorize(
       request(app).put(`/api/shops/${shop.id}`),

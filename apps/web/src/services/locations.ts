@@ -10,6 +10,7 @@ export type PawnShopLocation = {
   shopName?: string | null;
   title?: string | null;
   address?: string | null;
+  addressLine2?: string | null;
   location?: string | null;
   city?: string | null;
   state?: string | null;
@@ -18,6 +19,7 @@ export type PawnShopLocation = {
   country?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  mapVerificationRequired?: boolean;
   phone?: string | null;
   email?: string | null;
   hours?: string | null;
@@ -33,6 +35,7 @@ export type PawnShopLocation = {
 export type CreateLocationInput = {
   name: string;
   address?: string;
+  addressLine2?: string;
   city?: string;
   state?: string;
   postalCode?: string;

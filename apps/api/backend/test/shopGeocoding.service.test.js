@@ -30,20 +30,21 @@ test("geocoder returns normalized address and valid coordinates", async () => {
   });
 });
 
-test("address update prepares normalized address and coordinates as one write payload", async () => {
-  const req = { app: { locals: { shopGeocoder: { geocode: async (value) => ({ address: value, latitude: 41.88, longitude: -87.63 }) } } } };
-  const previous = { address: "1 Old St", city: "Chicago", state: "IL", zip: "60602", country: "US", latitude: 41, longitude: -87 };
+test("address update preserves verified coordinates and requires explicit re-verification", async () => {
+  let geocodeCalls = 0;
+  const req = { app: { locals: { shopGeocoder: { geocode: async (value) => { geocodeCalls += 1; return { address: value, latitude: 41.88, longitude: -87.63 }; } } } } };
+  const previous = { id: "shop-1", address: "1 Old St", city: "Chicago", state: "IL", zip: "60602", country: "US", latitude: 41, longitude: -87 };
   const write = await geocodeWriteData(req, address, previous);
-  assert.deepEqual(write, { ...normalizeShopAddress(address), latitude: 41.88, longitude: -87.63 });
-  assert.deepEqual(previous, { address: "1 Old St", city: "Chicago", state: "IL", zip: "60602", country: "US", latitude: 41, longitude: -87 });
-});
-
-test("failed address update produces no write payload and preserves prior verified coordinates", async () => {
-  const req = { app: { locals: { shopGeocoder: { geocode: async () => { throw new ShopGeocodingError("not found", { code: "ADDRESS_NOT_FOUND" }); } } } } };
-  const previous = { address: "1 Old St", city: "Chicago", state: "IL", zip: "60602", country: "US", latitude: 41, longitude: -87 };
-  await assert.rejects(() => geocodeWriteData(req, address, previous), /not found/);
+  assert.deepEqual(write, { ...normalizeShopAddress(address), mapVerificationRequired: true });
+  assert.equal(geocodeCalls, 0);
   assert.equal(previous.latitude, 41);
   assert.equal(previous.longitude, -87);
+});
+
+test("new shop creation still uses configured server-side geocoding", async () => {
+  const req = { app: { locals: { shopGeocoder: { geocode: async (value) => ({ address: value, latitude: 41.88, longitude: -87.63 }) } } } };
+  const write = await geocodeWriteData(req, address);
+  assert.deepEqual(write, { ...normalizeShopAddress(address), latitude: 41.88, longitude: -87.63, mapVerificationRequired: false });
 });
 
 test("geocoder deterministically rejects invalid provider coordinates", async () => {

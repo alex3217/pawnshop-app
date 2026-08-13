@@ -4,27 +4,30 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { getAuthToken } from "../services/auth";
 import { getMyLocations, updateLocation, verifyLocation } from "../services/locations";
-import { getMyShops } from "../services/shops";
 import { updateShopBranding } from "../services/ownerPhotoWorkflows";
 import "../styles/owner-locations-readability.css";
 import { selectActiveOwnerShopId, setActiveOwnerShopId } from "../services/ownerActiveShop";
+import { shopHasPermission, type ShopAccessSnapshot } from "../services/shopAccess";
 
 type LocationRecord = {
   id: string;
   name: string;
   address: string;
+  addressLine2: string;
   city: string;
   state: string;
   zip: string;
   country: string;
   latitude: number | null;
   longitude: number | null;
+  mapVerificationRequired: boolean;
   phone: string;
   hours: string;
   description: string;
@@ -39,6 +42,7 @@ type ApiLocationRecord = Partial<{
   shopName: string;
   title: string;
   address: string;
+  addressLine2: string;
   city: string;
   state: string;
   zip: string;
@@ -46,6 +50,7 @@ type ApiLocationRecord = Partial<{
   country: string;
   latitude: number;
   longitude: number;
+  mapVerificationRequired: boolean;
   location: string;
   phone: string;
   hours: string;
@@ -56,7 +61,7 @@ type ApiLocationRecord = Partial<{
   status: string;
 }>;
 
-type LocationEditForm = Pick<LocationRecord, "name" | "address" | "city" | "state" | "zip" | "country" | "phone" | "hours" | "description">;
+type LocationEditForm = Pick<LocationRecord, "name" | "address" | "addressLine2" | "city" | "state" | "zip" | "country" | "phone" | "hours" | "description">;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -77,12 +82,14 @@ function normalizeLocation(
       row.name || row.shopName || row.title || `Location ${index + 1}`,
     ),
     address: String(row.address || row.location || ""),
+    addressLine2: String(row.addressLine2 || ""),
     city: String(row.city || ""),
     state: String(row.state || ""),
     zip: String(row.zip || row.postalCode || ""),
     country: String(row.country || "US"),
     latitude: Number.isFinite(row.latitude) ? Number(row.latitude) : null,
     longitude: Number.isFinite(row.longitude) ? Number(row.longitude) : null,
+    mapVerificationRequired: row.mapVerificationRequired === true,
     phone: String(row.phone || "—"),
     hours: String(row.hours || "—"),
     description: String(row.description || ""),
@@ -139,14 +146,7 @@ async function fetchOwnerLocations(
       );
     }
 
-    const shops = await getMyShops(signal);
-    const shopRows = extractLocationRows(shops);
-
-    return sortLocations(
-      shopRows.map((row: ApiLocationRecord, index: number) =>
-        normalizeLocation(row, index),
-      ),
-    );
+    return [];
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw error;
@@ -159,6 +159,8 @@ async function fetchOwnerLocations(
 }
 
 export default function OwnerLocationsPage() {
+  const { shopAccess } = useOutletContext<{ shopAccess: ShopAccessSnapshot }>();
+  const editHeadingRef = useRef<HTMLHeadingElement>(null);
   const [locations, setLocations] = useState<LocationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -171,6 +173,7 @@ export default function OwnerLocationsPage() {
   const [editForm, setEditForm] = useState<LocationEditForm>({
     name: "",
     address: "",
+    addressLine2: "",
     city: "",
     state: "",
     zip: "",
@@ -229,6 +232,7 @@ export default function OwnerLocationsPage() {
     setEditForm({
       name: location.name || "",
       address: location.address || "",
+      addressLine2: location.addressLine2 || "",
       city: location.city,
       state: location.state,
       zip: location.zip,
@@ -239,6 +243,7 @@ export default function OwnerLocationsPage() {
     });
     setLogoFile(null);
     setBannerFile(null);
+    window.requestAnimationFrame(() => editHeadingRef.current?.focus());
   }
 
   function cancelEditLocation() {
@@ -247,6 +252,7 @@ export default function OwnerLocationsPage() {
     setEditForm({
       name: "",
       address: "",
+      addressLine2: "",
       city: "",
       state: "",
       zip: "",
@@ -274,6 +280,7 @@ export default function OwnerLocationsPage() {
     try {
       const address = editForm.address.trim();
       const city = editForm.city.trim();
+      const addressLine2 = editForm.addressLine2.trim();
       const state = editForm.state.trim();
       const postalCode = editForm.zip.trim();
       const country = editForm.country.trim().toUpperCase();
@@ -284,6 +291,7 @@ export default function OwnerLocationsPage() {
       const updated = await updateLocation(id, {
         name,
         address,
+        addressLine2,
         city,
         state,
         postalCode,
@@ -304,12 +312,14 @@ export default function OwnerLocationsPage() {
                   ...item,
                   name,
                   address,
+                  addressLine2,
                   city,
                   state,
                   zip: postalCode,
                   country,
                   latitude: updated.latitude ?? null,
                   longitude: updated.longitude ?? null,
+                  mapVerificationRequired: updated.mapVerificationRequired === true,
                   phone: phone || "—",
                   hours: hours || "—",
                   description,
@@ -322,7 +332,7 @@ export default function OwnerLocationsPage() {
       setEditingId(null);
       setLogoFile(null);
       setBannerFile(null);
-      setActionMessage("Location details updated.");
+      setActionMessage("Shop profile updated.");
       setVerificationFailures((current) => { const next = new Set(current); next.delete(id); return next; });
       window.dispatchEvent(new CustomEvent("pawnloop:owner-setup-updated"));
     } catch (err) {
@@ -349,6 +359,7 @@ export default function OwnerLocationsPage() {
         country: updated.country ?? item.country,
         latitude: updated.latitude ?? null,
         longitude: updated.longitude ?? null,
+        mapVerificationRequired: false,
       } : item));
       setVerificationFailures((current) => { const next = new Set(current); next.delete(id); return next; });
       setActionMessage("Map location verified.");
@@ -378,10 +389,10 @@ export default function OwnerLocationsPage() {
       <div style={styles.hero}>
         <div>
           <div style={styles.eyebrow}>Owner</div>
-          <h1 style={styles.title}>Locations</h1>
+          <h1 style={styles.title}>Shop Profile &amp; Locations</h1>
           <p style={styles.subtitle}>
-            Track your shop footprint, inventory distribution, and staff
-            coverage by location.
+            Manage your public shop details, address, map verification,
+            inventory, staff, phone number, and business hours.
           </p>
         </div>
 
@@ -398,9 +409,11 @@ export default function OwnerLocationsPage() {
             {refreshing ? "Refreshing..." : "Refresh"}
           </button>
 
-          <Link to="/owner/shops/new" style={styles.primaryLink}>
-            Add location
-          </Link>
+          {shopAccess.role !== "CONSUMER" ? (
+            <Link to="/owner/shops/new" style={styles.primaryLink}>
+              Add location
+            </Link>
+          ) : null}
         </div>
       </div>
 
@@ -460,7 +473,7 @@ export default function OwnerLocationsPage() {
                 <div>
                   <h2 style={styles.cardTitle}>{location.name}</h2>
                   <div style={styles.metaRow}>
-                    <span>{[location.address, location.city, location.state, location.zip, location.country].filter(Boolean).join(", ") || "Address not available"}</span>
+                    <span>{[location.address, location.addressLine2, location.city, location.state, location.zip, location.country].filter(Boolean).join(", ") || "Address not available"}</span>
                     <span>•</span>
                     <span>Status: {location.status}</span>
                   </div>
@@ -472,7 +485,7 @@ export default function OwnerLocationsPage() {
               <div style={styles.detailGrid}>
                 <div>
                   <div style={styles.detailLabel}>Map location</div>
-                  <div style={styles.detailValue}>{verificationFailures.has(location.id) ? "Verification failed" : location.latitude !== null && location.longitude !== null ? "Verified" : "Missing coordinates"}</div>
+                  <div style={styles.detailValue}>{verificationFailures.has(location.id) ? "Verification failed" : location.mapVerificationRequired ? "Address changed — verification required" : location.latitude !== null && location.longitude !== null ? "Verified" : "Missing coordinates"}</div>
                 </div>
                 <div>
                   <div style={styles.detailLabel}>Phone</div>
@@ -500,10 +513,16 @@ export default function OwnerLocationsPage() {
                       void saveLocation(location.id);
                     }}
                   >
+                    <div>
+                      <h3 ref={editHeadingRef} tabIndex={-1} style={styles.formTitle}>Edit Shop Profile</h3>
+                      <p style={styles.publicNote}>These shop details are publicly visible on your shop profile. Owner account information is never shown here.</p>
+                    </div>
                     <div style={styles.fieldGrid}>
                       <label id="shop-name" style={styles.fieldLabel}>
-                        Location name
+                        Shop name
                         <input
+                          required
+                          maxLength={160}
                           value={editForm.name}
                           onChange={(event) =>
                             setEditForm((current) => ({
@@ -526,6 +545,8 @@ export default function OwnerLocationsPage() {
                       <label id="shop-address" style={styles.fieldLabel}>
                         Street address
                         <input
+                          required
+                          maxLength={240}
                           value={editForm.address}
                           onChange={(event) =>
                             setEditForm((current) => ({
@@ -534,20 +555,24 @@ export default function OwnerLocationsPage() {
                             }))
                           }
                           style={styles.input}
+                          autoComplete="address-line1"
                         />
                       </label>
-                      <label style={styles.fieldLabel}>City<input value={editForm.city} onChange={(event) => setEditForm((current) => ({ ...current, city: event.target.value }))} style={styles.input} autoComplete="address-level2" /></label>
-                      <label style={styles.fieldLabel}>State / region<input value={editForm.state} onChange={(event) => setEditForm((current) => ({ ...current, state: event.target.value }))} style={styles.input} autoComplete="address-level1" /></label>
-                      <label style={styles.fieldLabel}>ZIP / postal code<input value={editForm.zip} onChange={(event) => setEditForm((current) => ({ ...current, zip: event.target.value }))} style={styles.input} autoComplete="postal-code" /></label>
-                      <label style={styles.fieldLabel}>Country code<input value={editForm.country} onChange={(event) => setEditForm((current) => ({ ...current, country: event.target.value }))} style={styles.input} maxLength={2} autoComplete="country" /></label>
+                      <label style={styles.fieldLabel}>Address line 2 <span style={styles.optionalText}>(optional)</span><input value={editForm.addressLine2} onChange={(event) => setEditForm((current) => ({ ...current, addressLine2: event.target.value }))} style={styles.input} maxLength={240} autoComplete="address-line2" /></label>
+                      <label style={styles.fieldLabel}>City<input required maxLength={120} value={editForm.city} onChange={(event) => setEditForm((current) => ({ ...current, city: event.target.value }))} style={styles.input} autoComplete="address-level2" /></label>
+                      <label style={styles.fieldLabel}>State / region<input required maxLength={120} value={editForm.state} onChange={(event) => setEditForm((current) => ({ ...current, state: event.target.value }))} style={styles.input} autoComplete="address-level1" /></label>
+                      <label style={styles.fieldLabel}>ZIP / postal code<input required maxLength={24} value={editForm.zip} onChange={(event) => setEditForm((current) => ({ ...current, zip: event.target.value }))} style={styles.input} autoComplete="postal-code" /></label>
+                      <label style={styles.fieldLabel}>Country code<input required value={editForm.country} onChange={(event) => setEditForm((current) => ({ ...current, country: event.target.value }))} style={styles.input} minLength={2} maxLength={2} pattern="[A-Za-z]{2}" autoComplete="country" /></label>
                       <label id="shop-description" style={styles.fieldLabel}>
-                        Shop description
-                        <textarea value={editForm.description} onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} style={styles.input} rows={4} />
+                        Public description
+                        <textarea maxLength={2000} value={editForm.description} onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} style={styles.input} rows={4} />
                       </label>
 
                       <label id="shop-phone" style={styles.fieldLabel}>
-                        Phone
+                        Public phone number
                         <input
+                          type="tel"
+                          maxLength={40}
                           value={editForm.phone}
                           onChange={(event) =>
                             setEditForm((current) => ({
@@ -560,8 +585,9 @@ export default function OwnerLocationsPage() {
                       </label>
 
                       <label id="shop-hours" style={styles.fieldLabel}>
-                        Hours
+                        Business hours
                         <input
+                          maxLength={500}
                           value={editForm.hours}
                           onChange={(event) =>
                             setEditForm((current) => ({
@@ -573,6 +599,10 @@ export default function OwnerLocationsPage() {
                         />
                       </label>
                     </div>
+
+                    {location.mapVerificationRequired || editForm.address !== location.address || editForm.addressLine2 !== location.addressLine2 || editForm.city !== location.city || editForm.state !== location.state || editForm.zip !== location.zip || editForm.country !== location.country ? (
+                      <p role="status" style={styles.verificationNote}>Address changes preserve the current verified coordinates. Use “Update map location” after saving to verify the public map position again.</p>
+                    ) : null}
 
                     <div style={styles.formActions}>
                       <button
@@ -605,7 +635,8 @@ export default function OwnerLocationsPage() {
                   </form>
                 ) : null}
 
-                <div style={styles.cardActions}>
+                <div style={styles.cardActions} aria-label={`Actions for ${location.name}`}>
+                  {shopHasPermission(shopAccess, location.id, "locations:write") ? (
                   <button
                     type="button"
                     onClick={() => beginEditLocation(location)}
@@ -614,18 +645,26 @@ export default function OwnerLocationsPage() {
                       ...styles.secondaryButton,
                       ...(savingId === location.id ? styles.buttonDisabled : {}),
                     }}
+                    aria-label={`Edit shop profile for ${location.name}`}
                   >
-                    Edit details
+                    Edit shop profile
                   </button>
+                  ) : null}
 
-                  <button type="button" onClick={() => void verifyMapLocation(location.id)} disabled={savingId === location.id} style={styles.secondaryButton}>
+                  {shopHasPermission(shopAccess, location.id, "locations:write") ? (
+                  <button type="button" onClick={() => void verifyMapLocation(location.id)} disabled={savingId === location.id} style={styles.secondaryButton} aria-label={`${location.latitude !== null && location.longitude !== null ? "Update" : "Verify"} map location for ${location.name}`}>
                     {location.latitude !== null && location.longitude !== null ? "Update map location" : "Verify location"}
                   </button>
+                  ) : null}
 
-                  <Link to="/owner/inventory" style={styles.secondaryLink}>
+                  <Link to={`/shops/${encodeURIComponent(location.id)}`} style={styles.secondaryLink} aria-label={`View public profile for ${location.name}`}>
+                    View public profile
+                  </Link>
+
+                  <Link to={`/owner/inventory?shopId=${encodeURIComponent(location.id)}`} onClick={() => setActiveOwnerShopId(location.id)} style={styles.secondaryLink}>
                     View inventory
                   </Link>
-                  <Link to="/owner/staff" style={styles.secondaryLink}>
+                  <Link to={`/owner/staff?shopId=${encodeURIComponent(location.id)}`} onClick={() => setActiveOwnerShopId(location.id)} style={styles.secondaryLink}>
                     View staff
                   </Link>
                 </div>
@@ -833,6 +872,29 @@ const styles: Record<string, CSSProperties> = {
     padding: 16,
     display: "grid",
     gap: 14,
+  },
+  formTitle: {
+    margin: 0,
+    fontSize: 20,
+    fontWeight: 900,
+  },
+  publicNote: {
+    margin: "6px 0 0",
+    color: "var(--owner-locations-muted)",
+    lineHeight: 1.5,
+  },
+  optionalText: {
+    textTransform: "none",
+    letterSpacing: 0,
+    fontWeight: 600,
+  },
+  verificationNote: {
+    margin: 0,
+    border: "1px solid var(--owner-locations-accent-border)",
+    borderRadius: 12,
+    padding: 12,
+    color: "var(--owner-locations-muted)",
+    lineHeight: 1.5,
   },
   fieldGrid: {
     display: "grid",
