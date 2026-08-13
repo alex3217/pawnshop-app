@@ -17,12 +17,12 @@ test("owner location workflows expose structured address and verification contro
 });
 
 test("location write, verify, and backfill routes retain role and ownership protection", () => {
-  assert.match(routes, /requireRole\(\.\.\.LOCATION_ROLES\)/);
+  assert.match(routes, /authRequired[\s\S]*asyncRoute\(updateShop\)/);
   assert.match(routes, /requireRole\("ADMIN", "SUPER_ADMIN"\)/);
   assert.match(routes, /\/:id\/verify-location/);
   assert.match(routes, /\/backfill-coordinates/);
-  assert.match(controller, /shop\.ownerId !== req\.user\.sub/);
-  assert.match(controller, /status\(403\).*Forbidden/);
+  assert.match(controller, /assertShopPermission\(\{ user: req\.user, shopId: id, permission: "locations:write" \}\)/);
+  assert.match(controller, /permission: "locations:read"/);
 });
 
 test("Local Price Check explains each empty state distinctly", () => {

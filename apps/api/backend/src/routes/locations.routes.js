@@ -76,7 +76,6 @@ router.get("/", asyncRoute(listShops));
 router.get(
   "/mine",
   authRequired,
-  requireRole(...LOCATION_ROLES),
   asyncRoute(myShops),
 );
 
@@ -118,7 +117,6 @@ router.post(
 router.post(
   "/:id/verify-location",
   authRequired,
-  requireRole(...LOCATION_ROLES),
   validateLocationIdParam,
   asyncRoute(verifyShopLocation),
 );
@@ -133,7 +131,6 @@ router.post(
 router.put(
   "/:id",
   authRequired,
-  requireRole(...LOCATION_ROLES),
   validateLocationIdParam,
   asyncRoute(updateShop),
 );
@@ -148,7 +145,6 @@ router.put(
 router.patch(
   "/:id",
   authRequired,
-  requireRole(...LOCATION_ROLES),
   validateLocationIdParam,
   asyncRoute(updateShop),
 );

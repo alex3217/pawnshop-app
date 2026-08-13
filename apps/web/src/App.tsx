@@ -353,7 +353,6 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner/inventory", element: <OwnerInventoryPage /> },
   { path: "/owner/item-intakes", element: <OwnerItemIntakesPage /> },
   { path: "/owner/integrations", element: <OwnerIntegrationsPage /> },
-  { path: "/owner/locations", element: <OwnerLocationsPage /> },
   { path: "/owner/staff", element: <OwnerStaffPage /> },
   { path: "/owner/scan-console", element: <ScanConsolePage /> },
   { path: "/owner/bulk-upload", element: <BulkUploadPage /> },
@@ -469,6 +468,10 @@ export default function App() {
                 `owner-${"path" in route ? route.path : index}`,
               ),
             )}
+          </Route>
+
+          <Route element={<RequireShopCapability capability="locationsRead" />}>
+            <Route path="/owner/locations" element={<OwnerLocationsPage />} />
           </Route>
 
           <Route element={<RequireShopCapability capability="messagesRead" />}>
