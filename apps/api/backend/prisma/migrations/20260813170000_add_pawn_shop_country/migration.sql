@@ -1,0 +1,1 @@
+ALTER TABLE "PawnShop" ADD COLUMN IF NOT EXISTS "country" TEXT;

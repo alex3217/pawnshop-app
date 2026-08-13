@@ -105,6 +105,10 @@ async function createShop(owner, suffix = "primary") {
   ).send({
     name: `Commerce Test Shop ${suffix}`,
     address: "100 Integration Test Lane",
+    city: "Chicago",
+    state: "IL",
+    zip: "60601",
+    country: "US",
     phone: "555-0100",
     description: "Database integration test shop",
     hours: "9-5",
@@ -469,6 +473,13 @@ before(async () => {
   );
 
   app = appModule.createApp();
+  app.locals.shopGeocoder = {
+    geocode: async (address) => ({
+      address,
+      latitude: 41.88,
+      longitude: -87.63,
+    }),
+  };
   prisma = prismaModule.prisma;
 
   const database = await prisma.$queryRaw`
