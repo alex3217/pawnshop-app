@@ -2,10 +2,15 @@
 
 .auctions-page {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .auctions-shell {
   display: grid;
+  min-width: 0;
+  max-width: 100%;
   gap: 20px;
   color: #0f172a;
   background:
@@ -243,11 +248,17 @@
 .auctions-card-grid {
   display: grid;
   grid-template-columns:
-    repeat(auto-fit, minmax(min(350px, 100%), 1fr));
+    repeat(auto-fill, minmax(min(350px, 100%), 400px));
+  justify-content: start;
   gap: 18px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .auction-result-card {
+  min-width: 0;
+  width: 100%;
+  max-width: 400px;
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 19px;
@@ -256,11 +267,19 @@
   box-shadow: 0 15px 36px rgba(15, 23, 42, 0.08);
 }
 
+.auction-result-image-frame {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
 .auction-result-image {
   display: block;
   width: 100%;
-  height: 210px;
+  height: 100%;
   object-fit: cover;
+  object-position: center;
   background: #e2e8f0;
 }
 
@@ -299,6 +318,7 @@
   padding: 6px 9px;
   border-radius: 999px;
   color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
   background: #475569;
   font-size: 10px;
   font-weight: 900;
@@ -350,12 +370,14 @@
 
 .auction-result-details dt {
   color: #64748b;
+  -webkit-text-fill-color: #64748b;
   font-size: 12px;
 }
 
 .auction-result-details dd {
   margin: 0;
   color: #0f172a;
+  -webkit-text-fill-color: #0f172a;
   font-size: 12px;
   font-weight: 850;
   text-align: right;
@@ -390,6 +412,7 @@
 :root[data-theme="dark"] .auctions-summary-grid span,
 :root[data-theme="dark"] .auction-result-details dt {
   color: #cbd5e1;
+  -webkit-text-fill-color: #cbd5e1;
 }
 
 :root[data-theme="dark"] .auctions-role-panel,
@@ -441,6 +464,14 @@
 }
 
 @media (max-width: 720px) {
+  .auctions-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .auction-result-card {
+    max-width: 100%;
+  }
+
   .auctions-role-actions,
   .auctions-empty-actions,
   .auction-result-actions {
