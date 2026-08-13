@@ -33,6 +33,12 @@ export type AuthResponse = {
   user: AuthUser;
 };
 
+export type MfaChallengeResponse = {
+  mfaRequired: true;
+  challenge: string;
+  expiresInSeconds: number;
+};
+
 export type RegistrationResponse = {
   user: AuthUser;
   nextStep: "VERIFY_EMAIL";
@@ -331,7 +337,6 @@ async function requestAuth(
     console.error("[auth.requestAuth] invalid response", {
       path,
       status: res.status,
-      data,
     });
     throw new Error("Invalid authentication response from server.");
   }
@@ -342,11 +347,32 @@ async function requestAuth(
 export async function login(
   email: string,
   password: string,
-): Promise<AuthResponse> {
-  return requestAuth("/auth/login", {
-    email: email.trim().toLowerCase(),
-    password,
+): Promise<AuthResponse | MfaChallengeResponse> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const res = await fetch(joinUrl(API_BASE, "/auth/login"), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: normalizedEmail, password }), credentials: "include",
   });
+  const data = await parseJson<Record<string, unknown>>(res);
+  if (!res.ok) throw new AuthRequestError(
+    typeof data.error === "string" ? data.error : `Request failed (${res.status})`,
+    typeof data.code === "string" ? data.code : undefined,
+  );
+  if (data.mfaRequired === true && typeof data.challenge === "string"
+    && typeof data.expiresInSeconds === "number") {
+    return { mfaRequired: true, challenge: data.challenge, expiresInSeconds: data.expiresInSeconds };
+  }
+  const auth = unwrapAuthPayload(data);
+  if (!auth.token || !auth.user) throw new Error("Invalid authentication response from server.");
+  return { token: auth.token, user: auth.user };
+}
+
+export async function completeMfaLogin(
+  challenge: string,
+  method: "totp" | "recovery_code",
+  code: string,
+): Promise<AuthResponse> {
+  return requestAuth("/auth/mfa/challenge", { challenge, method, code: code.trim() });
 }
 
 export async function getCurrentUser(

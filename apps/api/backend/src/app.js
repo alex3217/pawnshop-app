@@ -199,6 +199,7 @@ export function createApp(options = {}) {
     store: options.authRateLimitStore,
     now: options.now,
     auditMfaRateLimit: options.auditMfaRateLimit,
+    env: options.env || process.env,
   });
   app.locals.authRateLimiters = authRateLimiters;
   const uploadStorage = options.uploadStorage || createS3UploadStorage();
@@ -305,6 +306,7 @@ export function createApp(options = {}) {
     };
     try {
       await runWithTimeout(readinessCheck, readinessTimeoutMs);
+      await runWithTimeout(() => authRateLimiters.check(), readinessTimeoutMs);
       dependencies.database = "ok";
       if (typeof uploadStorage.check === "function") {
         await runWithTimeout(() => uploadStorage.check(), readinessTimeoutMs);

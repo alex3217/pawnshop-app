@@ -82,3 +82,20 @@ test("real createApp limits malformed registration before its controller", async
     }
   }
 });
+
+test("readiness fails closed when the shared authentication store is unavailable", async () => {
+  const app = createApp({
+    authRateLimitConfig: REAL_APP_CONFIG,
+    authRateLimitStore: {
+      async increment() { return { count: 1, resetAt: Date.now() + 60_000 }; },
+      async check() { throw new Error("shared auth store unavailable"); },
+    },
+    readinessCheck: async () => true,
+    uploadStorage: { async check() { return true; } },
+    imageRuntimeCheck: async () => true,
+  });
+  const response = await request(app).get("/api/ready");
+  assert.equal(response.status, 503);
+  assert.equal(response.body.ready, false);
+  assert.equal(JSON.stringify(response.body).includes("shared auth store unavailable"), false);
+});

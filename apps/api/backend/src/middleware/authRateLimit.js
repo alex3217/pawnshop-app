@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { ipKeyGenerator } from "express-rate-limit";
+import { createClient } from "redis";
 import { prisma } from "../lib/prisma.js";
 import { createMfaAuditEvent } from "../services/mfaAudit.service.js";
 
@@ -11,6 +12,7 @@ const MFA_ENROLLMENT_LIMITS = Object.freeze({
 const PUBLIC_AUTH_PATHS = new Map([
   ["/auth/register", "register"],
   ["/auth/login", "login"],
+  ["/auth/mfa/challenge", "mfa-challenge"],
   ["/auth/resend-verification", "resend-verification"],
   ["/auth/verify-email", "verify-email"],
   ["/auth/forgot-password", "forgot-password"],
@@ -19,6 +21,7 @@ const PUBLIC_AUTH_PATHS = new Map([
 
 const SENSITIVE_IP_POLICIES = new Set([
   "register",
+  "mfa-challenge",
   "resend-verification",
   "verify-email",
   "forgot-password",
@@ -33,6 +36,41 @@ const IDENTIFIER_POLICIES = new Set([
 ]);
 
 const TOKEN_POLICIES = new Set(["verify-email", "reset-password"]);
+
+export class RedisAuthRateLimitStore {
+  constructor({ url, client } = {}) {
+    this.client = client || createClient({ url });
+    this.connecting = null;
+  }
+
+  async ready() {
+    if (this.client.isReady) return;
+    this.connecting ||= this.client.connect().finally(() => { this.connecting = null; });
+    await this.connecting;
+  }
+
+  async increment(key, windowMs) {
+    await this.ready();
+    const redisKey = `auth:rate:${crypto.createHash("sha256").update(key).digest("hex")}`;
+    const count = Number(await this.client.eval(
+      "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]) end; return n",
+      { keys: [redisKey], arguments: [String(windowMs)] },
+    ));
+    const ttl = Number(await this.client.pTTL(redisKey));
+    return { count, resetAt: Date.now() + Math.max(1, ttl) };
+  }
+
+  async check() {
+    await this.ready();
+    if (await this.client.ping() !== "PONG") throw new Error("Redis rate-limit store unavailable");
+    return true;
+  }
+
+  async close() {
+    if (this.connecting) await this.connecting.catch(() => {});
+    if (this.client.isOpen) await this.client.quit();
+  }
+}
 
 function authPolicyForRequest(req) {
   if (req.method !== "POST") return null;
@@ -175,8 +213,16 @@ export function createAuthRateLimiters({
   store,
   now = Date.now,
   auditMfaRateLimit,
+  env = process.env,
 } = {}) {
-  const effectiveStore = store || new MemoryRateLimitStore({ now });
+  const runtime = String(env.APP_ENV || env.NODE_ENV || "development").trim().toLowerCase();
+  const requiresSharedStore = runtime === "production" || runtime === "staging";
+  if (!store && requiresSharedStore && !env.REDIS_URL) {
+    throw new Error("REDIS_URL is required for deployed authentication rate limiting");
+  }
+  const effectiveStore = store || (env.REDIS_URL
+    ? new RedisAuthRateLimitStore({ url: env.REDIS_URL })
+    : new MemoryRateLimitStore({ now }));
   const recordMfaRateLimit = auditMfaRateLimit || (async ({ req, purpose }) => {
     await prisma.$transaction((tx) => createMfaAuditEvent(tx, {
       event: "RATE_LIMIT_ENFORCED",
@@ -208,6 +254,8 @@ export function createAuthRateLimiters({
       mfaEnrollmentStart: unavailable,
       mfaEnrollmentConfirm: unavailable,
       store: effectiveStore,
+      check: () => typeof effectiveStore.check === "function" ? effectiveStore.check() : true,
+      close: () => typeof effectiveStore.close === "function" ? effectiveStore.close() : undefined,
     };
   }
 
@@ -330,5 +378,7 @@ export function createAuthRateLimiters({
       purpose: "ENROLLMENT_CONFIRMATION",
     }),
     store: effectiveStore,
+    check: () => typeof effectiveStore.check === "function" ? effectiveStore.check() : true,
+    close: () => typeof effectiveStore.close === "function" ? effectiveStore.close() : undefined,
   };
 }
