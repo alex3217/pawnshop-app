@@ -86,8 +86,11 @@ export async function getAllShops(signal?: AbortSignal): Promise<Shop[]> {
   return normalizeShops(data);
 }
 
-export async function getMarketplaceShops(signal?: AbortSignal): Promise<Shop[]> {
-  return getAllShops(signal);
+export async function getMarketplaceShops(signal?: AbortSignal, query = "", page = 1): Promise<Shop[]> {
+  const params = new URLSearchParams({ page: String(page), limit: "36" });
+  if (query.trim()) params.set("q", query.trim());
+  const data = await api.get<unknown>(`/shops?${params.toString()}`, { auth: false, signal });
+  return normalizeShops(data);
 }
 
 export async function getMyShops(signal?: AbortSignal): Promise<Shop[]> {

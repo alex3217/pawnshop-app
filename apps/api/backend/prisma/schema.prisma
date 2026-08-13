@@ -84,6 +84,10 @@ model User {
   paymentMethodConsents           PaymentMethodConsent[]
   trainingProgress                TrainingProgress[]
   uploadAssets                    UploadAsset[]                    @relation("UploadAssetUploader")
+  submissionAuditEvents           BuyerItemSubmissionAuditEvent[]  @relation("BuyerItemSubmissionAuditActor")
+  shopConversations               ShopConversation[]               @relation("ShopConversationSeller")
+  sentShopMessages                ShopMessage[]                    @relation("ShopMessageSender")
+  shopConversationAuditEvents     ShopConversationAuditEvent[]     @relation("ShopConversationAuditActor")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -331,6 +335,8 @@ model PawnShop {
   bannerUrl                          String?
   ownerId                            String
   isDeleted                          Boolean                          @default(false)
+  isActive                           Boolean                          @default(true)
+  isPublic                           Boolean                          @default(true)
   createdAt                          DateTime                         @default(now())
   updatedAt                          DateTime                         @updatedAt
   onboardingCompletedAt              DateTime?
@@ -370,6 +376,7 @@ model PawnShop {
   owner                              User                             @relation(fields: [ownerId], references: [id])
   inventorySyncJobs                  InventorySyncJob[]
   buyerItemSubmissionOffers          BuyerItemSubmissionOffer[]       @relation("BuyerItemSubmissionOfferShop")
+  buyerItemSubmissionTargets         BuyerItemSubmissionTarget[]
   itemIntakes                        ItemIntake[]                     @relation("ShopItemIntakes")
   sellerLedgerEntries                SellerBalanceLedger[]            @relation("SellerBalanceLedgerShop")
   sellerPayouts                      SellerPayout[]                   @relation("SellerPayoutShop")
@@ -385,9 +392,10 @@ model PawnShop {
   stripeDisputes                     StripeDispute[]                  @relation("StripeDisputeShop")
   stripeSubscriptionBillingEvents    StripeSubscriptionBillingEvent[]
   uploadAssets                       UploadAsset[]
+  conversations                      ShopConversation[]
 
   @@index([ownerId, isDeleted])
-  @@index([isDeleted, createdAt])
+  @@index([isDeleted, isActive, isPublic, createdAt])
   @@index([subscriptionPlan, subscriptionStatus])
   @@index([subscriptionStatus, subscriptionCurrentPeriodEnd])
 }
@@ -463,6 +471,7 @@ model Item {
   marketplaceListings     MarketplaceListing[]
   customerSellAcquisition CustomerSellFulfillment? @relation("CustomerSellAcquiredItem")
   uploadAssets            UploadAsset[]
+  shopConversations       ShopConversation[]
 
   @@index([pawnShopId, status, isDeleted])
   @@index([category, status, isDeleted])
@@ -630,22 +639,23 @@ model Settlement {
 }
 
 model Offer {
-  id             String      @id @default(cuid())
-  itemId         String
-  buyerId        String
-  ownerId        String
-  amount         Decimal     @db.Decimal(10, 2)
-  message        String?
-  status         OfferStatus @default(PENDING)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  counterAmount  Decimal?    @db.Decimal(10, 2)
-  counterMessage String?
-  respondedAt    DateTime?
-  buyer          User        @relation("OfferBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
-  item           Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  owner          User        @relation("OfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  settlement     Settlement?
+  id                String             @id @default(cuid())
+  itemId            String
+  buyerId           String
+  ownerId           String
+  amount            Decimal            @db.Decimal(10, 2)
+  message           String?
+  status            OfferStatus        @default(PENDING)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  counterAmount     Decimal?           @db.Decimal(10, 2)
+  counterMessage    String?
+  respondedAt       DateTime?
+  buyer             User               @relation("OfferBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  item              Item               @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  owner             User               @relation("OfferOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  settlement        Settlement?
+  shopConversations ShopConversation[]
 
   @@index([buyerId, createdAt])
   @@index([ownerId, createdAt])
@@ -676,32 +686,101 @@ model SavedSearch {
 }
 
 model BuyerItemSubmission {
-  id             String    @id @default(cuid())
-  buyerId        String
-  title          String
-  description    String?
-  category       String?
-  condition      String?
-  estimatedValue Decimal?  @db.Decimal(10, 2)
-  images         String[]  @default([])
-  intent         String    @default("PAWN_OFFERS")
-  radiusMiles    Int       @default(25)
-  status         String    @default("SUBMITTED")
-  reviewMessage  String?
-  reviewedAt     DateTime?
-  reviewedById   String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                    String                               @id @default(cuid())
+  buyerId               String
+  title                 String
+  description           String?
+  category              String?
+  condition             String?
+  estimatedValue        Decimal?                             @db.Decimal(10, 2)
+  images                String[]                             @default([])
+  intent                String                               @default("PAWN_OFFERS")
+  radiusMiles           Int                                  @default(25)
+  distributionMode      BuyerItemSubmissionDistributionMode?
+  marketplaceListingId  String?                              @unique
+  distributionExpiresAt DateTime?
+  withdrawnAt           DateTime?
+  closedAt              DateTime?
+  status                String                               @default("SUBMITTED")
+  reviewMessage         String?
+  reviewedAt            DateTime?
+  reviewedById          String?
+  createdAt             DateTime                             @default(now())
+  updatedAt             DateTime                             @updatedAt
 
-  buyer                   User                       @relation("BuyerItemSubmissions", fields: [buyerId], references: [id], onDelete: Cascade)
-  offers                  BuyerItemSubmissionOffer[] @relation("BuyerItemSubmissionOffers")
-  itemIntake              ItemIntake?                @relation("ItemIntakeLinkedSubmission")
-  marketplaceTransaction  MarketplaceTransaction?    @relation("MarketplaceTransactionSubmission")
+  buyer                   User                            @relation("BuyerItemSubmissions", fields: [buyerId], references: [id], onDelete: Cascade)
+  offers                  BuyerItemSubmissionOffer[]      @relation("BuyerItemSubmissionOffers")
+  targets                 BuyerItemSubmissionTarget[]
+  auditEvents             BuyerItemSubmissionAuditEvent[]
+  marketplaceListing      MarketplaceListing?             @relation("BuyerItemSubmissionMarketplaceListing", fields: [marketplaceListingId], references: [id], onDelete: SetNull)
+  itemIntake              ItemIntake?                     @relation("ItemIntakeLinkedSubmission")
+  marketplaceTransaction  MarketplaceTransaction?         @relation("MarketplaceTransactionSubmission")
   customerSellFulfillment CustomerSellFulfillment?
+  shopConversations       ShopConversation[]
 
   @@index([buyerId, createdAt])
   @@index([status, createdAt])
   @@index([intent, status])
+}
+
+enum BuyerItemSubmissionDistributionMode {
+  ONE_SHOP
+  SELECTED_SHOPS
+  NEARBY_SHOPS
+  MARKETPLACE
+  SELECTED_SHOPS_AND_MARKETPLACE
+  NEARBY_SHOPS_AND_MARKETPLACE
+}
+
+enum BuyerItemSubmissionTargetStatus {
+  PENDING
+  DELIVERED
+  VIEWED
+  RESPONDED
+  DECLINED
+  CLOSED
+}
+
+model BuyerItemSubmissionTarget {
+  id           String                          @id @default(cuid())
+  submissionId String
+  shopId       String
+  status       BuyerItemSubmissionTargetStatus @default(PENDING)
+  deliveredAt  DateTime?
+  viewedAt     DateTime?
+  respondedAt  DateTime?
+  declinedAt   DateTime?
+  closedAt     DateTime?
+  closeReason  String?
+  createdAt    DateTime                        @default(now())
+  updatedAt    DateTime                        @updatedAt
+
+  submission   BuyerItemSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  shop         PawnShop            @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  conversation ShopConversation?
+
+  @@unique([submissionId, shopId])
+  @@index([shopId, status, createdAt])
+  @@index([submissionId, status])
+}
+
+model BuyerItemSubmissionAuditEvent {
+  id             String   @id @default(cuid())
+  submissionId   String
+  targetId       String?
+  shopId         String?
+  actorUserId    String?
+  eventType      String
+  idempotencyKey String?  @unique
+  data           Json?
+  createdAt      DateTime @default(now())
+
+  submission BuyerItemSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  actor      User?               @relation("BuyerItemSubmissionAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([submissionId, createdAt])
+  @@index([shopId, createdAt])
+  @@index([targetId, createdAt])
 }
 
 model BuyerItemSubmissionOffer {
@@ -1160,11 +1239,13 @@ model MarketplaceListing {
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
 
-  item         Item?                    @relation(fields: [itemId], references: [id], onDelete: SetNull)
-  seller       User                     @relation("MarketplaceListingSeller", fields: [sellerUserId], references: [id], onDelete: Cascade)
-  sellerShop   PawnShop?                @relation("MarketplaceListingShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
-  transactions MarketplaceTransaction[]
-  itemIntake   ItemIntake?              @relation("ItemIntakeLinkedMarketplaceListing")
+  item               Item?                    @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  seller             User                     @relation("MarketplaceListingSeller", fields: [sellerUserId], references: [id], onDelete: Cascade)
+  sellerShop         PawnShop?                @relation("MarketplaceListingShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
+  transactions       MarketplaceTransaction[]
+  itemIntake         ItemIntake?              @relation("ItemIntakeLinkedMarketplaceListing")
+  targetedSubmission BuyerItemSubmission?     @relation("BuyerItemSubmissionMarketplaceListing")
+  shopConversations  ShopConversation[]
 
   @@index([sellerUserId, status, createdAt])
   @@index([sellerShopId, status, createdAt])
@@ -1697,6 +1778,89 @@ model PlatformPricingRule {
   @@index([appliesTo, status])
   @@index([status, effectiveStartAt])
   @@index([createdAt])
+}
+
+enum ShopConversationStatus {
+  OPEN
+  CLOSED
+  BLOCKED
+}
+
+enum ShopContactReason {
+  SELL_ITEM
+  PAWN_ITEM
+  INVENTORY
+  OFFER
+  VISIT
+  OTHER
+}
+
+model ShopConversation {
+  id                          String                 @id @default(cuid())
+  shopId                      String
+  sellerUserId                String
+  subject                     String
+  contactReason               ShopContactReason
+  buyerItemSubmissionId       String?
+  buyerItemSubmissionTargetId String?                @unique
+  marketplaceListingId        String?
+  itemId                      String?
+  offerId                     String?
+  status                      ShopConversationStatus @default(OPEN)
+  sellerLastReadAt            DateTime?
+  shopLastReadAt              DateTime?
+  blockedByUserId             String?
+  blockedAt                   DateTime?
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
+
+  shop                      PawnShop                     @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  seller                    User                         @relation("ShopConversationSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  buyerItemSubmission       BuyerItemSubmission?         @relation(fields: [buyerItemSubmissionId], references: [id], onDelete: SetNull)
+  buyerItemSubmissionTarget BuyerItemSubmissionTarget?   @relation(fields: [buyerItemSubmissionTargetId], references: [id], onDelete: SetNull)
+  marketplaceListing        MarketplaceListing?          @relation(fields: [marketplaceListingId], references: [id], onDelete: SetNull)
+  item                      Item?                        @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  offer                     Offer?                       @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  messages                  ShopMessage[]
+  auditEvents               ShopConversationAuditEvent[]
+
+  @@index([sellerUserId, status, updatedAt])
+  @@index([shopId, status, updatedAt])
+  @@index([shopId, sellerUserId, updatedAt])
+}
+
+model ShopMessage {
+  id             String    @id @default(cuid())
+  conversationId String
+  senderUserId   String
+  body           String
+  readAt         DateTime?
+  systemMetadata Json?
+  idempotencyKey String?
+  createdAt      DateTime  @default(now())
+
+  conversation ShopConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation("ShopMessageSender", fields: [senderUserId], references: [id], onDelete: Restrict)
+
+  @@unique([conversationId, senderUserId, idempotencyKey])
+  @@index([conversationId, createdAt, id])
+  @@index([senderUserId, createdAt])
+}
+
+model ShopConversationAuditEvent {
+  id             String   @id @default(cuid())
+  conversationId String
+  actorUserId    String?
+  action         String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  conversation ShopConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  actor        User?            @relation("ShopConversationAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
 }
 
 model SuperAdminAuditLog {

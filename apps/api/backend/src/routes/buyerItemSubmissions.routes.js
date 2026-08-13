@@ -1,4 +1,5 @@
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import { authRequired, requireRole } from "../middleware/auth.js";
 import {
   acceptBuyerItemSubmissionOffer,
@@ -13,8 +14,13 @@ import {
   reviewBuyerItemSubmission,
   withdrawBuyerItemSubmission,
 } from "../controllers/buyerItemSubmissions.controller.js";
+import {
+  declineOpportunity, distribute, searchShops,
+  sellerDashboard, shopOpportunities, viewOpportunity,
+} from "../controllers/submissionDistribution.controller.js";
 
 const router = express.Router();
+const distributionLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
 
 router.post("/", authRequired, requireRole("CONSUMER", "ADMIN"), createBuyerItemSubmission);
 
@@ -34,8 +40,14 @@ router.get(
 
 router.get("/mine", authRequired, requireRole("CONSUMER", "ADMIN"), getMyBuyerItemSubmissions);
 router.patch("/:id/withdraw", authRequired, requireRole("CONSUMER", "ADMIN"), withdrawBuyerItemSubmission);
+router.get("/distribution/shops", authRequired, requireRole("CONSUMER", "ADMIN"), searchShops);
+router.post("/:id/distribute", authRequired, requireRole("CONSUMER", "ADMIN"), distributionLimiter, distribute);
+router.get("/:id/dashboard", authRequired, requireRole("CONSUMER", "ADMIN"), sellerDashboard);
 
 router.get("/owner", authRequired, requireRole("OWNER", "ADMIN"), getOwnerBuyerItemSubmissions);
+router.get("/owner/opportunities", authRequired, requireRole("OWNER", "ADMIN"), shopOpportunities);
+router.get("/:id/opportunity", authRequired, requireRole("OWNER", "ADMIN"), viewOpportunity);
+router.patch("/:id/decline", authRequired, requireRole("OWNER", "ADMIN"), declineOpportunity);
 router.patch("/:id/review", authRequired, requireRole("OWNER", "ADMIN"), reviewBuyerItemSubmission);
 
 router.post("/:id/offers", authRequired, requireRole("OWNER", "ADMIN"), createBuyerItemSubmissionOffer);
