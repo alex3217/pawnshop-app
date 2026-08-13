@@ -15,6 +15,7 @@ import {
   shopAddressChanged,
 } from "../services/shopGeocoding.service.js";
 import { backfillShopCoordinates } from "../services/shopCoordinateBackfill.service.js";
+import { assertShopPermission, getAccessibleShopScope } from "../services/shopAccess.service.js";
 
 /**
  * Why this controller is defensive:
@@ -34,12 +35,14 @@ const PAWNSHOP_SAFE_FIELDS = [
   "id",
   "name",
   "address",
+  "addressLine2",
   "city",
   "state",
   "zip",
   "country",
   "latitude",
   "longitude",
+  "mapVerificationRequired",
   "phone",
   "description",
   "hours",
@@ -49,7 +52,7 @@ const PAWNSHOP_SAFE_FIELDS = [
   "createdAt",
   "updatedAt",
   "isDeleted",];
-const PAWNSHOP_PUBLIC_FIELDS = new Set(["id", "name", "address", "city", "state", "zip", "latitude", "longitude", "phone", "description", "hours", "logoUrl", "bannerUrl", "createdAt", "updatedAt"]);
+const PAWNSHOP_PUBLIC_FIELDS = new Set(["id", "name", "address", "addressLine2", "city", "state", "zip", "country", "latitude", "longitude", "phone", "description", "hours", "logoUrl", "bannerUrl", "createdAt", "updatedAt"]);
 function publicShop(shop) { return Object.fromEntries(Object.entries(shop || {}).filter(([field]) => PAWNSHOP_PUBLIC_FIELDS.has(field))); }
 
 let pawnShopColumnsCache = null;
@@ -112,6 +115,7 @@ function pickShopWriteData(body = {}, ownerId) {
 
   if (body.name !== undefined) data.name = normalizeString(body.name);
   if (body.address !== undefined) data.address = normalizeString(body.address);
+  if (body.addressLine2 !== undefined) data.addressLine2 = normalizeString(body.addressLine2);
   if (body.city !== undefined) data.city = normalizeString(body.city);
   if (body.state !== undefined) data.state = normalizeString(body.state)?.toUpperCase() ?? null;
   if (body.zip !== undefined || body.postalCode !== undefined) data.zip = normalizeString(body.zip ?? body.postalCode)?.toUpperCase() ?? null;
@@ -137,10 +141,12 @@ function addressFrom(shop = {}, changes = {}) {
 }
 
 export async function geocodeWriteData(req, data, previous = {}) {
-  const addressSubmitted = ["address", "city", "state", "zip", "country"].some((field) => data[field] !== undefined);
+  const addressSubmitted = ["address", "addressLine2", "city", "state", "zip", "country"].some((field) => data[field] !== undefined);
   if (!addressSubmitted) return data;
   const address = addressFrom(previous, data);
-  const changed = shopAddressChanged(previous, address);
+  const changed = shopAddressChanged(previous, address)
+    || (data.addressLine2 !== undefined
+      && normalizeString(previous.addressLine2) !== normalizeString(data.addressLine2));
   if (!changed) return { ...data, ...address };
   if (!isCompleteShopAddress(address)) {
     const error = new Error("Enter a complete street address, city, state, ZIP/postal code, and country to update the shop location.");
@@ -148,6 +154,12 @@ export async function geocodeWriteData(req, data, previous = {}) {
     error.code = "ADDRESS_INCOMPLETE";
     throw error;
   }
+  // Existing coordinates may have been manually verified. Preserve them when
+  // profile address fields change and require the explicit verification action.
+  if (previous.id) {
+    return { ...data, ...address, mapVerificationRequired: true };
+  }
+
   const result = await getShopGeocoder(req).geocode(address);
   if (!coordinatesAreValid(result.latitude, result.longitude)) {
     const error = new Error("The location provider returned invalid coordinates. Try again or contact PawnLoop support.");
@@ -155,12 +167,31 @@ export async function geocodeWriteData(req, data, previous = {}) {
     error.code = "INVALID_COORDINATES";
     throw error;
   }
-  return { ...data, ...result.address, latitude: result.latitude, longitude: result.longitude };
+  return { ...data, ...result.address, latitude: result.latitude, longitude: result.longitude, mapVerificationRequired: false };
 }
 
 function assertShopName(data) {
   if (!data.name) {
     const error = new Error("Shop name is required");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+export function validateShopProfileWriteData(data = {}) {
+  const limits = {
+    name: 160, address: 240, addressLine2: 240, city: 120, state: 120,
+    zip: 24, country: 2, phone: 40, description: 2000, hours: 500,
+  };
+  for (const [field, limit] of Object.entries(limits)) {
+    if (typeof data[field] === "string" && data[field].length > limit) {
+      const error = new Error(`${field} must be ${limit} characters or fewer.`);
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+  if (data.country !== undefined && data.country !== null && !/^[A-Z]{2}$/.test(data.country)) {
+    const error = new Error("Country must be a two-letter code.");
     error.statusCode = 400;
     throw error;
   }
@@ -243,8 +274,12 @@ export async function myShops(req, res) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
+    const scope = await getAccessibleShopScope({
+      user: req.user,
+      permission: "locations:read",
+    });
     const [where, select] = await Promise.all([
-      buildPawnShopWhere({ ownerId: userId }),
+      buildPawnShopWhere(scope.unrestricted ? {} : { id: { in: scope.shopIds } }),
       buildPawnShopSelect(["onboardingCompletedAt"]),
     ]);
 
@@ -269,6 +304,7 @@ export async function createShop(req, res) {
 
     let data = pickShopWriteData(req.body, userId);
     assertShopName(data);
+    validateShopProfileWriteData(data);
 
     if (String(req.user?.role || "").toUpperCase() !== "SUPER_ADMIN") {
       await assertCanCreateLocationForOwner(userId);
@@ -302,11 +338,11 @@ export async function updateShop(req, res) {
       return res.status(404).json({ success: false, error: "Shop not found" });
     }
 
-    if (req.user.role !== "ADMIN" && req.user.role !== "SUPER_ADMIN" && shop.ownerId !== req.user.sub) {
-      return res.status(403).json({ success: false, error: "Forbidden" });
-    }
+    await assertShopPermission({ user: req.user, shopId: id, permission: "locations:write" });
 
     let data = pickShopWriteData(req.body);
+    if (req.body?.name !== undefined) assertShopName(data);
+    validateShopProfileWriteData(data);
     data = await geocodeWriteData(req, data, shop);
 
     const brandingChanged = req.body?.logoUrl !== undefined || req.body?.bannerUrl !== undefined;
@@ -353,9 +389,7 @@ export async function verifyShopLocation(req, res) {
     const select = await buildPawnShopSelect(["ownerId", "isDeleted"]);
     const shop = await prisma.pawnShop.findUnique({ where: { id }, select });
     if (!shop || shop.isDeleted) return res.status(404).json({ success: false, error: "Shop not found" });
-    if (req.user.role !== "ADMIN" && req.user.role !== "SUPER_ADMIN" && shop.ownerId !== req.user.sub) {
-      return res.status(403).json({ success: false, error: "Forbidden" });
-    }
+    await assertShopPermission({ user: req.user, shopId: id, permission: "locations:write" });
     const result = await getShopGeocoder(req).geocode(addressFrom(shop));
     if (!coordinatesAreValid(result.latitude, result.longitude)) {
       const error = new Error("The location provider returned invalid coordinates. Try again or contact PawnLoop support.");
@@ -365,7 +399,7 @@ export async function verifyShopLocation(req, res) {
     }
     const updated = await prisma.pawnShop.update({
       where: { id },
-      data: { ...result.address, latitude: result.latitude, longitude: result.longitude },
+      data: { ...result.address, latitude: result.latitude, longitude: result.longitude, mapVerificationRequired: false },
       select,
     });
     return res.json(updated);

@@ -64,6 +64,7 @@ const STAFF_AUCTION_NAV: NavItem[] = [
   },
 ];
 const STAFF_MESSAGE_NAV: NavItem[] = [{ to: "/owner/messages", label: "Shop Messages" }];
+const STAFF_LOCATION_NAV: NavItem[] = [{ to: "/owner/locations", label: "Shop Profile & Locations" }];
 
 const STAFF_AUCTION_ACTION_NAV: NavItem[] = [
   {
@@ -88,7 +89,7 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
     label: "My Listings",
   },
   { to: "/owner/finance", label: "Finance" },
-  { to: "/owner/locations", label: "Locations" },
+  { to: "/owner/locations", label: "Shop Profile & Locations" },
   { to: "/owner/staff", label: "Staff" },
   { to: "/owner/messages", label: "Shop Messages" },
   { to: "/owner/auctions", label: "My Auctions" },
@@ -325,6 +326,7 @@ export default function SiteLayout() {
     shopAccess?.capabilities
       .auctionsWrite === true;
   const showStaffMessageLinks = isShopStaff && shopAccess?.capabilities.messagesRead === true;
+  const showStaffLocationLinks = isShopStaff && shopAccess?.capabilities.locationsRead === true;
 
   const staffRoleLabel =
     activeStaffMembership?.staffRole
@@ -362,6 +364,7 @@ export default function SiteLayout() {
         ? STAFF_AUCTION_NAV
         : []),
       ...(showStaffMessageLinks ? STAFF_MESSAGE_NAV : []),
+      ...(showStaffLocationLinks ? STAFF_LOCATION_NAV : []),
       ...(showStaffAuctionWriteLinks
         ? STAFF_AUCTION_ACTION_NAV
         : []),
@@ -382,6 +385,7 @@ export default function SiteLayout() {
       ...(showStaffAuctionWriteLinks
         ? STAFF_AUCTION_ACTION_NAV
         : []),
+      ...(showStaffLocationLinks ? STAFF_LOCATION_NAV : []),
       ...(showOwnerLinks ? OWNER_PRIMARY_NAV : []),
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
@@ -419,6 +423,7 @@ export default function SiteLayout() {
     showStaffAuctionLinks,
     showStaffAuctionWriteLinks,
     showStaffMessageLinks,
+    showStaffLocationLinks,
     showSuperAdminLinks,
     staffRoleLabel,
   ]);
