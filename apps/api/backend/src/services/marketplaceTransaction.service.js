@@ -3,6 +3,7 @@ import { resolveEffectiveSellerPlan } from "./sellerPlan.service.js";
 import {
   calculateSettlementRevenueContext,
 } from "./revenue/settlementRevenueAdapter.service.js";
+import { audit, closeDistribution, notify } from "./submissionDistribution.service.js";
 
 const TRANSACTION_TYPES = new Set([
   "DIRECT_PURCHASE",
@@ -703,6 +704,7 @@ export async function reserveMarketplacePurchase({
   try {
     return await prisma.$transaction(
       async (tx) => {
+        if (typeof tx.$queryRaw === "function") await tx.$queryRaw`SELECT id FROM "MarketplaceListing" WHERE id = ${normalizedListingId} FOR UPDATE`;
         const buyer = await tx.user.findUnique({
           where: {
             id: normalizedBuyerUserId,
@@ -746,6 +748,12 @@ export async function reserveMarketplacePurchase({
             "Marketplace listing not found",
             404,
           );
+        }
+
+        const targetedSubmission = await tx.buyerItemSubmission.findFirst({ where: { marketplaceListingId: listing.id } });
+        if (targetedSubmission) {
+          if (typeof tx.$queryRaw === "function") await tx.$queryRaw`SELECT id FROM "BuyerItemSubmission" WHERE id = ${targetedSubmission.id} FOR UPDATE`;
+          if (["ACCEPTED", "WITHDRAWN", "CLOSED"].includes(String(targetedSubmission.status).toUpperCase())) throw httpError("The physical item is no longer available", 409, "DISTRIBUTED_ITEM_UNAVAILABLE");
         }
 
         const flow =
@@ -872,7 +880,7 @@ export async function reserveMarketplacePurchase({
           });
         }
 
-        return tx.marketplaceTransaction.create({
+        const transaction = await tx.marketplaceTransaction.create({
           data: {
             listingId: listing.id,
             buyerUserId: buyer.id,
@@ -927,6 +935,15 @@ export async function reserveMarketplacePurchase({
           },
           include: TRANSACTION_INCLUDE,
         });
+        if (targetedSubmission) {
+          const now = new Date();
+          await tx.buyerItemSubmissionOffer.updateMany({ where: { submissionId: targetedSubmission.id, status: "PENDING" }, data: { status: "REJECTED", respondedAt: now } });
+          await closeDistribution({ tx, submissionId: targetedSubmission.id, actorUserId: buyer.id, reason: "MARKETPLACE_RESERVED" });
+          await tx.buyerItemSubmission.update({ where: { id: targetedSubmission.id }, data: { status: "CLOSED", closedAt: now } });
+          await audit(tx, { submissionId: targetedSubmission.id, actorUserId: buyer.id, eventType: "MARKETPLACE_RESERVED", idempotencyKey: `marketplace-reserved:${transaction.id}`, data: { listingId: listing.id, transactionId: transaction.id } });
+          await notify(tx, { userId: targetedSubmission.buyerId, type: "MARKETPLACE_LISTING_RESERVED", title: "Your marketplace item was reserved", message: targetedSubmission.title, actionUrl: `/buyer/sell-item?submissionId=${targetedSubmission.id}`, dedupeKey: `marketplace-reserved:${transaction.id}` });
+        }
+        return transaction;
       },
       {
         isolationLevel: "Serializable",

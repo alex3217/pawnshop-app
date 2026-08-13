@@ -58,6 +58,7 @@ export type OwnerBuyerItemSubmission = {
 };
 
 export type ReviewBuyerItemSubmissionInput = {
+  shopId: string;
   status: "REVIEWING" | "OFFERED" | "REJECTED" | "NEEDS_INFO";
   reviewMessage?: string;
 };
