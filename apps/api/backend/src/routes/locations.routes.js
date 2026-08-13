@@ -7,12 +7,14 @@ import {
   myShops,
   createShop,
   updateShop,
+  verifyShopLocation,
+  backfillShopLocations,
   getShopItems,
 } from "../controllers/shops.controller.js";
 
 const router = Router();
 
-const LOCATION_ROLES = ["OWNER", "ADMIN"];
+const LOCATION_ROLES = ["OWNER", "ADMIN", "SUPER_ADMIN"];
 const LOCATION_ID_MAX_LENGTH = 128;
 
 /**
@@ -105,6 +107,22 @@ router.post(
   asyncRoute(createShop),
 );
 
+/** Admin-only, explicit and dry-run by default. */
+router.post(
+  "/backfill-coordinates",
+  authRequired,
+  requireRole("ADMIN", "SUPER_ADMIN"),
+  asyncRoute(backfillShopLocations),
+);
+
+router.post(
+  "/:id/verify-location",
+  authRequired,
+  requireRole(...LOCATION_ROLES),
+  validateLocationIdParam,
+  asyncRoute(verifyShopLocation),
+);
+
 /**
  * Owner/Admin
  * PUT /api/locations/:id
@@ -148,6 +166,8 @@ export const LOCATION_ROUTE_MAP = Object.freeze({
   create: "POST /api/locations",
   updatePut: "PUT /api/locations/:id",
   updatePatch: "PATCH /api/locations/:id",
+  verify: "POST /api/locations/:id/verify-location",
+  backfill: "POST /api/locations/backfill-coordinates",
 });
 
 export default router;

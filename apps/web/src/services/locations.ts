@@ -14,7 +14,10 @@ export type PawnShopLocation = {
   city?: string | null;
   state?: string | null;
   postalCode?: string | null;
+  zip?: string | null;
   country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   phone?: string | null;
   email?: string | null;
   hours?: string | null;
@@ -132,6 +135,12 @@ export async function updateLocation(
     input,
     { signal },
   );
+  return unwrapOne(data);
+}
+
+export async function verifyLocation(id: string): Promise<PawnShopLocation> {
+  if (!id) throw new Error("Missing location id.");
+  const data = await api.post<unknown>(`/locations/${encodeURIComponent(id)}/verify-location`, {});
   return unwrapOne(data);
 }
 

@@ -8,6 +8,7 @@ export type Shop = {
   city?: string | null;
   state?: string | null;
   zip?: string | null;
+  country?: string | null;
   latitude?: number | string | null;
   longitude?: number | string | null;
   phone?: string | null;
@@ -49,6 +50,10 @@ export type ShopItem = {
 export type CreateShopInput = {
   name: string;
   address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
   phone?: string;
   description?: string;
   hours?: string;
@@ -107,6 +112,10 @@ export async function createShop(
     {
       name: input.name,
       address: input.address || undefined,
+      city: input.city || undefined,
+      state: input.state || undefined,
+      postalCode: input.postalCode || undefined,
+      country: input.country || undefined,
       phone: input.phone || undefined,
       description: input.description || undefined,
       hours: input.hours || undefined,

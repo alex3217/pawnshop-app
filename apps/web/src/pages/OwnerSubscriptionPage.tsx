@@ -811,7 +811,7 @@ export default function OwnerSubscriptionPage() {
           <>
             {!hasShops ? (
               <div style={styles.card}>
-                <div id="seller-plan" style={styles.sectionLabel}>Seller Plans</div>
+                <div style={styles.sectionLabel}>Seller Plans</div>
                 <div style={styles.planName}>
                   Compare plans before creating your shop
                 </div>
