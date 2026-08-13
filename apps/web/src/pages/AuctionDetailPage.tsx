@@ -8,6 +8,11 @@ import { SOCKET_PATH, SOCKET_URL } from "../config";
 import { getAuthRole, getAuthToken } from "../services/auth";
 import { getAuction, placeBid as placeBidApi } from "../services/auctions";
 import "../styles/auction-detail-v2.css";
+import {
+  formatAuctionDateTime,
+  getAuctionCountdown,
+  getEffectiveAuctionStatus,
+} from "../../../../shared/auctionStatus.mjs";
 
 type AuctionStatus = "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED" | string;
 
@@ -176,32 +181,6 @@ function getEffectiveEndDate(auction: Auction | null) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function getStatusLabel(status: string | undefined | null) {
-  return String(status || "UNKNOWN").toUpperCase();
-}
-
-function getTimeLeft(endTime: Date | null, now: number) {
-  if (!endTime) return "—";
-
-  const ms = endTime.getTime() - now;
-
-  if (ms <= 0) return "Ended";
-
-  const totalSeconds = Math.floor(ms / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hh = Math.floor((totalSeconds % 86400) / 3600);
-  const mm = Math.floor((totalSeconds % 3600) / 60);
-  const ss = totalSeconds % 60;
-
-  if (days > 0) return `${days}d ${hh}h ${mm}m`;
-
-  if (hh > 0) {
-    return `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
-  }
-
-  return `${mm}:${String(ss).padStart(2, "0")}`;
-}
-
 export default function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>();
 
@@ -229,11 +208,14 @@ export default function AuctionDetailPage() {
   const canBid = isBuyer || canModerateBid;
 
   const endTime = useMemo(() => getEffectiveEndDate(auction), [auction]);
-  const timeLeft = useMemo(() => getTimeLeft(endTime, now), [endTime, now]);
-
-  const statusLabel = getStatusLabel(auction?.status);
+  const statusLabel = auction
+    ? getEffectiveAuctionStatus(auction, new Date(now))
+    : "UNKNOWN";
+  const timeLeft = auction
+    ? getAuctionCountdown(auction, new Date(now))
+    : "—";
   const isLive = statusLabel === "LIVE";
-  const hasEnded = timeLeft === "Ended" || statusLabel === "ENDED";
+  const hasEnded = statusLabel === "ENDED";
   const suggestedBid = useMemo(() => getSuggestedBidValue(auction), [auction]);
 
   const bidDisabled =
@@ -539,7 +521,11 @@ export default function AuctionDetailPage() {
               placeholderClassName="auction2-image-placeholder"
             />
 
-            <span className={isLive ? "auction2-status live" : "auction2-status"}>
+            <span
+              role="status"
+              aria-label={`Auction status: ${statusLabel}`}
+              className={isLive ? "auction2-status live" : "auction2-status"}
+            >
               {statusLabel}
             </span>
           </div>
@@ -553,7 +539,7 @@ export default function AuctionDetailPage() {
         </div>
 
         <aside className="auction2-bid-card">
-          <span className="auction2-pill">Live auction detail</span>
+          <span className="auction2-pill">{isLive ? "Live auction detail" : `${statusLabel} auction detail`}</span>
 
           <h1>{auction.item?.title ?? "Auction Item"}</h1>
 
@@ -569,7 +555,7 @@ export default function AuctionDetailPage() {
             </div>
             <div>
               <span>Time left</span>
-              <strong>{isLive ? timeLeft : "—"}</strong>
+              <strong>{isLive ? timeLeft : statusLabel === "SCHEDULED" ? timeLeft : "Ended"}</strong>
             </div>
             <div>
               <span>Minimum increment</span>
@@ -587,7 +573,7 @@ export default function AuctionDetailPage() {
           </div>
 
           <div className="auction2-end-time">
-            Ends at: {endTime ? endTime.toLocaleString() : "—"}
+            Closes: {endTime ? formatAuctionDateTime(endTime) : "—"}
             {auction.extendedEndsAt ? " · Extended" : ""}
             {refreshing ? " · Refreshing..." : ""}
           </div>

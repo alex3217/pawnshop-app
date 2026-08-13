@@ -6,9 +6,10 @@ function keyFor(req, type) {
   return String(req.ip || req.socket?.remoteAddress || "unknown");
 }
 
-export class RedisUploadRateLimitStore {
-  constructor({ url, client } = {}) {
+export class RedisRateLimitStore {
+  constructor({ url, client, namespace = "rate" } = {}) {
     this.client = client || createClient({ url });
+    this.namespace = namespace;
     this.connecting = null;
   }
   async ready() {
@@ -18,13 +19,19 @@ export class RedisUploadRateLimitStore {
   }
   async increment(key, windowMs) {
     await this.ready();
-    const redisKey = `uploads:rate:${crypto.createHash("sha256").update(key).digest("hex")}`;
+    const redisKey = `${this.namespace}:${crypto.createHash("sha256").update(key).digest("hex")}`;
     const count = Number(await this.client.eval(
       "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]) end; return n",
       { keys: [redisKey], arguments: [String(windowMs)] },
     ));
     const ttl = Number(await this.client.pTTL(redisKey));
     return { count, resetAt: Date.now() + Math.max(1, ttl) };
+  }
+}
+
+export class RedisUploadRateLimitStore extends RedisRateLimitStore {
+  constructor(options = {}) {
+    super({ ...options, namespace: "uploads:rate" });
   }
 }
 

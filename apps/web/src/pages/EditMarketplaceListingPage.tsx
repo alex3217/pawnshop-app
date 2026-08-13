@@ -16,6 +16,7 @@ import {
   type MarketplaceListing,
 } from "../services/marketplaceListings";
 import ItemImagePicker from "../components/ItemImagePicker";
+import AiDescriptionControl from "../components/AiDescriptionControl";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { durableImageUrls, normalizeListingOption, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
 
@@ -593,6 +594,23 @@ export default function EditMarketplaceListingPage() {
                   )
                 }
                 rows={6}
+              />
+              <AiDescriptionControl
+                value={description}
+                onChange={setDescription}
+                disabled={submitting || !canEdit(listing)}
+                input={{
+                  context: "MARKETPLACE_LISTING",
+                  resourceId: listing.id,
+                  pawnShopId: listing.sellerShopId || undefined,
+                  shopName: listing.sellerShop?.name || "",
+                  title,
+                  price,
+                  category,
+                  condition,
+                  linkedInventoryTitle: listing.item?.title || "",
+                  linkedInventoryDescription: "",
+                }}
               />
             </label>
           </div>

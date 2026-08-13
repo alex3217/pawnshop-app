@@ -1,0 +1,8 @@
+.ai-description-control { display: grid; gap: .55rem; margin-top: .65rem; color: var(--text-strong, currentColor); }
+.ai-description-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.ai-description-actions button { min-height: 44px; padding: .6rem .9rem; border: 1px solid var(--border-strong, #64748b); border-radius: 10px; background: var(--accent, #4338ca); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+.ai-description-actions button:disabled { cursor: not-allowed; opacity: .6; }
+.ai-description-actions .ai-description-clear { background: var(--surface-strong, #fff); color: var(--text-strong, #0f172a); }
+.ai-description-status { margin: 0; color: var(--muted, #475569); font-size: .875rem; line-height: 1.45; }
+.ai-description-status.is-error { color: var(--danger, #b91c1c); font-weight: 700; }
+@media (max-width: 480px) { .ai-description-actions { display: grid; } .ai-description-actions button { width: 100%; } }

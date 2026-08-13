@@ -6,7 +6,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { selectActiveOwnerShopId, setActiveOwnerShopId } from "../services/ownerActiveShop";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { getAuthToken } from "../services/auth";
-import { requestListingAssistant, type AiListingSuggestion } from "../services/aiListingAssistant";
 import {
   scanItem,
   type ScanIntakeDestination,
@@ -18,6 +17,7 @@ import {
   createItemPageController,
 } from "../services/ownerPhotoWorkflows";
 import ItemImagePicker from "../components/ItemImagePicker";
+import AiDescriptionControl from "../components/AiDescriptionControl";
 import { getMyShops, type Shop } from "../services/shops";
 import "../styles/owner-workspace-readability.css";
 
@@ -166,9 +166,6 @@ export default function CreateItemPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiSuggestion, setAiSuggestion] = useState<AiListingSuggestion | null>(null);
-  const [aiError, setAiError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [recoverableItemId, setRecoverableItemId] = useState("");
@@ -518,74 +515,6 @@ export default function CreateItemPage() {
   }
 
 
-  async function runAiListingAssistant() {
-    setAiError(null);
-    setError(null);
-
-    if (!token) {
-      setAiError("You must be logged in as an owner.");
-      return;
-    }
-
-    if (!title.trim() && !description.trim()) {
-      setAiError("Add a title or description before asking AI for help.");
-      return;
-    }
-
-    setAiLoading(true);
-
-    try {
-      const suggestion = await requestListingAssistant({
-        pawnShopId,
-        shopName: selectedShop?.name || "",
-        title,
-        description,
-        price,
-        category,
-        condition,
-      });
-
-      setAiSuggestion(suggestion);
-    } catch (err: unknown) {
-      setAiSuggestion(null);
-      setAiError(err instanceof Error ? err.message : "AI listing assistant failed.");
-    } finally {
-      setAiLoading(false);
-    }
-  }
-
-  function applyAiSuggestion() {
-    if (!aiSuggestion) return;
-
-    if (aiSuggestion.title.trim()) {
-      setTitle(aiSuggestion.title.trim());
-    }
-
-    if (aiSuggestion.description.trim()) {
-      setDescription(aiSuggestion.description.trim());
-    }
-
-    if (aiSuggestion.category.trim()) {
-      setCategory(
-        normalizeOption(
-          aiSuggestion.category.trim(),
-          ITEM_CATEGORY_OPTIONS,
-          category || "Electronics",
-        ),
-      );
-    }
-
-    if (aiSuggestion.condition.trim()) {
-      setCondition(
-        normalizeOption(
-          aiSuggestion.condition.trim(),
-          ITEM_CONDITION_OPTIONS,
-          condition || "Good",
-        ),
-      );
-    }
-  }
-
   const submitDisabled =
     saving ||
     loading ||
@@ -881,149 +810,6 @@ export default function CreateItemPage() {
         ) : null}
 
 
-        <section
-          style={{
-            padding: 16,
-            borderRadius: 16,
-            border: "1px solid rgba(129,140,248,0.28)",
-            background: "rgba(79,70,229,0.10)",
-            display: "grid",
-            gap: 12,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              alignItems: "flex-start",
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <strong>AI Listing Assistant</strong>
-              <p className="muted" style={{ margin: "6px 0 0" }}>
-                Improve the title, description, tags, trust notes, and listing quality before saving.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="btn"
-              onClick={runAiListingAssistant}
-              disabled={aiLoading || saving || loading || (!title.trim() && !description.trim())}
-            >
-              {aiLoading ? "Generating..." : "Generate AI Suggestions"}
-            </button>
-          </div>
-
-          {aiError ? (
-            <div
-              style={{
-                color: "#fecaca",
-                background: "rgba(220,38,38,0.12)",
-                border: "1px solid rgba(248,113,113,0.25)",
-                padding: 12,
-                borderRadius: 12,
-              }}
-            >
-              {aiError}
-            </div>
-          ) : null}
-
-          {aiSuggestion ? (
-            <div
-              style={{
-                display: "grid",
-                gap: 12,
-                padding: 14,
-                borderRadius: 14,
-                background: "rgba(15,23,42,0.52)",
-                border: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  flexWrap: "wrap",
-                }}
-              >
-                <strong>Quality Score: {Math.round(aiSuggestion.qualityScore)}/100</strong>
-                <span className="muted">Source: {aiSuggestion.source || "ai"}</span>
-              </div>
-
-              <div>
-                <strong>Suggested Title</strong>
-                <p style={{ margin: "6px 0 0" }}>{aiSuggestion.title}</p>
-              </div>
-
-              <div>
-                <strong>Suggested Description</strong>
-                <p style={{ margin: "6px 0 0", whiteSpace: "pre-wrap" }}>
-                  {aiSuggestion.description}
-                </p>
-              </div>
-
-              {aiSuggestion.tags.length ? (
-                <div>
-                  <strong>Tags</strong>
-                  <p className="muted" style={{ margin: "6px 0 0" }}>
-                    {aiSuggestion.tags.join(", ")}
-                  </p>
-                </div>
-              ) : null}
-
-              {aiSuggestion.qualityIssues.length ? (
-                <div>
-                  <strong>Quality Issues</strong>
-                  <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-                    {aiSuggestion.qualityIssues.map((issue) => (
-                      <li key={issue}>{issue}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {aiSuggestion.riskWarnings.length ? (
-                <div>
-                  <strong>Risk Warnings</strong>
-                  <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-                    {aiSuggestion.riskWarnings.map((warning) => (
-                      <li key={warning}>{warning}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {aiSuggestion.ownerChecklist.length ? (
-                <div>
-                  <strong>Owner Checklist</strong>
-                  <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-                    {aiSuggestion.ownerChecklist.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button type="button" className="btn" onClick={applyAiSuggestion}>
-                  Apply AI Suggestions
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setAiSuggestion(null)}
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </section>
-
         <form id="item-details" onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
           <label style={fieldStyle}>
             Shop
@@ -1069,6 +855,12 @@ export default function CreateItemPage() {
               placeholder="Describe the item, condition, accessories, and notes."
               rows={5}
               style={{ ...inputStyle, resize: "vertical" }}
+            />
+            <AiDescriptionControl
+              value={description}
+              onChange={setDescription}
+              disabled={saving || loading || !pawnShopId}
+              input={{ context: "INVENTORY_ITEM", pawnShopId, shopName: selectedShop?.name || "", title, price, category, condition }}
             />
           </label>
 

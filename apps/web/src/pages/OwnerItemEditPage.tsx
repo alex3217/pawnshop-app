@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import ItemImagePicker from "../components/ItemImagePicker";
+import AiDescriptionControl from "../components/AiDescriptionControl";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { ApiError } from "../services/apiClient";
 import { getAuthToken } from "../services/auth";
@@ -387,6 +388,12 @@ export default function OwnerItemEditPage() {
               disabled={saving || archived}
               rows={6}
               style={{ ...styles.input, resize: "vertical", paddingTop: 10 }}
+            />
+            <AiDescriptionControl
+              value={description}
+              onChange={setDescription}
+              disabled={saving || archived}
+              input={{ context: "INVENTORY_ITEM", resourceId: item.id, pawnShopId: item.pawnShopId, shopName: item.shop?.name || "", title, price, category, condition }}
             />
           </label>
 
