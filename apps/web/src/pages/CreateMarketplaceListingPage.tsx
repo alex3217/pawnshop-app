@@ -26,6 +26,7 @@ import {
   type MarketplaceListingType,
 } from "../services/marketplaceListings";
 import ItemImagePicker from "../components/ItemImagePicker";
+import AiDescriptionControl from "../components/AiDescriptionControl";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { durableImageUrls, normalizeListingOption, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
 
@@ -404,6 +405,9 @@ export default function CreateMarketplaceListingPage() {
         sellerShopId,
       ],
     );
+
+  const selectedItem = items.find((item) => item.id === itemId) || null;
+  const selectedShop = shops.find((shop) => shop.id === sellerShopId) || null;
 
   function handleTypeChange(
     value: MarketplaceListingType,
@@ -910,6 +914,22 @@ export default function CreateMarketplaceListingPage() {
                   )
                 }
                 rows={6}
+              />
+              <AiDescriptionControl
+                value={description}
+                onChange={setDescription}
+                disabled={submitting || loadingOptions}
+                input={{
+                  context: "MARKETPLACE_LISTING",
+                  pawnShopId: isShopListing(listingType) ? sellerShopId : undefined,
+                  shopName: selectedShop?.name || "",
+                  title,
+                  price,
+                  category,
+                  condition,
+                  linkedInventoryTitle: selectedItem?.title || "",
+                  linkedInventoryDescription: selectedItem?.description || "",
+                }}
               />
             </label>
           </div>

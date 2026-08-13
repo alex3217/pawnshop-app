@@ -263,7 +263,7 @@ async function assertLinkedItemAccess({
   return item;
 }
 
-async function getOwnedListingOrThrow({
+export async function getOwnedListingOrThrow({
   listingId,
   userId,
   role,

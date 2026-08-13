@@ -1,93 +1,56 @@
 import { api } from "./apiClient";
 
-export type AiListingAssistantInput = {
+export type AiDescriptionContext =
+  | "INVENTORY_ITEM"
+  | "MARKETPLACE_LISTING"
+  | "AUCTION"
+  | "SELL_SUBMISSION"
+  | "PAWN_SUBMISSION";
+
+export type AiDescriptionInput = {
+  context: AiDescriptionContext;
   pawnShopId?: string;
+  resourceId?: string;
   shopName?: string;
   title: string;
   description: string;
   price?: string;
   category: string;
   condition: string;
+  linkedInventoryTitle?: string;
+  linkedInventoryDescription?: string;
   notes?: string;
+  attributes?: string[];
 };
 
+export type AiListingAssistantInput = AiDescriptionInput;
 export type AiListingSuggestion = {
-  title: string;
-  description: string;
-  category: string;
-  condition: string;
-  tags: string[];
-  searchKeywords: string[];
-  qualityScore: number;
-  qualityIssues: string[];
-  riskWarnings: string[];
-  ownerChecklist: string[];
-  buyerTrustNotes: string[];
-  source?: "openai" | "fallback" | string;
+  title: string; description: string; category: string; condition: string;
+  tags: string[]; searchKeywords: string[]; qualityScore: number;
+  qualityIssues: string[]; riskWarnings: string[]; ownerChecklist: string[];
+  buyerTrustNotes: string[]; source?: string;
 };
 
-function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((item) => String(item || "").trim()).filter(Boolean);
-}
-
+function strings(value: unknown): string[] { return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : []; }
 function normalizeSuggestion(payload: unknown): AiListingSuggestion {
-  const record =
-    payload && typeof payload === "object"
-      ? (payload as Record<string, unknown>)
-      : {};
-
-  const nested =
-    record.suggestion && typeof record.suggestion === "object"
-      ? (record.suggestion as Record<string, unknown>)
-      : record.data && typeof record.data === "object"
-        ? (record.data as Record<string, unknown>)
-        : record;
-
+  const root = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  const nested = (root.suggestion || root.data || root) as Record<string, unknown>;
   return {
-    title: String(nested.title || "").trim(),
-    description: String(nested.description || "").trim(),
-    category: String(nested.category || "").trim(),
-    condition: String(nested.condition || "").trim(),
-    tags: normalizeStringArray(nested.tags),
-    searchKeywords: normalizeStringArray(nested.searchKeywords),
-    qualityScore: Number(nested.qualityScore || 0),
-    qualityIssues: normalizeStringArray(nested.qualityIssues),
-    riskWarnings: normalizeStringArray(nested.riskWarnings),
-    ownerChecklist: normalizeStringArray(nested.ownerChecklist),
-    buyerTrustNotes: normalizeStringArray(nested.buyerTrustNotes),
-    source: typeof nested.source === "string" ? nested.source : undefined,
+    title: String(nested.title || "").trim(), description: String(nested.description || "").trim(),
+    category: String(nested.category || "").trim(), condition: String(nested.condition || "").trim(),
+    tags: strings(nested.tags), searchKeywords: strings(nested.searchKeywords),
+    qualityScore: Number(nested.qualityScore || 0), qualityIssues: strings(nested.qualityIssues),
+    riskWarnings: strings(nested.riskWarnings), ownerChecklist: strings(nested.ownerChecklist),
+    buyerTrustNotes: strings(nested.buyerTrustNotes), source: typeof nested.source === "string" ? nested.source : undefined,
   };
 }
 
-export async function requestListingAssistant(
-  input: AiListingAssistantInput,
-  signal?: AbortSignal,
-): Promise<AiListingSuggestion> {
-  if (!input.title.trim() && !input.description.trim()) {
-    throw new Error("Add a title or description before asking AI for help.");
-  }
-
-  const data = await api.post<unknown>(
-    "/ai/listing-assistant",
-    {
-      pawnShopId: input.pawnShopId,
-      shopName: input.shopName,
-      title: input.title.trim(),
-      description: input.description.trim(),
-      price: input.price,
-      category: input.category,
-      condition: input.condition,
-      notes: input.notes,
-    },
-    { signal },
-  );
-
-  const suggestion = normalizeSuggestion(data);
-
-  if (!suggestion.title && !suggestion.description) {
-    throw new Error("Invalid AI listing assistant response.");
-  }
-
+export async function requestListingAssistant(input: AiListingAssistantInput, signal?: AbortSignal): Promise<AiListingSuggestion> {
+  const suggestion = normalizeSuggestion(await api.post<unknown>("/ai/listing-assistant", input, { signal }));
+  if (!suggestion.title || !suggestion.description) throw new Error("AI returned an invalid listing suggestion. Please try again.");
   return suggestion;
+}
+
+export async function requestAiDescription(input: AiDescriptionInput, signal?: AbortSignal): Promise<string> {
+  return (await requestListingAssistant(input, signal)).description;
 }

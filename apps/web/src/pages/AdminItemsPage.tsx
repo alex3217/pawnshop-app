@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import AdminPageShell from "../admin/components/AdminPageShell";
+import AiDescriptionControl from "../components/AiDescriptionControl";
 import { adminApi } from "../admin/services/adminApi";
 import type {
   AdminItemRow,
@@ -660,6 +661,12 @@ export default function AdminItemsPage() {
                   className="admin-control-input"
                   placeholder="Item description"
                   rows={4}
+                />
+                <AiDescriptionControl
+                  value={form.description}
+                  onChange={(value) => updateForm("description", value)}
+                  disabled={savingForm || !form.shopId}
+                  input={{ context: "INVENTORY_ITEM", resourceId: modalMode === "edit" ? form.id : undefined, pawnShopId: form.shopId, shopName: shops.find((shop) => shop.id === form.shopId)?.name || "", title: form.title, price: form.price, category: form.category || "Other", condition: form.condition || "Unspecified" }}
                 />
               </label>
 
