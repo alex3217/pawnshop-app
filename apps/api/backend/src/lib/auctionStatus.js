@@ -1,54 +1,17 @@
 // File: apps/api/backend/src/lib/auctionStatus.js
 
-const VALID_AUCTION_STATUSES = new Set([
-  "SCHEDULED",
-  "LIVE",
-  "ENDED",
-  "CANCELED",
-]);
+export {
+  getEffectiveAuctionEnd,
+  getEffectiveAuctionStatus,
+  hasEnded,
+  hasStarted,
+  normalizeAuctionStatusInput,
+} from "../../../../../shared/auctionStatus.mjs";
 
-export function normalizeAuctionStatusInput(value) {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-
-  const trimmed = String(value).trim();
-  if (!trimmed) return null;
-
-  const upper = trimmed.toUpperCase();
-  const canonical = upper === "CANCELLED" ? "CANCELED" : upper;
-
-  return VALID_AUCTION_STATUSES.has(canonical) ? canonical : null;
-}
-
-export function getEffectiveAuctionEnd(auction) {
-  return auction?.extendedEndsAt || auction?.endsAt || null;
-}
-
-export function hasStarted(auction, now = new Date()) {
-  if (!auction?.startsAt) return true;
-  return now >= new Date(auction.startsAt);
-}
-
-export function hasEnded(auction, now = new Date()) {
-  const end = getEffectiveAuctionEnd(auction);
-  if (!end) return false;
-  return now >= new Date(end);
-}
-
-export function getEffectiveAuctionStatus(auction, now = new Date()) {
-  if (!auction) return "ENDED";
-  if (auction.status === "CANCELED") return "CANCELED";
-
-  if (!hasStarted(auction, now)) {
-    return "SCHEDULED";
-  }
-
-  if (hasEnded(auction, now)) {
-    return "ENDED";
-  }
-
-  return "LIVE";
-}
+import {
+  getEffectiveAuctionStatus,
+  normalizeAuctionStatusInput,
+} from "../../../../../shared/auctionStatus.mjs";
 
 export function normalizeAuctionForResponse(auction, now = new Date()) {
   if (!auction) return auction;
