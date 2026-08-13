@@ -158,6 +158,14 @@ server.listen(PORT, HOST, () => {
   startUploadCleanupScheduler({ storage: app.locals.uploadStorage });
 });
 
+async function closeSharedResources() {
+  try {
+    await app.locals.authRateLimiters?.close?.();
+  } catch (err) {
+    console.error("[auth.rateLimit] Failed to close shared store:", { name: err?.name || "Error" });
+  }
+}
+
 function shutdown(signal) {
   if (isShuttingDown) return;
   isShuttingDown = true;
@@ -184,12 +192,13 @@ function shutdown(signal) {
 
   stopUploadCleanupScheduler();
 
-  server.close((err) => {
+  server.close(async (err) => {
     if (err) {
       console.error("[server] Error during shutdown:", err);
       process.exit(1);
     }
 
+    await closeSharedResources();
     console.log("[server] Shutdown complete.");
     process.exit(0);
   });

@@ -21,6 +21,12 @@ import {
   redeemInviteInTransaction,
 } from "../services/betaInvite.service.js";
 import { runGovernedCreateMutation } from "../services/superAdminAudit.service.js";
+import { loadMfaConfig } from "../config/mfa.js";
+import {
+  completeLoginMfaChallenge,
+  createMfaChallenge,
+  recordMfaChallengeFailure,
+} from "../services/mfa.service.js";
 
 const PUBLIC_ALLOWED_ROLES = new Set(["CONSUMER", "OWNER"]);
 
@@ -406,6 +412,44 @@ export async function login(req, res) {
       });
     }
 
+    const mfaConfig = loadMfaConfig(process.env);
+    if (mfaConfig.rolloutMode !== "disabled") {
+      const [credential, privilegedShopMembership] = await Promise.all([
+        prisma.userMfaCredential.findUnique({
+          where: { userId: user.id },
+          select: { enabledAt: true },
+        }),
+        prisma.staff.findFirst({
+          where: { userId: user.id, status: "ACTIVE", role: "SHOP_ADMIN" },
+          select: { id: true },
+        }),
+      ]);
+      const privileged = ["SUPER_ADMIN", "ADMIN", "OWNER"].includes(normalizeRole(user.role))
+        || Boolean(privilegedShopMembership);
+      if (mfaConfig.rolloutMode === "required" && privileged && !credential?.enabledAt) {
+        return res.status(403).json({
+          error: "Additional authentication is required",
+          code: "MFA_ENROLLMENT_REQUIRED",
+        });
+      }
+      if (credential?.enabledAt && privileged) {
+        const issued = await createMfaChallenge({
+          userId: user.id,
+          purpose: "LOGIN",
+          encryptionKey: mfaConfig.encryptionKey,
+          ttlSeconds: mfaConfig.challengeTtlSeconds,
+          attempts: mfaConfig.challengeAttempts,
+          audit: loginAudit(req),
+        });
+        return res.status(202).json({
+          success: true,
+          mfaRequired: true,
+          challenge: issued.credential,
+          expiresInSeconds: mfaConfig.challengeTtlSeconds,
+        });
+      }
+    }
+
     return res.json({
       success: true,
       token: issueToken(user),
@@ -414,6 +458,48 @@ export async function login(req, res) {
   } catch (error) {
     console.error("[auth.login] error", error);
     return sendError(res, error, "Login failed");
+  }
+}
+
+function loginAudit(req) {
+  return {
+    requestId: req.requestId || null,
+    ipAddress: req.ip || null,
+    userAgent: req.get("user-agent") || null,
+  };
+}
+
+export async function completeLoginMfa(req, res) {
+  const generic = () => res.status(401).json({
+    error: "Unable to complete authentication",
+    code: "MFA_AUTHENTICATION_FAILED",
+  });
+  const challenge = typeof req.body?.challenge === "string" ? req.body.challenge.trim() : "";
+  const method = req.body?.method === "recovery_code" ? "recovery_code" : "totp";
+  const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+  if (!challenge || !code || (method === "totp" && !/^\d{6}$/.test(code))) return generic();
+  try {
+    const config = loadMfaConfig(process.env);
+    if (config.rolloutMode === "disabled") return generic();
+    const result = await completeLoginMfaChallenge({
+      credential: challenge,
+      method,
+      code,
+      encryptionKey: config.encryptionKey,
+      audit: loginAudit(req),
+    });
+    return res.json({ success: true, token: issueToken(result.user), user: safeUser(result.user) });
+  } catch (error) {
+    try {
+      const config = loadMfaConfig(process.env);
+      await recordMfaChallengeFailure({
+        credential: challenge,
+        purpose: "LOGIN",
+        encryptionKey: config.encryptionKey,
+        audit: loginAudit(req),
+      });
+    } catch { /* Preserve the generic response for invalid, stale, or locked challenges. */ }
+    return generic();
   }
 }
 
