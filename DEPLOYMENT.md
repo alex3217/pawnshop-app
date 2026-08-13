@@ -310,3 +310,14 @@ Rollback code:
 Last known safe checkpoint before deployment runbook work:
 
     9ad86d0 Add PM2 deployment runbook config
+### Buyer shop map browser key
+
+Set `VITE_GOOGLE_MAPS_BROWSER_API_KEY` in the frontend build environment only. In Cloudflare Pages, add it under **Workers & Pages → pawnloop-frontend → Settings → Variables and Secrets** for both Preview and Production. For a frontend hosted on Render, add it to the frontend Web Service under **Environment** so it is present during the Vite build. Do not add it to the backend service and do not substitute the server-only `GOOGLE_GEOCODING_API_KEY`.
+
+Restrict this browser key in Google Cloud to the **Maps JavaScript API** and these website referrers (plus the production PawnLoop origin when enabled):
+
+- `https://staging.pawnloop-frontend.pages.dev/*`
+- `https://pawnloop-staging-web-alex3217.onrender.com/*`
+- `https://pawnshop-staging-web.onrender.com/*`
+
+The item API currently exposes legacy inventory and shop coordinates, but it does not expose a configurable pickup-method collection or accept a fulfillment method on `POST /offers`. `MarketplaceListing` supports only the `pickupAvailable` and `shippingAvailable` booleans, and the legacy offer model has no selected-method field. Buyer offer pickup selection therefore requires schema fields for configured shop/listing methods and the selected offer method, corresponding item/offer API serialization and validation, and owner configuration controls. Until that contract exists, the item detail keeps the existing “Confirm pickup with the shop” guidance and does not promise or synthesize delivery methods.
