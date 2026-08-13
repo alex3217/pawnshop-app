@@ -16,6 +16,7 @@ import ScrollToTopButton from "./ScrollToTopButton";
 import NavigationTour from "./onboarding/NavigationTour";
 import RoleSetupChecklist from "./onboarding/RoleSetupChecklist";
 import NotificationCenter from "./NotificationCenter";
+import { getShopMessageUnreadCounts } from "../services/shopMessaging";
 import { BUYER_NAVIGATION } from "../navigation/buyerNavigation";
 import { ENVIRONMENT } from "../config";
 import EnvironmentIndicator from "./EnvironmentIndicator.mjs";
@@ -62,6 +63,7 @@ const STAFF_AUCTION_NAV: NavItem[] = [
     label: "Shop Auctions",
   },
 ];
+const STAFF_MESSAGE_NAV: NavItem[] = [{ to: "/owner/messages", label: "Shop Messages" }];
 
 const STAFF_AUCTION_ACTION_NAV: NavItem[] = [
   {
@@ -88,6 +90,7 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
   { to: "/owner/finance", label: "Finance" },
   { to: "/owner/locations", label: "Locations" },
   { to: "/owner/staff", label: "Staff" },
+  { to: "/owner/messages", label: "Shop Messages" },
   { to: "/owner/auctions", label: "My Auctions" },
   { to: "/owner/subscription", label: "Subscription" },
 ];
@@ -250,6 +253,11 @@ export default function SiteLayout() {
   }, []);
 
   const role = getAuthRole();
+  const [messageUnread, setMessageUnread] = useState({ seller: 0, shop: 0 });
+  useEffect(() => {
+    if (!role || role === "ADMIN" || role === "SUPER_ADMIN") return;
+    void getShopMessageUnreadCounts().then(({ seller, shop }) => setMessageUnread({ seller, shop })).catch(() => setMessageUnread({ seller: 0, shop: 0 }));
+  }, [role]);
 
   const [
     shopAccess,
@@ -316,6 +324,7 @@ export default function SiteLayout() {
     showStaffAuctionLinks &&
     shopAccess?.capabilities
       .auctionsWrite === true;
+  const showStaffMessageLinks = isShopStaff && shopAccess?.capabilities.messagesRead === true;
 
   const staffRoleLabel =
     activeStaffMembership?.staffRole
@@ -352,6 +361,7 @@ export default function SiteLayout() {
       ...(showStaffAuctionLinks
         ? STAFF_AUCTION_NAV
         : []),
+      ...(showStaffMessageLinks ? STAFF_MESSAGE_NAV : []),
       ...(showStaffAuctionWriteLinks
         ? STAFF_AUCTION_ACTION_NAV
         : []),
@@ -361,7 +371,7 @@ export default function SiteLayout() {
       ...(showAdminLinks ? ADMIN_SECONDARY_NAV : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_SECONDARY_NAV : []),
-    ]);
+    ]).map((item) => item.to === "/messages" && messageUnread.seller ? { ...item, label: `${item.label} (${messageUnread.seller})` } : item.to === "/owner/messages" && messageUnread.shop ? { ...item, label: `${item.label} (${messageUnread.shop})` } : item);
 
     const footer = dedupeNav([
       ...PUBLIC_NAV,
@@ -400,6 +410,7 @@ export default function SiteLayout() {
     };
   }, [
     isShopStaff,
+    messageUnread,
     role,
     showAdminLinks,
     showBuyerLinks,
@@ -407,6 +418,7 @@ export default function SiteLayout() {
     showOwnerLinks,
     showStaffAuctionLinks,
     showStaffAuctionWriteLinks,
+    showStaffMessageLinks,
     showSuperAdminLinks,
     staffRoleLabel,
   ]);

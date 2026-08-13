@@ -233,6 +233,10 @@ function ShopCard({
             Browse inventory
           </Link>
 
+          <Link to={`/shops/${shop.id}/message`} className="shops2-primary-small">
+            Message shop
+          </Link>
+
           <button
             type="button"
             className={
@@ -409,7 +413,8 @@ export default function ShopsPage() {
       setError(null);
 
       try {
-        const nextShops = await getMarketplaceShops();
+        const serverQuery = [query, locationQuery].map((value) => value.trim()).filter(Boolean).join(" ");
+        const nextShops = await getMarketplaceShops(undefined, serverQuery);
 
         if (!cancelled) {
           setShops(nextShops);
@@ -426,12 +431,13 @@ export default function ShopsPage() {
       }
     }
 
-    void load();
+    const timer = window.setTimeout(() => void load(), 300);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [reloadToken]);
+  }, [reloadToken, query, locationQuery]);
 
   const stateOptions = useMemo(
     () =>
@@ -1153,10 +1159,10 @@ export default function ShopsPage() {
         </section>
       ) : error ? null : filteredShops.length === 0 ? (
         <section className="shops2-empty">
-          <h2>No shops matched your filters</h2>
+          <h2>No pawnshops found</h2>
           <p>Try clearing filters or searching a different city, area, or shop name.</p>
           <button type="button" onClick={clearFilters}>
-            Clear filters
+            Clear Search
           </button>
         </section>
       ) : viewMode === "map" ? (
