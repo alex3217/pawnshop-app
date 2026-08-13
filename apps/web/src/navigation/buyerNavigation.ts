@@ -15,6 +15,7 @@ export const BUYER_NAVIGATION = [
   { to: "/my-wins", label: "My Wins" },
   { to: "/marketplace/purchases", label: "My Purchases" },
   { to: "/offers", label: "Offers" },
+  { to: "/messages", label: "Messages" },
   { to: "/watchlist", label: "Watchlist" },
   { to: "/saved-searches", label: "Saved Searches" },
   { to: "/marketplace/listings/mine", label: "My Listings" },

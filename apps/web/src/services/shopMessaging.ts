@@ -1,0 +1,27 @@
+import { api } from "./apiClient";
+
+export type ContactReason = "SELL_ITEM" | "PAWN_ITEM" | "INVENTORY" | "OFFER" | "VISIT" | "OTHER";
+export type ConversationStatus = "OPEN" | "CLOSED" | "BLOCKED";
+export type ShopConversation = {
+  id: string; subject: string; contactReason: ContactReason; status: ConversationStatus;
+  sellerUserId: string; sellerLastReadAt?: string | null; shopLastReadAt?: string | null;
+  shop: { id: string; name: string; city?: string | null; state?: string | null };
+  seller: { id: string; name: string };
+  messages: Array<{ id: string; senderUserId: string; body: string; readAt?: string | null; createdAt: string }>;
+  buyerItemSubmission?: { id: string; title: string } | null;
+  marketplaceListing?: { id: string; title: string } | null;
+  item?: { id: string; title: string } | null;
+  offer?: { id: string; status: string } | null;
+  updatedAt: string;
+};
+type ListResponse = { conversations: ShopConversation[] };
+const key = () => crypto.randomUUID();
+export const listSellerConversations = (signal?: AbortSignal) => api.get<ListResponse>("/shop-conversations/seller", { signal });
+export const listShopConversations = (shopId?: string, status = "ALL", signal?: AbortSignal) => api.get<ListResponse>(`/shop-conversations/shops?${new URLSearchParams({ ...(shopId ? { shopId } : {}), status })}`, { signal });
+export const getShopConversation = (id: string, signal?: AbortSignal) => api.get<{ conversation: ShopConversation; side: "SELLER" | "SHOP" }>(`/shop-conversations/${id}`, { signal });
+export const createShopConversation = (input: { shopId: string; subject: string; contactReason: ContactReason; message: string; buyerItemSubmissionId?: string }) => api.post<{ conversation: ShopConversation }>("/shop-conversations", input, { headers: { "Idempotency-Key": key() } });
+export const sendShopMessage = (id: string, message: string) => api.post(`/shop-conversations/${id}/messages`, { message }, { headers: { "Idempotency-Key": key() } });
+export const markShopConversationRead = (id: string) => api.patch(`/shop-conversations/${id}/read`);
+export const changeShopConversationStatus = (id: string, action: "close" | "reopen" | "block") => api.patch(`/shop-conversations/${id}/${action}`);
+export const reportShopConversation = (id: string, reason: string) => api.post(`/shop-conversations/${id}/report`, { reason });
+export const getShopMessageUnreadCounts = () => api.get<{ seller: number; shop: number; total: number }>("/shop-conversations/unread-counts");

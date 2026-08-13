@@ -281,6 +281,9 @@ export default function ShopDetailPage() {
             <dd>{shop.hours || "Hours not listed"}</dd>
           </div>
         </dl>
+        <Link to={`/shops/${shop.id}/message`} className="shop-detail-secondary-link">
+          Message this pawnshop
+        </Link>
       </header>
 
       <section
