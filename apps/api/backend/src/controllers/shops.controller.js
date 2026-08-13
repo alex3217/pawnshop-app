@@ -49,6 +49,8 @@ const PAWNSHOP_SAFE_FIELDS = [
   "createdAt",
   "updatedAt",
   "isDeleted",];
+const PAWNSHOP_PUBLIC_FIELDS = new Set(["id", "name", "address", "city", "state", "zip", "latitude", "longitude", "phone", "description", "hours", "logoUrl", "bannerUrl", "createdAt", "updatedAt"]);
+function publicShop(shop) { return Object.fromEntries(Object.entries(shop || {}).filter(([field]) => PAWNSHOP_PUBLIC_FIELDS.has(field))); }
 
 let pawnShopColumnsCache = null;
 
@@ -179,18 +181,26 @@ function sendError(res, error) {
 
 export async function listShops(req, res) {
   try {
-    const [where, select] = await Promise.all([
-      buildPawnShopWhere(),
+    const query = String(req.query.q || "").trim().slice(0, 120);
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 36));
+    const [baseWhere, fullSelect] = await Promise.all([
+      buildPawnShopWhere({ isActive: true, isPublic: true }),
       buildPawnShopSelect(),
     ]);
+    const select = Object.fromEntries([...PAWNSHOP_PUBLIC_FIELDS].filter((field) => fullSelect[field]).map((field) => [field, true]));
+    const searchTerms = query.split(/\s+/).filter(Boolean).slice(0, 8);
+    const where = {
+      ...baseWhere,
+      ...(searchTerms.length ? { AND: searchTerms.map((term) => ({ OR: ["name", "address", "city", "state", "zip", "description", "hours"].map((field) => ({ [field]: { contains: term, mode: "insensitive" } })) })) } : {}),
+    };
 
-    const shops = await prisma.pawnShop.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      select,
-    });
+    const [shops, total] = await prisma.$transaction([
+      prisma.pawnShop.findMany({ where, orderBy: [{ name: "asc" }, { id: "asc" }], skip: (page - 1) * limit, take: limit, select }),
+      prisma.pawnShop.count({ where }),
+    ]);
 
-    return res.json(shops);
+    return res.json({ shops, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (error) {
     return sendError(res, error);
   }
@@ -206,7 +216,7 @@ export async function getShopById(req, res) {
     }
 
     const [where, select] = await Promise.all([
-      buildPawnShopWhere({ id }),
+      buildPawnShopWhere({ id, isActive: true, isPublic: true }),
       buildPawnShopSelect(),
     ]);
 
@@ -219,7 +229,7 @@ export async function getShopById(req, res) {
       return res.status(404).json({ error: "Shop not found." });
     }
 
-    return res.json(shop);
+    return res.json(publicShop(shop));
   } catch (error) {
     console.error("Failed to get shop by id:", error);
     return res.status(500).json({ error: "Failed to load shop." });
@@ -527,14 +537,14 @@ export async function completeShopOnboarding(req, res) {
 export async function getShopItems(req, res) {
   try {
     const id = req.params.id;
-    const shopSelect = await buildPawnShopSelect();
+    const shopSelect = await buildPawnShopSelect(["isActive", "isPublic"]);
 
     const shop = await prisma.pawnShop.findUnique({
       where: { id },
       select: shopSelect,
     });
 
-    if (!shop || shop.isDeleted) {
+    if (!shop || shop.isDeleted || shop.isActive === false || shop.isPublic === false) {
       return res.status(404).json({ success: false, error: "Shop not found" });
     }
 
@@ -547,7 +557,7 @@ export async function getShopItems(req, res) {
       orderBy: { createdAt: "desc" },
     });
 
-    return res.json({ shop, items });
+    return res.json({ shop: publicShop(shop), items });
   } catch (error) {
     return sendError(res, error);
   }

@@ -204,6 +204,10 @@ const SavedSearchesPage = lazyPage(() => import("./pages/SavedSearchesPage"));
 const ScanConsolePage = lazyPage(() => import("./pages/ScanConsolePage"));
 const ShopDetailPage = lazyPage(() => import("./pages/ShopDetailPage"));
 const ShopsPage = lazyPage(() => import("./pages/ShopsPage"));
+const MessageShopPage = lazyPage(() => import("./pages/MessageShopPage"));
+const MessagesPage = lazyPage(() => import("./pages/MessagesPage"));
+const OwnerMessagesPage = lazyPage(() => import("./pages/OwnerMessagesPage"));
+const ConversationPage = lazyPage(() => import("./pages/ConversationPage"));
 const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
 const KnowledgeCenterPage = lazyPage(() => import("./pages/KnowledgeCenterPage"));
 const KnowledgeLessonPage = lazyPage(() => import("./pages/KnowledgeLessonPage"));
@@ -297,6 +301,9 @@ const consumerRoutes: RouteConfig[] = [
   { path: BUYER_PATHS.wins, element: <MyWinsPage /> },
   { path: BUYER_PATHS.watchlist, element: <WatchlistPage /> },
   { path: BUYER_PATHS.savedSearches, element: <SavedSearchesPage /> },
+  { path: "/shops/:id/message", element: <MessageShopPage /> },
+  { path: "/messages", element: <MessagesPage /> },
+  { path: "/messages/:id", element: <ConversationPage /> },
 ];
 
 const marketplaceTransactionRoutes: RouteConfig[] = [
@@ -351,6 +358,10 @@ const ownerRoutes: RouteConfig[] = [
   { path: "/owner/scan-console", element: <ScanConsolePage /> },
   { path: "/owner/bulk-upload", element: <BulkUploadPage /> },
   { path: "/owner/subscription", element: <OwnerSubscriptionPage /> },
+];
+const shopMessageRoutes: RouteConfig[] = [
+  { path: "/owner/messages", element: <OwnerMessagesPage /> },
+  { path: "/owner/messages/:id", element: <ConversationPage /> },
 ];
 
 const ownerApplicantRoutes: RouteConfig[] = [
@@ -458,6 +469,10 @@ export default function App() {
                 `owner-${"path" in route ? route.path : index}`,
               ),
             )}
+          </Route>
+
+          <Route element={<RequireShopCapability capability="messagesRead" />}>
+            {shopMessageRoutes.map((route, index) => renderRoute(route, `shop-messages-${"path" in route ? route.path : index}`))}
           </Route>
 
           <Route

@@ -9,6 +9,8 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import AiDescriptionControl from "../components/AiDescriptionControl";
+import SubmissionDistributionPanel from "../components/SubmissionDistributionPanel";
+import SubmissionComparisonDashboard from "../components/SubmissionComparisonDashboard";
 import {
   acceptBuyerItemSubmissionOffer,
   createBuyerItemSubmission,
@@ -173,6 +175,7 @@ export default function BuyerSellItemPage() {
   const [submitting, setSubmitting] = useState(false);
   const [actioningOfferId, setActioningOfferId] = useState<string | null>(null);
   const [submittedDraft, setSubmittedDraft] = useState<DraftSubmission | null>(null);
+  const [pendingDistribution, setPendingDistribution] = useState<{ submissionId: string; marketplaceListingId?: string | null } | null>(null);
 
   const wantsPawnOffers =
     intent !==
@@ -839,10 +842,7 @@ export default function BuyerSellItemPage() {
           );
         };
 
-      if (
-        wantsPawnOffers &&
-        !linkedSubmissionId
-      ) {
+      if (!linkedSubmissionId) {
         try {
           const submission =
             await createBuyerItemSubmission({
@@ -1098,6 +1098,7 @@ export default function BuyerSellItemPage() {
       setSubmittedDraft(
         draft,
       );
+      if (linkedSubmissionId) setPendingDistribution({ submissionId: linkedSubmissionId, marketplaceListingId: linkedMarketplaceListingId || null });
 
       const messages:
         string[] =
@@ -1236,6 +1237,7 @@ export default function BuyerSellItemPage() {
     setScanResult(null);
     setCameraMessage("");
     setSubmittedDraft(null);
+    setPendingDistribution(null);
     setNotice(null);
   }
 
@@ -1586,6 +1588,8 @@ export default function BuyerSellItemPage() {
         </form>
 
         <aside className="sellitem-side-panel">
+          {pendingDistribution ? <SubmissionDistributionPanel submissionId={pendingDistribution.submissionId} marketplaceListingId={pendingDistribution.marketplaceListingId} marketplacePrice={marketplacePrice} defaultRadius={Number(radius) || 25} onDistributed={() => void loadActivity()} /> : null}
+          {pendingDistribution ? <SubmissionComparisonDashboard submissionId={pendingDistribution.submissionId} /> : null}
           <section className="sellitem-preview-card">
             <div className="sellitem-section-title">
               <span>Preview</span>

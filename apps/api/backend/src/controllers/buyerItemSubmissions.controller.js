@@ -5,6 +5,8 @@ import {
   recordItemIntakeScan,
 } from "../services/itemIntake.service.js";
 import { acceptSubmissionOffer } from "../services/customerSellTransaction.service.js";
+import { assertShopPermission } from "../services/shopAccess.service.js";
+import { audit, closeDistribution, notify } from "../services/submissionDistribution.service.js";
 
 const CUSTOMER_SCAN_DESTINATIONS =
   new Set([
@@ -652,10 +654,18 @@ export async function withdrawBuyerItemSubmission(req, res) {
       });
     }
 
-    const submission = await prisma.buyerItemSubmission.update({
-      where: { id },
-      data: { status: "WITHDRAWN" },
-    });
+    const submission = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "BuyerItemSubmission" WHERE id = ${id} FOR UPDATE`;
+      const locked = await tx.buyerItemSubmission.findUnique({ where: { id }, include: { marketplaceListing: true } });
+      if (!locked || locked.buyerId !== buyerId) throw Object.assign(new Error("Submission not found"), { statusCode: 404 });
+      if (["ACCEPTED", "CLOSED"].includes(String(locked.status).toUpperCase())) throw Object.assign(new Error("Completed submissions cannot be withdrawn"), { statusCode: 409 });
+      const now = new Date();
+      await tx.buyerItemSubmissionOffer.updateMany({ where: { submissionId: id, status: "PENDING" }, data: { status: "REJECTED", respondedAt: now } });
+      await closeDistribution({ tx, submissionId: id, actorUserId: buyerId, reason: "SELLER_WITHDREW" });
+      if (locked.marketplaceListingId && !["SOLD", "RESERVED"].includes(locked.marketplaceListing?.status)) await tx.marketplaceListing.update({ where: { id: locked.marketplaceListingId }, data: { status: "CANCELED" } });
+      await audit(tx, { submissionId: id, actorUserId: buyerId, eventType: "DISTRIBUTION_WITHDRAWN", idempotencyKey: `submission-withdrawn:${id}`, data: {} });
+      return tx.buyerItemSubmission.update({ where: { id }, data: { status: "WITHDRAWN", withdrawnAt: now, closedAt: now } });
+    }, { isolationLevel: "Serializable" });
 
     return res.json({
       success: true,
@@ -672,8 +682,13 @@ export async function withdrawBuyerItemSubmission(req, res) {
 
 export async function getOwnerBuyerItemSubmissions(req, res) {
   try {
+    const shopId = normalizeString(req.query?.shopId);
+    if (shopId) await assertShopPermission({ user: req.user, shopId, permission: "offers:read" });
+    const requesterId = getUserId(req);
+    const role = String(req.user?.role || "").toUpperCase();
     const rows = await prisma.buyerItemSubmission.findMany({
       where: {
+        targets: { some: shopId ? { shopId } : role === "ADMIN" || role === "SUPER_ADMIN" ? {} : { shop: { OR: [{ ownerId: requesterId }, { staffMembers: { some: { userId: requesterId, status: "ACTIVE" } } }] } } },
         status: {
           in: ["SUBMITTED", "REVIEWING", "OFFERED"],
         },
@@ -710,6 +725,7 @@ export async function reviewBuyerItemSubmission(req, res) {
     const id = normalizeString(req.params?.id);
     const status = normalizeString(req.body?.status);
     const reviewMessage = normalizeString(req.body?.reviewMessage);
+    const shopId = normalizeString(req.body?.shopId);
 
     if (!reviewerId) {
       return res.status(401).json({ success: false, error: "Authentication required" });
@@ -718,6 +734,9 @@ export async function reviewBuyerItemSubmission(req, res) {
     if (!id) {
       return res.status(400).json({ success: false, error: "Submission id is required" });
     }
+    await assertShopPermission({ user: req.user, shopId, permission: "offers:write" });
+    const target = await prisma.buyerItemSubmissionTarget.findUnique({ where: { submissionId_shopId: { submissionId: id, shopId } } });
+    if (!target) return res.status(404).json({ success: false, error: "Opportunity not found" });
 
     const allowed = new Set(["REVIEWING", "OFFERED", "REJECTED", "NEEDS_INFO"]);
 
@@ -800,15 +819,11 @@ export async function createBuyerItemSubmissionOffer(req, res) {
       });
     }
 
-    const requesterRole = String(req.user?.role || req.user?.user?.role || "").toUpperCase();
-
-    const shop = await prisma.pawnShop.findFirst({
-      where:
-        requesterRole === "ADMIN" || requesterRole === "SUPER_ADMIN"
-          ? { id: shopId, isDeleted: false, subscriptionStatus: "ACTIVE" }
-          : { id: shopId, ownerId, isDeleted: false, subscriptionStatus: "ACTIVE" },
-      select: { id: true, ownerId: true },
-    });
+    await assertShopPermission({ user: req.user, shopId, permission: "offers:write" });
+    const [shop, target] = await Promise.all([
+      prisma.pawnShop.findFirst({ where: { id: shopId, isDeleted: false, subscriptionStatus: "ACTIVE" }, select: { id: true, ownerId: true } }),
+      prisma.buyerItemSubmissionTarget.findUnique({ where: { submissionId_shopId: { submissionId, shopId } } }),
+    ]);
 
     if (!shop) {
       return res.status(403).json({
@@ -816,32 +831,19 @@ export async function createBuyerItemSubmissionOffer(req, res) {
         error: "You can only make offers from one of your shops",
       });
     }
+    if (!target || ["DECLINED", "CLOSED", "RESPONDED"].includes(target.status)) {
+      return res.status(404).json({ success: false, error: "Open targeted opportunity not found" });
+    }
 
-    const offer = await prisma.buyerItemSubmissionOffer.create({
-      data: {
-        submissionId,
-        shopId,
-        ownerId: shop.ownerId,
-        amount,
-        message,
-        status: "PENDING",
-      },
-      include: {
-        shop: {
-          select: { id: true, name: true, address: true, phone: true },
-        },
-      },
-    });
-
-    await prisma.buyerItemSubmission.update({
-      where: { id: submissionId },
-      data: {
-        status: "OFFERED",
-        reviewMessage: message || "Shop made an offer on this item.",
-        reviewedAt: new Date(),
-        reviewedById: ownerId,
-      },
-    });
+    const offer = await prisma.$transaction(async (tx) => {
+      const created = await tx.buyerItemSubmissionOffer.create({ data: { submissionId, shopId, ownerId: shop.ownerId, amount, message, status: "PENDING" }, include: { shop: { select: { id: true, name: true, address: true, phone: true } } } });
+      const now = new Date();
+      await tx.buyerItemSubmissionTarget.update({ where: { id: target.id }, data: { status: "RESPONDED", respondedAt: now } });
+      await tx.buyerItemSubmission.update({ where: { id: submissionId }, data: { status: "OFFERED", reviewedAt: now, reviewedById: ownerId } });
+      await audit(tx, { submissionId, targetId: target.id, shopId, actorUserId: ownerId, eventType: "MONETARY_OFFER_CREATED", idempotencyKey: `submission-offer:${created.id}`, data: { amount: String(amount) } });
+      await notify(tx, { userId: submission.buyerId, type: "SHOP_MADE_OFFER", title: "A pawnshop made an offer", message: `${submission.title}: $${amount}`, actionUrl: `/buyer/sell-item?submissionId=${submissionId}`, dedupeKey: `submission-offer:${created.id}` });
+      return created;
+    }, { isolationLevel: "Serializable" });
 
     return res.status(201).json({
       success: true,
