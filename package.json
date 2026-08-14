@@ -24,6 +24,7 @@
     "check:prod-preflight": "bash scripts/check-prod-preflight.sh",
     "check:prod-smoke": "bash scripts/check-prod-smoke.sh",
     "test:prod-smoke-timeouts": "bash scripts/test-prod-smoke-timeouts.sh",
+    "test:production-release-control": "node --test scripts/test/production-release-workflows.test.mjs",
     "check:launch": "npm run check:prod-preflight && npm run check:deploy:prod && npm run check:prod-smoke",
     "check:domain": "bash scripts/check-domain-readiness.sh",
     "check:static-safety": "bash scripts/check-static-safety.sh",
