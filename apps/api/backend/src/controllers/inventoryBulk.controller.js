@@ -91,6 +91,7 @@ export async function importInventoryCsv(req, res) {
       for (let i = 0; i < rows.length; i += 1) {
         const row = rows[i];
         const line = i + 2;
+        if (isSupport) await db.$executeRawUnsafe("SAVEPOINT inventory_import_row");
         try {
         const title = normalizeString(row.title);
         const price = normalizePrice(row.price);
@@ -120,7 +121,12 @@ export async function importInventoryCsv(req, res) {
         });
         createdItemIds.push(item.id);
         successCount += 1;
+        if (isSupport) await db.$executeRawUnsafe("RELEASE SAVEPOINT inventory_import_row");
         } catch (error) {
+        if (isSupport) {
+          await db.$executeRawUnsafe("ROLLBACK TO SAVEPOINT inventory_import_row");
+          await db.$executeRawUnsafe("RELEASE SAVEPOINT inventory_import_row");
+        }
         failedCount += 1;
         errors.push({
           line,
