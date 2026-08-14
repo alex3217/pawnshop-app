@@ -1149,21 +1149,23 @@ export const adminApi = {
 
   archiveSuperAdminIntegration: (
     id: string,
+    reason: string,
     signal?: AbortSignal
   ) =>
     patchJson<{ success: boolean; integration: SuperAdminIntegrationRow }>(
       `/super-admin/integrations/${encodeURIComponent(id)}/archive`,
-      {},
+      { reason },
       signal
     ),
 
   restoreSuperAdminIntegration: (
     id: string,
+    reason: string,
     signal?: AbortSignal
   ) =>
     patchJson<{ success: boolean; integration: SuperAdminIntegrationRow }>(
       `/super-admin/integrations/${encodeURIComponent(id)}/restore`,
-      {},
+      { reason },
       signal
     ),
 

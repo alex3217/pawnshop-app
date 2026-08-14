@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
+import { ConfirmationDialog, type ConfirmationSpec } from "../components/SuperAdminOperations";
 import { growthCenterApi } from "../services/growthCenterApi";
 import type { PawnShopLead } from "../types/growthCenter";
 
@@ -14,6 +15,9 @@ export default function GrowthLeadDetailPage() {
   const [activity, setActivity] = useState("");
   const [followUp, setFollowUp] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmSpec, setConfirmSpec] = useState<ConfirmationSpec | null>(null);
+  const [reason, setReason] = useState("");
+  const [typedConfirmation, setTypedConfirmation] = useState("");
   const load = useCallback(
     () => growthCenterApi.detail(leadId).then((response) => setLead(response.lead)),
     [leadId],
@@ -33,10 +37,11 @@ export default function GrowthLeadDetailPage() {
     finally { setSaving(false); }
   }
   async function suppress() {
-    const reason = window.prompt("Reason for do-not-contact suppression:");
-    if (!reason?.trim()) return;
-    try { await growthCenterApi.suppress(leadId, { reason: reason.trim() }); await load(); }
+    if (!reason.trim()) return;
+    setSaving(true);
+    try { await growthCenterApi.suppress(leadId, { reason: reason.trim() }); setConfirmSpec(null); setReason(""); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to suppress lead."); }
+    finally { setSaving(false); }
   }
   if (error && !lead) return <AdminPageShell title="Pawn Shop Lead"><div role="alert" className="error-text">{error}</div></AdminPageShell>;
   if (!lead) return <AdminPageShell title="Pawn Shop Lead"><p className="muted">Loading lead…</p></AdminPageShell>;
@@ -53,7 +58,7 @@ export default function GrowthLeadDetailPage() {
         {section("Lead status and score", [["Verification", lead.verificationStatus], ["Outreach", lead.outreachStatus], ["Lead score", lead.leadScore], ["Assigned user", lead.assignedUser?.name || lead.assignedUser?.email], ["Next follow-up", when(lead.nextFollowUp)]])}
       </div>
       <section className="list-card" style={{ marginTop: 14 }}>
-        <div className="toolbar" style={{ justifyContent: "space-between" }}><h2>Suppression / contact permission</h2><button className="button" disabled={lead.doNotContact} onClick={suppress}>{lead.doNotContact ? "Do not contact" : "Suppress contact"}</button></div>
+        <div className="toolbar" style={{ justifyContent: "space-between" }}><h2>Suppression / contact permission</h2><button className="button" disabled={lead.doNotContact} onClick={() => { setReason(""); setTypedConfirmation(""); setConfirmSpec({ action: "Suppress outreach", target: lead.businessName, impact: "Prevents future outreach. This preserves the lead's contact preference and does not send a message.", highRisk: true, confirmText: "DO NOT CONTACT" }); }}>{lead.doNotContact ? "Do not contact" : "Suppress contact"}</button></div>
         <p>{lead.doNotContact ? "Outreach is prohibited for this lead." : "No do-not-contact suppression is active."}</p>
         {lead.suppressions?.map((item) => <p key={item.id} className="muted">{when(item.suppressedAt)} · {item.reason} ({item.source})</p>)}
       </section>
@@ -63,6 +68,7 @@ export default function GrowthLeadDetailPage() {
         {lead.activities?.length ? lead.activities.map((item) => <article key={item.id} style={{ borderTop: "1px solid rgba(255,255,255,.1)", padding: "10px 0" }}><strong>{item.activityType}</strong> · {when(item.occurredAt)}<div>{value(item.subject || item.notes)}</div>{item.nextFollowUpAt ? <div className="muted">Follow up: {when(item.nextFollowUpAt)}</div> : null}</article>) : <p className="muted">No activity recorded.</p>}
       </section>
       <section className="list-card" style={{ marginTop: 14 }}><h2>Source provenance</h2>{lead.sources?.length ? lead.sources.map((source) => <div key={source.id}><strong>{source.sourceName}</strong> · {source.sourceType} · collected {when(source.collectedAt)}{source.sourceUrl ? <> · <a href={source.sourceUrl} target="_blank" rel="noreferrer">Source</a></> : null}</div>) : <p className="muted">{lead.sourceName || lead.sourceType}</p>}</section>
+      <ConfirmationDialog spec={confirmSpec} reason={reason} confirmation={typedConfirmation} busy={saving} onReasonChange={setReason} onConfirmationChange={setTypedConfirmation} onCancel={() => setConfirmSpec(null)} onConfirm={() => void suppress()} />
     </AdminPageShell>
   );
 }
