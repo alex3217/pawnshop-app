@@ -267,6 +267,7 @@ function toItemData(shopId, normalized) {
     category: normalized.category,
     condition: normalized.condition,
     status: normalized.status,
+    availability: normalized.status === "SOLD" ? "SOLD" : normalized.status === "PENDING" ? "UNAVAILABLE" : "AVAILABLE",
   };
 }
 
