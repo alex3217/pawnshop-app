@@ -90,4 +90,7 @@ test("inventory-support migration is additive, unique, and schema-aligned", asyn
   assert.match(migration, /InventorySupportSession_actorId_active_key/);
   assert.match(schema, /quantity\s+Int\s+@default\(1\)/);
   assert.match(schema, /availability\s+InventoryAvailability\s+@default\(AVAILABLE\)/);
+  const backfill = await read("prisma/migrations/20260814160000_inventory_availability_backfill/migration.sql");
+  assert.match(backfill, /WHEN "isDeleted" = true THEN 'ARCHIVED'/);
+  assert.match(backfill, /WHEN "status" = 'SOLD' THEN 'SOLD'/);
 });

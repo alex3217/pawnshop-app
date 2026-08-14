@@ -968,6 +968,7 @@ export async function deleteItem(req, res) {
           data: {
             isDeleted: true,
             ...(itemColumns.has("images") ? { images: [] } : {}),
+            ...(itemColumns.has("availability") ? { availability: "ARCHIVED" } : {}),
           },
         });
       }
@@ -994,6 +995,7 @@ export async function restoreItem(req, res) {
       select: {
         id: true,
         isDeleted: true,
+        status: true,
         shop: { select: { id: true, ownerId: true } },
       },
     });
@@ -1019,6 +1021,7 @@ export async function restoreItem(req, res) {
       data: {
         isDeleted: false,
         ...(itemColumns.has("images") ? { images: [] } : {}),
+        ...(itemColumns.has("availability") ? { availability: item.status === "SOLD" ? "SOLD" : "AVAILABLE" } : {}),
       },
       select,
     });
@@ -1246,9 +1249,10 @@ export async function sellItem(req, res) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
+    const itemColumns = await getTableColumns("Item");
     const updated = await prisma.item.update({
       where: { id },
-      data: { status: "SOLD" },
+      data: { status: "SOLD", ...(itemColumns.has("availability") ? { availability: "SOLD" } : {}) },
       select: await buildItemSelect({ includeShop: true }),
     });
 
