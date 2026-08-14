@@ -167,6 +167,20 @@ test("listing changes reject ambiguous multiple active listings", async () => {
   assert.equal(response.status, 409); assert.match(response.body.error, /Multiple active marketplace listings/);
 });
 
+test("listing changes preserve sellability invariants", async () => {
+  await prisma.marketplaceListing.deleteMany({ where: { itemId: item.id } });
+  const listing = await prisma.marketplaceListing.create({ data: { itemId: item.id, sellerUserId: owner.id, sellerShopId: shop.id, listingType: "SHOP_TO_CUSTOMER", status: "DRAFT", title: item.title, price: 100 } });
+  await prisma.item.update({ where: { id: item.id }, data: { availability: "UNAVAILABLE", status: "AVAILABLE", isDeleted: false } });
+  const listingPath = `/api/super-admin/shops/${shop.id}/inventory/${item.id}/listing`;
+  assert.equal((await api("post", listingPath).set("X-Support-Session-Id", sessionId).send({ action: "publish", reason: "Reject unavailable marketplace listing" })).status, 409);
+  await prisma.item.update({ where: { id: item.id }, data: { availability: "AVAILABLE", quantity: 1 } });
+  assert.equal((await api("post", listingPath).set("X-Support-Session-Id", sessionId).send({ action: "publish", reason: "Publish available marketplace listing" })).status, 200);
+  const updatePath = `/api/super-admin/shops/${shop.id}/inventory/${item.id}`;
+  assert.equal((await api("patch", updatePath).set("X-Support-Session-Id", sessionId).send({ availability: "ARCHIVED", reason: "Reject archiving actively listed inventory" })).status, 409);
+  assert.equal((await prisma.marketplaceListing.findUnique({ where: { id: listing.id } })).status, "ACTIVE");
+  assert.equal((await prisma.item.findUnique({ where: { id: item.id } })).availability, "AVAILABLE");
+});
+
 test("Super Admin CSV import rolls back items when mandatory audit evidence fails", async () => {
   await prisma.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION fail_support_import_audit() RETURNS trigger AS $$ BEGIN IF NEW."action" = 'BULK_IMPORT_INVENTORY' THEN RAISE EXCEPTION 'injected audit failure'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql`);
   await prisma.$executeRawUnsafe(`CREATE TRIGGER fail_support_import_audit BEFORE INSERT ON "InventoryAdminEvent" FOR EACH ROW EXECUTE FUNCTION fail_support_import_audit()`);
