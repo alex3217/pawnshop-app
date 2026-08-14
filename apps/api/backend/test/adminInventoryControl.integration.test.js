@@ -149,6 +149,7 @@ test("admin inventory mutations create one governed audit each and all=true retu
     .set("Authorization", authorization(admin));
   assert.equal(removed.status, 200, JSON.stringify(removed.body));
   assert.deepEqual(removed.body, { ok: true, id: itemId, isDeleted: true });
+  assert.equal((await prisma.item.findUnique({ where: { id: itemId } })).availability, "ARCHIVED");
 
   audits = await auditsFor(itemId);
   assert.equal(audits.length, 3);
@@ -170,6 +171,7 @@ test("admin inventory mutations create one governed audit each and all=true retu
     .set("Authorization", authorization(admin));
   assert.equal(restored.status, 200);
   assert.deepEqual(restored.body, { ok: true, id: itemId, isDeleted: false });
+  assert.equal((await prisma.item.findUnique({ where: { id: itemId } })).availability, "SOLD");
 
   audits = await auditsFor(itemId);
   assert.equal(audits.length, 4);
