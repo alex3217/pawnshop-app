@@ -1084,6 +1084,7 @@ export async function listSuperAdminIntegrations(req, res) {
 export async function archiveSuperAdminIntegration(req, res) {
   try {
     const id = normalizeSuperAdminString(req.params?.id);
+    const reason = normalizeSuperAdminString(req.body?.reason);
 
     if (!id) {
       return res.status(400).json({
@@ -1091,6 +1092,7 @@ export async function archiveSuperAdminIntegration(req, res) {
         error: "Integration id is required.",
       });
     }
+    if (!reason || reason.length < 8) return res.status(400).json({ success: false, error: "A reason of at least 8 characters is required." });
 
     const existing = await prisma.inventoryIntegration.findUnique({
       where: { id },
@@ -1103,25 +1105,21 @@ export async function archiveSuperAdminIntegration(req, res) {
       });
     }
 
-    const updated = await prisma.inventoryIntegration.update({
-      where: { id },
-      data: { status: "ARCHIVED" },
-    });
-
-    if (typeof writeSuperAdminGovernanceAudit === "function") {
-      await writeSuperAdminGovernanceAudit(req, {
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.inventoryIntegration.update({ where: { id }, data: { status: "ARCHIVED" } });
+      await tx.superAdminAuditLog.create({ data: {
+        actorId: req?.user?.sub ?? null, actorEmail: req?.user?.email ?? null, actorRole: req?.user?.role ?? null,
         action: "ARCHIVE_INTEGRATION",
-        targetType: "INTEGRATION",
-        targetId: id,
-        statusCode: 200,
+        method: req.method, path: req.originalUrl, routeKey: "super-admin.integrations.archive",
+        targetType: "INTEGRATION", targetId: id, statusCode: 200, success: true,
+        requestId: req?.id ?? req?.requestId ?? null,
         metadata: {
-          previousStatus: existing.status || null,
-          newStatus: "ARCHIVED",
-          shopId: existing.shopId || existing.pawnShopId || null,
-          name: existing.name || null,
+          reason, beforeState: { status: existing.status || null }, afterState: { status: "ARCHIVED" },
+          shopId: existing.shopId || existing.pawnShopId || null, name: existing.name || null,
         },
-      });
-    }
+      } });
+      return row;
+    });
 
     return res.json({
       success: true,
@@ -1138,6 +1136,7 @@ export async function archiveSuperAdminIntegration(req, res) {
 export async function restoreSuperAdminIntegration(req, res) {
   try {
     const id = normalizeSuperAdminString(req.params?.id);
+    const reason = normalizeSuperAdminString(req.body?.reason);
 
     if (!id) {
       return res.status(400).json({
@@ -1145,6 +1144,7 @@ export async function restoreSuperAdminIntegration(req, res) {
         error: "Integration id is required.",
       });
     }
+    if (!reason || reason.length < 8) return res.status(400).json({ success: false, error: "A reason of at least 8 characters is required." });
 
     const existing = await prisma.inventoryIntegration.findUnique({
       where: { id },
@@ -1157,25 +1157,21 @@ export async function restoreSuperAdminIntegration(req, res) {
       });
     }
 
-    const updated = await prisma.inventoryIntegration.update({
-      where: { id },
-      data: { status: "ACTIVE" },
-    });
-
-    if (typeof writeSuperAdminGovernanceAudit === "function") {
-      await writeSuperAdminGovernanceAudit(req, {
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.inventoryIntegration.update({ where: { id }, data: { status: "ACTIVE" } });
+      await tx.superAdminAuditLog.create({ data: {
+        actorId: req?.user?.sub ?? null, actorEmail: req?.user?.email ?? null, actorRole: req?.user?.role ?? null,
         action: "RESTORE_INTEGRATION",
-        targetType: "INTEGRATION",
-        targetId: id,
-        statusCode: 200,
+        method: req.method, path: req.originalUrl, routeKey: "super-admin.integrations.restore",
+        targetType: "INTEGRATION", targetId: id, statusCode: 200, success: true,
+        requestId: req?.id ?? req?.requestId ?? null,
         metadata: {
-          previousStatus: existing.status || null,
-          newStatus: "ACTIVE",
-          shopId: existing.shopId || existing.pawnShopId || null,
-          name: existing.name || null,
+          reason, beforeState: { status: existing.status || null }, afterState: { status: "ACTIVE" },
+          shopId: existing.shopId || existing.pawnShopId || null, name: existing.name || null,
         },
-      });
-    }
+      } });
+      return row;
+    });
 
     return res.json({
       success: true,
@@ -2388,9 +2384,9 @@ async function assertNoActivePricingRuleOverlap(data, excludeId = null) {
   if (overlaps) throw badRequest("An active rule with the same scope, seller plan, priority, and overlapping effective dates already exists.");
 }
 
-async function writePricingRuleAudit(req, action, targetId, metadata = {}) {
-  try {
-    await prisma.superAdminAuditLog.create({
+async function writePricingRuleAudit(req, action, targetId, metadata = {}, db = prisma) {
+    if (!db.superAdminAuditLog?.create) throw new Error("Super Admin audit persistence is unavailable.");
+    await db.superAdminAuditLog.create({
       data: {
         actorId: req.user?.id || null,
         actorEmail: req.user?.email || null,
@@ -2406,14 +2402,9 @@ async function writePricingRuleAudit(req, action, targetId, metadata = {}) {
         requestId: req.id || req.requestId || null,
         ipAddress: req.ip || null,
         userAgent: req.get?.("user-agent") || null,
-        metadata,
+        metadata: { ...metadata, reason: normalizeString(req.body?.reason) || null },
       },
     });
-  } catch (auditError) {
-    console.warn("[super-admin:pricing-rule-audit] Failed to write audit log", {
-      error: auditError?.message || auditError,
-    });
-  }
 }
 
 export async function listSuperAdminPricingRules(req, res) {
@@ -2440,19 +2431,14 @@ export async function createSuperAdminPricingRule(req, res) {
     const data = buildPricingRuleData(req.body || {}, req.user?.id, null);
     await assertNoActivePricingRuleOverlap(data);
 
-    const row = await prisma.platformPricingRule.create({
-      data: {
-        ...data,
-        createdByUserId: req.user?.id || null,
-      },
-    });
-
-    await writePricingRuleAudit(req, "CREATE_PLATFORM_PRICING_RULE", row.id, {
-      key: row.key,
-      category: row.category,
-      appliesTo: row.appliesTo,
-      feeType: row.feeType,
-      status: row.status,
+    const row = await prisma.$transaction(async (tx) => {
+      const created = await tx.platformPricingRule.create({ data: { ...data, createdByUserId: req.user?.id || null } });
+      await writePricingRuleAudit(req, "CREATE_PLATFORM_PRICING_RULE", created.id, {
+        key: created.key, category: created.category, appliesTo: created.appliesTo,
+        feeType: created.feeType, status: created.status, beforeState: null,
+        afterState: mapPlatformPricingRule(created),
+      }, tx);
+      return created;
     });
 
     return res.status(201).json({
@@ -2478,19 +2464,16 @@ export async function updateSuperAdminPricingRule(req, res) {
     await assertNoActivePricingRuleOverlap(data, id);
     const expectedUpdatedAt = normalizeString(req.body?.expectedUpdatedAt);
     if (!expectedUpdatedAt) throw badRequest("expectedUpdatedAt is required to prevent concurrent overwrites.");
-    const changed = await prisma.platformPricingRule.updateMany({ where: { id, updatedAt: new Date(expectedUpdatedAt) }, data });
-    if (changed.count !== 1) {
-      const conflict = createHttpError("This pricing rule changed since it was loaded. Refresh and try again.", 409);
-      throw conflict;
-    }
-    const row = await prisma.platformPricingRule.findUnique({ where: { id } });
-
-    await writePricingRuleAudit(req, "UPDATE_PLATFORM_PRICING_RULE", row.id, {
-      key: row.key,
-      category: row.category,
-      appliesTo: row.appliesTo,
-      feeType: row.feeType,
-      status: row.status,
+    const row = await prisma.$transaction(async (tx) => {
+      const changed = await tx.platformPricingRule.updateMany({ where: { id, updatedAt: new Date(expectedUpdatedAt) }, data });
+      if (changed.count !== 1) throw createHttpError("This pricing rule changed since it was loaded. Refresh and try again.", 409);
+      const updated = await tx.platformPricingRule.findUnique({ where: { id } });
+      await writePricingRuleAudit(req, "UPDATE_PLATFORM_PRICING_RULE", updated.id, {
+        key: updated.key, category: updated.category, appliesTo: updated.appliesTo,
+        feeType: updated.feeType, status: updated.status,
+        beforeState: mapPlatformPricingRule(existing), afterState: mapPlatformPricingRule(updated),
+      }, tx);
+      return updated;
     });
 
     return res.json({

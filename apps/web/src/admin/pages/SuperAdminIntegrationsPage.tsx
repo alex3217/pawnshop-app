@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminPageShell from "../components/AdminPageShell";
+import { ConfirmationDialog, type ConfirmationSpec } from "../components/SuperAdminOperations";
 import { adminApi, type SuperAdminIntegrationRow } from "../services/adminApi";
 import {
   compareValues,
@@ -44,6 +45,10 @@ export default function SuperAdminIntegrationsPage() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<SuperAdminIntegrationRow | null>(null);
   const [detailMode, setDetailMode] = useState<DetailMode>("details");
+  const [pendingRow, setPendingRow] = useState<SuperAdminIntegrationRow | null>(null);
+  const [confirmSpec, setConfirmSpec] = useState<ConfirmationSpec | null>(null);
+  const [reason, setReason] = useState("");
+  const [typedConfirmation, setTypedConfirmation] = useState("");
 
   async function load() {
     setLoading(true);
@@ -93,17 +98,14 @@ export default function SuperAdminIntegrationsPage() {
     const isArchived = status === "ARCHIVED";
     const action = isArchived ? "restore" : "archive";
 
-    const confirmed = window.confirm(`${isArchived ? "Restore" : "Archive"} this integration?`);
-    if (!confirmed) return;
-
     setBusyId(row.id);
     setNotice("");
     setError("");
 
     try {
       const response = isArchived
-        ? await adminApi.restoreSuperAdminIntegration(row.id)
-        : await adminApi.archiveSuperAdminIntegration(row.id);
+        ? await adminApi.restoreSuperAdminIntegration(row.id, reason.trim())
+        : await adminApi.archiveSuperAdminIntegration(row.id, reason.trim());
 
       setRows((current) =>
         current.map((entry) =>
@@ -112,6 +114,7 @@ export default function SuperAdminIntegrationsPage() {
       );
 
       setNotice(`Integration ${action}d.`);
+      setPendingRow(null); setConfirmSpec(null); setReason(""); setTypedConfirmation("");
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to ${action} integration.`);
     } finally {
@@ -282,7 +285,7 @@ export default function SuperAdminIntegrationsPage() {
                           <button
                             className="btn btn-secondary"
                             disabled={busyId === row.id}
-                            onClick={() => void archiveOrRestore(row)}
+                            onClick={() => { const archived = getIntegrationStatus(row) === "ARCHIVED"; setPendingRow(row); setReason(""); setTypedConfirmation(""); setConfirmSpec({ action: archived ? "Restore integration" : "Archive integration", target: getText(row as Record<string, unknown>, ["name"], row.id), impact: archived ? "Returns this integration to active oversight. No credentials are changed." : "Stops normal integration use without deleting mappings or audit history.", highRisk: true, confirmText: archived ? "RESTORE" : "ARCHIVE" }); }}
                           >
                             {busyId === row.id ? "Saving..." : isArchived ? "Restore" : "Archive"}
                           </button>
@@ -325,6 +328,7 @@ export default function SuperAdminIntegrationsPage() {
           </section>
         </div>
       ) : null}
+      <ConfirmationDialog spec={confirmSpec} reason={reason} confirmation={typedConfirmation} busy={Boolean(busyId)} onReasonChange={setReason} onConfirmationChange={setTypedConfirmation} onCancel={() => { setPendingRow(null); setConfirmSpec(null); }} onConfirm={() => { if (pendingRow) void archiveOrRestore(pendingRow); }} />
     </AdminPageShell>
   );
 }
