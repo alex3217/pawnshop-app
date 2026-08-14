@@ -315,6 +315,18 @@ async function installMocks(
           request.url(),
         ).pathname;
 
+      if (
+        method === "GET" &&
+        pathname === "/api/notifications"
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: jsonBody({ success: true, notifications: [] }),
+        });
+        return;
+      }
+
       const transactionPath =
         `/api/marketplace-transactions/${TRANSACTION_ID}`;
 
