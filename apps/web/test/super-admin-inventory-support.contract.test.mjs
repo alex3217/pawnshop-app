@@ -25,3 +25,11 @@ test("inventory support UI requires reasons and exposes locations and history", 
   assert.match(api, /inventory-locations/);
   assert.match(api, /inventory.*history/);
 });
+
+test("inventory support UI uses managed uploads and partial updates", () => {
+  assert.match(page, /uploadItemImages\(editing\.id, imageFiles\)/);
+  assert.match(page, /type="file"/);
+  assert.match(page, /delete input\[key\]/);
+  assert.match(page, /Attached managed images/);
+  assert.doesNotMatch(page, /Ordered image URLs/);
+});
