@@ -109,6 +109,7 @@ const AdminUsersPage = lazyPage(() => import("./pages/AdminUsersPage"));
 const SuperAdminOverviewPage = lazyPage(() => import("./admin/pages/SuperAdminOverviewPage"));
 const SuperAdminAuditPage = lazyPage(() => import("./admin/pages/SuperAdminAuditPage"));
 const SuperAdminSystemHealthPage = lazyPage(() => import("./admin/pages/SuperAdminSystemHealthPage"));
+const SuperAdminGovernancePage = lazyPage(() => import("./admin/pages/SuperAdminGovernancePage"));
 const SuperAdminIntegrationsPage = lazyPage(() => import("./admin/pages/SuperAdminIntegrationsPage"));
 const SuperAdminSettlementsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminSettlementsPage"),
@@ -444,6 +445,7 @@ const superAdminRoutes: RouteConfig[] = [
   { path: "pricing", element: <SuperAdminPricingPage /> },
   { path: "revenue", element: <SuperAdminRevenuePage /> },
   { path: "audit", element: <SuperAdminAuditPage /> },
+  { path: "governance", element: <SuperAdminGovernancePage /> },
   { path: "system", element: <SuperAdminSystemHealthPage /> },
   { path: "platform-settings", element: <SuperAdminPlatformSettingsPage /> },
   { path: "training", element: <SuperAdminTrainingPage /> },

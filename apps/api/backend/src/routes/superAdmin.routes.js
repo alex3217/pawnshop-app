@@ -58,6 +58,17 @@ import {
   updateGrowthContact,
   updateGrowthLead,
 } from "../controllers/growthCenter.controller.js";
+import {
+  getMessagingAnalytics,
+  getMessagingSettingDefaults,
+  getModerationContent,
+  getUserGovernance,
+  listMessagingGovernance,
+  listMessagingReports,
+  lookupSuperAdminUsers,
+  moderateConversation,
+  mutateUserGovernance,
+} from "../controllers/superAdminGovernance.controller.js";
 
 const router = Router();
 
@@ -71,6 +82,10 @@ export const SUPER_ADMIN_ROUTE_MAP = Object.freeze({
   overview: "GET /api/super-admin/overview",
   users: "GET /api/super-admin/users",
   updateUser: "PATCH /api/super-admin/users/:id",
+  userLookup: "GET /api/super-admin/users/lookup",
+  userGovernance: "GET /api/super-admin/users/:id/governance",
+  userGovernanceAction: "POST /api/super-admin/users/:id/governance-actions",
+  messagingGovernance: "GET /api/super-admin/messaging/conversations",
   shops: "GET /api/super-admin/shops",
   updateShop: "PATCH /api/super-admin/shops/:id",
   sellerPlans: "GET /api/super-admin/plans/seller",
@@ -238,6 +253,16 @@ router.get("/audit", asyncRoute(listSuperAdminAuditLogs));
 router.get("/overview", asyncRoute(getSuperAdminOverview));
 router.get("/system", asyncRoute(getSuperAdminSystemHealth));
 router.get("/users", asyncRoute(listSuperAdminUsers));
+router.get("/users/lookup", asyncRoute(lookupSuperAdminUsers));
+router.get("/users/:id/governance", validateIdParam("id", "User id"), asyncRoute(getUserGovernance));
+router.post("/users/:id/governance-actions", validateIdParam("id", "User id"), validateJsonObjectBody, asyncRoute(mutateUserGovernance));
+router.get("/messaging/conversations", asyncRoute(listMessagingGovernance));
+router.get("/messaging/conversations/:id/content", validateIdParam("id", "Conversation id"), asyncRoute(getModerationContent));
+router.post("/messaging/conversations/:id/moderation", validateIdParam("id", "Conversation id"), validateJsonObjectBody, asyncRoute(moderateConversation));
+router.get("/messaging/reports", asyncRoute(listMessagingReports));
+router.get("/messaging/analytics", asyncRoute(getMessagingAnalytics));
+router.get("/messaging/settings/defaults", asyncRoute(getMessagingSettingDefaults));
+router.get("/platform-settings/messaging-defaults", asyncRoute(getMessagingSettingDefaults));
 router.post("/beta-invites", asyncRoute(createBetaInvite));
 router.get("/beta-invites", asyncRoute(listBetaInvites));
 router.get("/beta-invites/:id", asyncRoute(getBetaInvite));

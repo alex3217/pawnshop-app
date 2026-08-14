@@ -566,6 +566,8 @@ export async function updateSuperAdminUser(req, res) {
         : null;
 
     if (!body) throw badRequest("Request body must be a JSON object.");
+    const reason = normalizeString(body.reason);
+    if (reason.length < 5 || body.confirmed !== true) throw badRequest("A reason and explicit confirmation are required.");
 
     const update = {};
 
@@ -598,6 +600,7 @@ export async function updateSuperAdminUser(req, res) {
       targetUserId: userId,
       update,
       action: "UPDATE_USER_GOVERNANCE",
+      reason,
     });
 
     return res.json({
@@ -1326,6 +1329,11 @@ export async function getSuperAdminSystemHealth(req, res) {
       redis: {
         urlConfigured: safeBooleanEnv("REDIS_URL"),
       },
+      maps: { configured: safeBooleanEnv("GOOGLE_MAPS_API_KEY") || safeBooleanEnv("MAPS_API_KEY") },
+      geocoding: { configured: safeBooleanEnv("GOOGLE_MAPS_API_KEY") || safeBooleanEnv("GEOCODING_API_KEY") },
+      notifications: { configured: safeBooleanEnv("RESEND_API_KEY") || Boolean(process.env.SMTP_HOST) },
+      storage: { configured: Boolean(process.env.S3_BUCKET || process.env.AWS_S3_BUCKET || process.env.UPLOAD_STORAGE_PROVIDER === "local") },
+      backgroundJobs: { configured: Boolean(process.env.REDIS_URL || process.env.INVENTORY_SYNC_SCHEDULER_ENABLED || process.env.AUCTION_SCHEDULER_ENABLED) },
     };
 
     const checks = {
