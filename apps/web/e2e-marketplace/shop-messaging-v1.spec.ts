@@ -26,13 +26,37 @@ async function installOwner(page: Page, theme: "light" | "dark") {
   }, theme);
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
-    if (pathname === "/api/auth/shop-access") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: { role: "OWNER", unrestricted: false, shopIds: [SHOP_ID], permissions: ["messages:read", "messages:write"], capabilities: { messagesRead: true, messagesWrite: true }, shops: [{ id: SHOP_ID, name: "Target Pawn" }] } }) });
+    if (pathname === "/api/auth/shop-access") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: { role: "OWNER", unrestricted: false, shopIds: [SHOP_ID], permissions: ["messages:read", "messages:write"], capabilities: { messagesRead: true, messagesWrite: true }, shops: [{ shopId: SHOP_ID, shopName: "Target Pawn", permissions: ["messages:read", "messages:write"] }] } }) });
     if (pathname === "/api/shops/mine") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ shops: [{ id: SHOP_ID, name: "Target Pawn" }] }) });
     if (pathname === "/api/shop-conversations/shops") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ conversations: [{ id: "target-conversation-1", subject: "Item opportunity: Camera", contactReason: "PAWN_ITEM", status: "OPEN", sellerUserId: "seller-1", seller: { id: "seller-1", name: "Seller One" }, shop: { id: SHOP_ID, name: "Target Pawn", city: "Austin", state: "TX" }, buyerItemSubmission: { id: "submission-1", title: "Camera" }, messages: [{ id: "message-1", senderUserId: "seller-1", body: "Is your shop interested?", readAt: null, createdAt: new Date().toISOString() }], updatedAt: new Date().toISOString() }] }) });
     if (pathname === "/api/notifications") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ notifications: [] }) });
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true }) });
   });
 }
+
+test("owner composes an outbound customer message and sees the sent thread", async ({ page }) => {
+  await installOwner(page, "light"); let posted = false;
+  await page.route("**/api/shop-conversations/shop-recipients?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ recipients: [{ identifier: "member-alice", displayName: "Alice Seller", detail: "member-alice", type: "CUSTOMER" }] }) }));
+  await page.route("**/api/shop-conversations/shop-compose", async (route) => { posted = true; expect(route.request().headers()["idempotency-key"]).toBeTruthy(); return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ conversation: { id: "outbound-1", subject: "Camera follow-up", contactReason: "OTHER", status: "OPEN", sellerUserId: "alice", seller: { id: "alice", name: "Alice Seller" }, shop: { id: SHOP_ID, name: "Target Pawn" }, messages: [{ id: "sent-1", senderUserId: "owner-1", body: "We have an update.", systemMetadata: { sentByShopId: SHOP_ID }, createdAt: new Date().toISOString() }], updatedAt: new Date().toISOString() } }) }); });
+  await page.route("**/api/shop-conversations/outbound-1", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ side: "SHOP", conversation: { id: "outbound-1", subject: "Camera follow-up", contactReason: "OTHER", status: "OPEN", sellerUserId: "alice", seller: { id: "alice", name: "Alice Seller" }, shop: { id: SHOP_ID, name: "Target Pawn" }, messages: [{ id: "sent-1", senderUserId: "owner-1", body: "We have an update.", systemMetadata: { sentByShopId: SHOP_ID }, createdAt: new Date().toISOString() }], updatedAt: new Date().toISOString() } }) }));
+  await page.goto("/owner/messages"); await page.getByRole("button", { name: "Compose message" }).first().click();
+  await expect(page.getByRole("dialog")).toBeVisible(); await page.getByLabel("Recipient search").fill("Alice"); await page.getByRole("option", { name: /Alice Seller/ }).click(); await page.getByLabel("Subject or conversation topic").fill("Camera follow-up"); await page.getByRole("textbox", { name: "Message", exact: true }).fill("We have an update."); await expect(page.getByText("18 / 4000 characters")).toBeVisible(); await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => posted).toBe(true); await expect(page).toHaveURL(/\/owner\/messages\/outbound-1$/);
+});
+
+test("multiple-shop selector is shown and read-only staff cannot compose", async ({ page }) => {
+  await installOwner(page, "light");
+  await page.route("**/api/shops/mine", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ shops: [{ id: SHOP_ID, name: "Target Pawn" }, { id: "shop-2", name: "Second Pawn" }] }) }));
+  await page.route("**/api/auth/shop-access", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: { role: "OWNER", shopIds: [SHOP_ID, "shop-2"], capabilities: { messagesRead: true, messagesWrite: true }, shops: [{ shopId: SHOP_ID, shopName: "Target Pawn", permissions: ["messages:write"] }, { shopId: "shop-2", shopName: "Second Pawn", permissions: ["messages:write"] }] } }) }));
+  await page.goto("/owner/messages"); await page.getByRole("button", { name: "Compose message" }).first().click(); await expect(page.getByLabel("Sending shop")).toContainText("Second Pawn");
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.route("**/api/auth/shop-access", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: { role: "STAFF", shopIds: [SHOP_ID], capabilities: { messagesRead: true, messagesWrite: false }, shops: [{ shopId: SHOP_ID, shopName: "Target Pawn", permissions: ["messages:read"] }] } }) })); await page.reload(); await expect(page.getByRole("button", { name: "Compose message" })).toHaveCount(0);
+});
+
+test("empty owner inbox offers compose", async ({ page }) => {
+  await installOwner(page, "light"); await page.route("**/api/shop-conversations/shops?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ conversations: [] }) })); await page.goto("/owner/messages");
+  await expect(page.getByText("No conversations yet. Start a conversation or wait for a customer to contact your shop.")).toBeVisible(); await expect(page.locator(".messaging-empty").getByRole("button", { name: "Compose message" })).toBeEnabled();
+});
 
 for (const theme of ["light", "dark"] as const) test(`seller composer supports ${theme} theme and mobile layout`, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await installBuyer(page, theme); await page.goto(`/shops/${SHOP_ID}/message`);
