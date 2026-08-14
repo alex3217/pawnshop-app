@@ -17,6 +17,14 @@ async function mockItemSearch(page: Page) {
 
   await page.addInitScript(() => {
     localStorage.setItem("pawnloop-theme-v2", "light");
+    localStorage.setItem("auth_token", "item-locator-empty-results-token");
+    localStorage.setItem("auth_role", "CONSUMER");
+    localStorage.setItem("auth_user", JSON.stringify({
+      id: "item-locator-empty-results-buyer",
+      name: "Item Locator Buyer",
+      email: "item-locator-buyer@pawnloop.test",
+      role: "CONSUMER",
+    }));
     localStorage.setItem(
       "pawnloop-navigation-assistance-GUEST-v2",
       JSON.stringify({
@@ -46,6 +54,46 @@ async function mockItemSearch(page: Page) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ items: [existingItem], total: 1 }),
+    });
+  });
+
+  await page.route("**/api/auth/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        user: {
+          id: "item-locator-empty-results-buyer",
+          name: "Item Locator Buyer",
+          email: "item-locator-buyer@pawnloop.test",
+          role: "CONSUMER",
+        },
+      }),
+    });
+  });
+
+  await page.route("**/api/notifications", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, notifications: [] }),
+    });
+  });
+
+  await page.route("**/api/auth/shop-access", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        access: {
+          role: "CONSUMER",
+          unrestricted: false,
+          shopIds: [],
+          permissions: [],
+          capabilities: {},
+          shops: [],
+        },
+      }),
     });
   });
 
