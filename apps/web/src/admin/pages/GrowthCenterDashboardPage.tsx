@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import AdminPageShell from "../components/AdminPageShell";
+import { ErrorState, LoadingState, MetricCard, OperationsHeader } from "../components/SuperAdminOperations";
 import { growthCenterApi } from "../services/growthCenterApi";
 import type { GrowthSummary } from "../types/growthCenter";
 
@@ -14,33 +14,32 @@ const CARDS: [keyof GrowthSummary, string][] = [
 export default function GrowthCenterDashboardPage() {
   const [summary, setSummary] = useState<GrowthSummary | null>(null);
   const [error, setError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     growthCenterApi.summary(controller.signal)
-      .then((response) => setSummary(response.summary))
+      .then((response) => { setSummary(response.summary); setUpdatedAt(new Date()); })
       .catch((reason) => {
         if (reason?.name !== "AbortError") setError(reason instanceof Error ? reason.message : "Unable to load Growth Center.");
       });
     return () => controller.abort();
-  }, []);
+  }, [refreshKey]);
+  const conversion = summary?.totalLeads ? `${((summary.live / summary.totalLeads) * 100).toFixed(1)}%` : "0%";
   return (
-    <AdminPageShell
-      title="Growth Center"
-      subtitle="Discover, qualify, and track prospective pawn shops."
-      actions={<Link className="button" to="/super-admin/growth/leads">Open directory</Link>}
-    >
-      {error ? <div className="error-text" role="alert">{error}</div> : null}
-      {!summary && !error ? <p className="muted" aria-live="polite">Loading Growth Center…</p> : null}
+    <div>
+      <OperationsHeader title="Growth Center" description="Discover, qualify, and track prospective pawn shops without bypassing contact permission." updatedAt={updatedAt} actions={<><button className="btn btn-secondary" onClick={() => setRefreshKey((value) => value + 1)}>Refresh</button><Link className="btn btn-primary" to="/super-admin/growth/leads">Open directory</Link></>} />
+      {error ? <ErrorState message={error} onRetry={() => setRefreshKey((value) => value + 1)} /> : null}
+      {!summary && !error ? <LoadingState label="Loading Growth Center…" rows={4} /> : null}
       {summary ? (
-        <div className="admin-kpi-grid" style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
+        <div className="ops-metrics">
           {CARDS.map(([key, label]) => (
-            <div className="list-card" key={key}>
-              <div className="muted">{label}</div>
-              <div style={{ fontSize: 30, fontWeight: 900 }}>{summary[key]}</div>
-            </div>
+            <MetricCard key={key} label={label} value={summary[key]} description={key === "followUpsDue" ? "Due now or overdue" : undefined} />
           ))}
+          <MetricCard label="Conversion rate" value={conversion} description="Live shops divided by total leads" />
         </div>
       ) : null}
-    </AdminPageShell>
+      {summary ? <section className="ops-panel"><h2>Qualification funnel</h2><div className="ops-metrics"><MetricCard label="Discovered" value={summary.totalLeads} /><MetricCard label="Interested" value={summary.interested} /><MetricCard label="Application started" value={summary.applicationStarted} /><MetricCard label="Onboarding" value={summary.onboarding} /><MetricCard label="Live" value={summary.live} /></div><p className="muted">A zero means the API returned no matching records; unavailable data is shown as an error instead.</p></section> : null}
+    </div>
   );
 }

@@ -52,6 +52,13 @@ export type AdminUserRow = {
   createdAt?: string | null;
   updatedAt?: string | null;
 };
+export type GovernanceLookupRow = { publicDisplayName: string; pawnLoopIdentifier: string; privateEmail: string; internalId: string; accountStatus: string; role: string };
+export type GovernanceHistoryRow = { id: string; action: string; reason: string; correlationId: string; actorUserId?: string | null; beforeState: Record<string, unknown>; afterState: Record<string, unknown>; createdAt: string };
+export type UserGovernanceDetail = GovernanceLookupRow & { messagingRestricted: boolean; shopInitiatedContactDisabled: boolean; discoverabilityRestricted: boolean; messagingEligibility: { allowed: boolean; factors: Record<string, boolean>; policy: string }; publicDiscoverability: Record<string, unknown>; firstContactConsent: Record<string, unknown>; administrativeRestrictions?: Record<string, unknown> | null; shops: Array<Record<string, unknown>>; memberships: Array<Record<string, unknown>>; blockingAndReports: Record<string, unknown>; governanceHistory: GovernanceHistoryRow[] };
+export type GovernanceConversation = { id: string; subject?: string | null; status: string; moderationState: string; moderationReason?: string | null; moderatedAt?: string | null; shopId?: string | null; sellerUserId?: string | null; recipientShopId?: string | null; initiatedByShopId?: string | null; contextType?: string | null; contextReferenceId?: string | null; blockedByUserId?: string | null; blockedAt?: string | null; createdAt: string; updatedAt: string; messageCount: number; reportCount: number; participantAuthorization: Record<string, boolean>; messageBodiesIncluded: false };
+export type MessagingReport = { id: string; conversationId: string; reporterUserId?: string | null; assignedToId?: string | null; category: string; reason: string; status: string; resolution?: string | null; createdAt: string; updatedAt: string };
+export type GovernancePagination = { page: number; limit: number; total: number; totalPages: number };
+export type SuperAdminAuditRow = { id: string; actorId?: string | null; actorEmail?: string | null; action: string; targetType?: string | null; targetId?: string | null; success: boolean; requestId?: string | null; metadata?: Record<string, unknown> | null; createdAt: string };
 
 export type OwnerApplicationStatus =
   | "PENDING"
@@ -701,6 +708,11 @@ export type SuperAdminSystemHealth = {
     redis?: {
       urlConfigured?: boolean;
     };
+    maps?: { configured?: boolean };
+    geocoding?: { configured?: boolean };
+    notifications?: { configured?: boolean };
+    storage?: { configured?: boolean };
+    backgroundJobs?: { configured?: boolean };
   };
   checks?: Record<
     string,
@@ -1071,7 +1083,7 @@ export const adminApi = {
 
   updateSuperAdminUser: (
     id: string,
-    input: Partial<Pick<AdminUserRow, "role" | "isActive">>,
+    input: Partial<Pick<AdminUserRow, "role" | "isActive">> & { reason?: string; confirmed?: boolean },
     signal?: AbortSignal
   ) =>
     patchJson<{ success: boolean; user: AdminUserRow }>(
@@ -1079,6 +1091,22 @@ export const adminApi = {
       input,
       signal
     ),
+
+  lookupGovernanceUsers: (query: { q: string; type: "PUBLIC" | "EMAIL" | "INTERNAL_ID"; role?: string; accountStatus?: string; page?: number; limit?: number }, signal?: AbortSignal) =>
+    adminRequest<{ users: GovernanceLookupRow[]; pagination: GovernancePagination }>("/super-admin/users/lookup", { query, signal }),
+  getUserGovernance: async (id: string, signal?: AbortSignal): Promise<UserGovernanceDetail> => {
+    const payload = await adminRequest<{ user: UserGovernanceDetail }>(`/super-admin/users/${encodeURIComponent(id)}/governance`, { signal });
+    return payload.user;
+  },
+  applyUserGovernanceAction: (id: string, action: string, reason: string, signal?: AbortSignal) =>
+    postJson<{ success: boolean; governance: Record<string, unknown> }>(`/super-admin/users/${encodeURIComponent(id)}/governance-actions`, { action, reason, confirmed: true }, signal),
+  getMessagingGovernance: async (query: { q?: string; status?: string; moderationState?: string; page?: number; limit?: number } = {}, signal?: AbortSignal) => adminRequest<{ conversations: GovernanceConversation[]; pagination: GovernancePagination }>("/super-admin/messaging/conversations", { query, signal }),
+  getMessagingAnalytics: async (signal?: AbortSignal) => adminRequest<{ analytics: Record<string, number> }>("/super-admin/messaging/analytics", { signal }),
+  getMessagingReports: (query: { status?: string; category?: string; page?: number; limit?: number } = {}, signal?: AbortSignal) => adminRequest<{ reports: MessagingReport[]; pagination: GovernancePagination }>("/super-admin/messaging/reports", { query, signal }),
+  getMessagingDefaults: (signal?: AbortSignal) => adminRequest<{ defaults: Record<string, string | number | boolean> }>("/super-admin/messaging/settings/defaults", { signal }),
+  getModerationContent: (id: string, reason: string, signal?: AbortSignal) => postJson<{ messages: Array<{ id: string; senderUserId: string; body: string; createdAt: string }>; correlationId?: string }>(`/super-admin/messaging/conversations/${encodeURIComponent(id)}/content`, { reason, confirmed: true }, signal),
+  moderateConversation: (id: string, moderationState: string, reason: string, signal?: AbortSignal) => postJson<{ success: boolean; conversation: GovernanceConversation }>(`/super-admin/messaging/conversations/${encodeURIComponent(id)}/moderation`, { moderationState, reason, confirmed: true }, signal),
+  getGovernanceAudit: (query: { targetType?: string; targetId?: string; page?: number; limit?: number } = {}, signal?: AbortSignal) => adminRequest<{ rows: SuperAdminAuditRow[]; page: number; limit: number; total: number }>("/super-admin/audit", { query, signal }),
 
   getItems: async (signal?: AbortSignal): Promise<AdminItemRow[]> => {
     const payload = await adminRequest<PagedListResponse<AdminItemRow>>(
@@ -1139,21 +1167,23 @@ export const adminApi = {
 
   archiveSuperAdminIntegration: (
     id: string,
+    reason: string,
     signal?: AbortSignal
   ) =>
     patchJson<{ success: boolean; integration: SuperAdminIntegrationRow }>(
       `/super-admin/integrations/${encodeURIComponent(id)}/archive`,
-      {},
+      { reason },
       signal
     ),
 
   restoreSuperAdminIntegration: (
     id: string,
+    reason: string,
     signal?: AbortSignal
   ) =>
     patchJson<{ success: boolean; integration: SuperAdminIntegrationRow }>(
       `/super-admin/integrations/${encodeURIComponent(id)}/restore`,
-      {},
+      { reason },
       signal
     ),
 
