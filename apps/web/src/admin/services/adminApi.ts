@@ -52,6 +52,8 @@ export type AdminUserRow = {
   createdAt?: string | null;
   updatedAt?: string | null;
 };
+export type GovernanceLookupRow = { publicDisplayName: string; pawnLoopIdentifier: string; privateEmail: string; internalId: string; accountStatus: string; role: string };
+export type UserGovernanceDetail = GovernanceLookupRow & { messagingRestricted: boolean; shopInitiatedContactDisabled: boolean; discoverabilityRestricted: boolean; messagingEligibility: { allowed: boolean; factors: Record<string, boolean>; policy: string }; publicDiscoverability: Record<string, unknown>; firstContactConsent: Record<string, unknown>; administrativeRestrictions?: Record<string, unknown> | null; shops: Array<Record<string, unknown>>; memberships: Array<Record<string, unknown>>; blockingAndReports: Record<string, unknown> };
 
 export type OwnerApplicationStatus =
   | "PENDING"
@@ -698,6 +700,11 @@ export type SuperAdminSystemHealth = {
     redis?: {
       urlConfigured?: boolean;
     };
+    maps?: { configured?: boolean };
+    geocoding?: { configured?: boolean };
+    notifications?: { configured?: boolean };
+    storage?: { configured?: boolean };
+    backgroundJobs?: { configured?: boolean };
   };
   checks?: Record<
     string,
@@ -1068,7 +1075,7 @@ export const adminApi = {
 
   updateSuperAdminUser: (
     id: string,
-    input: Partial<Pick<AdminUserRow, "role" | "isActive">>,
+    input: Partial<Pick<AdminUserRow, "role" | "isActive">> & { reason?: string; confirmed?: boolean },
     signal?: AbortSignal
   ) =>
     patchJson<{ success: boolean; user: AdminUserRow }>(
@@ -1076,6 +1083,19 @@ export const adminApi = {
       input,
       signal
     ),
+
+  lookupGovernanceUsers: async (q: string, type: "PUBLIC" | "EMAIL" | "INTERNAL_ID", signal?: AbortSignal): Promise<GovernanceLookupRow[]> => {
+    const payload = await adminRequest<{ users?: GovernanceLookupRow[] }>("/super-admin/users/lookup", { query: { q, type }, signal });
+    return payload.users || [];
+  },
+  getUserGovernance: async (id: string, signal?: AbortSignal): Promise<UserGovernanceDetail> => {
+    const payload = await adminRequest<{ user: UserGovernanceDetail }>(`/super-admin/users/${encodeURIComponent(id)}/governance`, { signal });
+    return payload.user;
+  },
+  applyUserGovernanceAction: (id: string, action: string, reason: string, signal?: AbortSignal) =>
+    postJson<{ success: boolean; governance: Record<string, unknown> }>(`/super-admin/users/${encodeURIComponent(id)}/governance-actions`, { action, reason, confirmed: true }, signal),
+  getMessagingGovernance: async (signal?: AbortSignal) => adminRequest<{ conversations: Array<Record<string, unknown>> }>("/super-admin/messaging/conversations", { signal }),
+  getMessagingAnalytics: async (signal?: AbortSignal) => adminRequest<{ analytics: Record<string, number> }>("/super-admin/messaging/analytics", { signal }),
 
   getItems: async (signal?: AbortSignal): Promise<AdminItemRow[]> => {
     const payload = await adminRequest<PagedListResponse<AdminItemRow>>(

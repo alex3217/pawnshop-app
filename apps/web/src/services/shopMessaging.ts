@@ -6,7 +6,7 @@ export type ShopConversation = {
   id: string; subject: string; contactReason: ContactReason; status: ConversationStatus;
   sellerUserId: string; sellerLastReadAt?: string | null; shopLastReadAt?: string | null;
   shop: { id: string; name: string; city?: string | null; state?: string | null };
-  seller: { id: string; name: string };
+  seller: { id: string; name: string; publicDisplayName?: string | null; publicMessageIdentifier?: string };
   recipientShop?: { id: string; name: string } | null;
   messages: Array<{ id: string; senderUserId: string; body: string; readAt?: string | null; createdAt: string; systemMetadata?: { sentByShopId?: string } | null }>;
   buyerItemSubmission?: { id: string; title: string } | null;
@@ -18,7 +18,7 @@ export type ShopConversation = {
 export type MessageRecipient = { identifier: string; displayName: string; detail?: string; type: "CUSTOMER" | "PAWNSHOP" };
 type ListResponse = { conversations: ShopConversation[] };
 const key = () => crypto.randomUUID();
-export const listSellerConversations = (signal?: AbortSignal) => api.get<ListResponse>("/shop-conversations/seller", { signal });
+export const listSellerConversations = (status = "ALL", signal?: AbortSignal) => api.get<ListResponse>(`/shop-conversations/seller?${new URLSearchParams({ status })}`, { signal });
 export const listShopConversations = (shopId?: string, status = "ALL", signal?: AbortSignal) => api.get<ListResponse>(`/shop-conversations/shops?${new URLSearchParams({ ...(shopId ? { shopId } : {}), status })}`, { signal });
 export const getShopConversation = (id: string, signal?: AbortSignal) => api.get<{ conversation: ShopConversation; side: "SELLER" | "SHOP"; viewerShopId?: string | null }>(`/shop-conversations/${id}`, { signal });
 export const createShopConversation = (input: { shopId: string; subject: string; contactReason: ContactReason; message: string; buyerItemSubmissionId?: string }) => api.post<{ conversation: ShopConversation }>("/shop-conversations", input, { headers: { "Idempotency-Key": key() } });

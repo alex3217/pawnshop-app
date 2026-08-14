@@ -187,6 +187,7 @@ export default function SuperAdminSystemHealthPage() {
               <dt className="text-muted-foreground">Redis URL</dt>
               <dd>{data?.providers?.redis?.urlConfigured ? "Configured" : "Missing"}</dd>
             </div>
+            {(["maps", "geocoding", "notifications", "storage", "backgroundJobs"] as const).map((key) => <div key={key} className="flex justify-between gap-3"><dt className="text-muted-foreground">{key}</dt><dd>{data?.providers?.[key]?.configured ? "Configured" : "Missing"}</dd></div>)}
           </dl>
         </div>
 
