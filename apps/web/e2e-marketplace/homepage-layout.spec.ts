@@ -52,7 +52,7 @@ test("owner setup restores focus for Escape and Close setup", async ({
   await trigger.click();
   await expect(checklist).toBeVisible();
   await expect(checklist.getByRole("button", { name: "Close setup" })).toBeFocused();
-  await expect(checklist.locator(".role-checklist-item")).toHaveCount(7);
+  await expect(checklist.locator(".role-checklist-item")).toHaveCount(9);
   const boxes = await Promise.all([
     page.getByRole("navigation", { name: "Primary navigation" }).boundingBox(),
     checklist.boundingBox(),
@@ -79,9 +79,9 @@ test("setup task navigation closes without forcing focus to the trigger", async 
   const checklist = page.getByLabel("Pawn shop owner setup checklist");
 
   await trigger.click();
-  await checklist.getByRole("link", { name: "Complete shop profile" }).click();
+  await checklist.getByRole("link", { name: "Create your shop" }).first().click();
 
-  await expect(page).toHaveURL(/\/owner\/onboarding$/);
+  await expect(page).toHaveURL(/\/owner\/onboarding\?step=1#shop-profile$/);
   await expect(checklist).toBeHidden();
   await expect(trigger).not.toBeFocused();
 });
@@ -148,18 +148,13 @@ test("Navigation Assistance returns focus to Owner setup for every close path", 
   await expect(trigger).toBeFocused();
 });
 
-test("setup progress persists and footer is grouped", async ({ page }) => {
+test("server-derived setup progress and footer are grouped", async ({ page }) => {
   await prepareOwner(page);
   const trigger = page.getByRole("button", { name: /Owner setup/ });
-  await trigger.click();
-  await page
-    .getByLabel("Pawn shop owner setup checklist")
-    .getByRole("button", { name: "Mark Complete shop profile complete" })
-    .click();
-  await expect(trigger).toContainText("1/7");
+  await expect(trigger).toContainText("0/9");
   await page.reload();
   await expect(page.getByRole("button", { name: /Owner setup/ })).toContainText(
-    "1/7",
+    "0/9",
   );
 
   const footer = page.getByLabel("Footer navigation");
@@ -177,7 +172,7 @@ test("owner setup content scrolls to the final task and remains interactive", as
 
   const panel = page.getByLabel("Pawn shop owner setup checklist");
   const items = panel.getByLabel("Owner setup checklist items");
-  const finalTask = panel.getByRole("link", { name: "Review your plan" });
+  const finalTask = panel.getByRole("link", { name: "Add your first inventory item" }).first();
 
   const dimensions = await items.evaluate((element) => ({
     clientHeight: element.clientHeight,
@@ -187,18 +182,14 @@ test("owner setup content scrolls to the final task and remains interactive", as
   expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
 
   await items.hover();
-  await page.mouse.wheel(0, 500);
+  await page.mouse.wheel(0, dimensions.scrollHeight);
   await expect
     .poll(() => items.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(dimensions.scrollTop);
   await expect(finalTask).toBeInViewport();
 
-  await panel
-    .getByRole("button", { name: "Mark Review your plan complete" })
-    .click();
-  await expect(page.getByRole("button", { name: /Owner setup/ })).toContainText(
-    "1/7",
-  );
+  await finalTask.focus();
+  await expect(finalTask).toBeFocused();
 });
 
 test("owner setup supports keyboard scrolling and restores focus", async ({
@@ -283,10 +274,12 @@ for (const { width, height } of viewports) {
       page,
     }) => {
       await page.setViewportSize({ width, height });
-      await prepareOwner(page);
       if (theme === "dark") {
-        await page.getByRole("button", { name: "Switch to dark mode" }).click();
+        await page.addInitScript(() => {
+          localStorage.setItem("pawnloop-theme-v2", "dark");
+        });
       }
+      await prepareOwner(page);
 
       await page.getByRole("button", { name: /Owner setup/ }).click();
       const panel = page.getByLabel("Pawn shop owner setup checklist");
@@ -307,7 +300,10 @@ for (const { width, height } of viewports) {
         ),
       ).toBe(true);
 
-      if (width <= 1024) {
+      if (width <= 640) {
+        await expect(page.locator(".site-mobile-menu")).toBeVisible();
+        await expect(page.locator(".site-primary-more-menu")).toBeHidden();
+      } else if (width <= 1024) {
         await expect(page.locator(".site-primary-more-menu")).toBeVisible();
       }
     });

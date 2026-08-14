@@ -129,7 +129,9 @@ async function installMocks(
     const pathname = new URL(route.request().url()).pathname;
     let body: unknown;
 
-    if (pathname === `/api/marketplace-transactions/${TRANSACTION_ID}`) {
+    if (pathname === "/api/notifications") {
+      body = { success: true, notifications: [] };
+    } else if (pathname === `/api/marketplace-transactions/${TRANSACTION_ID}`) {
       body = { success: true, transaction };
     } else if (pathname === "/api/marketplace-transactions/mine/purchases") {
       body = {

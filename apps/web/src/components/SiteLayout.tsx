@@ -714,9 +714,15 @@ export default function SiteLayout() {
         </div>
       </header>
 
-      <main className="site-main" data-tour="main-content">
-        <Outlet />
-      </main>
+      {role === "ADMIN" || role === "SUPER_ADMIN" ? (
+        <div className="site-main" data-tour="main-content">
+          <Outlet />
+        </div>
+      ) : (
+        <main className="site-main" data-tour="main-content">
+          <Outlet />
+        </main>
+      )}
 
       <ScrollToTopButton />
       <NavigationTour role={role} />

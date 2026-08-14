@@ -407,6 +407,18 @@ async function installMocks(
 
       if (
         method === "GET" &&
+        pathname === "/api/notifications"
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: jsonBody({ success: true, notifications: [] }),
+        });
+        return;
+      }
+
+      if (
+        method === "GET" &&
         pathname ===
           "/api/marketplace-listings"
       ) {
@@ -629,8 +641,9 @@ test(
       );
 
     await page
-      .getByLabel(
-        "Password",
+      .getByRole(
+        "textbox",
+        { name: "Password" },
       )
       .fill(
         "Buyer123!",

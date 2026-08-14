@@ -310,7 +310,7 @@ test("Buyer Tools supports keyboard, Escape, outside click, focus return, and vi
   await expect(menu).not.toHaveAttribute("open", "");
   await expect(trigger).toBeFocused();
   await trigger.click();
-  await page.locator("main").click({ position: { x: 5, y: 5 } });
+  await page.locator(".site-main").click({ position: { x: 5, y: 5 } });
   await expect(menu).not.toHaveAttribute("open", "");
 });
 
