@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { assertShopPermission, getAccessibleShopScope } from "../services/shopAccess.service.js";
 
 const REASONS = new Set(["SELL_ITEM", "PAWN_ITEM", "INVENTORY", "OFFER", "VISIT", "OTHER"]);
+const OUTBOUND_CONTEXTS = new Set(["GENERAL_INQUIRY", "MARKETPLACE_LISTING", "TARGETED_OFFER", "EXISTING_OFFER", "ORDER_TRANSACTION", "AUCTION", "SELL_PAWN_SUBMISSION"]);
 const SUBJECT_MAX = 120;
 const MESSAGE_MAX = 4000;
 const URL_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
@@ -10,6 +11,7 @@ const HTML_PATTERN = /<\/?[a-z][^>]*>/i;
 const conversationInclude = {
   shop: { select: { id: true, name: true, address: true, city: true, state: true, zip: true, logoUrl: true } },
   seller: { select: { id: true, name: true } },
+  recipientShop: { select: { id: true, name: true, logoUrl: true } },
   buyerItemSubmission: { select: { id: true, title: true, intent: true, status: true } },
   buyerItemSubmissionTarget: { select: { id: true, submissionId: true, shopId: true } },
   marketplaceListing: { select: { id: true, title: true, status: true } },
@@ -35,16 +37,20 @@ function sendError(res, error) { return res.status(error?.statusCode || 500).jso
 
 async function sideForConversation(req, conversation, permission = "messages:read") {
   if (isPlatformAdmin(req)) throw httpError(403, "Private messages require the explicit audited moderation path.");
-  if (conversation.sellerUserId === userId(req)) return "SELLER";
+  if (conversation.recipientShopId) {
+    try { await assertShopPermission({ user: req.user, shopId: conversation.shopId, permission }); return { side: "SHOP", viewerShopId: conversation.shopId }; }
+    catch { await assertShopPermission({ user: req.user, shopId: conversation.recipientShopId, permission }); return { side: "SHOP", viewerShopId: conversation.recipientShopId }; }
+  }
+  if (conversation.sellerUserId === userId(req)) return { side: "SELLER", viewerShopId: null };
   await assertShopPermission({ user: req.user, shopId: conversation.shopId, permission });
-  return "SHOP";
+  return { side: "SHOP", viewerShopId: conversation.shopId };
 }
 
 async function loadAuthorized(req, permission = "messages:read") {
   const conversation = await prisma.shopConversation.findUnique({ where: { id: req.params.id }, include: conversationInclude });
   if (!conversation) throw httpError(404, "Conversation not found.");
-  const side = await sideForConversation(req, conversation, permission);
-  return { conversation, side };
+  const participant = await sideForConversation(req, conversation, permission);
+  return { conversation, ...participant };
 }
 
 async function validateContext(input, sellerUserId, shopId) {
@@ -77,14 +83,20 @@ async function validateContext(input, sellerUserId, shopId) {
   return { buyerItemSubmissionId, buyerItemSubmissionTargetId, marketplaceListingId, itemId, offerId };
 }
 
-async function recipientIds(tx, conversation, senderSide) {
+async function recipientIds(tx, conversation, senderSide, senderUserId = null) {
+  if (conversation.recipientShopId && conversation.recipientShopId !== conversation.shopId) {
+    const recipientSide = await tx.pawnShop.findFirst({ where: { id: conversation.recipientShopId, OR: [{ ownerId: senderUserId || "" }, { staffMembers: { some: { userId: senderUserId || "", status: "ACTIVE" } } }] }, select: { id: true } });
+    const targetShopId = recipientSide ? conversation.shopId : conversation.recipientShopId;
+    const target = await tx.pawnShop.findUnique({ where: { id: targetShopId }, select: { ownerId: true, staffMembers: { where: { status: "ACTIVE", permissions: { has: "messages:read" } }, select: { userId: true } } } });
+    return [...new Set([target?.ownerId, ...(target?.staffMembers || []).map((member) => member.userId)].filter(Boolean))];
+  }
   if (senderSide === "SHOP") return [conversation.sellerUserId];
   const shop = await tx.pawnShop.findUnique({ where: { id: conversation.shopId }, select: { ownerId: true, staffMembers: { where: { status: "ACTIVE", permissions: { has: "messages:read" } }, select: { userId: true } } } });
   return [...new Set([shop?.ownerId, ...(shop?.staffMembers || []).map((member) => member.userId)].filter(Boolean))];
 }
 
-async function createNotifications(tx, conversation, senderSide, messageId) {
-  const recipients = await recipientIds(tx, conversation, senderSide);
+async function createNotifications(tx, conversation, senderSide, messageId, senderUserId = null) {
+  const recipients = await recipientIds(tx, conversation, senderSide, senderUserId);
   if (!recipients.length) return;
   await tx.notification.createMany({ data: recipients.map((recipientId) => ({ userId: recipientId, type: "SHOP_MESSAGE", title: `New message: ${conversation.subject}`, message: senderSide === "SELLER" ? "A seller sent your shop a message." : `${conversation.shop.name} replied to your message.`, actionUrl: senderSide === "SELLER" ? `/owner/messages/${conversation.id}` : `/messages/${conversation.id}`, dedupeKey: `shop-message:${messageId}:${recipientId}` })), skipDuplicates: true });
 }
@@ -139,8 +151,10 @@ export async function createConversation(req, res) {
 export async function listSellerConversations(req, res) {
   try {
     if (isPlatformAdmin(req)) throw httpError(403, "Private messages require audited moderation access.");
-    const conversations = await prisma.shopConversation.findMany({ where: { sellerUserId: userId(req) }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], include: { ...conversationInclude, messages: { take: 1, orderBy: { createdAt: "desc" }, select: { id: true, senderUserId: true, body: true, createdAt: true } } } });
-    return res.json({ success: true, conversations });
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1); const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit || "25"), 10) || 25));
+    const where = { sellerUserId: userId(req), recipientShopId: null };
+    const [conversations, total] = await prisma.$transaction([prisma.shopConversation.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], include: { ...conversationInclude, messages: { take: 1, orderBy: { createdAt: "desc" }, select: { id: true, senderUserId: true, body: true, readAt: true, systemMetadata: true, createdAt: true } } } }), prisma.shopConversation.count({ where })]);
+    return res.json({ success: true, conversations, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (error) { return sendError(res, error); }
 }
 
@@ -151,14 +165,101 @@ export async function listShopConversations(req, res) {
     const requestedShopId = cleanId(req.query.shopId);
     if (requestedShopId && !scope.unrestricted && !scope.shopIds.includes(requestedShopId)) throw httpError(403, "You do not have access to this shop.");
     const status = String(req.query.status || "ALL").toUpperCase();
-    const where = { shopId: requestedShopId || (scope.unrestricted ? undefined : { in: scope.shopIds }), ...(status === "UNREAD" ? { messages: { some: { senderUserId: { not: userId(req) }, readAt: null } } } : ["OPEN", "CLOSED", "BLOCKED"].includes(status) ? { status } : {}) };
-    const conversations = await prisma.shopConversation.findMany({ where, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], include: { ...conversationInclude, messages: { take: 1, orderBy: { createdAt: "desc" }, select: { id: true, senderUserId: true, body: true, createdAt: true } } } });
-    return res.json({ success: true, conversations });
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1); const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit || "25"), 10) || 25));
+    const allowedShopIds = requestedShopId ? [requestedShopId] : scope.shopIds;
+    const where = { OR: [{ shopId: scope.unrestricted && !requestedShopId ? undefined : { in: allowedShopIds } }, { recipientShopId: scope.unrestricted && !requestedShopId ? { not: null } : { in: allowedShopIds } }], ...(status === "UNREAD" ? { messages: { some: { senderUserId: { not: userId(req) }, readAt: null } } } : ["OPEN", "CLOSED", "BLOCKED"].includes(status) ? { status } : {}) };
+    const [conversations, total] = await prisma.$transaction([prisma.shopConversation.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], include: { ...conversationInclude, messages: { take: 1, orderBy: { createdAt: "desc" }, select: { id: true, senderUserId: true, body: true, readAt: true, systemMetadata: true, createdAt: true } } } }), prisma.shopConversation.count({ where })]);
+    return res.json({ success: true, conversations, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+  } catch (error) { return sendError(res, error); }
+}
+
+async function assertActiveSenderShop(req, shopId) {
+  await assertShopPermission({ user: req.user, shopId, permission: "messages:write" });
+  const shop = await prisma.pawnShop.findFirst({ where: { id: shopId, isDeleted: false, isActive: true }, select: { id: true, name: true, ownerId: true } });
+  if (!shop) throw httpError(404, "Sending shop is unavailable.");
+  return shop;
+}
+
+function relationshipWhere(shopId) {
+  return { OR: [
+    { shopConversations: { some: { shopId } } },
+    { buyerOffers: { some: { item: { pawnShopId: shopId } } } },
+    { buyerItemSubmissions: { some: { targets: { some: { shopId } } } } },
+    { marketplacePurchases: { some: { OR: [{ sellerShopId: shopId }, { listing: { sellerShopId: shopId } }] } } },
+    { marketplaceSales: { some: { buyerShopId: shopId } } },
+    { Bid: { some: { auction: { shopId } } } },
+    { watchlistEntries: { some: { item: { pawnShopId: shopId } } } },
+  ] };
+}
+
+async function assertOutboundContext({ contextType, contextReferenceId, shopId, recipientUserId, recipientShopId }) {
+  if (contextType === "GENERAL_INQUIRY") return;
+  const recipientMatch = recipientShopId ? { OR: [{ buyerShopId: recipientShopId }, { sellerShopId: recipientShopId }] } : { OR: [{ buyerUserId: recipientUserId }, { sellerUserId: recipientUserId }] };
+  let row = null;
+  if (contextType === "MARKETPLACE_LISTING") row = await prisma.marketplaceListing.findFirst({ where: { id: contextReferenceId, OR: [{ sellerUserId: recipientUserId }, { sellerShopId: recipientShopId || undefined }, { item: { pawnShopId: shopId } }] }, select: { id: true } });
+  if (contextType === "EXISTING_OFFER") row = await prisma.offer.findFirst({ where: { id: contextReferenceId, buyerId: recipientUserId, item: { pawnShopId: shopId } }, select: { id: true } });
+  if (contextType === "TARGETED_OFFER") row = await prisma.buyerItemSubmissionOffer.findFirst({ where: { id: contextReferenceId, shopId, submission: { buyerId: recipientUserId } }, select: { id: true } });
+  if (contextType === "ORDER_TRANSACTION") row = await prisma.marketplaceTransaction.findFirst({ where: { id: contextReferenceId, AND: [{ OR: [{ buyerShopId: shopId }, { sellerShopId: shopId }, { listing: { sellerShopId: shopId } }] }, recipientMatch] }, select: { id: true } });
+  if (contextType === "AUCTION") row = await prisma.auction.findFirst({ where: { id: contextReferenceId, shopId, bids: { some: { userId: recipientUserId } } }, select: { id: true } });
+  if (contextType === "SELL_PAWN_SUBMISSION") row = await prisma.buyerItemSubmission.findFirst({ where: { id: contextReferenceId, buyerId: recipientUserId, targets: { some: { shopId } } }, select: { id: true } });
+  if (!row) throw httpError(403, "The selected context does not authorize this recipient.");
+}
+
+export async function searchShopMessageRecipients(req, res) {
+  try {
+    const shopId = cleanId(req.query.shopId); if (!shopId) throw httpError(400, "Sending shop is required.");
+    await assertActiveSenderShop(req, shopId);
+    const query = String(req.query.q || "").trim(); if (query.length < 2) return res.json({ success: true, recipients: [] });
+    const recipientType = String(req.query.type || "CUSTOMER").toUpperCase();
+    if (recipientType === "PAWNSHOP") {
+      const rows = await prisma.pawnShop.findMany({ where: { id: { not: shopId }, isDeleted: false, isActive: true, isPublic: true, owner: { isActive: true }, OR: [{ name: { contains: query, mode: "insensitive" } }, { publicMessageIdentifier: { contains: query, mode: "insensitive" } }] }, take: 20, orderBy: { name: "asc" }, select: { publicMessageIdentifier: true, name: true, city: true, state: true } });
+      return res.json({ success: true, recipients: rows.map((row) => ({ identifier: row.publicMessageIdentifier, displayName: row.name, detail: [row.city, row.state].filter(Boolean).join(", "), type: "PAWNSHOP" })) });
+    }
+    const rows = await prisma.user.findMany({ where: { isActive: true, AND: [relationshipWhere(shopId), { OR: [{ name: { contains: query, mode: "insensitive" } }, { publicMessageIdentifier: { contains: query, mode: "insensitive" } }] }] }, take: 20, orderBy: { name: "asc" }, select: { name: true, publicMessageIdentifier: true } });
+    return res.json({ success: true, recipients: rows.map((row) => ({ identifier: row.publicMessageIdentifier, displayName: row.name, detail: row.publicMessageIdentifier, type: "CUSTOMER" })) });
+  } catch (error) { return sendError(res, error); }
+}
+
+export async function createShopOutboundConversation(req, res) {
+  try {
+    if (isPlatformAdmin(req)) throw httpError(403, "Administrators cannot impersonate a shop.");
+    const shopId = cleanId(req.body.shopId); if (!shopId) throw httpError(400, "Sending shop is required.");
+    const sendingShop = await assertActiveSenderShop(req, shopId);
+    const subject = cleanText(req.body.subject, "Subject", SUBJECT_MAX); const body = cleanText(req.body.message, "Message", MESSAGE_MAX);
+    const contextType = String(req.body.contextType || "").trim().toUpperCase(); if (!OUTBOUND_CONTEXTS.has(contextType)) throw httpError(400, "A valid context is required.");
+    const contextReferenceId = cleanId(req.body.contextReferenceId);
+    if (contextType !== "GENERAL_INQUIRY" && !contextReferenceId) throw httpError(400, "Select the related platform context.");
+    const recipientType = String(req.body.recipientType || "CUSTOMER").toUpperCase();
+    if (!["CUSTOMER", "PAWNSHOP"].includes(recipientType)) throw httpError(400, "A valid recipient type is required.");
+    const recipientIdentifier = cleanId(req.body.recipientIdentifier);
+    if (!recipientIdentifier) throw httpError(400, "Recipient is required.");
+    let recipient; let recipientShopId = null;
+    if (recipientType === "PAWNSHOP") {
+      const target = await prisma.pawnShop.findFirst({ where: { publicMessageIdentifier: recipientIdentifier, id: { not: shopId }, isDeleted: false, isActive: true, isPublic: true, owner: { isActive: true } }, select: { id: true, ownerId: true, name: true } });
+      if (!target) throw httpError(404, "Recipient pawnshop is unavailable."); recipient = { id: target.ownerId, name: target.name }; recipientShopId = target.id;
+    } else {
+      recipient = await prisma.user.findFirst({ where: { publicMessageIdentifier: recipientIdentifier, isActive: true, ...relationshipWhere(shopId) }, select: { id: true, name: true } });
+      if (!recipient) throw httpError(403, "This recipient is not available to your shop.");
+    }
+    await assertOutboundContext({ contextType, contextReferenceId, shopId, recipientUserId: recipient.id, recipientShopId });
+    const idempotencyKey = cleanId(req.get("Idempotency-Key")); if (!idempotencyKey || idempotencyKey.length > 100) throw httpError(400, "A valid Idempotency-Key header is required.");
+    const result = await prisma.$transaction(async (tx) => {
+      const prior = await tx.shopMessage.findUnique({ where: { senderUserId_idempotencyKey: { senderUserId: userId(req), idempotencyKey } }, select: { conversationId: true } });
+      if (prior) return tx.shopConversation.findUnique({ where: { id: prior.conversationId }, include: conversationInclude });
+      let conversation = await tx.shopConversation.findFirst({ where: { shopId, sellerUserId: recipient.id, recipientShopId, contextType, contextReferenceId, status: { not: "BLOCKED" } }, orderBy: { updatedAt: "desc" } });
+      if (conversation?.status === "CLOSED") conversation = await tx.shopConversation.update({ where: { id: conversation.id }, data: { status: "OPEN", shopLastReadAt: new Date() } });
+      if (!conversation) conversation = await tx.shopConversation.create({ data: { shopId, sellerUserId: recipient.id, recipientShopId, initiatedByShopId: shopId, subject, contactReason: contextType === "SELL_PAWN_SUBMISSION" ? "SELL_ITEM" : contextType.includes("OFFER") ? "OFFER" : "OTHER", contextType, contextReferenceId, shopLastReadAt: new Date() } });
+      const message = await tx.shopMessage.create({ data: { conversationId: conversation.id, senderUserId: userId(req), body, idempotencyKey, systemMetadata: { sentByShopId: shopId } } });
+      await tx.shopConversationAuditEvent.create({ data: { conversationId: conversation.id, actorUserId: userId(req), action: "SHOP_COMPOSED", metadata: { shopId, recipientType, contextType, contextReferenceId } } });
+      await createNotifications(tx, { ...conversation, shop: sendingShop }, "SHOP", message.id, userId(req));
+      return tx.shopConversation.findUnique({ where: { id: conversation.id }, include: conversationInclude });
+    });
+    return res.status(201).json({ success: true, conversation: result });
   } catch (error) { return sendError(res, error); }
 }
 
 export async function getConversation(req, res) {
-  try { const { conversation, side } = await loadAuthorized(req); return res.json({ success: true, side, conversation }); }
+  try { const { conversation, side, viewerShopId } = await loadAuthorized(req); return res.json({ success: true, side, viewerShopId, conversation }); }
   catch (error) { return sendError(res, error); }
 }
 
@@ -167,15 +268,18 @@ export async function postMessage(req, res) {
     const body = cleanText(req.body.message, "Message", MESSAGE_MAX);
     const idempotencyKey = cleanId(req.get("Idempotency-Key"));
     if (!idempotencyKey || idempotencyKey.length > 100) throw httpError(400, "A valid Idempotency-Key header is required.");
-    const { conversation, side } = await loadAuthorized(req, "messages:write");
+    const { conversation, side, viewerShopId } = await loadAuthorized(req, "messages:write");
     if (conversation.status === "BLOCKED") throw httpError(409, "This conversation is blocked.");
     if (conversation.status === "CLOSED") throw httpError(409, "Reopen this conversation before replying.");
     const result = await prisma.$transaction(async (tx) => {
-      const existing = await tx.shopMessage.findUnique({ where: { conversationId_senderUserId_idempotencyKey: { conversationId: conversation.id, senderUserId: userId(req), idempotencyKey } } });
-      if (existing) return existing;
-      const message = await tx.shopMessage.create({ data: { conversationId: conversation.id, senderUserId: userId(req), body, idempotencyKey } });
+      const existing = await tx.shopMessage.findUnique({ where: { senderUserId_idempotencyKey: { senderUserId: userId(req), idempotencyKey } } });
+      if (existing) {
+        if (existing.conversationId !== conversation.id) throw httpError(409, "This request key was already used for another conversation.");
+        return existing;
+      }
+      const message = await tx.shopMessage.create({ data: { conversationId: conversation.id, senderUserId: userId(req), body, idempotencyKey, systemMetadata: side === "SHOP" ? { sentByShopId: viewerShopId } : undefined } });
       await tx.shopConversation.update({ where: { id: conversation.id }, data: side === "SELLER" ? { sellerLastReadAt: new Date() } : { shopLastReadAt: new Date() } });
-      await createNotifications(tx, conversation, side, message.id);
+      await createNotifications(tx, conversation, side, message.id, userId(req));
       return message;
     });
     return res.status(201).json({ success: true, message: result });

@@ -46,3 +46,19 @@ test("controller contains seller, shop-scope, context, blocked, closed, notifica
   const controller = await source("src/controllers/shopConversations.controller.js");
   for (const contract of ["sellerUserId === userId(req)", "assertShopPermission", "getAccessibleShopScope", "Invalid submission target reference", "cannot message your own shop", "status === \"BLOCKED\"", "status === \"CLOSED\"", "notification.createMany", "shopConversationAuditEvent.create"]) assert.ok(controller.includes(contract), contract);
 });
+
+test("outbound compose enforces privacy, authorization, account state, atomicity, reuse, and idempotency", async () => {
+  const controller = await source("src/controllers/shopConversations.controller.js");
+  for (const contract of ["messages:write", "publicMessageIdentifier", "isActive: true", "isDeleted: false", "relationshipWhere(shopId)", "Administrators cannot impersonate a shop", "prisma.$transaction", "findFirst", "senderUserId_idempotencyKey", "SHOP_COMPOSED", "createNotifications"]) assert.ok(controller.includes(contract), contract);
+  const selectedRecipientFields = controller.match(/select: \{ name: true, publicMessageIdentifier: true \}/)?.[0] || "";
+  assert.doesNotMatch(selectedRecipientFields, /email|phone|\bid:\s*true/);
+  const routes = await source("src/routes/shopConversations.routes.js");
+  assert.match(routes, /router\.post\("\/shop-compose", shopMessagingRateLimit/);
+});
+
+test("additive migration leaves seller_shop_messaging_v1 untouched and supports shop recipients", async () => {
+  const migration = await source("prisma/migrations/20260813190000_shop_outbound_message_compose_v1/migration.sql");
+  assert.match(migration, /ADD COLUMN "publicMessageIdentifier"/);
+  assert.match(migration, /ADD COLUMN "recipientShopId"/);
+  assert.match(migration, /ShopMessage_senderUserId_idempotencyKey_key/);
+});

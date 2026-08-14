@@ -4,7 +4,8 @@ import { shopMessagingRateLimit } from "../middleware/shopMessagingRateLimit.js"
 import {
   blockConversation, closeConversation, createConversation, getConversation,
   listSellerConversations, listShopConversations, markRead, postMessage,
-  reopenConversation, reportConversation, unreadCounts,
+  reopenConversation, reportConversation, unreadCounts, searchShopMessageRecipients,
+  createShopOutboundConversation,
 } from "../controllers/shopConversations.controller.js";
 
 const router = Router();
@@ -12,6 +13,8 @@ router.use(authRequired);
 router.get("/seller", listSellerConversations);
 router.get("/shops", listShopConversations);
 router.get("/unread-counts", unreadCounts);
+router.get("/shop-recipients", searchShopMessageRecipients);
+router.post("/shop-compose", shopMessagingRateLimit, createShopOutboundConversation);
 router.post("/", shopMessagingRateLimit, createConversation);
 router.get("/:id", getConversation);
 router.post("/:id/messages", shopMessagingRateLimit, postMessage);
