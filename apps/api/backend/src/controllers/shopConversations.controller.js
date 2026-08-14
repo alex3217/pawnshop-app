@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { assertShopPermission, getAccessibleShopScope } from "../services/shopAccess.service.js";
+import { resolveEffectiveMessagingPermission } from "./superAdminGovernance.controller.js";
 
 const REASONS = new Set(["SELL_ITEM", "PAWN_ITEM", "INVENTORY", "OFFER", "VISIT", "OTHER"]);
 const OUTBOUND_CONTEXTS = new Set(["GENERAL_INQUIRY", "MARKETPLACE_LISTING", "TARGETED_OFFER", "EXISTING_OFFER", "ORDER_TRANSACTION", "AUCTION", "SELL_PAWN_SUBMISSION"]);
@@ -34,6 +35,13 @@ function cleanText(value, name, max) {
 function cleanId(value) { const id = String(value || "").trim(); return id || null; }
 function isPlatformAdmin(req) { return ["ADMIN", "SUPER_ADMIN"].includes(role(req)); }
 function sendError(res, error) { return res.status(error?.statusCode || 500).json({ success: false, error: error?.message || "Internal server error", ...(error?.code ? { code: error.code } : {}) }); }
+async function assertEffectivePermission({ userId: targetUserId, userConsent, blocked = false, contextAuthorized, shopInitiated = false }) {
+  const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { isActive: true, governanceRestriction: true } });
+  const administrativeRestriction = Boolean(target?.governanceRestriction?.messagingRestricted || (shopInitiated && target?.governanceRestriction?.shopInitiatedContactDisabled));
+  const effective = resolveEffectiveMessagingPermission({ userActive: target?.isActive, userConsent, blocked, administrativeRestriction, contextAuthorized });
+  if (!effective.allowed) throw httpError(403, "Messaging is not permitted by the effective governance policy.", "MESSAGING_NOT_ELIGIBLE");
+  return effective;
+}
 
 async function sideForConversation(req, conversation, permission = "messages:read") {
   if (isPlatformAdmin(req)) throw httpError(403, "Private messages require the explicit audited moderation path.");
@@ -105,6 +113,7 @@ export async function createConversation(req, res) {
   try {
     if (isPlatformAdmin(req)) throw httpError(403, "Administrators cannot create seller conversations.");
     const sellerUserId = userId(req);
+    await assertEffectivePermission({ userId: sellerUserId, userConsent: true, contextAuthorized: true });
     const shopId = cleanId(req.body.shopId);
     if (!shopId) throw httpError(400, "Shop is required.");
     const subject = cleanText(req.body.subject, "Subject", SUBJECT_MAX);
@@ -218,7 +227,7 @@ export async function searchShopMessageRecipients(req, res) {
       const rows = await prisma.pawnShop.findMany({ where: { id: { not: shopId }, isDeleted: false, isActive: true, isPublic: true, owner: { isActive: true }, OR: [{ name: { contains: query, mode: "insensitive" } }, { publicMessageIdentifier: { contains: query, mode: "insensitive" } }] }, take: 20, orderBy: { name: "asc" }, select: { publicMessageIdentifier: true, name: true, city: true, state: true } });
       return res.json({ success: true, recipients: rows.map((row) => ({ identifier: row.publicMessageIdentifier, displayName: row.name, detail: [row.city, row.state].filter(Boolean).join(", "), type: "PAWNSHOP" })) });
     }
-    const rows = await prisma.user.findMany({ where: { isActive: true, messageDiscoverable: true, publicDisplayName: { not: null }, blockedMessagingShops: { none: { shopId } }, AND: [{ OR: [{ allowShopFirstContact: true }, relationshipWhere(shopId)] }, { OR: [{ publicDisplayName: { contains: query, mode: "insensitive" } }, { publicMessageIdentifier: { contains: query, mode: "insensitive" } }] }] }, take: 20, orderBy: { publicDisplayName: "asc" }, select: { publicDisplayName: true, publicMessageIdentifier: true } });
+    const rows = await prisma.user.findMany({ where: { isActive: true, messageDiscoverable: true, publicDisplayName: { not: null }, blockedMessagingShops: { none: { shopId } }, governanceRestriction: { isNot: { OR: [{ messagingRestricted: true }, { shopInitiatedContactDisabled: true }, { discoverabilityRestricted: true }] } }, AND: [{ OR: [{ allowShopFirstContact: true }, relationshipWhere(shopId)] }, { OR: [{ publicDisplayName: { contains: query, mode: "insensitive" } }, { publicMessageIdentifier: { contains: query, mode: "insensitive" } }] }] }, take: 20, orderBy: { publicDisplayName: "asc" }, select: { publicDisplayName: true, publicMessageIdentifier: true } });
     return res.json({ success: true, recipients: rows.map((row) => ({ identifier: row.publicMessageIdentifier, displayName: row.publicDisplayName, detail: `@${row.publicMessageIdentifier}`, type: "CUSTOMER" })) });
   } catch (error) { return sendError(res, error); }
 }
@@ -245,8 +254,12 @@ export async function createShopOutboundConversation(req, res) {
       if (!recipient) throw httpError(403, "This recipient is not available to your shop.");
       if (contextType === "GENERAL_INQUIRY" && !recipient.allowShopFirstContact) throw httpError(403, "This buyer does not allow first-contact messages.", "FIRST_CONTACT_NOT_ALLOWED");
       if (contextType !== "GENERAL_INQUIRY" && !recipient.allowTransactionalMessages) throw httpError(403, "This buyer has disabled transactional messages.", "TRANSACTIONAL_MESSAGES_DISABLED");
+      const blockedConversation = await prisma.shopConversation.findFirst({ where: { shopId, sellerUserId: recipient.id, status: "BLOCKED" }, select: { id: true } });
+      if (blockedConversation) throw httpError(403, "Messaging is blocked between this shop and buyer.", "RECIPIENT_BLOCKED");
     }
     await assertOutboundContext({ contextType, contextReferenceId, shopId, recipientUserId: recipient.id, recipientShopId });
+    const recipientConsent = recipientShopId ? true : contextType === "GENERAL_INQUIRY" ? recipient.allowShopFirstContact === true : recipient.allowTransactionalMessages === true;
+    await assertEffectivePermission({ userId: recipient.id, userConsent: recipientConsent, blocked: false, contextAuthorized: contextType === "GENERAL_INQUIRY" || Boolean(contextReferenceId), shopInitiated: true });
     const idempotencyKey = cleanId(req.get("Idempotency-Key")); if (!idempotencyKey || idempotencyKey.length > 100) throw httpError(400, "A valid Idempotency-Key header is required.");
     const result = await prisma.$transaction(async (tx) => {
       const prior = await tx.shopMessage.findUnique({ where: { senderUserId_idempotencyKey: { senderUserId: userId(req), idempotencyKey } }, select: { conversationId: true } });
@@ -274,11 +287,13 @@ export async function postMessage(req, res) {
     const idempotencyKey = cleanId(req.get("Idempotency-Key"));
     if (!idempotencyKey || idempotencyKey.length > 100) throw httpError(400, "A valid Idempotency-Key header is required.");
     const { conversation, side, viewerShopId } = await loadAuthorized(req, "messages:write");
+    await assertEffectivePermission({ userId: userId(req), userConsent: true, blocked: conversation.status === "BLOCKED", contextAuthorized: true });
     if (conversation.status === "BLOCKED") throw httpError(409, "This conversation is blocked.");
     if (conversation.status === "CLOSED") throw httpError(409, "Reopen this conversation before replying.");
     if (side === "SHOP" && !conversation.recipientShopId) {
       const consent = await prisma.user.findUnique({ where: { id: conversation.sellerUserId }, select: { isActive: true, allowTransactionalMessages: true, blockedMessagingShops: { where: { shopId: conversation.shopId }, select: { id: true } } } });
-      if (!consent?.isActive || !consent.allowTransactionalMessages || consent.blockedMessagingShops.length) throw httpError(403, "This buyer is not accepting messages from your shop.", "RECIPIENT_UNAVAILABLE");
+      await assertEffectivePermission({ userId: conversation.sellerUserId, userConsent: consent?.allowTransactionalMessages === true, blocked: conversation.status === "BLOCKED" || Boolean(consent?.blockedMessagingShops?.length), contextAuthorized: true, shopInitiated: true });
+      if (!consent?.isActive || consent.allowTransactionalMessages !== true || consent.blockedMessagingShops.length) throw httpError(403, "This buyer is not accepting messages from your shop.", "RECIPIENT_UNAVAILABLE");
     }
     const result = await prisma.$transaction(async (tx) => {
       const existing = await tx.shopMessage.findUnique({ where: { senderUserId_idempotencyKey: { senderUserId: userId(req), idempotencyKey } } });
@@ -325,7 +340,7 @@ export const closeConversation = (req, res) => changeStatus(req, res, "CLOSED", 
 export const reopenConversation = (req, res) => changeStatus(req, res, "OPEN", "REOPENED");
 export const blockConversation = (req, res) => changeStatus(req, res, "BLOCKED", "BLOCKED");
 export async function reportConversation(req, res) {
-  try { const { conversation } = await loadAuthorized(req); const reason = cleanText(req.body.reason, "Report reason", 500); await prisma.shopConversationAuditEvent.create({ data: { conversationId: conversation.id, actorUserId: userId(req), action: "REPORTED", metadata: { reason } } }); return res.status(201).json({ success: true }); }
+  try { const { conversation } = await loadAuthorized(req); const reason = cleanText(req.body.reason, "Report reason", 500); const category = String(req.body.category || "OTHER").trim().toUpperCase().slice(0, 40); await prisma.$transaction([prisma.messagingAbuseReport.create({ data: { conversationId: conversation.id, reporterUserId: userId(req), category, reason } }), prisma.shopConversationAuditEvent.create({ data: { conversationId: conversation.id, actorUserId: userId(req), action: "REPORTED", metadata: { category } } })]); return res.status(201).json({ success: true }); }
   catch (error) { return sendError(res, error); }
 }
 export async function unreadCounts(req, res) {

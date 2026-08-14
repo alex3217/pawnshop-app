@@ -798,11 +798,30 @@ test("super-admin role changes increment authVersion", async () => {
   const response = await request(app)
     .patch(`/api/super-admin/users/${target.id}`)
     .set("Authorization", `Bearer ${actorToken}`)
-    .send({ role: "OWNER" });
+    .send({
+      role: "OWNER",
+      reason: "Promote the verified account owner for governance coverage.",
+      confirmed: true,
+    });
   assert.equal(response.status, 200);
   const stored = await prisma.user.findUnique({ where: { id: target.id } });
   assert.equal(stored.role, "OWNER");
   assert.equal(stored.authVersion, 1);
+  const audit = await prisma.superAdminAuditLog.findFirst({
+    where: {
+      action: "UPDATE_USER_GOVERNANCE",
+      targetType: "USER",
+      targetId: target.id,
+      actorId: superAdmin.id,
+    },
+  });
+  assert.ok(audit);
+  assert.equal(
+    audit.metadata.reason,
+    "Promote the verified account owner for governance coverage.",
+  );
+  assert.equal(audit.metadata.beforeState.role, "CONSUMER");
+  assert.equal(audit.metadata.afterState.role, "OWNER");
 });
 
 test("verified consumers cannot create privileged users", async () => {

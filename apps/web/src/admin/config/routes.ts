@@ -189,6 +189,7 @@ export const ADMIN_ROUTES: AdminRouteWithGroup[] = [
     permissions: ["admin:users:read"],
     group: "super-admin-core",
   }),
+  route({ key: "superAdminGovernance", path: "/super-admin/governance", label: "Messaging & User Governance", permissions: ["admin:users:read"], group: "super-admin-governance" }),
   route({
     key: "superAdminOwnerApplications",
     path: "/super-admin/owner-applications",
