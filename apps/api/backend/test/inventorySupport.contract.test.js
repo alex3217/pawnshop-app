@@ -94,3 +94,8 @@ test("inventory-support migration is additive, unique, and schema-aligned", asyn
   assert.match(backfill, /WHEN "isDeleted" = true THEN 'ARCHIVED'/);
   assert.match(backfill, /WHEN "status" = 'SOLD' THEN 'SOLD'/);
 });
+
+test("external inventory sync keeps lifecycle fields aligned", async () => {
+  const sync = await read("src/services/inventorySync.service.js");
+  assert.match(sync, /availability: normalized\.status === "SOLD" \? "SOLD" : normalized\.status === "PENDING" \? "UNAVAILABLE" : "AVAILABLE"/);
+});
