@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.playwright/release-candidate-report/
+.playwright/release-candidate-results/
+.playwright/release-candidate-results.json
 
 # Editor directories and files
 .vscode/*
