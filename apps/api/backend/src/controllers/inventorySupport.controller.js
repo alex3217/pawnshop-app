@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { deleteTrackedAssets, lockItemImagesForUpdate, reconcileAssetUrls, rollbackTemporaryAssets } from "../services/uploadAssets.service.js";
+import { deleteTrackedAssets, lockItemImagesForUpdate, reconcileAssetUrls } from "../services/uploadAssets.service.js";
 
 const AVAILABILITY = new Set(["AVAILABLE", "RESERVED", "SOLD", "PAWNED", "LAYAWAY", "UNAVAILABLE", "ARCHIVED"]);
 const LISTING_ACTIONS = new Map([["publish", "ACTIVE"], ["unpublish", "DRAFT"], ["archive", "REMOVED"], ["restore", "DRAFT"]]);
@@ -127,25 +127,19 @@ export async function updateSupportInventory(req, res) {
     if (data.locationId !== undefined) { data.locationId = text(data.locationId) || null; if (data.locationId && !(await prisma.inventoryLocation.findFirst({ where: { id: data.locationId, shopId, isArchived: false } }))) throw http(400, "Location must belong to the selected shop."); }
     if (data.images !== undefined) data.images = data.images.map(text).filter(Boolean);
     let removedAssets = [];
-    let result;
-    try {
-      result = await prisma.$transaction(async (tx) => {
-        const before = await lockItemImagesForUpdate(tx, itemId);
-        if (!before || before.isDeleted || before.pawnShopId !== shopId) throw http(404, "Inventory item not found in selected shop.");
-        const fullBefore = await tx.item.findUnique({ where: { id: itemId } });
-        if (data.availability && data.availability !== fullBefore.availability && !LIFECYCLE[fullBefore.availability]?.has(data.availability)) throw http(409, `Invalid inventory lifecycle transition: ${fullBefore.availability} to ${data.availability}.`);
-        await assertCommerceSafe(tx, fullBefore, data);
-        const item = await tx.item.update({ where: { id: itemId }, data });
-        if (data.images !== undefined) removedAssets = await reconcileAssetUrls({ tx, shopId, itemId, previousUrls: before.images || [], nextUrls: item.images || [], requireManaged: true });
-        const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } });
-        await tx.inventoryAdminEvent.create({ data: { shopId, itemId, actorId: actorId(req), supportSessionId: active.id, action: "UPDATE_INVENTORY", reason: why, requestId: req.requestId || null, beforeState: safeItem(fullBefore), afterState: safeItem(item) } });
-        await notifyOwner(tx, shop, item, "UPDATE_INVENTORY");
-        return item;
-      });
-    } catch (error) {
-      if (data.images !== undefined) await rollbackTemporaryAssets({ urls: data.images, shopId, storage: req.app.locals.uploadStorage, requestId: req.requestId }).catch(() => {});
-      throw error;
-    }
+    const result = await prisma.$transaction(async (tx) => {
+      const before = await lockItemImagesForUpdate(tx, itemId);
+      if (!before || before.isDeleted || before.pawnShopId !== shopId) throw http(404, "Inventory item not found in selected shop.");
+      const fullBefore = await tx.item.findUnique({ where: { id: itemId } });
+      if (data.availability && data.availability !== fullBefore.availability && !LIFECYCLE[fullBefore.availability]?.has(data.availability)) throw http(409, `Invalid inventory lifecycle transition: ${fullBefore.availability} to ${data.availability}.`);
+      await assertCommerceSafe(tx, fullBefore, data);
+      const item = await tx.item.update({ where: { id: itemId }, data });
+      if (data.images !== undefined) removedAssets = await reconcileAssetUrls({ tx, shopId, itemId, uploaderId: actorId(req), previousUrls: before.images || [], nextUrls: item.images || [], requireManaged: true });
+      const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } });
+      await tx.inventoryAdminEvent.create({ data: { shopId, itemId, actorId: actorId(req), supportSessionId: active.id, action: "UPDATE_INVENTORY", reason: why, requestId: req.requestId || null, beforeState: safeItem(fullBefore), afterState: safeItem(item) } });
+      await notifyOwner(tx, shop, item, "UPDATE_INVENTORY");
+      return item;
+    });
     await deleteTrackedAssets({ assets: removedAssets, storage: req.app.locals.uploadStorage, requestId: req.requestId });
     return res.json({ success: true, item: result });
   } catch (error) { return send(req, res, error); }

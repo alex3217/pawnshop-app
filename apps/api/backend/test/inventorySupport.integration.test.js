@@ -6,13 +6,13 @@ import request from "supertest";
 
 const SECRET = "inventory-support-test-secret";
 const DOMAIN = "@inventory-support.integration.test";
-let app, prisma, superAdmin, admin, owner, consumer, shop, otherShop, item, sessionId;
+let app, prisma, cleanupStaleUploadAssets, superAdmin, admin, owner, consumer, shop, otherShop, item, sessionId;
 const token = (user) => jwt.sign({ sub: user.id, role: user.role, authVersion: user.authVersion }, SECRET);
 const api = (method, path, user = superAdmin) => request(app)[method](path).set("Authorization", `Bearer ${token(user)}`);
 
 before(async () => {
   Object.assign(process.env, { NODE_ENV: "test", APP_ENV: "test", JWT_SECRET: SECRET, AUCTION_SCHEDULER_ENABLED: "false" });
-  ({ prisma } = await import("../src/lib/prisma.js")); ({ createApp: app } = await import("../src/app.js")); app = app();
+  ({ prisma } = await import("../src/lib/prisma.js")); ({ cleanupStaleUploadAssets } = await import("../src/services/uploadAssets.service.js")); ({ createApp: app } = await import("../src/app.js")); app = app();
   const make = async (name, role) => prisma.user.create({ data: { name, email: `${name}${DOMAIN}`, password: await bcrypt.hash("TestOnly123!", 4), role, emailVerifiedAt: new Date() } });
   [superAdmin, admin, owner, consumer] = await Promise.all([make("super", "SUPER_ADMIN"), make("admin", "ADMIN"), make("owner", "OWNER"), make("consumer", "CONSUMER")]);
   [shop, otherShop] = await Promise.all([prisma.pawnShop.create({ data: { name: "Supported Shop", ownerId: owner.id } }), prisma.pawnShop.create({ data: { name: "Other Shop", ownerId: owner.id } })]);
@@ -60,7 +60,7 @@ test("active marketplace commerce blocks material mutation and session end is au
   assert.equal((await api("get", `/api/super-admin/shops/${shop.id}/inventory`).set("X-Support-Session-Id", sessionId)).status, 403);
 });
 
-test("support image changes attach, replace, remove, reject unmanaged URLs, and preserve rollback cleanup", async () => {
+test("support image changes attach, replace, remove, and reject unmanaged URLs", async () => {
   await prisma.marketplaceTransaction.deleteMany({ where: { listing: { itemId: item.id } } });
   await prisma.marketplaceListing.deleteMany({ where: { itemId: item.id } });
   const started = await api("post", `/api/super-admin/shops/${shop.id}/support-sessions`).send({ reason: "Managed image lifecycle verification" });
@@ -75,9 +75,70 @@ test("support image changes attach, replace, remove, reject unmanaged URLs, and 
   assert.equal(response.status, 400); assert.deepEqual((await prisma.item.findUnique({ where: { id: item.id } })).images, [url1]);
   await makeAsset("support-image-two", url2);
   response = await api("patch", `/api/super-admin/shops/${shop.id}/inventory/${item.id}`).set("X-Support-Session-Id", sessionId).send({ images: [url2], reason: "Replace verified inventory image" });
-  assert.equal(response.status, 200); assert.equal((await prisma.uploadAsset.findUnique({ where: { id: "support-image-two" } })).status, "ATTACHED");
+  assert.equal(response.status, 200); assert.equal((await prisma.uploadAsset.findUnique({ where: { id: "support-image-one" } })).status, "DELETED"); assert.equal((await prisma.uploadAsset.findUnique({ where: { id: "support-image-two" } })).status, "ATTACHED");
   response = await api("patch", `/api/super-admin/shops/${shop.id}/inventory/${item.id}`).set("X-Support-Session-Id", sessionId).send({ images: [], reason: "Remove verified inventory image" });
-  assert.equal(response.status, 200); assert.deepEqual(response.body.item.images, []);
+  assert.equal(response.status, 200); assert.deepEqual(response.body.item.images, []); assert.equal((await prisma.uploadAsset.findUnique({ where: { id: "support-image-two" } })).status, "DELETED");
+});
+
+test("rejected support image updates preserve same-shop cross-item and cross-uploader temporary assets", async () => {
+  const otherItem = await prisma.item.create({ data: { pawnShopId: shop.id, title: "Other image owner", price: 25, images: [] } });
+  const crossItemUrl = "https://assets.integration.test/cross-item.png";
+  const crossUploaderUrl = "https://assets.integration.test/cross-uploader.png";
+  const objects = new Set(["inventory/cross-item.png", "inventory/cross-uploader.png"]);
+  const previousStorage = app.locals.uploadStorage;
+  app.locals.uploadStorage = { delete: async ({ key }) => objects.delete(key) };
+  try {
+    await prisma.uploadAsset.createMany({ data: [
+      { id: "support-cross-item", objectKey: "inventory/cross-item.png", deliveryUrl: crossItemUrl, kind: "ITEM_IMAGE", uploaderId: superAdmin.id, shopId: shop.id, itemId: otherItem.id, deleteAfter: new Date(Date.now() + 60_000) },
+      { id: "support-cross-uploader", objectKey: "inventory/cross-uploader.png", deliveryUrl: crossUploaderUrl, kind: "ITEM_IMAGE", uploaderId: admin.id, shopId: shop.id, itemId: item.id, deleteAfter: new Date(Date.now() + 60_000) },
+    ] });
+    for (const url of [crossItemUrl, crossUploaderUrl]) {
+      const response = await api("patch", `/api/super-admin/shops/${shop.id}/inventory/${item.id}`).set("X-Support-Session-Id", sessionId).send({ images: [url], reason: "Reject foreign temporary image" });
+      assert.equal(response.status, 403);
+    }
+    const rows = await prisma.uploadAsset.findMany({ where: { id: { in: ["support-cross-item", "support-cross-uploader"] } }, orderBy: { id: "asc" } });
+    assert.deepEqual(rows.map(({ status }) => status), ["TEMPORARY", "TEMPORARY"]);
+    assert.deepEqual((await prisma.item.findUnique({ where: { id: otherItem.id } })).images, []);
+    assert.deepEqual((await prisma.item.findUnique({ where: { id: item.id } })).images, []);
+    assert.deepEqual([...objects].sort(), ["inventory/cross-item.png", "inventory/cross-uploader.png"]);
+  } finally {
+    app.locals.uploadStorage = previousStorage;
+  }
+});
+
+test("an attached image survives a later support audit failure", async () => {
+  const url = "https://assets.integration.test/attached-audit-failure.png";
+  const key = "inventory/attached-audit-failure.png";
+  const objects = new Set([key]);
+  const previousStorage = app.locals.uploadStorage;
+  app.locals.uploadStorage = { delete: async ({ key: deletedKey }) => objects.delete(deletedKey) };
+  await prisma.uploadAsset.create({ data: { id: "support-attached-audit-failure", objectKey: key, deliveryUrl: url, kind: "ITEM_IMAGE", uploaderId: superAdmin.id, shopId: shop.id, itemId: item.id, deleteAfter: new Date(Date.now() + 60_000) } });
+  try {
+    const attached = await api("patch", `/api/super-admin/shops/${shop.id}/inventory/${item.id}`).set("X-Support-Session-Id", sessionId).send({ images: [url], reason: "Attach image before failure" });
+    assert.equal(attached.status, 200);
+    await prisma.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION fail_support_update_audit() RETURNS trigger AS $$ BEGIN IF NEW."action" = 'UPDATE_INVENTORY' THEN RAISE EXCEPTION 'injected audit failure'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql`);
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER fail_support_update_audit BEFORE INSERT ON "InventoryAdminEvent" FOR EACH ROW EXECUTE FUNCTION fail_support_update_audit()`);
+    const failed = await api("patch", `/api/super-admin/shops/${shop.id}/inventory/${item.id}`).set("X-Support-Session-Id", sessionId).send({ title: "Rolled back title", images: [url], reason: "Inject support audit failure" });
+    assert.equal(failed.status, 500);
+    const asset = await prisma.uploadAsset.findUnique({ where: { id: "support-attached-audit-failure" } });
+    assert.equal(asset.status, "ATTACHED");
+    assert.equal(objects.has(key), true);
+    assert.notEqual((await prisma.item.findUnique({ where: { id: item.id } })).title, "Rolled back title");
+  } finally {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS fail_support_update_audit ON "InventoryAdminEvent"`);
+    await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS fail_support_update_audit()`);
+    app.locals.uploadStorage = previousStorage;
+  }
+});
+
+test("temporary orphan cleanup still deletes through the normal TTL path", async () => {
+  const key = "inventory/ttl-orphan.png";
+  const objects = new Set([key]);
+  await prisma.uploadAsset.create({ data: { id: "support-ttl-orphan", objectKey: key, deliveryUrl: "https://assets.integration.test/ttl-orphan.png", kind: "ITEM_IMAGE", uploaderId: superAdmin.id, shopId: shop.id, itemId: item.id, deleteAfter: new Date(Date.now() - 60_000) } });
+  const result = await cleanupStaleUploadAssets({ prismaClient: prisma, now: new Date(), storage: { delete: async ({ key: deletedKey }) => objects.delete(deletedKey) } });
+  assert.equal(result.deleted >= 1, true);
+  assert.equal((await prisma.uploadAsset.findUnique({ where: { id: "support-ttl-orphan" } })).status, "DELETED");
+  assert.equal(objects.has(key), false);
 });
 
 test("expired sessions are denied and concurrent starts leave one active session", async () => {
