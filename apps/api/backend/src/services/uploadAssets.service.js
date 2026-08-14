@@ -47,7 +47,7 @@ export async function lockItemImagesForUpdate(tx, itemId) {
 
 async function lockUploadAssetByUrl(tx, deliveryUrl) {
   const rows = await tx.$queryRaw`
-    SELECT "id", "objectKey", "deliveryUrl", "shopId", "itemId", "status"
+    SELECT "id", "objectKey", "deliveryUrl", "uploaderId", "shopId", "itemId", "status"
     FROM "UploadAsset"
     WHERE "deliveryUrl" = ${deliveryUrl}
     FOR UPDATE
@@ -85,7 +85,7 @@ export async function deleteUploadAssetForActor({ assetId, actorId, shopId, stor
   return deleteTrackedAssets({ assets: [asset], storage, prismaClient, logger, requestId });
 }
 
-export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUrls = [], nextUrls = [], requireManaged = false }) {
+export async function reconcileAssetUrls({ tx, shopId, itemId = null, uploaderId = null, previousUrls = [], nextUrls = [], requireManaged = false }) {
   const previous = new Set((previousUrls || []).filter(Boolean));
   const next = new Set((nextUrls || []).filter(Boolean));
   const added = [...next].filter((url) => !previous.has(url));
@@ -104,14 +104,14 @@ export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUr
         }
         continue; // Existing externally hosted images remain supported by legacy owner flows.
       }
-      if (asset.shopId !== shopId || (itemId && asset.itemId !== itemId) || !["TEMPORARY", "ATTACHED"].includes(asset.status)) {
+      if (asset.shopId !== shopId || (itemId && asset.itemId !== itemId) || (uploaderId && asset.uploaderId !== uploaderId) || !["TEMPORARY", "ATTACHED"].includes(asset.status)) {
         const error = new Error("Uploaded image does not belong to this resource");
         error.statusCode = 403;
         throw error;
       }
     }
     const attached = await tx.uploadAsset.updateMany({
-      where: { deliveryUrl: { in: added }, shopId, ...(itemId ? { itemId } : {}), status: { in: ["TEMPORARY", "ATTACHED"] } },
+      where: { deliveryUrl: { in: added }, shopId, ...(itemId ? { itemId } : {}), ...(uploaderId ? { uploaderId } : {}), status: { in: ["TEMPORARY", "ATTACHED"] } },
       data: { status: "ATTACHED", attachedAt: new Date(), deleteAfter: null, lastError: null },
     });
     if (attached.count !== assets.length) {
