@@ -346,6 +346,39 @@
   background-size: 64px 64px, 64px 64px, auto;
 }
 
+.item-detail-map-canvas { position: absolute; inset: 0; min-height: 250px; }
+.item-detail-map-fallback { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; padding: 24px; text-align: center; background: linear-gradient(135deg, #dbeafe, #f8fafc 45%, #e0f2fe); color: #0f172a; }
+.item-detail-map-fallback span { color: #475569; }
+.item-detail-map-fallback a { justify-self: center; border-radius: 12px; padding: 10px 14px; background: #0f172a; color: #fff; font-weight: 900; }
+:root[data-theme="dark"] .item-detail-map-fallback { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; }
+:root[data-theme="dark"] .item-detail-map-fallback span { color: #cbd5e1; }
+
+.item-detail-actions .item-detail-action {
+  min-height: 52px;
+  min-width: 172px;
+  padding: 0 22px;
+  border: 1px solid rgba(45, 212, 191, .55);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #4f46e5, #2563eb);
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  font: inherit;
+  font-weight: 950;
+  white-space: nowrap;
+}
+.item-detail-actions .item-detail-secondary-action { background: #e2e8f0; border-color: #94a3b8; color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; }
+.item-detail-actions .item-detail-location-action { background: linear-gradient(135deg, #047857, #0f766e); }
+:root[data-theme="dark"] .item-detail-actions .item-detail-secondary-action { background: #334155; color: #f8fafc !important; -webkit-text-fill-color: #f8fafc !important; }
+.item-detail-actions :is(a, button):focus-visible,
+.item-detail-shop-actions a:focus-visible { outline: 3px solid #f59e0b !important; outline-offset: 3px; }
+.item-detail-actions .item-detail-action:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.item-detail-actions .item-detail-action:active:not(:disabled) { filter: brightness(.94); transform: none; }
+.item-detail-actions .item-detail-action:disabled { opacity: 1; background: #64748b; color: #f8fafc !important; cursor: wait; }
+.item-detail-shop-actions a,
+.item-detail-shop-actions a:visited { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; white-space: nowrap; }
+.item-detail-shop-actions a:hover { filter: brightness(1.08); }
+.item-detail-shop-actions a:active { filter: brightness(.94); }
+
 .item-detail-map-user {
   position: absolute;
   left: 50%;

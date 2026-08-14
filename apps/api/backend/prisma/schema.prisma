@@ -325,12 +325,14 @@ model PawnShop {
   publicMessageIdentifier            String                           @unique @default(cuid())
   name                               String
   address                            String?
+  addressLine2                       String?
   city                               String?
   state                              String?
   zip                                String?
   country                            String?
   latitude                           Float?
   longitude                          Float?
+  mapVerificationRequired            Boolean                          @default(false)
   phone                              String?
   description                        String?
   hours                              String?

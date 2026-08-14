@@ -345,6 +345,104 @@ test(
 );
 
 test(
+  "location staff need locations:write and remain confined to their assigned shop",
+  async () => {
+    const prismaClient = makePrisma({
+      shops,
+      staff: [{
+        id: "location-staff-1",
+        shopId: "shop-a",
+        userId: "location-user-1",
+        email: "location-staff@example.com",
+        role: "SHOP_MANAGER",
+        status: "ACTIVE",
+        permissions: ["locations:read"],
+      }],
+    });
+    const user = {
+      sub: "location-user-1",
+      role: "CONSUMER",
+      email: "location-staff@example.com",
+    };
+
+    await assert.rejects(
+      assertShopPermission({
+        user,
+        shopId: "shop-a",
+        permission: "locations:write",
+        prismaClient,
+      }),
+      (error) => error.statusCode === 403 && /locations:write/.test(error.message),
+    );
+    await assert.rejects(
+      assertShopPermission({
+        user,
+        shopId: "shop-b",
+        permission: "locations:write",
+        prismaClient,
+      }),
+      (error) => error.statusCode === 403,
+    );
+  },
+);
+
+test(
+  "locations:read scope includes only assigned shops with that permission",
+  async () => {
+    const prismaClient = makePrisma({
+      shops,
+      staff: [
+        {
+          id: "location-staff-a",
+          shopId: "shop-a",
+          userId: "location-user-1",
+          status: "ACTIVE",
+          permissions: ["locations:read"],
+        },
+        {
+          id: "location-staff-b",
+          shopId: "shop-b",
+          userId: "location-user-1",
+          status: "ACTIVE",
+          permissions: ["inventory:read"],
+        },
+      ],
+    });
+
+    const scope = await getAccessibleShopScope({
+      user: { sub: "location-user-1", role: "CONSUMER" },
+      permission: "locations:read",
+      prismaClient,
+    });
+
+    assert.equal(scope.unrestricted, false);
+    assert.deepEqual(scope.shopIds, ["shop-a"]);
+  },
+);
+
+test(
+  "ADMIN and SUPER_ADMIN intentionally retain unrestricted location access",
+  async () => {
+    for (const role of ["ADMIN", "SUPER_ADMIN"]) {
+      const scope = await getAccessibleShopScope({
+        user: { sub: `${role.toLowerCase()}-1`, role },
+        permission: "locations:read",
+        prismaClient: makePrisma({ shops }),
+      });
+      const write = await assertShopPermission({
+        user: { sub: `${role.toLowerCase()}-1`, role },
+        shopId: "shop-b",
+        permission: "locations:write",
+        prismaClient: makePrisma({ shops }),
+      });
+
+      assert.equal(scope.unrestricted, true);
+      assert.equal(write.source, role);
+    }
+  },
+);
+
+test(
   "accessible scope combines owned and assigned shops",
   async () => {
     const prismaClient = makePrisma({
