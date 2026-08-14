@@ -11,6 +11,7 @@ model User {
   id                              String                           @id @default(cuid())
   name                            String
   email                           String                           @unique
+  publicMessageIdentifier         String                           @unique @default(cuid())
   password                        String
   role                            Role                             @default(CONSUMER)
   isActive                        Boolean                          @default(true)
@@ -321,6 +322,7 @@ model BuyerSubscriptionEvent {
 
 model PawnShop {
   id                                 String                           @id @default(cuid())
+  publicMessageIdentifier            String                           @unique @default(cuid())
   name                               String
   address                            String?
   city                               String?
@@ -393,7 +395,8 @@ model PawnShop {
   stripeDisputes                     StripeDispute[]                  @relation("StripeDisputeShop")
   stripeSubscriptionBillingEvents    StripeSubscriptionBillingEvent[]
   uploadAssets                       UploadAsset[]
-  conversations                      ShopConversation[]
+  conversations                      ShopConversation[]               @relation("ShopConversationPrimaryShop")
+  receivedShopConversations          ShopConversation[]               @relation("ShopConversationRecipientShop")
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, isActive, isPublic, createdAt])
@@ -1807,6 +1810,10 @@ model ShopConversation {
   marketplaceListingId        String?
   itemId                      String?
   offerId                     String?
+  recipientShopId             String?
+  initiatedByShopId           String?
+  contextType                 String?
+  contextReferenceId          String?
   status                      ShopConversationStatus @default(OPEN)
   sellerLastReadAt            DateTime?
   shopLastReadAt              DateTime?
@@ -1815,7 +1822,8 @@ model ShopConversation {
   createdAt                   DateTime               @default(now())
   updatedAt                   DateTime               @updatedAt
 
-  shop                      PawnShop                     @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  shop                      PawnShop                     @relation("ShopConversationPrimaryShop", fields: [shopId], references: [id], onDelete: Restrict)
+  recipientShop             PawnShop?                    @relation("ShopConversationRecipientShop", fields: [recipientShopId], references: [id], onDelete: Restrict)
   seller                    User                         @relation("ShopConversationSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
   buyerItemSubmission       BuyerItemSubmission?         @relation(fields: [buyerItemSubmissionId], references: [id], onDelete: SetNull)
   buyerItemSubmissionTarget BuyerItemSubmissionTarget?   @relation(fields: [buyerItemSubmissionTargetId], references: [id], onDelete: SetNull)
@@ -1828,6 +1836,8 @@ model ShopConversation {
   @@index([sellerUserId, status, updatedAt])
   @@index([shopId, status, updatedAt])
   @@index([shopId, sellerUserId, updatedAt])
+  @@index([recipientShopId, status, updatedAt])
+  @@index([shopId, sellerUserId, contextType, contextReferenceId])
 }
 
 model ShopMessage {
@@ -1844,6 +1854,7 @@ model ShopMessage {
   sender       User             @relation("ShopMessageSender", fields: [senderUserId], references: [id], onDelete: Restrict)
 
   @@unique([conversationId, senderUserId, idempotencyKey])
+  @@unique([senderUserId, idempotencyKey])
   @@index([conversationId, createdAt, id])
   @@index([senderUserId, createdAt])
 }
