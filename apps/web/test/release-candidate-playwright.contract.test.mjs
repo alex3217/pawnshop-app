@@ -27,6 +27,39 @@ test("release-candidate CI covers critical engines and representative mobile vie
   assert.match(config, /iPhone 14/);
 });
 
+test("release-candidate remediation PRs run the strict gate before integration", () => {
+  assert.match(
+    workflow,
+    /pull_request:\n    branches:\n      - main\n      - fix\/release-candidate-qa-accessibility-v1/,
+  );
+});
+
+test("WebKit gates every B01-B06 remediation spec without title filtering", () => {
+  for (const spec of [
+    "customer-scan-marketplace-listing",
+    "scanner-marketplace-listing-entry",
+    "marketplace-buy-now",
+    "marketplace-checkout",
+    "marketplace-fulfillment",
+    "marketplace-receipts-fulfillment",
+    "route-protection",
+    "owner-onboarding-regression",
+    "homepage-layout",
+    "item-locator-empty-results",
+    "public-listing-image-visibility",
+    "buyer-navigation-parity",
+    "seller-shop-readability",
+    "super-admin-navigation-a11y",
+    "owner-application-review",
+  ]) {
+    assert.match(config, new RegExp(`\\b${spec}\\b`), `${spec} must be in the WebKit gate`);
+  }
+  assert.match(
+    config,
+    /\{ name: "webkit-critical", testMatch: webkitGateSpecs, use:/,
+  );
+});
+
 test("release-candidate web server disables env files and uses the hermetic launcher", () => {
   assert.match(config, /node scripts\/start-release-candidate-server\.mjs/);
   assert.match(viteConfig, /envFile: false/);

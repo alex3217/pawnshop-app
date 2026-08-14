@@ -2,7 +2,9 @@ name: Release Candidate QA
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - fix/release-candidate-qa-accessibility-v1
   push:
     branches:
       - fix/release-candidate-qa-accessibility-v1

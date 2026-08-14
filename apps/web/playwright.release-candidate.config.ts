@@ -4,6 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const criticalSpecs = /(?:release-candidate-accessibility|auth-401-regression|route-protection)\.spec\.ts/;
 const criticalTitles = /(?:serious automated accessibility violations|authentication landmarks, labels, names, and keyboard focus|authenticated 401|incorrect login|registration failure|ordinary 403|authenticated CONSUMER|refresh preserves|logout clears|direct Buyer dashboard|fresh unauthenticated|Buyer cannot access|wrong-role users|public routes remain accessible)/;
+const webkitGateSpecs = /(?:release-candidate-accessibility|auth-401-regression|route-protection|customer-scan-marketplace-listing|scanner-marketplace-listing-entry|marketplace-buy-now|marketplace-checkout|marketplace-fulfillment|marketplace-receipts-fulfillment|owner-onboarding-regression|homepage-layout|item-locator-empty-results|public-listing-image-visibility|buyer-navigation-parity|seller-shop-readability|super-admin-navigation-a11y|owner-application-review)\.spec\.ts/;
 const mobileSpecs = /(?:release-candidate-accessibility|global-readability-regression|marketplace-map-readability)\.spec\.ts/;
 
 export default defineConfig({
@@ -35,7 +36,7 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "firefox-critical", testMatch: criticalSpecs, grep: criticalTitles, use: { ...devices["Desktop Firefox"] } },
-    { name: "webkit-critical", testMatch: criticalSpecs, grep: criticalTitles, use: { ...devices["Desktop Safari"] } },
+    { name: "webkit-critical", testMatch: webkitGateSpecs, use: { ...devices["Desktop Safari"] } },
     { name: "mobile-chromium", testMatch: mobileSpecs, use: { ...devices["Pixel 7"] } },
     { name: "mobile-webkit", testMatch: mobileSpecs, use: { ...devices["iPhone 14"] } },
   ],
