@@ -53,6 +53,11 @@ test("mutations require reason, reject negative quantity and cross-shop location
   assert.equal(archived.status, 200); assert.equal(archived.body.item.isDeleted, true);
   const restored = await api("patch", path).set("X-Support-Session-Id", sessionId).send({ availability: "AVAILABLE", reason: "Restore verified inventory record" });
   assert.equal(restored.status, 200); assert.equal(restored.body.item.isDeleted, false); assert.equal(restored.body.item.availability, "AVAILABLE");
+  await prisma.item.update({ where: { id: item.id }, data: { availability: "SOLD", status: "SOLD" } });
+  assert.equal((await api("patch", path).set("X-Support-Session-Id", sessionId).send({ availability: "ARCHIVED", reason: "Archive historical sold inventory" })).status, 200);
+  const restoredSold = await api("patch", path).set("X-Support-Session-Id", sessionId).send({ availability: "AVAILABLE", reason: "Restore historical sold inventory" });
+  assert.equal(restoredSold.status, 200); assert.equal(restoredSold.body.item.availability, "SOLD"); assert.equal(restoredSold.body.item.status, "SOLD"); assert.equal(restoredSold.body.item.isDeleted, false);
+  await prisma.item.update({ where: { id: item.id }, data: { availability: "AVAILABLE", status: "AVAILABLE" } });
 });
 
 test("active marketplace commerce blocks material mutation and session end is audited", async () => {

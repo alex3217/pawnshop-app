@@ -13,7 +13,7 @@ const LIFECYCLE = {
   PAWNED: new Set(["AVAILABLE", "SOLD", "LAYAWAY", "UNAVAILABLE", "ARCHIVED"]),
   LAYAWAY: new Set(["AVAILABLE", "SOLD", "UNAVAILABLE", "ARCHIVED"]),
   UNAVAILABLE: new Set(["AVAILABLE", "ARCHIVED"]),
-  ARCHIVED: new Set(["AVAILABLE", "UNAVAILABLE"]),
+  ARCHIVED: new Set(["AVAILABLE", "UNAVAILABLE", "SOLD"]),
 };
 const SUPPORT_SESSION_MAX_MS = 30 * 60 * 1000;
 
@@ -124,7 +124,7 @@ export async function updateSupportInventory(req, res) {
     if (Object.keys(data).length === 0) throw http(400, "At least one supported inventory field is required.");
     if (data.quantity !== undefined) { data.quantity = Number(data.quantity); if (!Number.isInteger(data.quantity) || data.quantity < 0) throw http(400, "Quantity must be a non-negative integer."); }
     for (const field of ["price", "cost"]) if (data[field] !== undefined) { data[field] = data[field] === "" || data[field] === null ? null : Number(data[field]); if (data[field] !== null && (!Number.isFinite(data[field]) || data[field] < 0)) throw http(400, `${field} must be non-negative.`); }
-    if (data.availability) { data.availability = text(data.availability).toUpperCase(); if (!AVAILABILITY.has(data.availability)) throw http(400, "Invalid availability."); data.status = data.availability === "SOLD" ? "SOLD" : "AVAILABLE"; data.isDeleted = data.availability === "ARCHIVED"; }
+    if (data.availability) { data.availability = text(data.availability).toUpperCase(); if (!AVAILABILITY.has(data.availability)) throw http(400, "Invalid availability."); if (data.availability !== "ARCHIVED") data.status = data.availability === "SOLD" ? "SOLD" : "AVAILABLE"; data.isDeleted = data.availability === "ARCHIVED"; }
     if (data.images !== undefined && !Array.isArray(data.images)) throw http(400, "Images must be an ordered array.");
     if (data.locationId !== undefined) { data.locationId = text(data.locationId) || null; if (data.locationId && !(await prisma.inventoryLocation.findFirst({ where: { id: data.locationId, shopId, isArchived: false } }))) throw http(400, "Location must belong to the selected shop."); }
     if (data.images !== undefined) data.images = data.images.map(text).filter(Boolean);
@@ -134,6 +134,7 @@ export async function updateSupportInventory(req, res) {
       const restoringArchived = before?.isDeleted && data.availability && data.availability !== "ARCHIVED";
       if (!before || (before.isDeleted && !restoringArchived) || before.pawnShopId !== shopId) throw http(404, "Inventory item not found in selected shop.");
       const fullBefore = await tx.item.findUnique({ where: { id: itemId } });
+      if (fullBefore.availability === "ARCHIVED" && fullBefore.status === "SOLD" && data.availability === "AVAILABLE") { data.availability = "SOLD"; data.status = "SOLD"; data.isDeleted = false; }
       if (data.availability && data.availability !== fullBefore.availability && !LIFECYCLE[fullBefore.availability]?.has(data.availability)) throw http(409, `Invalid inventory lifecycle transition: ${fullBefore.availability} to ${data.availability}.`);
       await assertCommerceSafe(tx, fullBefore, data);
       const item = await tx.item.update({ where: { id: itemId }, data });

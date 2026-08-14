@@ -24,6 +24,7 @@ test("inventory support UI requires reasons and exposes locations and history", 
   assert.match(api, /X-Support-Session-Id/);
   assert.match(api, /inventory-locations/);
   assert.match(api, /inventory.*history/);
+  assert.match(api, /archived: "true"/);
 });
 
 test("inventory support UI uses managed uploads and partial updates", () => {
