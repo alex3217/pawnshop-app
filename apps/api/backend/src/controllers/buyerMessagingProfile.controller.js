@@ -49,9 +49,16 @@ export async function updateBuyerMessagingProfile(req, res) {
 export async function unblockBuyerMessagingShop(req, res) {
   try {
     const shopId = String(req.params.shopId || "").trim();
+    const buyerUserId = id(req);
     await prisma.$transaction(async (tx) => {
-      const removed = await tx.buyerMessagingShopBlock.deleteMany({ where: { buyerUserId: id(req), shopId } });
-      if (removed.count) await tx.buyerMessagingProfileAudit.create({ data: { userId: id(req), action: "SHOP_UNBLOCKED", metadata: { shopId } } });
+      const block = await tx.buyerMessagingShopBlock.findUnique({
+        where: { buyerUserId_shopId: { buyerUserId, shopId } },
+        select: { id: true },
+      });
+      if (block) {
+        await tx.buyerMessagingShopBlock.delete({ where: { id: block.id } });
+        await tx.buyerMessagingProfileAudit.create({ data: { userId: buyerUserId, action: "SHOP_UNBLOCKED", metadata: { shopId } } });
+      }
     });
     return res.json({ success: true });
   } catch (error) { return sendError(res, error); }

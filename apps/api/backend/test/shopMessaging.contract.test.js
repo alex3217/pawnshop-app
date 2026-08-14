@@ -66,6 +66,9 @@ test("buyer messaging profile is private, validated, audited, and block-aware", 
   assert.match(schema, /model BuyerMessagingShopBlock/); assert.match(schema, /model BuyerMessagingProfileAudit/);
   assert.match(routes, /router\.use\(authRequired, requireRole\("CONSUMER"\)\)/); assert.match(routes, /blocked-shops\/\:shopId/);
   for (const contract of ["selectProfile", "email: true", "PUBLIC_IDENTIFIER_TAKEN", "PROFILE_UPDATED", "SHOP_UNBLOCKED", "prisma.$transaction"]) assert.ok(controller.includes(contract), contract);
+  assert.doesNotMatch(controller, /buyerMessagingShopBlock\.deleteMany/);
+  assert.match(controller, /buyerMessagingShopBlock\.findUnique\(\{[\s\S]*buyerUserId_shopId: \{ buyerUserId, shopId \}[\s\S]*select: \{ id: true \}/);
+  assert.match(controller, /if \(block\) \{[\s\S]*buyerMessagingShopBlock\.delete\(\{ where: \{ id: block\.id \} \}\)[\s\S]*action: "SHOP_UNBLOCKED"/);
   assert.match(migration, /CREATE TABLE "BuyerMessagingShopBlock"/); assert.match(migration, /CREATE TABLE "BuyerMessagingProfileAudit"/);
 });
 
