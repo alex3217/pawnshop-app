@@ -308,14 +308,23 @@ export function createApp(options = {}) {
       storage: "pending",
       imageProcessing: "pending",
     };
+    let activeDependency = "database";
     try {
       await runWithTimeout(readinessCheck, readinessTimeoutMs);
       await runWithTimeout(() => authRateLimiters.check(), readinessTimeoutMs);
       dependencies.database = "ok";
+      activeDependency = "storage";
+      let storageResult;
       if (typeof uploadStorage.check === "function") {
-        await runWithTimeout(() => uploadStorage.check(), readinessTimeoutMs);
+        storageResult = await runWithTimeout(() => uploadStorage.check(), readinessTimeoutMs);
+      }
+      if (env === "production" && storageResult?.enabled !== true) {
+        const error = new Error("Durable storage is unavailable");
+        error.name = "StorageReadinessError";
+        throw error;
       }
       dependencies.storage = "ok";
+      activeDependency = "imageProcessing";
       await runWithTimeout(options.imageRuntimeCheck || checkImageRuntime, readinessTimeoutMs);
       dependencies.imageProcessing = "ok";
 
@@ -327,13 +336,10 @@ export function createApp(options = {}) {
     } catch (error) {
       if (process.env.NODE_ENV !== "test") {
         console.error(
-          "[readiness] Database connectivity check failed.",
+          "[readiness] Dependency check failed.",
           {
             requestId: req.requestId,
-            dependency:
-              error?.name === "SharpError"
-                ? "imageProcessing"
-                : "storageOrDatabase",
+            dependency: activeDependency,
             reason: error?.name || "Error",
           }
         );
