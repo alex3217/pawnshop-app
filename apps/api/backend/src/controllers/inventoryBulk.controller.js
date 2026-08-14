@@ -94,6 +94,7 @@ export async function importInventoryCsv(req, res) {
         try {
         const title = normalizeString(row.title);
         const price = normalizePrice(row.price);
+        const status = normalizeStatus(row.status);
 
         if (!title) {
           throw new Error("title is required");
@@ -113,7 +114,8 @@ export async function importInventoryCsv(req, res) {
             images: [],
             category: normalizeString(row.category),
             condition: normalizeString(row.condition),
-            status: normalizeStatus(row.status),
+            status,
+            availability: status === "SOLD" ? "SOLD" : status === "PENDING" ? "UNAVAILABLE" : "AVAILABLE",
           },
         });
         createdItemIds.push(item.id);
