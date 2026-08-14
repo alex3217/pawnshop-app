@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { deleteTrackedAssets, lockItemImagesForUpdate, reconcileAssetUrls, rollbackTemporaryAssets } from "../services/uploadAssets.service.js";
 
 const AVAILABILITY = new Set(["AVAILABLE", "RESERVED", "SOLD", "PAWNED", "LAYAWAY", "UNAVAILABLE", "ARCHIVED"]);
 const LISTING_ACTIONS = new Map([["publish", "ACTIVE"], ["unpublish", "DRAFT"], ["archive", "REMOVED"], ["restore", "DRAFT"]]);
@@ -13,11 +14,16 @@ const LIFECYCLE = {
   UNAVAILABLE: new Set(["AVAILABLE", "ARCHIVED"]),
   ARCHIVED: new Set(["AVAILABLE", "UNAVAILABLE"]),
 };
+const SUPPORT_SESSION_MAX_MS = 30 * 60 * 1000;
 
 function http(statusCode, message) { return Object.assign(new Error(message), { statusCode }); }
 function text(value) { return typeof value === "string" ? value.trim() : ""; }
 function actorId(req) { return text(req.superAdmin?.id || req.user?.sub); }
-function send(res, error) { return res.status(error?.statusCode || 500).json({ success: false, error: error?.message || "Inventory support failed." }); }
+function send(req, res, error) {
+  const status = Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 500;
+  if (status === 500) (req.app?.locals?.logger || console).error("[inventory-support] request failed", { requestId: req.requestId || null, actorId: actorId(req), errorType: error?.name || "Error" });
+  return res.status(status).json({ success: false, error: status === 500 ? "Inventory support failed." : error.message });
+}
 function reason(req) { const value = text(req.body?.reason); if (value.length < 8) throw http(400, "A specific support reason of at least 8 characters is required."); return value; }
 
 function safeItem(item) {
@@ -28,7 +34,9 @@ function safeItem(item) {
 async function session(req, shopId, { allowEnded = false } = {}) {
   const id = text(req.headers["x-support-session-id"] || req.body?.supportSessionId);
   if (!id) throw http(400, "An active support session is required.");
-  const row = await prisma.inventorySupportSession.findFirst({ where: { id, shopId, actorId: actorId(req), ...(allowEnded ? {} : { endedAt: null }) } });
+  const now = new Date();
+  const row = await prisma.inventorySupportSession.findFirst({ where: { id, shopId, actorId: actorId(req), ...(allowEnded ? {} : { endedAt: null, expiresAt: { gt: now } }) } });
+  if (!row && !allowEnded) await prisma.inventorySupportSession.updateMany({ where: { id, shopId, actorId: actorId(req), endedAt: null, expiresAt: { lte: now } }, data: { endedAt: now } });
   if (!row) throw http(403, "Support session is invalid, ended, or belongs to another shop.");
   return row;
 }
@@ -57,12 +65,15 @@ export async function startInventorySupport(req, res) {
     if (!shop) throw http(404, "Shop not found.");
     const session = await prisma.$transaction(async (tx) => {
       await tx.inventorySupportSession.updateMany({ where: { actorId: actorId(req), endedAt: null }, data: { endedAt: new Date() } });
-      const created = await tx.inventorySupportSession.create({ data: { shopId, actorId: actorId(req), reason: why, requestId: req.requestId || null } });
+      const created = await tx.inventorySupportSession.create({ data: { shopId, actorId: actorId(req), reason: why, requestId: req.requestId || null, expiresAt: new Date(Date.now() + SUPPORT_SESSION_MAX_MS) } });
       await tx.inventoryAdminEvent.create({ data: { shopId, actorId: actorId(req), supportSessionId: created.id, action: "SUPPORT_SESSION_STARTED", reason: why, requestId: req.requestId || null, afterState: { shopName: shop.name } } });
       return created;
     });
     return res.status(201).json({ success: true, session, shop });
-  } catch (error) { return send(res, error); }
+  } catch (error) {
+    const mapped = error?.code === "P2002" ? Object.assign(new Error("Another support session became active; retry the request."), { statusCode: 409 }) : error;
+    return send(req, res, mapped);
+  }
 }
 
 export async function endInventorySupport(req, res) {
@@ -73,7 +84,7 @@ export async function endInventorySupport(req, res) {
       await tx.inventoryAdminEvent.create({ data: { shopId, actorId: actorId(req), supportSessionId: active.id, action: "SUPPORT_SESSION_ENDED", reason: why, requestId: req.requestId || null } }); return row;
     });
     return res.json({ success: true, session: ended });
-  } catch (error) { return send(res, error); }
+  } catch (error) { return send(req, res, error); }
 }
 
 export async function listSupportInventory(req, res) {
@@ -82,7 +93,7 @@ export async function listSupportInventory(req, res) {
     const q = text(req.query.q); const where = { pawnShopId: shopId, ...(req.query.archived === "true" ? {} : { isDeleted: false }), ...(req.query.category ? { category: text(req.query.category) } : {}), ...(req.query.condition ? { condition: text(req.query.condition) } : {}), ...(req.query.availability ? { availability: text(req.query.availability).toUpperCase() } : {}), ...(req.query.locationId ? { locationId: text(req.query.locationId) } : {}), ...(q ? { OR: ["title", "sku", "barcode", "serialNumber", "category", "condition"].map((field) => ({ [field]: { contains: q, mode: "insensitive" } })) } : {}) };
     const items = await prisma.item.findMany({ where, include: { location: true, marketplaceListings: { select: { id: true, status: true, updatedAt: true } } }, orderBy: { updatedAt: "desc" } });
     return res.json({ success: true, items });
-  } catch (error) { return send(res, error); }
+  } catch (error) { return send(req, res, error); }
 }
 
 export async function createSupportInventory(req, res) {
@@ -94,12 +105,14 @@ export async function createSupportInventory(req, res) {
     if (!Number.isFinite(price) || price < 0 || (cost !== null && (!Number.isFinite(cost) || cost < 0)) || !AVAILABILITY.has(availability)) throw http(400, "Invalid price, cost, or availability.");
     const locationId = text(req.body.locationId) || null;
     if (locationId && !(await prisma.inventoryLocation.findFirst({ where: { id: locationId, shopId, isArchived: false } }))) throw http(400, "Location must belong to the selected shop.");
+    if (req.body.images !== undefined && !Array.isArray(req.body.images)) throw http(400, "Images must be an ordered array.");
+    if (req.body.images?.length) throw http(400, "Create the item before attaching managed image uploads.");
     const result = await prisma.$transaction(async (tx) => {
       const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } }); if (!shop) throw http(404, "Shop not found.");
       const item = await tx.item.create({ data: { pawnShopId: shopId, title: text(req.body.title), description: text(req.body.description) || null, price, cost, currency: "USD", images: Array.isArray(req.body.images) ? req.body.images.map(text).filter(Boolean) : [], category: text(req.body.category) || null, condition: text(req.body.condition) || null, sku: text(req.body.sku) || null, barcode: text(req.body.barcode) || null, serialNumber: text(req.body.serialNumber) || null, quantity, locationId, availability, status: availability === "SOLD" ? "SOLD" : "AVAILABLE", isDeleted: availability === "ARCHIVED" } });
       await tx.inventoryAdminEvent.create({ data: { shopId, itemId: item.id, actorId: actorId(req), supportSessionId: active.id, action: "CREATE_INVENTORY", reason: why, requestId: req.requestId || null, afterState: safeItem(item) } }); await notifyOwner(tx, shop, item, "CREATE_INVENTORY"); return item;
     }); return res.status(201).json({ success: true, item: result });
-  } catch (error) { return send(res, error); }
+  } catch (error) { return send(req, res, error); }
 }
 
 export async function updateSupportInventory(req, res) {
@@ -112,24 +125,45 @@ export async function updateSupportInventory(req, res) {
     if (data.availability) { data.availability = text(data.availability).toUpperCase(); if (!AVAILABILITY.has(data.availability)) throw http(400, "Invalid availability."); data.status = data.availability === "SOLD" ? "SOLD" : "AVAILABLE"; data.isDeleted = data.availability === "ARCHIVED"; }
     if (data.images !== undefined && !Array.isArray(data.images)) throw http(400, "Images must be an ordered array.");
     if (data.locationId !== undefined) { data.locationId = text(data.locationId) || null; if (data.locationId && !(await prisma.inventoryLocation.findFirst({ where: { id: data.locationId, shopId, isArchived: false } }))) throw http(400, "Location must belong to the selected shop."); }
-    const result = await prisma.$transaction(async (tx) => { const before = await tx.item.findFirst({ where: { id: itemId, pawnShopId: shopId } }); if (!before) throw http(404, "Inventory item not found in selected shop."); if (data.availability && data.availability !== before.availability && !LIFECYCLE[before.availability]?.has(data.availability)) throw http(409, `Invalid inventory lifecycle transition: ${before.availability} to ${data.availability}.`); await assertCommerceSafe(tx, before, data); const item = await tx.item.update({ where: { id: itemId }, data }); const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } }); await tx.inventoryAdminEvent.create({ data: { shopId, itemId, actorId: actorId(req), supportSessionId: active.id, action: "UPDATE_INVENTORY", reason: why, requestId: req.requestId || null, beforeState: safeItem(before), afterState: safeItem(item) } }); await notifyOwner(tx, shop, item, "UPDATE_INVENTORY"); return item; });
+    if (data.images !== undefined) data.images = data.images.map(text).filter(Boolean);
+    let removedAssets = [];
+    let result;
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        const before = await lockItemImagesForUpdate(tx, itemId);
+        if (!before || before.isDeleted || before.pawnShopId !== shopId) throw http(404, "Inventory item not found in selected shop.");
+        const fullBefore = await tx.item.findUnique({ where: { id: itemId } });
+        if (data.availability && data.availability !== fullBefore.availability && !LIFECYCLE[fullBefore.availability]?.has(data.availability)) throw http(409, `Invalid inventory lifecycle transition: ${fullBefore.availability} to ${data.availability}.`);
+        await assertCommerceSafe(tx, fullBefore, data);
+        const item = await tx.item.update({ where: { id: itemId }, data });
+        if (data.images !== undefined) removedAssets = await reconcileAssetUrls({ tx, shopId, itemId, previousUrls: before.images || [], nextUrls: item.images || [], requireManaged: true });
+        const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } });
+        await tx.inventoryAdminEvent.create({ data: { shopId, itemId, actorId: actorId(req), supportSessionId: active.id, action: "UPDATE_INVENTORY", reason: why, requestId: req.requestId || null, beforeState: safeItem(fullBefore), afterState: safeItem(item) } });
+        await notifyOwner(tx, shop, item, "UPDATE_INVENTORY");
+        return item;
+      });
+    } catch (error) {
+      if (data.images !== undefined) await rollbackTemporaryAssets({ urls: data.images, shopId, storage: req.app.locals.uploadStorage, requestId: req.requestId }).catch(() => {});
+      throw error;
+    }
+    await deleteTrackedAssets({ assets: removedAssets, storage: req.app.locals.uploadStorage, requestId: req.requestId });
     return res.json({ success: true, item: result });
-  } catch (error) { return send(res, error); }
+  } catch (error) { return send(req, res, error); }
 }
 
 export async function changeListingState(req, res) {
   try {
     const why = reason(req); const shopId = text(req.params.shopId); const itemId = text(req.params.itemId); const action = text(req.body.action).toLowerCase(); const next = LISTING_ACTIONS.get(action); if (!next) throw http(400, "Invalid listing action."); const active = await session(req, shopId);
-    const result = await prisma.$transaction(async (tx) => { const item = await tx.item.findFirst({ where: { id: itemId, pawnShopId: shopId }, include: { marketplaceListings: true } }); if (!item) throw http(404, "Item not found."); await assertCommerceSafe(tx, item, { availability: action }); const listing = item.marketplaceListings[0]; if (!listing) throw http(409, "This inventory item has no existing marketplace listing."); if (["RESERVED", "SOLD"].includes(listing.status)) throw http(409, "Reserved or sold listings cannot be changed from support mode."); const updated = await tx.marketplaceListing.update({ where: { id: listing.id }, data: { status: next, ...(next === "ACTIVE" ? { publishedAt: new Date() } : {}) } }); const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } }); await tx.inventoryAdminEvent.create({ data: { shopId, itemId, actorId: actorId(req), supportSessionId: active.id, action: `LISTING_${action.toUpperCase()}`, reason: why, requestId: req.requestId || null, beforeState: { id: listing.id, status: listing.status }, afterState: { id: updated.id, status: updated.status } } }); await notifyOwner(tx, shop, item, `LISTING_${action.toUpperCase()}`); return updated; }); return res.json({ success: true, listing: result });
-  } catch (error) { return send(res, error); }
+    const result = await prisma.$transaction(async (tx) => { const item = await tx.item.findFirst({ where: { id: itemId, pawnShopId: shopId } }); if (!item) throw http(404, "Item not found."); await assertCommerceSafe(tx, item, { availability: action }); const activeListings = await tx.marketplaceListing.findMany({ where: { itemId, status: "ACTIVE" }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], take: 2 }); if (activeListings.length > 1) throw http(409, "Multiple active marketplace listings require manual resolution."); const listing = activeListings[0] || await tx.marketplaceListing.findFirst({ where: { itemId }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }] }); if (!listing) throw http(409, "This inventory item has no existing marketplace listing."); if (["RESERVED", "SOLD"].includes(listing.status)) throw http(409, "Reserved or sold listings cannot be changed from support mode."); const updated = await tx.marketplaceListing.update({ where: { id: listing.id }, data: { status: next, ...(next === "ACTIVE" ? { publishedAt: new Date() } : {}) } }); const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } }); await tx.inventoryAdminEvent.create({ data: { shopId, itemId, actorId: actorId(req), supportSessionId: active.id, action: `LISTING_${action.toUpperCase()}`, reason: why, requestId: req.requestId || null, beforeState: { id: listing.id, status: listing.status }, afterState: { id: updated.id, status: updated.status } } }); await notifyOwner(tx, shop, item, `LISTING_${action.toUpperCase()}`); return updated; }); return res.json({ success: true, listing: result });
+  } catch (error) { return send(req, res, error); }
 }
 
 export async function listInventoryHistory(req, res) {
-  try { const shopId = text(req.params.shopId); await session(req, shopId); const itemId = text(req.params.itemId); const events = await prisma.inventoryAdminEvent.findMany({ where: { shopId, ...(itemId ? { itemId } : {}) }, include: { actor: { select: { id: true, name: true, email: true, role: true } } }, orderBy: { createdAt: "desc" }, take: 200 }); return res.json({ success: true, events }); } catch (error) { return send(res, error); }
+  try { const shopId = text(req.params.shopId); await session(req, shopId); const itemId = text(req.params.itemId); const events = await prisma.inventoryAdminEvent.findMany({ where: { shopId, ...(itemId ? { itemId } : {}) }, include: { actor: { select: { id: true, name: true, email: true, role: true } } }, orderBy: { createdAt: "desc" }, take: 200 }); return res.json({ success: true, events }); } catch (error) { return send(req, res, error); }
 }
 
-export async function listInventoryLocations(req, res) { try { const shopId = text(req.params.shopId); await session(req, shopId); return res.json({ success: true, locations: await prisma.inventoryLocation.findMany({ where: { shopId, isArchived: false }, orderBy: { name: "asc" } }) }); } catch (error) { return send(res, error); } }
-export async function createInventoryLocation(req, res) { try { const why = reason(req); const shopId = text(req.params.shopId); const active = await session(req, shopId); const name = text(req.body.name); if (!name) throw http(400, "Location name is required."); const location = await prisma.$transaction(async (tx) => { const row = await tx.inventoryLocation.create({ data: { shopId, name } }); await tx.inventoryAdminEvent.create({ data: { shopId, actorId: actorId(req), supportSessionId: active.id, action: "CREATE_INVENTORY_LOCATION", reason: why, requestId: req.requestId || null, afterState: { id: row.id, name: row.name } } }); return row; }); return res.status(201).json({ success: true, location }); } catch (error) { return send(res, error); } }
+export async function listInventoryLocations(req, res) { try { const shopId = text(req.params.shopId); await session(req, shopId); return res.json({ success: true, locations: await prisma.inventoryLocation.findMany({ where: { shopId, isArchived: false }, orderBy: { name: "asc" } }) }); } catch (error) { return send(req, res, error); } }
+export async function createInventoryLocation(req, res) { try { const why = reason(req); const shopId = text(req.params.shopId); const active = await session(req, shopId); const name = text(req.body.name); if (!name) throw http(400, "Location name is required."); const location = await prisma.$transaction(async (tx) => { const row = await tx.inventoryLocation.create({ data: { shopId, name } }); await tx.inventoryAdminEvent.create({ data: { shopId, actorId: actorId(req), supportSessionId: active.id, action: "CREATE_INVENTORY_LOCATION", reason: why, requestId: req.requestId || null, afterState: { id: row.id, name: row.name } } }); return row; }); return res.status(201).json({ success: true, location }); } catch (error) { return send(req, res, error); } }
 
 export async function listOwnerInventoryAdminHistory(req, res) {
   try {
@@ -137,5 +171,5 @@ export async function listOwnerInventoryAdminHistory(req, res) {
     if (!item) throw http(404, "Owned inventory item not found.");
     const events = await prisma.inventoryAdminEvent.findMany({ where: { itemId: item.id, shopId: item.pawnShopId }, select: { id: true, action: true, reason: true, beforeState: true, afterState: true, requestId: true, createdAt: true, actor: { select: { id: true, name: true, role: true } } }, orderBy: { createdAt: "desc" } });
     return res.json({ success: true, events });
-  } catch (error) { return send(res, error); }
+  } catch (error) { return send(req, res, error); }
 }

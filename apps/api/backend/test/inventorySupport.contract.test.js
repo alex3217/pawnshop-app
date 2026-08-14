@@ -67,13 +67,17 @@ test("Super Admin routes have explicit role denial and shop-scoped support contr
 test("audit, request correlation, owner notification, and immutable evidence are required", async () => {
   const controller = await read("src/controllers/inventorySupport.controller.js");
   assert.match(controller, /requestId: req\.requestId \|\| null/);
-  assert.match(controller, /beforeState: safeItem\(before\), afterState: safeItem\(item\)/);
+  assert.match(controller, /beforeState: safeItem\(fullBefore\), afterState: safeItem\(item\)/);
   assert.match(controller, /tx\.notification\.create/);
+  assert.match(controller, /requireManaged: true/);
+  assert.match(controller, /expiresAt: \{ gt: now \}/);
+  assert.match(controller, /Multiple active marketplace listings require manual resolution/);
+  assert.match(controller, /status === 500 \? "Inventory support failed\."/);
   assert.doesNotMatch(controller, /inventoryAdminEvent\.(update|delete|updateMany|deleteMany)/);
 });
 
 test("inventory-support migration is additive, unique, and schema-aligned", async () => {
-  const migration = await read("prisma/migrations/20260813213000_super_admin_inventory_support_v1/migration.sql");
+  const migration = await read("prisma/migrations/20260813230000_super_admin_inventory_support_v1/migration.sql");
   const schema = await read("prisma/schema.prisma");
   assert.doesNotMatch(migration, /\b(DROP|TRUNCATE|DELETE\s+FROM|RENAME)\b/i);
   for (const model of ["InventoryLocation", "InventorySupportSession", "InventoryAdminEvent"]) {
@@ -83,6 +87,7 @@ test("inventory-support migration is additive, unique, and schema-aligned", asyn
   assert.match(migration, /"quantity" INTEGER NOT NULL DEFAULT 1/);
   assert.match(migration, /"availability" "InventoryAvailability" NOT NULL DEFAULT 'AVAILABLE'/);
   assert.match(migration, /CHECK \("quantity" >= 0\)/);
+  assert.match(migration, /InventorySupportSession_actorId_active_key/);
   assert.match(schema, /quantity\s+Int\s+@default\(1\)/);
   assert.match(schema, /availability\s+InventoryAvailability\s+@default\(AVAILABLE\)/);
 });
