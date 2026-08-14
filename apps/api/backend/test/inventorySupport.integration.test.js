@@ -21,6 +21,7 @@ before(async () => {
 after(async () => {
   const users = await prisma.user.findMany({ where: { email: { endsWith: DOMAIN } }, select: { id: true } }); const ids = users.map((x) => x.id);
   await prisma.notification.deleteMany({ where: { userId: { in: ids } } }); await prisma.marketplaceTransaction.deleteMany({ where: { OR: [{ buyerUserId: { in: ids } }, { sellerUserId: { in: ids } }] } }); await prisma.marketplaceListing.deleteMany({ where: { sellerUserId: { in: ids } } }); await prisma.inventoryAdminEvent.deleteMany({ where: { actorId: { in: ids } } }); await prisma.inventorySupportSession.deleteMany({ where: { actorId: { in: ids } } });
+  await prisma.uploadAsset.deleteMany({ where: { uploaderId: { in: ids } } });
   await prisma.item.deleteMany({ where: { pawnShopId: { in: [shop.id, otherShop.id] } } }); await prisma.inventoryLocation.deleteMany({ where: { shopId: { in: [shop.id, otherShop.id] } } }); await prisma.pawnShop.deleteMany({ where: { id: { in: [shop.id, otherShop.id] } } }); await prisma.superAdminAuditLog.deleteMany({ where: { actorId: { in: ids } } }); await prisma.user.deleteMany({ where: { id: { in: ids } } }); await prisma.$disconnect();
 });
 
@@ -57,4 +58,79 @@ test("active marketplace commerce blocks material mutation and session end is au
   const ended = await api("post", `/api/super-admin/shops/${shop.id}/support-sessions/end`).set("X-Support-Session-Id", sessionId).send({ reason: "Support work is complete" }); assert.equal(ended.status, 200);
   assert.equal(await prisma.inventoryAdminEvent.count({ where: { supportSessionId: sessionId, action: "SUPPORT_SESSION_ENDED" } }), 1);
   assert.equal((await api("get", `/api/super-admin/shops/${shop.id}/inventory`).set("X-Support-Session-Id", sessionId)).status, 403);
+});
+
+test("support image changes attach, replace, remove, reject unmanaged URLs, and preserve rollback cleanup", async () => {
+  await prisma.marketplaceTransaction.deleteMany({ where: { listing: { itemId: item.id } } });
+  await prisma.marketplaceListing.deleteMany({ where: { itemId: item.id } });
+  const started = await api("post", `/api/super-admin/shops/${shop.id}/support-sessions`).send({ reason: "Managed image lifecycle verification" });
+  sessionId = started.body.session.id;
+  const url1 = "https://assets.integration.test/one.png";
+  const url2 = "https://assets.integration.test/two.png";
+  const makeAsset = (id, deliveryUrl) => prisma.uploadAsset.create({ data: { id, objectKey: `inventory/${id}.png`, deliveryUrl, kind: "ITEM_IMAGE", uploaderId: superAdmin.id, shopId: shop.id, itemId: item.id, deleteAfter: new Date(Date.now() + 60_000) } });
+  await makeAsset("support-image-one", url1);
+  let response = await api("patch", `/api/super-admin/shops/${shop.id}/inventory/${item.id}`).set("X-Support-Session-Id", sessionId).send({ images: [url1], reason: "Attach verified inventory image" });
+  assert.equal(response.status, 200); assert.equal((await prisma.uploadAsset.findUnique({ where: { id: "support-image-one" } })).status, "ATTACHED");
+  response = await api("patch", `/api/super-admin/shops/${shop.id}/inventory/${item.id}`).set("X-Support-Session-Id", sessionId).send({ images: ["https://unmanaged.invalid/image.png"], reason: "Reject untracked inventory image" });
+  assert.equal(response.status, 400); assert.deepEqual((await prisma.item.findUnique({ where: { id: item.id } })).images, [url1]);
+  await makeAsset("support-image-two", url2);
+  response = await api("patch", `/api/super-admin/shops/${shop.id}/inventory/${item.id}`).set("X-Support-Session-Id", sessionId).send({ images: [url2], reason: "Replace verified inventory image" });
+  assert.equal(response.status, 200); assert.equal((await prisma.uploadAsset.findUnique({ where: { id: "support-image-two" } })).status, "ATTACHED");
+  response = await api("patch", `/api/super-admin/shops/${shop.id}/inventory/${item.id}`).set("X-Support-Session-Id", sessionId).send({ images: [], reason: "Remove verified inventory image" });
+  assert.equal(response.status, 200); assert.deepEqual(response.body.item.images, []);
+});
+
+test("expired sessions are denied and concurrent starts leave one active session", async () => {
+  await prisma.inventorySupportSession.update({ where: { id: sessionId }, data: { expiresAt: new Date(Date.now() - 1000) } });
+  assert.equal((await api("get", `/api/super-admin/shops/${shop.id}/inventory`).set("X-Support-Session-Id", sessionId)).status, 403);
+  const [first, second] = await Promise.all([
+    api("post", `/api/super-admin/shops/${shop.id}/support-sessions`).send({ reason: "Concurrent support session one" }),
+    api("post", `/api/super-admin/shops/${otherShop.id}/support-sessions`).send({ reason: "Concurrent support session two" }),
+  ]);
+  assert.ok([201, 409].includes(first.status)); assert.ok([201, 409].includes(second.status));
+  assert.equal(await prisma.inventorySupportSession.count({ where: { actorId: superAdmin.id, endedAt: null } }), 1);
+  sessionId = (first.status === 201 ? first : second).body.session.id;
+});
+
+test("listing changes reject ambiguous multiple active listings", async () => {
+  const started = await api("post", `/api/super-admin/shops/${shop.id}/support-sessions`).send({ reason: "Ambiguous listing support verification" });
+  assert.equal(started.status, 201); sessionId = started.body.session.id;
+  await prisma.marketplaceTransaction.deleteMany({ where: { listing: { itemId: item.id } } });
+  await prisma.marketplaceListing.deleteMany({ where: { itemId: item.id } });
+  await Promise.all(["A", "B"].map((suffix) => prisma.marketplaceListing.create({ data: { itemId: item.id, sellerUserId: owner.id, sellerShopId: shop.id, listingType: "SHOP_TO_CUSTOMER", status: "ACTIVE", title: `${item.title} ${suffix}`, price: 100 } })));
+  const response = await api("post", `/api/super-admin/shops/${shop.id}/inventory/${item.id}/listing`).set("X-Support-Session-Id", sessionId).send({ action: "unpublish", reason: "Resolve marketplace listing state" });
+  assert.equal(response.status, 409); assert.match(response.body.error, /Multiple active marketplace listings/);
+});
+
+test("Super Admin CSV import rolls back items when mandatory audit evidence fails", async () => {
+  await prisma.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION fail_support_import_audit() RETURNS trigger AS $$ BEGIN IF NEW."action" = 'BULK_IMPORT_INVENTORY' THEN RAISE EXCEPTION 'injected audit failure'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql`);
+  await prisma.$executeRawUnsafe(`CREATE TRIGGER fail_support_import_audit BEFORE INSERT ON "InventoryAdminEvent" FOR EACH ROW EXECUTE FUNCTION fail_support_import_audit()`);
+  try {
+    const response = await api("post", "/api/inventory-bulk/import").set("X-Support-Session-Id", sessionId).field("shopId", shop.id).field("reason", "Failure injection inventory import").attach("file", Buffer.from("title,price\nAtomic CSV Item,25\n"), "inventory.csv");
+    assert.equal(response.status, 500); assert.equal(response.body.error, "Failed to import inventory");
+    assert.equal(await prisma.item.count({ where: { pawnShopId: shop.id, title: "Atomic CSV Item" } }), 0);
+    assert.equal(await prisma.inventoryImportJob.count({ where: { shopId: shop.id, filename: "inventory.csv" } }), 0);
+  } finally {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS fail_support_import_audit ON "InventoryAdminEvent"`);
+    await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS fail_support_import_audit()`);
+  }
+});
+
+test("Super Admin CSV audit records created item IDs and notification failure rolls back", async () => {
+  const success = await api("post", "/api/inventory-bulk/import").set("X-Support-Session-Id", sessionId).field("shopId", shop.id).field("reason", "Record imported inventory identifiers").attach("file", Buffer.from("title,price\nRecorded CSV Item,30\n"), "recorded.csv");
+  assert.equal(success.status, 201); assert.equal(success.body.createdItemIds.length, 1);
+  const audit = await prisma.inventoryAdminEvent.findFirst({ where: { supportSessionId: sessionId, action: "BULK_IMPORT_INVENTORY" }, orderBy: { createdAt: "desc" } });
+  assert.deepEqual(audit.afterState.createdItemIds, success.body.createdItemIds);
+
+  await prisma.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION fail_support_import_notification() RETURNS trigger AS $$ BEGIN IF NEW."dedupeKey" LIKE 'admin-inventory-import:%' THEN RAISE EXCEPTION 'injected notification failure'; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql`);
+  await prisma.$executeRawUnsafe(`CREATE TRIGGER fail_support_import_notification BEFORE INSERT ON "Notification" FOR EACH ROW EXECUTE FUNCTION fail_support_import_notification()`);
+  try {
+    const failed = await api("post", "/api/inventory-bulk/import").set("X-Support-Session-Id", sessionId).field("shopId", shop.id).field("reason", "Notification failure inventory import").attach("file", Buffer.from("title,price\nNotification Rollback Item,40\n"), "notification-failure.csv");
+    assert.equal(failed.status, 500); assert.equal(failed.body.error, "Failed to import inventory");
+    assert.equal(await prisma.item.count({ where: { pawnShopId: shop.id, title: "Notification Rollback Item" } }), 0);
+    assert.equal(await prisma.inventoryAdminEvent.count({ where: { action: "BULK_IMPORT_INVENTORY", afterState: { path: ["filename"], equals: "notification-failure.csv" } } }), 0);
+  } finally {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS fail_support_import_notification ON "Notification"`);
+    await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS fail_support_import_notification()`);
+  }
 });

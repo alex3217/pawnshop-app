@@ -516,29 +516,30 @@ model Item {
 }
 
 model InventoryLocation {
-  id        String   @id @default(cuid())
-  shopId    String
-  name      String
-  isArchived Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  shop      PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
-  items     Item[]
+  id         String   @id @default(cuid())
+  shopId     String
+  name       String
+  isArchived Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  shop       PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  items      Item[]
 
   @@unique([shopId, name])
   @@index([shopId, isArchived])
 }
 
 model InventorySupportSession {
-  id        String   @id @default(cuid())
+  id        String                @id @default(cuid())
   shopId    String
   actorId   String
   reason    String
   requestId String?
-  startedAt DateTime @default(now())
+  startedAt DateTime              @default(now())
+  expiresAt DateTime
   endedAt   DateTime?
-  shop      PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
-  actor     User     @relation("InventorySupportActor", fields: [actorId], references: [id], onDelete: Restrict)
+  shop      PawnShop              @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  actor     User                  @relation("InventorySupportActor", fields: [actorId], references: [id], onDelete: Restrict)
   events    InventoryAdminEvent[]
 
   @@index([actorId, endedAt, startedAt])
@@ -546,7 +547,7 @@ model InventorySupportSession {
 }
 
 model InventoryAdminEvent {
-  id               String   @id @default(cuid())
+  id               String                  @id @default(cuid())
   shopId           String
   itemId           String?
   actorId          String
@@ -556,10 +557,10 @@ model InventoryAdminEvent {
   requestId        String?
   beforeState      Json?
   afterState       Json?
-  createdAt        DateTime @default(now())
-  shop             PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
-  item             Item?    @relation(fields: [itemId], references: [id], onDelete: SetNull)
-  actor            User     @relation("InventoryAdminEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  createdAt        DateTime                @default(now())
+  shop             PawnShop                @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  item             Item?                   @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  actor            User                    @relation("InventoryAdminEventActor", fields: [actorId], references: [id], onDelete: Restrict)
   supportSession   InventorySupportSession @relation(fields: [supportSessionId], references: [id], onDelete: Restrict)
 
   @@index([shopId, createdAt])

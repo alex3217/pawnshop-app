@@ -29,6 +29,7 @@ CREATE TABLE "InventorySupportSession" (
   "reason" TEXT NOT NULL,
   "requestId" TEXT,
   "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "expiresAt" TIMESTAMP(3) NOT NULL,
   "endedAt" TIMESTAMP(3),
   CONSTRAINT "InventorySupportSession_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "InventorySupportSession_shopId_fkey" FOREIGN KEY ("shopId") REFERENCES "PawnShop"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -58,6 +59,7 @@ CREATE UNIQUE INDEX "InventoryLocation_shopId_name_key" ON "InventoryLocation"("
 CREATE INDEX "InventoryLocation_shopId_isArchived_idx" ON "InventoryLocation"("shopId", "isArchived");
 CREATE INDEX "InventorySupportSession_actorId_endedAt_startedAt_idx" ON "InventorySupportSession"("actorId", "endedAt", "startedAt");
 CREATE INDEX "InventorySupportSession_shopId_startedAt_idx" ON "InventorySupportSession"("shopId", "startedAt");
+CREATE UNIQUE INDEX "InventorySupportSession_actorId_active_key" ON "InventorySupportSession"("actorId") WHERE "endedAt" IS NULL;
 CREATE INDEX "InventoryAdminEvent_shopId_createdAt_idx" ON "InventoryAdminEvent"("shopId", "createdAt");
 CREATE INDEX "InventoryAdminEvent_itemId_createdAt_idx" ON "InventoryAdminEvent"("itemId", "createdAt");
 CREATE INDEX "InventoryAdminEvent_supportSessionId_createdAt_idx" ON "InventoryAdminEvent"("supportSessionId", "createdAt");

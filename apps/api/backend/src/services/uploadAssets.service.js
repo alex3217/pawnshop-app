@@ -85,7 +85,7 @@ export async function deleteUploadAssetForActor({ assetId, actorId, shopId, stor
   return deleteTrackedAssets({ assets: [asset], storage, prismaClient, logger, requestId });
 }
 
-export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUrls = [], nextUrls = [] }) {
+export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUrls = [], nextUrls = [], requireManaged = false }) {
   const previous = new Set((previousUrls || []).filter(Boolean));
   const next = new Set((nextUrls || []).filter(Boolean));
   const added = [...next].filter((url) => !previous.has(url));
@@ -96,7 +96,14 @@ export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUr
     const byUrl = new Map(assets.map((asset) => [asset.deliveryUrl, asset]));
     for (const url of added) {
       const asset = byUrl.get(url);
-      if (!asset) continue; // Existing externally hosted images remain supported.
+      if (!asset) {
+        if (requireManaged) {
+          const error = new Error("Images must reference managed upload assets");
+          error.statusCode = 400;
+          throw error;
+        }
+        continue; // Existing externally hosted images remain supported by legacy owner flows.
+      }
       if (asset.shopId !== shopId || (itemId && asset.itemId !== itemId) || !["TEMPORARY", "ATTACHED"].includes(asset.status)) {
         const error = new Error("Uploaded image does not belong to this resource");
         error.statusCode = 403;
