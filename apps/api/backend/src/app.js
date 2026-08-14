@@ -37,6 +37,7 @@ import platformSettingsPublicRoutes from "./routes/platformSettingsPublic.routes
 import ownerApplicationsRoutes from "./routes/ownerApplications.routes.js";
 import notificationsRoutes from "./routes/notifications.routes.js";
 import shopConversationsRoutes from "./routes/shopConversations.routes.js";
+import buyerMessagingProfileRoutes from "./routes/buyerMessagingProfile.routes.js";
 import trainingRoutes from "./routes/training.routes.js";
 import { createUploadsRouter } from "./routes/uploads.routes.js";
 import { createS3UploadStorage } from "./services/uploadStorage.service.js";
@@ -401,6 +402,7 @@ export function createApp(options = {}) {
   mountApi(app, "/owner-applications", ownerApplicationsRoutes);
   mountApi(app, "/notifications", notificationsRoutes);
   mountApi(app, "/shop-conversations", shopConversationsRoutes);
+  mountApi(app, "/buyer/messaging-profile", buyerMessagingProfileRoutes);
   mountApi(app, "/training", trainingRoutes);
   mountApi(app, "/uploads", createUploadsRouter({
     storage: uploadStorage,

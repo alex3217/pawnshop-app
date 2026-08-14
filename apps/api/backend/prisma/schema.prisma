@@ -12,6 +12,10 @@ model User {
   name                            String
   email                           String                           @unique
   publicMessageIdentifier         String                           @unique @default(cuid())
+  publicDisplayName               String?
+  messageDiscoverable             Boolean                          @default(false)
+  allowShopFirstContact           Boolean                          @default(false)
+  allowTransactionalMessages      Boolean                          @default(true)
   password                        String
   role                            Role                             @default(CONSUMER)
   isActive                        Boolean                          @default(true)
@@ -89,6 +93,14 @@ model User {
   shopConversations               ShopConversation[]               @relation("ShopConversationSeller")
   sentShopMessages                ShopMessage[]                    @relation("ShopMessageSender")
   shopConversationAuditEvents     ShopConversationAuditEvent[]     @relation("ShopConversationAuditActor")
+  governanceRestriction           UserGovernanceRestriction?       @relation("GovernedUser")
+  governanceActionsReceived       UserGovernanceAction[]           @relation("GovernedTarget")
+  governanceActionsPerformed      UserGovernanceAction[]           @relation("GovernanceActor")
+  messagingReportsFiled           MessagingAbuseReport[]           @relation("MessagingReporter")
+  messagingReportsAssigned        MessagingAbuseReport[]           @relation("MessagingReportAssignee")
+  blockedMessagingShops           BuyerMessagingShopBlock[]        @relation("BuyerMessagingBlocks")
+  messagingBlocksCreated          BuyerMessagingShopBlock[]        @relation("BuyerMessagingBlockActors")
+  buyerMessagingProfileAudits     BuyerMessagingProfileAudit[]
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -399,6 +411,7 @@ model PawnShop {
   uploadAssets                       UploadAsset[]
   conversations                      ShopConversation[]               @relation("ShopConversationPrimaryShop")
   receivedShopConversations          ShopConversation[]               @relation("ShopConversationRecipientShop")
+  buyerMessagingBlocks               BuyerMessagingShopBlock[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, isActive, isPublic, createdAt])
@@ -1821,6 +1834,9 @@ model ShopConversation {
   shopLastReadAt              DateTime?
   blockedByUserId             String?
   blockedAt                   DateTime?
+  moderationState             String                 @default("NONE")
+  moderationReason            String?
+  moderatedAt                 DateTime?
   createdAt                   DateTime               @default(now())
   updatedAt                   DateTime               @updatedAt
 
@@ -1834,12 +1850,69 @@ model ShopConversation {
   offer                     Offer?                       @relation(fields: [offerId], references: [id], onDelete: SetNull)
   messages                  ShopMessage[]
   auditEvents               ShopConversationAuditEvent[]
+  abuseReports              MessagingAbuseReport[]
 
   @@index([sellerUserId, status, updatedAt])
   @@index([shopId, status, updatedAt])
   @@index([shopId, sellerUserId, updatedAt])
   @@index([recipientShopId, status, updatedAt])
   @@index([shopId, sellerUserId, contextType, contextReferenceId])
+}
+
+model UserGovernanceRestriction {
+  id                           String   @id @default(cuid())
+  userId                       String   @unique
+  messagingRestricted          Boolean  @default(false)
+  shopInitiatedContactDisabled Boolean  @default(false)
+  discoverabilityRestricted    Boolean  @default(false)
+  reason                       String
+  updatedByUserId              String
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  user User @relation("GovernedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([messagingRestricted])
+  @@index([discoverabilityRestricted])
+}
+
+model UserGovernanceAction {
+  id            String   @id @default(cuid())
+  targetUserId  String
+  actorUserId   String?
+  action        String
+  reason        String
+  correlationId String
+  beforeState   Json
+  afterState    Json
+  createdAt     DateTime @default(now())
+
+  target User  @relation("GovernedTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+  actor  User? @relation("GovernanceActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([correlationId])
+}
+
+model MessagingAbuseReport {
+  id             String   @id @default(cuid())
+  conversationId String
+  reporterUserId String?
+  assignedToId   String?
+  category       String   @default("OTHER")
+  reason         String
+  status         String   @default("OPEN")
+  resolution     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation ShopConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  reporter     User?            @relation("MessagingReporter", fields: [reporterUserId], references: [id], onDelete: SetNull)
+  assignedTo   User?            @relation("MessagingReportAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([status, createdAt])
 }
 
 model ShopMessage {
@@ -1874,6 +1947,33 @@ model ShopConversationAuditEvent {
 
   @@index([conversationId, createdAt])
   @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+}
+
+model BuyerMessagingShopBlock {
+  id          String   @id @default(cuid())
+  buyerUserId String
+  shopId      String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  buyer     User     @relation("BuyerMessagingBlocks", fields: [buyerUserId], references: [id], onDelete: Cascade)
+  shop      PawnShop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("BuyerMessagingBlockActors", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([buyerUserId, shopId])
+  @@index([shopId, createdAt])
+}
+
+model BuyerMessagingProfileAudit {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
   @@index([action, createdAt])
 }
 

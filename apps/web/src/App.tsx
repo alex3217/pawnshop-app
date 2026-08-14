@@ -109,6 +109,7 @@ const AdminUsersPage = lazyPage(() => import("./pages/AdminUsersPage"));
 const SuperAdminOverviewPage = lazyPage(() => import("./admin/pages/SuperAdminOverviewPage"));
 const SuperAdminAuditPage = lazyPage(() => import("./admin/pages/SuperAdminAuditPage"));
 const SuperAdminSystemHealthPage = lazyPage(() => import("./admin/pages/SuperAdminSystemHealthPage"));
+const SuperAdminGovernancePage = lazyPage(() => import("./admin/pages/SuperAdminGovernancePage"));
 const SuperAdminIntegrationsPage = lazyPage(() => import("./admin/pages/SuperAdminIntegrationsPage"));
 const SuperAdminSettlementsPage = lazyPage(() =>
   import("./admin/pages/SuperAdminSettlementsPage"),
@@ -206,6 +207,7 @@ const ShopDetailPage = lazyPage(() => import("./pages/ShopDetailPage"));
 const ShopsPage = lazyPage(() => import("./pages/ShopsPage"));
 const MessageShopPage = lazyPage(() => import("./pages/MessageShopPage"));
 const MessagesPage = lazyPage(() => import("./pages/MessagesPage"));
+const BuyerMessagingProfilePage = lazyPage(() => import("./pages/BuyerMessagingProfilePage"));
 const OwnerMessagesPage = lazyPage(() => import("./pages/OwnerMessagesPage"));
 const ConversationPage = lazyPage(() => import("./pages/ConversationPage"));
 const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
@@ -303,6 +305,7 @@ const consumerRoutes: RouteConfig[] = [
   { path: BUYER_PATHS.savedSearches, element: <SavedSearchesPage /> },
   { path: "/shops/:id/message", element: <MessageShopPage /> },
   { path: "/messages", element: <MessagesPage /> },
+  { path: "/buyer/messaging-profile", element: <BuyerMessagingProfilePage /> },
   { path: "/messages/:id", element: <ConversationPage /> },
 ];
 
@@ -444,6 +447,7 @@ const superAdminRoutes: RouteConfig[] = [
   { path: "pricing", element: <SuperAdminPricingPage /> },
   { path: "revenue", element: <SuperAdminRevenuePage /> },
   { path: "audit", element: <SuperAdminAuditPage /> },
+  { path: "governance", element: <SuperAdminGovernancePage /> },
   { path: "system", element: <SuperAdminSystemHealthPage /> },
   { path: "platform-settings", element: <SuperAdminPlatformSettingsPage /> },
   { path: "training", element: <SuperAdminTrainingPage /> },

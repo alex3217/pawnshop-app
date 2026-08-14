@@ -106,7 +106,7 @@ function userMutationSelfLocks(update) {
   );
 }
 
-async function acquireSuperAdminGovernanceLock(tx) {
+export async function acquireSuperAdminGovernanceLock(tx) {
   const rows = await tx.$queryRaw`
     SELECT pg_advisory_xact_lock(
       CAST(${GOVERNANCE_LOCK_NAMESPACE} AS INTEGER),
@@ -146,6 +146,7 @@ export async function runGovernedUserMutation({
   targetUserId,
   update,
   action,
+  reason,
   prismaClient = prisma,
 }) {
   const actorId = actorIdFromRequest(req);
@@ -220,7 +221,7 @@ export async function runGovernedUserMutation({
           action,
           targetType: "USER",
           targetId: targetUserId,
-          metadata: { update },
+          metadata: { reason, beforeState: { role: target.role, isActive: target.isActive }, afterState: { role: updated.role, isActive: updated.isActive }, update },
         }),
       });
 
