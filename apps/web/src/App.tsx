@@ -206,6 +206,7 @@ const ShopDetailPage = lazyPage(() => import("./pages/ShopDetailPage"));
 const ShopsPage = lazyPage(() => import("./pages/ShopsPage"));
 const MessageShopPage = lazyPage(() => import("./pages/MessageShopPage"));
 const MessagesPage = lazyPage(() => import("./pages/MessagesPage"));
+const BuyerMessagingProfilePage = lazyPage(() => import("./pages/BuyerMessagingProfilePage"));
 const OwnerMessagesPage = lazyPage(() => import("./pages/OwnerMessagesPage"));
 const ConversationPage = lazyPage(() => import("./pages/ConversationPage"));
 const WatchlistPage = lazyPage(() => import("./pages/WatchlistPage"));
@@ -303,6 +304,7 @@ const consumerRoutes: RouteConfig[] = [
   { path: BUYER_PATHS.savedSearches, element: <SavedSearchesPage /> },
   { path: "/shops/:id/message", element: <MessageShopPage /> },
   { path: "/messages", element: <MessagesPage /> },
+  { path: "/buyer/messaging-profile", element: <BuyerMessagingProfilePage /> },
   { path: "/messages/:id", element: <ConversationPage /> },
 ];
 
