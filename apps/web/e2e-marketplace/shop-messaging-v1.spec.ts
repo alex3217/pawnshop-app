@@ -44,6 +44,44 @@ test("owner composes an outbound customer message and sees the sent thread", asy
   await expect.poll(() => posted).toBe(true); await expect(page).toHaveURL(/\/owner\/messages\/outbound-1$/);
 });
 
+test("owner compose dialog is opaque, viewport-contained, and keeps recipient choices separated", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await installOwner(page, "light");
+  await page.goto("/owner/messages");
+  await page.getByRole("button", { name: "Compose message" }).first().click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Compose message" })).toBeVisible();
+
+  const appearance = await dialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      top: rect.top,
+      bottom: rect.bottom,
+      viewportHeight: window.innerHeight,
+      backgroundColor: getComputedStyle(element).backgroundColor,
+    };
+  });
+  expect(appearance.top).toBeGreaterThanOrEqual(8);
+  expect(appearance.bottom).toBeLessThanOrEqual(appearance.viewportHeight - 8);
+  expect(appearance.backgroundColor).toBe("rgb(255, 255, 255)");
+
+  const options = dialog.locator("fieldset label");
+  await expect(options).toHaveCount(2);
+  const optionBoxes = await options.evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right };
+    })
+  );
+  expect(optionBoxes[0].right).toBeLessThanOrEqual(optionBoxes[1].left);
+
+  const cancel = dialog.getByRole("button", { name: "Cancel" });
+  await cancel.scrollIntoViewIfNeeded();
+  await expect(cancel).toBeInViewport();
+});
+
 test("multiple-shop selector is shown and read-only staff cannot compose", async ({ page }) => {
   await installOwner(page, "light");
   await page.route("**/api/shops/mine", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ shops: [{ id: SHOP_ID, name: "Target Pawn" }, { id: "shop-2", name: "Second Pawn" }] }) }));
