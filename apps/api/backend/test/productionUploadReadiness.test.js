@@ -38,42 +38,45 @@ test("production readiness requires explicitly enabled durable storage", async (
   }
 });
 
-test("storage failure and timeout fail closed without leaking provider details", async () => {
-  const previous = process.env.READINESS_TIMEOUT_MS;
-  process.env.READINESS_TIMEOUT_MS = "10";
-  try {
-    for (const check of [
-      async () => { throw new Error("secret bucket and signed URL"); },
-      async () => new Promise(() => {}),
-    ]) {
-      const response = await request(app({ uploadStorage: { check } })).get("/api/ready").expect(503);
-      assert.equal(response.body.dependencies.storage, "unavailable");
-      assert.doesNotMatch(JSON.stringify(response.body), /secret|signed|bucket/i);
-    }
-  } finally {
-    if (previous === undefined) delete process.env.READINESS_TIMEOUT_MS;
-    else process.env.READINESS_TIMEOUT_MS = previous;
-  }
+test("storage failure fails closed without leaking provider details", async () => {
+  const response = await request(app({ uploadStorage: { check: async () => { throw new Error("secret bucket and signed URL"); } } })).get("/api/ready").expect(503);
+  assert.equal(response.body.dependencies.storage, "unavailable");
+  assert.doesNotMatch(JSON.stringify(response.body), /secret|signed|bucket/i);
 });
 
-test("image processing failure and timeout fail readiness", async () => {
-  const previous = process.env.READINESS_TIMEOUT_MS;
-  process.env.READINESS_TIMEOUT_MS = "10";
-  try {
-    for (const imageRuntimeCheck of [
-      async () => { throw new Error("decoder detail"); },
-      async () => new Promise(() => {}),
-    ]) {
-      const response = await request(app({ imageRuntimeCheck })).get("/api/ready").expect(503);
-      assert.deepEqual(response.body.dependencies, {
-        database: "ok", storage: "ok", imageProcessing: "unavailable",
-      });
-      assert.doesNotMatch(JSON.stringify(response.body), /decoder detail/i);
-    }
-  } finally {
-    if (previous === undefined) delete process.env.READINESS_TIMEOUT_MS;
-    else process.env.READINESS_TIMEOUT_MS = previous;
-  }
+test("a controlled unresolved dependency is aborted with bounded readiness failure", async () => {
+  let fireDeadline;
+  let dependencyStarted;
+  let dependencyAborted = false;
+  const started = new Promise((resolve) => { dependencyStarted = resolve; });
+  const readinessTimers = {
+    setTimeout(callback) { fireDeadline = callback; return 1; },
+    clearTimeout() {},
+  };
+  const check = (signal) => new Promise((_resolve, reject) => {
+    dependencyStarted();
+    signal.addEventListener("abort", () => {
+      dependencyAborted = true;
+      reject(signal.reason);
+    }, { once: true });
+  });
+
+  const pendingResponse = request(app({ uploadStorage: { check }, readinessTimers })).get("/api/ready");
+  const responsePromise = pendingResponse.then((response) => response);
+  await started;
+  fireDeadline();
+  const response = await responsePromise;
+  assert.equal(response.status, 503);
+  assert.equal(dependencyAborted, true);
+  assert.equal(response.body.dependencies.storage, "unavailable");
+});
+
+test("image processing failure fails readiness", async () => {
+  const response = await request(app({ imageRuntimeCheck: async () => { throw new Error("decoder detail"); } })).get("/api/ready").expect(503);
+  assert.deepEqual(response.body.dependencies, {
+    database: "ok", storage: "ok", imageProcessing: "unavailable",
+  });
+  assert.doesNotMatch(JSON.stringify(response.body), /decoder detail/i);
 });
 
 test("all injected readiness checks pass without network credentials", async () => {

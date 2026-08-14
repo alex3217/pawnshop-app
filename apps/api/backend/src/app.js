@@ -141,20 +141,23 @@ function noStore(_req, res, next) {
   next();
 }
 
-async function runWithTimeout(task, timeoutMs) {
+async function runWithTimeout(task, timeoutMs, timers = globalThis) {
   let timeout;
+  const controller = new AbortController();
+  const timeoutError = new Error("Readiness check timed out");
 
   try {
     return await Promise.race([
-      Promise.resolve().then(task),
+      Promise.resolve().then(() => task(controller.signal)),
       new Promise((_, reject) => {
-        timeout = setTimeout(() => {
-          reject(new Error("Readiness check timed out"));
+        timeout = timers.setTimeout(() => {
+          controller.abort(timeoutError);
+          reject(timeoutError);
         }, timeoutMs);
       }),
     ]);
   } finally {
-    clearTimeout(timeout);
+    timers.clearTimeout(timeout);
   }
 }
 
@@ -226,6 +229,7 @@ export function createApp(options = {}) {
     configuredReadinessTimeoutMs > 0
       ? configuredReadinessTimeoutMs
       : 5000;
+  const readinessTimers = options.readinessTimers || globalThis;
   const allowedOrigins = parseAllowedOrigins(process.env);
 
   const frontendHosts = parseFrontendHosts(process.env.FRONTEND_HOSTS);
@@ -310,13 +314,13 @@ export function createApp(options = {}) {
     };
     let activeDependency = "database";
     try {
-      await runWithTimeout(readinessCheck, readinessTimeoutMs);
-      await runWithTimeout(() => authRateLimiters.check(), readinessTimeoutMs);
+      await runWithTimeout(readinessCheck, readinessTimeoutMs, readinessTimers);
+      await runWithTimeout(() => authRateLimiters.check(), readinessTimeoutMs, readinessTimers);
       dependencies.database = "ok";
       activeDependency = "storage";
       let storageResult;
       if (typeof uploadStorage.check === "function") {
-        storageResult = await runWithTimeout(() => uploadStorage.check(), readinessTimeoutMs);
+        storageResult = await runWithTimeout((signal) => uploadStorage.check(signal), readinessTimeoutMs, readinessTimers);
       }
       if (env === "production" && storageResult?.enabled !== true) {
         const error = new Error("Durable storage is unavailable");
@@ -325,7 +329,7 @@ export function createApp(options = {}) {
       }
       dependencies.storage = "ok";
       activeDependency = "imageProcessing";
-      await runWithTimeout(options.imageRuntimeCheck || checkImageRuntime, readinessTimeoutMs);
+      await runWithTimeout(options.imageRuntimeCheck || checkImageRuntime, readinessTimeoutMs, readinessTimers);
       dependencies.imageProcessing = "ok";
 
       return res.status(200).json({

@@ -20,7 +20,7 @@ mutation.
 | Image validation and processing | Implemented and covered | JPEG/PNG/WebP MIME, magic bytes, decode, normalization, metadata stripping, size, dimensions, and pixels. |
 | Object-key sanitization | Repository gap closed by this PR | Generated keys already ignored filenames; adapter now rejects operations outside its managed prefix. |
 | Canonical item reference | Implemented and covered | Stable public delivery URLs are persisted; query-bearing short-lived signatures are not used. |
-| Auction serialization | Implemented but insufficiently live-tested | Auction responses include the associated item and its images; restart retention is covered with a durable fake. |
+| Auction serialization | Implemented but insufficiently live-tested | Auction responses include the associated item and its images; repository restart retention is covered across two independent processes with PostgreSQL and persistent test object storage. |
 | Cleanup and lifecycle | Implemented and covered | Idempotent retry, missing-object safety, reference recheck, sanitized observable failure, scheduler and provider backstop. |
 | Credential-free production checker | Repository gap closed by this PR | Offline-tested GET/HEAD-only verifier added. |
 | Provider durability, redeploy, cache, TTL, and browser proof | Live-provider evidence still required | Follow the live procedure below after separate authorization. |
@@ -44,6 +44,17 @@ mutation.
 - Canonical image identity is the stable HTTPS public delivery URL saved on the
   item. Auctions serialize their associated item and therefore retain the same
   image identity. No short-lived signature is persisted by this architecture.
+- The cold-restart integration runs the real upload and application routes in a
+  writer process, persists `UploadAsset`, `Item`, and `Auction` rows plus object
+  bytes, waits for that process to exit, and starts a separate reader process
+  with a fresh module graph and independently initialized clients. The reader
+  proves the same URL in public item list/detail and auction list/detail payloads
+  and retains the existing reference-safe cleanup assertions. Both processes use
+  the guarded loopback PostgreSQL database named exactly `pawnshop_test`; object
+  bytes use a shared disposable filesystem store rather than process memory.
+- Readiness deadline coverage injects a controlled timer, leaves the storage
+  dependency unresolved, fires the deadline explicitly, and proves the abort
+  signal and bounded 503 response without relying on operating-system timing.
 - `scripts/verify-production-upload-readiness.mjs` performs bounded GET/HEAD
   checks only, accepts no credentials, refuses non-HTTPS targets outside fixture
   mode, disables redirects, redacts query strings, and requires the readiness
@@ -128,6 +139,8 @@ system; never store secrets or URL query strings in tickets or logs.
 
 ## Evidence status
 
-Repository tests use injected fakes and offline mocked fetch. No staging or
-production provider, object, database, deployment, or secret was accessed by this
-workstream. Live production upload durability remains uncertified.
+Repository tests use an isolated disposable `pawnshop_test` PostgreSQL database,
+persistent local test object storage, injected dependencies, and offline mocked
+fetch. No staging or production provider, object, database, deployment, or secret
+was accessed by this workstream. Live production upload durability remains
+uncertified.
