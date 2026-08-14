@@ -258,6 +258,7 @@ router.get("/users/:id/governance", validateIdParam("id", "User id"), asyncRoute
 router.post("/users/:id/governance-actions", validateIdParam("id", "User id"), validateJsonObjectBody, asyncRoute(mutateUserGovernance));
 router.get("/messaging/conversations", asyncRoute(listMessagingGovernance));
 router.get("/messaging/conversations/:id/content", validateIdParam("id", "Conversation id"), asyncRoute(getModerationContent));
+router.post("/messaging/conversations/:id/content", validateIdParam("id", "Conversation id"), validateJsonObjectBody, asyncRoute(getModerationContent));
 router.post("/messaging/conversations/:id/moderation", validateIdParam("id", "Conversation id"), validateJsonObjectBody, asyncRoute(moderateConversation));
 router.get("/messaging/reports", asyncRoute(listMessagingReports));
 router.get("/messaging/analytics", asyncRoute(getMessagingAnalytics));
