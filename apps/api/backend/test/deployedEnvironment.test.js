@@ -64,7 +64,12 @@ test("complete staging and production environments return sanitized metadata", (
   for (const environment of ["staging", "production"]) {
     const metadata = validateDeployedEnvironment(validEnvironment(environment), { environment });
     assert.equal(metadata.environment, environment);
-    assert.equal(metadata.revision, "git-0123456789abcdef");
+    assert.equal(
+      metadata.revision,
+      environment === "production"
+        ? "0123456789abcdef0123456789abcdef01234567"
+        : "git-0123456789abcdef",
+    );
     for (const secret of secretValues) assert.equal(JSON.stringify(metadata).includes(secret), false);
   }
 });
@@ -86,6 +91,22 @@ test("APP_VERSION is the effective revision fallback", () => {
     "app-abcdef0123456789",
   );
   assert.equal(resolveEffectiveRevision({}), null);
+});
+
+test("production requires the effective revision to be one exact full SHA", () => {
+  for (const revision of [
+    "main",
+    "latest",
+    "0123456789abcdef0123456789abcdef0123456",
+    "0123456789ABCDEF0123456789ABCDEF01234567",
+  ]) {
+    const env = validEnvironment("production");
+    env.RENDER_GIT_COMMIT = revision;
+    assert.throws(
+      () => validateDeployedEnvironment(env, { environment: "production" }),
+      /full lowercase 40-character Git SHA/,
+    );
+  }
 });
 
 test("deployed environments still require APP_VERSION when Render provides a commit", () => {
@@ -315,6 +336,9 @@ test("health and readiness expose revision without process internals", async () 
     const app = createApp({
       readinessCheck: async () => true,
       authRateLimitConfig: { enabled: false },
+      authRateLimitStore: { check: async () => true },
+      uploadStorage: { check: async () => true },
+      imageRuntimeCheck: async () => true,
     });
     for (const path of ["/health", "/api/health", "/ready", "/api/ready"]) {
       const response = await request(app).get(path).expect(200);

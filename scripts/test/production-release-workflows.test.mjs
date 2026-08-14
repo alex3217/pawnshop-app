@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { verifyProductionReleaseEvidence } from "../verify-production-release.mjs";
 
 const migrationPath = ".github/workflows/production-database.yml";
 const runbookPath = "docs/production-release-control-v1.md";
@@ -28,6 +29,37 @@ test("production migration workflow retains mandatory safety gates", async () =>
   assert.ok(postStatusIndex > deployIndex);
   assert.ok(readyIndex > deployIndex);
   assert.doesNotMatch(workflow, /echo[^\n]*(DATABASE_URL|DIRECT_URL)/);
+});
+
+const sha = "0123456789abcdef0123456789abcdef01234567";
+const validEvidence = () => ({
+  expectedSha: sha,
+  api: { readinessPath: "/api/ready", status: 200, ready: true, revision: sha },
+  frontend: { revision: sha },
+  database: { releaseSha: sha },
+  releaseRecord: { releaseSha: sha },
+});
+
+test("read-only release verifier requires exact revision parity", () => {
+  assert.deepEqual(verifyProductionReleaseEvidence(validEvidence()), {
+    verified: true,
+    releaseSha: sha,
+  });
+
+  for (const mutate of [
+    (evidence) => { delete evidence.frontend.revision; },
+    (evidence) => { evidence.api.revision = "latest"; },
+    (evidence) => { evidence.database.releaseSha = `f${sha.slice(1)}`; },
+    (evidence) => { evidence.api.readinessPath = "/api/health"; },
+    (evidence) => { evidence.api.ready = false; },
+  ]) {
+    const evidence = validEvidence();
+    mutate(evidence);
+    assert.throws(
+      () => verifyProductionReleaseEvidence(evidence),
+      { code: "PRODUCTION_RELEASE_VERIFICATION_FAILED" },
+    );
+  }
 });
 
 test("release runbook names checks, immutable parity, approvals, and provider controls", async () => {

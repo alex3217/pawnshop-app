@@ -152,7 +152,7 @@ deployed-environment validator. Validation occurs before the HTTP server listens
 The contract requires:
 
 - `APP_ENV=production`, `NODE_ENV=production`, `APP_NAME=pawnloop-api`, and an
-  immutable non-secret `APP_VERSION` or Git revision;
+  exact full lowercase 40-character Git SHA as the effective non-secret revision;
 - canonical HTTPS `API_ORIGIN`, frontend/web origins, and exact HTTP/Socket.IO
   CORS allowlists;
 - PostgreSQL `DATABASE_URL` whose hostname exactly matches the non-secret

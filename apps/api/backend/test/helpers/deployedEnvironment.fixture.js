@@ -12,7 +12,10 @@ export function validDeployedEnvironment(environment) {
   const production = environment === "production";
   return {
     APP_NAME: "pawnloop-api", APP_ENV: environment, NODE_ENV: environment,
-    APP_VERSION: "git-0123456789abcdef", PORT: production ? "6001" : "6003",
+    APP_VERSION: production
+      ? "0123456789abcdef0123456789abcdef01234567"
+      : "git-0123456789abcdef",
+    PORT: production ? "6001" : "6003",
     API_ORIGIN: production ? "https://api.pawnloop.invalid" : "https://api.staging.invalid",
     FRONTEND_URL: production ? "https://pawnloop.invalid" : "https://web.staging.invalid",
     WEB_URL: production ? "https://pawnloop.invalid" : "https://web.staging.invalid",

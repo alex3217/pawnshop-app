@@ -4,7 +4,7 @@ Production releases promote a certified immutable commit; they do not promote a 
 
 ## Release record and required checks
 
-Create one release record containing the release ID, candidate SHA, staging deploy ID and certification evidence, production approvers, intended API and frontend provider deploy IDs, database migration/backup evidence, last-known-good SHA, rollback compatibility review, UTC timestamps, and redacted results. Never copy credentials, database URLs, tokens, environment files, or authorization headers into the record.
+Create one release record containing the release ID, candidate SHA, staging deploy ID and certification evidence, production approvers, intended API and frontend provider deploy IDs, database migration/backup evidence, last-known-good SHA, rollback compatibility review, UTC timestamps, and redacted results. The candidate and every recorded component revision must be the same full lowercase 40-character SHA; branch names, `main`, `latest`, shortened SHAs, and missing evidence fail verification. Never copy credentials, database URLs, tokens, environment files, or authorization headers into the record.
 
 Branch protection for `main` must require these exact checks:
 
@@ -33,6 +33,8 @@ Every numbered mutation below is a separate pause point. Before each provider ac
 
 The API and frontend release is incomplete unless provider evidence proves both use the same certified SHA. Do not infer parity from successful health checks or source branch names. `GET /api/health` is liveness only; `GET /api/ready` is the production health gate.
 
+Export a redacted JSON evidence file with `expectedSha`, `api` (`readinessPath`, `status`, `ready`, `revision`), `frontend.revision`, `database.releaseSha`, and `releaseRecord.releaseSha`, then run `npm run verify:production-release -- <file>`. The verifier reads only that operator-collected evidence, requires `/api/ready`, and fails closed if any revision is missing, malformed, or different. It has no provider credentials or mutation capability. The API revision comes from `/api/ready`; the frontend revision and deploy ID come from Cloudflare's deployment record; the database release SHA comes from the guarded workflow run; and the release-record SHA is the immutable candidate recorded before mutation.
+
 ## Verification and rollback
 
 After each deployment, verify provider revision evidence and `/api/ready`; then perform only approved read-only smoke checks. Stop immediately on a revision mismatch, readiness failure, unknown migration state, missing evidence, or unapproved provider change.
@@ -42,6 +44,8 @@ Rollback requires the recorded last-known-good SHA, provider deploy IDs, and an 
 ## Required provider configuration
 
 Repository changes do not configure providers. An authorized operator must make and evidence the following changes manually before this control can be claimed effective.
+
+PR #314 implements the repository workflow, production revision validation, offline parity verifier, contract tests, and this runbook. PR #315 is independent Super Admin inventory-support work and provides no release-control dependency. PRs #317 and #318 are separate closed Super Admin work. None of those changes are duplicated here.
 
 ### Render
 
