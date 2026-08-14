@@ -50,10 +50,30 @@ test("controller contains seller, shop-scope, context, blocked, closed, notifica
 test("outbound compose enforces privacy, authorization, account state, atomicity, reuse, and idempotency", async () => {
   const controller = await source("src/controllers/shopConversations.controller.js");
   for (const contract of ["messages:write", "publicMessageIdentifier", "isActive: true", "isDeleted: false", "relationshipWhere(shopId)", "Administrators cannot impersonate a shop", "prisma.$transaction", "findFirst", "senderUserId_idempotencyKey", "SHOP_COMPOSED", "createNotifications"]) assert.ok(controller.includes(contract), contract);
-  const selectedRecipientFields = controller.match(/select: \{ name: true, publicMessageIdentifier: true \}/)?.[0] || "";
+  const selectedRecipientFields = controller.match(/select: \{ publicDisplayName: true, publicMessageIdentifier: true \}/)?.[0] || "";
   assert.doesNotMatch(selectedRecipientFields, /email|phone|\bid:\s*true/);
+  for (const contract of ["messageDiscoverable: true", "allowShopFirstContact", "allowTransactionalMessages", "blockedMessagingShops", "FIRST_CONTACT_NOT_ALLOWED", "TRANSACTIONAL_MESSAGES_DISABLED"]) assert.ok(controller.includes(contract), contract);
   const routes = await source("src/routes/shopConversations.routes.js");
   assert.match(routes, /router\.post\("\/shop-compose", shopMessagingRateLimit/);
+});
+
+test("buyer messaging profile is private, validated, audited, and block-aware", async () => {
+  const [schema, controller, routes, migration] = await Promise.all([
+    source("prisma/schema.prisma"), source("src/controllers/buyerMessagingProfile.controller.js"),
+    source("src/routes/buyerMessagingProfile.routes.js"), source("prisma/migrations/20260813210000_buyer_messaging_profile_discoverability_v1/migration.sql"),
+  ]);
+  for (const field of ["publicDisplayName", "messageDiscoverable", "allowShopFirstContact", "allowTransactionalMessages"]) assert.match(schema, new RegExp(field));
+  assert.match(schema, /model BuyerMessagingShopBlock/); assert.match(schema, /model BuyerMessagingProfileAudit/);
+  assert.match(routes, /router\.use\(authRequired, requireRole\("CONSUMER"\)\)/); assert.match(routes, /blocked-shops\/\:shopId/);
+  for (const contract of ["selectProfile", "email: true", "PUBLIC_IDENTIFIER_TAKEN", "PROFILE_UPDATED", "SHOP_UNBLOCKED", "prisma.$transaction"]) assert.ok(controller.includes(contract), contract);
+  assert.match(migration, /CREATE TABLE "BuyerMessagingShopBlock"/); assert.match(migration, /CREATE TABLE "BuyerMessagingProfileAudit"/);
+});
+
+test("customer recipient search never queries private identity fields", async () => {
+  const controller = await source("src/controllers/shopConversations.controller.js");
+  const customerSearch = controller.slice(controller.indexOf("const rows = await prisma.user.findMany"), controller.indexOf("export async function createShopOutboundConversation"));
+  assert.match(customerSearch, /publicDisplayName/); assert.match(customerSearch, /publicMessageIdentifier/);
+  for (const forbidden of ["email", "phone", "address", "legalName", "id: { contains"]) assert.doesNotMatch(customerSearch, new RegExp(forbidden));
 });
 
 test("additive migration leaves seller_shop_messaging_v1 untouched and supports shop recipients", async () => {
