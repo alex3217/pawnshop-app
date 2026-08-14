@@ -11,6 +11,7 @@ test("release-candidate CI shards the full Chromium suite with strict artifacts"
   assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
   assert.match(workflow, /--project=chromium --shard=\$\{\{ matrix\.shard \}\}\/4/);
   assert.match(workflow, /if: failure\(\)/);
+  assert.match(workflow, /include-hidden-files: true/);
   assert.doesNotMatch(workflow, /continue-on-error/);
   assert.match(config, /trace: "retain-on-failure"/);
   assert.match(config, /screenshot: "only-on-failure"/);
