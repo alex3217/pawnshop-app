@@ -49,6 +49,7 @@ async function mockOwnerApi(page: Page) {
     const url = new URL(request.url());
     const path = url.pathname.replace(/^\/api/, "");
     if (path === "/auth/me") return fulfill(route, { user: { id: "owner-1", name: "Owner", email: "owner@test", role: "OWNER", ownerApplication: { id: "app-1", status: "APPROVED" } } });
+    if (path === "/auth/shop-access") return fulfill(route, { access: { role: "OWNER", unrestricted: true, shopIds: shops.map((shop) => shop.id), permissions: ["*"], capabilities: { locationsRead: true }, shops: [] } });
     if (path === "/notifications") return fulfill(route, { success: true, notifications: [] });
     if (path === "/shops/mine") return fulfill(route, shops);
     const progressMatch = path.match(/^\/shops\/(shop-[ab])\/onboarding\/progress$/);

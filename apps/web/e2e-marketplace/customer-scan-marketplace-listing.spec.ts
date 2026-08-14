@@ -392,6 +392,18 @@ async function installMocks(
 
       if (
         method === "GET" &&
+        pathname === "/api/notifications"
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: jsonBody({ success: true, notifications: [] }),
+        });
+        return;
+      }
+
+      if (
+        method === "GET" &&
         pathname ===
           "/api/buyer/item-submissions/mine"
       ) {
@@ -895,7 +907,7 @@ test(
     expect(
       state.submissionRequests,
     ).toBe(
-      0,
+      1,
     );
 
     expect(
@@ -914,6 +926,12 @@ test(
       state.lastListing?.listingType,
     ).toBe(
       "CUSTOMER_TO_CUSTOMER",
+    );
+
+    expect(
+      state.lastSubmission?.intent,
+    ).toBe(
+      "MARKETPLACE_LISTING",
     );
 
     expect(
