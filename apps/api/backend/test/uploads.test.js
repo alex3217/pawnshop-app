@@ -236,7 +236,7 @@ test("upload protection enforces user, IP, and bounded concurrency without a que
   held.emit("finish"); assert.equal(protection.active, 0);
 });
 
-test("S3-compatible writes and deletes abort after the configured timeout", async () => {
+test("S3-compatible operations abort after the configured timeout", async () => {
   const client = { send(_command, { abortSignal }) { return new Promise((_resolve, reject) => abortSignal.addEventListener("abort", () => reject(abortSignal.reason), { once: true })); } };
   const storage = createS3UploadStorage({ enabled: true, endpoint: "https://storage.example.test", region: "auto", forcePathStyle: false, accessKeyId: "test", secretAccessKey: "test", bucket: "test", publicBaseUrl: "https://assets.example.test", limits: { ...limits, storageTimeoutMs: 5 } }, { client });
   async function expectTimeout(operation) {
@@ -245,6 +245,7 @@ test("S3-compatible writes and deletes abort after the configured timeout", asyn
   }
   await expectTimeout(() => storage.put({ key: "uploads/test.png", body: png, contentType: "image/png" }));
   await expectTimeout(() => storage.delete({ key: "uploads/test.png" }));
+  await expectTimeout(() => storage.check());
 });
 
 test("admin uploads still require a real target and receive no arbitrary path control", async () => {

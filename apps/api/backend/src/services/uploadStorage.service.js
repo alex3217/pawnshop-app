@@ -56,9 +56,13 @@ export function createS3UploadStorage(config = loadDurableUploadConfig(), option
         abortSignal: AbortSignal.timeout(config.limits.storageTimeoutMs),
       });
     },
-    async check() {
+    async check(readinessSignal) {
+      const storageTimeoutSignal = AbortSignal.timeout(config.limits.storageTimeoutMs);
+      const abortSignal = readinessSignal
+        ? AbortSignal.any([readinessSignal, storageTimeoutSignal])
+        : storageTimeoutSignal;
       await client.send(new HeadBucketCommand({ Bucket: config.bucket }), {
-        abortSignal: AbortSignal.timeout(config.limits.storageTimeoutMs),
+        abortSignal,
       });
       return { enabled: true };
     },

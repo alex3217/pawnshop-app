@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { createS3UploadStorage } from "../src/services/uploadStorage.service.js";
 
 function app(options = {}) {
   return createApp({
@@ -69,6 +70,52 @@ test("a controlled unresolved dependency is aborted with bounded readiness failu
   assert.equal(response.status, 503);
   assert.equal(dependencyAborted, true);
   assert.equal(response.body.dependencies.storage, "unavailable");
+});
+
+test("the readiness deadline aborts the real S3 HeadBucket check", async () => {
+  let fireDeadline;
+  let headBucketStarted;
+  let receivedSignal;
+  const started = new Promise((resolve) => { headBucketStarted = resolve; });
+  const readinessTimers = {
+    setTimeout(callback) { fireDeadline = callback; return 1; },
+    clearTimeout() {},
+  };
+  const client = {
+    send(command, { abortSignal }) {
+      assert.equal(command.constructor.name, "HeadBucketCommand");
+      assert.ok(abortSignal instanceof AbortSignal);
+      receivedSignal = abortSignal;
+      headBucketStarted();
+      return new Promise((_resolve, reject) => {
+        abortSignal.addEventListener("abort", () => reject(new Error("private provider bucket detail")), { once: true });
+      });
+    },
+  };
+  const uploadStorage = createS3UploadStorage({
+    enabled: true,
+    endpoint: "https://storage.example.test",
+    region: "auto",
+    forcePathStyle: false,
+    accessKeyId: "test",
+    secretAccessKey: "test",
+    bucket: "private-bucket",
+    publicBaseUrl: "https://assets.example.test",
+    limits: { storageTimeoutMs: 60_000 },
+  }, { client });
+
+  const responsePromise = request(app({ uploadStorage, readinessTimers }))
+    .get("/api/ready")
+    .then((response) => response);
+  await started;
+  assert.equal(receivedSignal.aborted, false);
+  fireDeadline();
+  const response = await responsePromise;
+
+  assert.equal(receivedSignal.aborted, true);
+  assert.equal(response.status, 503);
+  assert.equal(response.body.dependencies.storage, "unavailable");
+  assert.doesNotMatch(JSON.stringify(response.body), /private|provider|bucket/i);
 });
 
 test("image processing failure fails readiness", async () => {
