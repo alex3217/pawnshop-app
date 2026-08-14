@@ -89,7 +89,7 @@ test("redirects are disabled and surfaced as a request error", async () => {
 });
 
 test("an explicit exact lowercase expected revision is required", async () => {
-  for (const value of [undefined, "", "main", "0123456", expectedSha.toUpperCase(), `${expectedSha}0`]) {
+  for (const value of [undefined, null, [expectedSha], "", "main", "0123456", expectedSha.toUpperCase(), `${expectedSha}0`]) {
     await assert.rejects(
       verifyProductionUploadReadiness({ readyUrl, expectedSha: value, fetchImpl: async () => response() }),
       /--expected-sha must be an exact lowercase 40-character Git SHA/,
@@ -98,7 +98,7 @@ test("an explicit exact lowercase expected revision is required", async () => {
 });
 
 test("readiness requires an exact lowercase 40-character Git revision", async () => {
-  for (const revision of [undefined, "", "main", "0123456", expectedSha.toUpperCase(), `${expectedSha}0`]) {
+  for (const revision of [undefined, null, [expectedSha], "", "main", "0123456", expectedSha.toUpperCase(), `${expectedSha}0`]) {
     await assert.rejects(
       verifyProductionUploadReadiness({
         readyUrl,

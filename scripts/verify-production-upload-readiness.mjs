@@ -48,7 +48,7 @@ export async function verifyProductionUploadReadiness({
   fetchImpl = globalThis.fetch,
 } = {}) {
   if (!readyUrl) throw new Error("--ready-url is required");
-  if (!/^[0-9a-f]{40}$/.test(String(expectedSha || ""))) {
+  if (typeof expectedSha !== "string" || !/^[0-9a-f]{40}$/.test(expectedSha)) {
     throw new Error("--expected-sha must be an exact lowercase 40-character Git SHA");
   }
   const ready = parseUrl(readyUrl, { fixture, ready: true });
@@ -58,7 +58,7 @@ export async function verifyProductionUploadReadiness({
   try { body = await response.json(); } catch { throw new Error("Readiness response is not valid JSON"); }
   if (body?.env !== "production") throw new Error("Readiness response does not identify production");
   if (body?.ready !== true || body?.ok !== true) throw new Error("Readiness response is not ready");
-  if (!/^[0-9a-f]{40}$/.test(String(body?.revision || ""))) {
+  if (typeof body?.revision !== "string" || !/^[0-9a-f]{40}$/.test(body.revision)) {
     throw new Error("Readiness response revision is not an exact lowercase 40-character Git SHA");
   }
   if (body.revision !== expectedSha) throw new Error("Readiness response revision does not match --expected-sha");

@@ -51,10 +51,11 @@ mutation.
 
 ## Open PR #236 overlap
 
-PR #236 and this change both touch `apps/api/backend/src/app.js`, but neither
-supersedes nor depends on the other. PR #236 extracts and hardens CORS policy;
-PR #321 hardens the existing readiness handler's storage and dependency checks.
-Whichever PR lands second needs a narrow reconciliation that preserves both the
+PR #236 and this change both touch `apps/api/backend/src/app.js`. The relationship
+is **narrow reconciliation required**: neither PR supersedes nor depends on the
+other. PR #236 extracts and hardens CORS policy; PR #321 hardens the existing
+readiness handler's storage and dependency checks. Whichever PR lands second
+must preserve both the
 `loadCorsPolicy`/`createCorsOptions` wiring from #236 and the readiness changes
 from #321. PR #236 must remain open and otherwise unchanged by this workstream.
 
