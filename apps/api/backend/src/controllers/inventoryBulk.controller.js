@@ -46,10 +46,16 @@ export async function importInventoryCsv(req, res) {
       return res.status(400).json({ success: false, error: "CSV file is required" });
     }
 
+    const isSupport = String(req.user?.role || "").toUpperCase() === "SUPER_ADMIN";
+    const supportReason = normalizeString(req.body?.reason);
+    const supportSessionId = normalizeString(req.headers["x-support-session-id"] || req.body?.supportSessionId);
+    if (isSupport && (!supportReason || supportReason.length < 8)) return res.status(400).json({ success: false, error: "A specific support reason of at least 8 characters is required." });
+    if (isSupport && !supportSessionId) return res.status(400).json({ success: false, error: "An active support session is required." });
+
     const shop = await prisma.pawnShop.findFirst({
       where: {
         id: shopId,
-        ownerId: userId,
+        ...(!isSupport ? { ownerId: userId } : {}),
         isDeleted: false,
       },
       select: {
@@ -59,7 +65,11 @@ export async function importInventoryCsv(req, res) {
     });
 
     if (!shop) {
-      return res.status(404).json({ success: false, error: "Owned shop not found" });
+      return res.status(404).json({ success: false, error: isSupport ? "Shop not found" : "Owned shop not found" });
+    }
+    if (isSupport) {
+      const active = await prisma.inventorySupportSession.findFirst({ where: { id: supportSessionId, shopId, actorId: userId, endedAt: null } });
+      if (!active) return res.status(403).json({ success: false, error: "Support session is invalid, ended, or belongs to another shop." });
     }
 
     const importJob = await prisma.inventoryImportJob.create({
@@ -134,6 +144,13 @@ export async function importInventoryCsv(req, res) {
         errorsJson: errors,
       },
     });
+
+    if (isSupport) {
+      await prisma.$transaction([
+        prisma.inventoryAdminEvent.create({ data: { shopId, actorId: userId, supportSessionId, action: "BULK_IMPORT_INVENTORY", reason: supportReason, requestId: req.requestId || null, afterState: { importJobId: updatedJob.id, filename: updatedJob.filename, totalRows: rows.length, successCount, failedCount } } }),
+        prisma.notification.create({ data: { userId: (await prisma.pawnShop.findUnique({ where: { id: shopId }, select: { ownerId: true } })).ownerId, type: "ADMIN_INVENTORY_CHANGE", title: "Administrative inventory import", message: `A Super Admin imported ${successCount} inventory records into ${shop.name}.`, actionUrl: "/owner/inventory", dedupeKey: `admin-inventory-import:${updatedJob.id}` } }),
+      ]);
+    }
 
     return res.status(201).json({
       success: true,

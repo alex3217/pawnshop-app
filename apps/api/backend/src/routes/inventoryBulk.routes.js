@@ -15,7 +15,7 @@ const upload = multer({
 router.post(
   "/import",
   authRequired,
-  requireRole("OWNER", "ADMIN"),
+  requireRole("OWNER", "ADMIN", "SUPER_ADMIN"),
   upload.single("file"),
   importInventoryCsv
 );
