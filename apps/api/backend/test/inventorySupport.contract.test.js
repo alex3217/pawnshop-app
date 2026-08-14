@@ -43,7 +43,7 @@ test("commerce guard uses the complete protected status sets", async () => {
   await assertCommerceSafe(client, { id: "item-1" }, { availability: "UNAVAILABLE" });
   assert.deepEqual(calls.auction.where.status.in, ["SCHEDULED", "LIVE"]);
   assert.deepEqual(calls.offer.where.status.in, ["PENDING", "COUNTERED", "ACCEPTED"]);
-  assert.deepEqual(calls.marketplaceListing.where.status.in, ["RESERVED", "SOLD"]);
+  assert.deepEqual(calls.marketplaceListing.where.status.in, ["ACTIVE", "RESERVED", "SOLD"]);
   assert.deepEqual(calls.marketplaceTransaction.where.status.in, ["PENDING", "PAYMENT_PROCESSING", "PAID", "FULFILLING", "COMPLETED", "DISPUTED"]);
 });
 
@@ -60,7 +60,7 @@ test("Super Admin routes have explicit role denial and shop-scoped support contr
   for (const path of ["support-sessions", "inventory", "inventory-locations"]) assert.match(routes, new RegExp(`/shops/:shopId/${path}`));
   const controller = await read("src/controllers/inventorySupport.controller.js");
   assert.match(controller, /id, shopId, actorId: actorId\(req\).*endedAt: null/);
-  assert.match(controller, /id: itemId, pawnShopId: shopId/);
+  assert.match(controller, /lockItemImagesForUpdate\(tx, itemId\).*locked\.pawnShopId !== shopId/s);
   assert.match(controller, /id: locationId, shopId, isArchived: false/);
 });
 
