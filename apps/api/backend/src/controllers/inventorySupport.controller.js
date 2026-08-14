@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 const AVAILABILITY = new Set(["AVAILABLE", "RESERVED", "SOLD", "PAWNED", "LAYAWAY", "UNAVAILABLE", "ARCHIVED"]);
 const LISTING_ACTIONS = new Map([["publish", "ACTIVE"], ["unpublish", "DRAFT"], ["archive", "REMOVED"], ["restore", "DRAFT"]]);
 const MUTABLE_FIELDS = new Set(["title", "description", "condition", "sku", "barcode", "serialNumber", "quantity", "price", "cost", "locationId", "availability", "category", "images"]);
-const ACTIVE_COMMERCE = ["PENDING", "PAYMENT_PROCESSING", "PAID", "FULFILLING"];
+const PROTECTED_COMMERCE = ["PENDING", "PAYMENT_PROCESSING", "PAID", "FULFILLING", "COMPLETED", "DISPUTED"];
 const LIFECYCLE = {
   AVAILABLE: new Set(["RESERVED", "SOLD", "PAWNED", "LAYAWAY", "UNAVAILABLE", "ARCHIVED"]),
   RESERVED: new Set(["AVAILABLE", "SOLD", "UNAVAILABLE", "ARCHIVED"]),
@@ -37,16 +37,17 @@ async function notifyOwner(tx, shop, item, action) {
   await tx.notification.create({ data: { userId: shop.ownerId, type: "ADMIN_INVENTORY_CHANGE", title: "Administrative inventory change", message: `${action.replaceAll("_", " ").toLowerCase()}: ${item?.title || "inventory"} at ${shop.name}.`, actionUrl: item?.id ? `/owner/inventory?itemId=${item.id}` : "/owner/inventory", dedupeKey: `admin-inventory:${action}:${item?.id || shop.id}:${Date.now()}` } });
 }
 
-async function assertCommerceSafe(tx, item, updates) {
+export async function assertCommerceSafe(tx, item, updates) {
   if (!item) return;
   const material = updates.availability || updates.quantity !== undefined || updates.price !== undefined || updates.locationId !== undefined || updates.images;
   if (!material) return;
-  const [auction, offer, transaction] = await Promise.all([
+  const [auction, offer, listing, transaction] = await Promise.all([
     tx.auction.findFirst({ where: { itemId: item.id, status: { in: ["SCHEDULED", "LIVE"] } }, select: { id: true } }),
     tx.offer.findFirst({ where: { itemId: item.id, status: { in: ["PENDING", "COUNTERED", "ACCEPTED"] } }, select: { id: true } }),
-    tx.marketplaceTransaction.findFirst({ where: { listing: { itemId: item.id }, status: { in: ACTIVE_COMMERCE } }, select: { id: true } }),
+    tx.marketplaceListing.findFirst({ where: { itemId: item.id, status: { in: ["RESERVED", "SOLD"] } }, select: { id: true } }),
+    tx.marketplaceTransaction.findFirst({ where: { listing: { itemId: item.id }, status: { in: PROTECTED_COMMERCE } }, select: { id: true } }),
   ]);
-  if (auction || offer || transaction) throw http(409, "This item has an active auction, offer, reservation, purchase, or fulfillment and cannot be materially changed.");
+  if (auction || offer || listing || transaction) throw http(409, "This item has an active auction, offer, reservation, purchase, or fulfillment and cannot be materially changed.");
 }
 
 export async function startInventorySupport(req, res) {
@@ -87,15 +88,15 @@ export async function listSupportInventory(req, res) {
 export async function createSupportInventory(req, res) {
   try {
     const why = reason(req); const shopId = text(req.params.shopId); const active = await session(req, shopId);
-    const quantity = Number(req.body.quantity ?? 1); const price = Number(req.body.price ?? 0); const availability = text(req.body.availability || "AVAILABLE").toUpperCase();
+    const quantity = Number(req.body.quantity ?? 1); const price = Number(req.body.price ?? 0); const cost = req.body.cost === undefined || req.body.cost === "" || req.body.cost === null ? null : Number(req.body.cost); const availability = text(req.body.availability || "AVAILABLE").toUpperCase();
     if (!text(req.body.title)) throw http(400, "Item title is required.");
     if (!Number.isInteger(quantity) || quantity < 0) throw http(400, "Quantity must be a non-negative integer.");
-    if (!Number.isFinite(price) || price < 0 || !AVAILABILITY.has(availability)) throw http(400, "Invalid price or availability.");
+    if (!Number.isFinite(price) || price < 0 || (cost !== null && (!Number.isFinite(cost) || cost < 0)) || !AVAILABILITY.has(availability)) throw http(400, "Invalid price, cost, or availability.");
     const locationId = text(req.body.locationId) || null;
     if (locationId && !(await prisma.inventoryLocation.findFirst({ where: { id: locationId, shopId, isArchived: false } }))) throw http(400, "Location must belong to the selected shop.");
     const result = await prisma.$transaction(async (tx) => {
       const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } }); if (!shop) throw http(404, "Shop not found.");
-      const item = await tx.item.create({ data: { pawnShopId: shopId, title: text(req.body.title), description: text(req.body.description) || null, price, cost: req.body.cost === undefined || req.body.cost === "" ? null : Number(req.body.cost), currency: "USD", images: Array.isArray(req.body.images) ? req.body.images.map(text).filter(Boolean) : [], category: text(req.body.category) || null, condition: text(req.body.condition) || null, sku: text(req.body.sku) || null, barcode: text(req.body.barcode) || null, serialNumber: text(req.body.serialNumber) || null, quantity, locationId, availability, status: availability === "SOLD" ? "SOLD" : "AVAILABLE", isDeleted: availability === "ARCHIVED" } });
+      const item = await tx.item.create({ data: { pawnShopId: shopId, title: text(req.body.title), description: text(req.body.description) || null, price, cost, currency: "USD", images: Array.isArray(req.body.images) ? req.body.images.map(text).filter(Boolean) : [], category: text(req.body.category) || null, condition: text(req.body.condition) || null, sku: text(req.body.sku) || null, barcode: text(req.body.barcode) || null, serialNumber: text(req.body.serialNumber) || null, quantity, locationId, availability, status: availability === "SOLD" ? "SOLD" : "AVAILABLE", isDeleted: availability === "ARCHIVED" } });
       await tx.inventoryAdminEvent.create({ data: { shopId, itemId: item.id, actorId: actorId(req), supportSessionId: active.id, action: "CREATE_INVENTORY", reason: why, requestId: req.requestId || null, afterState: safeItem(item) } }); await notifyOwner(tx, shop, item, "CREATE_INVENTORY"); return item;
     }); return res.status(201).json({ success: true, item: result });
   } catch (error) { return send(res, error); }
@@ -105,6 +106,7 @@ export async function updateSupportInventory(req, res) {
   try {
     const why = reason(req); const shopId = text(req.params.shopId); const itemId = text(req.params.itemId); const active = await session(req, shopId); const data = {};
     for (const [key, value] of Object.entries(req.body || {})) if (MUTABLE_FIELDS.has(key)) data[key] = value;
+    if (Object.keys(data).length === 0) throw http(400, "At least one supported inventory field is required.");
     if (data.quantity !== undefined) { data.quantity = Number(data.quantity); if (!Number.isInteger(data.quantity) || data.quantity < 0) throw http(400, "Quantity must be a non-negative integer."); }
     for (const field of ["price", "cost"]) if (data[field] !== undefined) { data[field] = data[field] === "" || data[field] === null ? null : Number(data[field]); if (data[field] !== null && (!Number.isFinite(data[field]) || data[field] < 0)) throw http(400, `${field} must be non-negative.`); }
     if (data.availability) { data.availability = text(data.availability).toUpperCase(); if (!AVAILABILITY.has(data.availability)) throw http(400, "Invalid availability."); data.status = data.availability === "SOLD" ? "SOLD" : "AVAILABLE"; data.isDeleted = data.availability === "ARCHIVED"; }
