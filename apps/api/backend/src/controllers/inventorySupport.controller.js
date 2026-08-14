@@ -130,7 +130,8 @@ export async function updateSupportInventory(req, res) {
     let removedAssets = [];
     const result = await prisma.$transaction(async (tx) => {
       const before = await lockItemImagesForUpdate(tx, itemId);
-      if (!before || before.isDeleted || before.pawnShopId !== shopId) throw http(404, "Inventory item not found in selected shop.");
+      const restoringArchived = before?.isDeleted && data.availability && data.availability !== "ARCHIVED";
+      if (!before || (before.isDeleted && !restoringArchived) || before.pawnShopId !== shopId) throw http(404, "Inventory item not found in selected shop.");
       const fullBefore = await tx.item.findUnique({ where: { id: itemId } });
       if (data.availability && data.availability !== fullBefore.availability && !LIFECYCLE[fullBefore.availability]?.has(data.availability)) throw http(409, `Invalid inventory lifecycle transition: ${fullBefore.availability} to ${data.availability}.`);
       await assertCommerceSafe(tx, fullBefore, data);
