@@ -201,8 +201,9 @@ test("Super Admin CSV import rolls back items when mandatory audit evidence fail
 });
 
 test("Super Admin CSV audit records created item IDs and notification failure rolls back", async () => {
-  const success = await api("post", "/api/inventory-bulk/import").set("X-Support-Session-Id", sessionId).field("shopId", shop.id).field("reason", "Record imported inventory identifiers").attach("file", Buffer.from("title,price\nRecorded CSV Item,30\n"), "recorded.csv");
+  const success = await api("post", "/api/inventory-bulk/import").set("X-Support-Session-Id", sessionId).field("shopId", shop.id).field("reason", "Record imported inventory identifiers").attach("file", Buffer.from("title,price,status\nRecorded CSV Item,30,SOLD\n"), "recorded.csv");
   assert.equal(success.status, 201); assert.equal(success.body.createdItemIds.length, 1);
+  const imported = await prisma.item.findUnique({ where: { id: success.body.createdItemIds[0] } }); assert.equal(imported.status, "SOLD"); assert.equal(imported.availability, "SOLD");
   const audit = await prisma.inventoryAdminEvent.findFirst({ where: { supportSessionId: sessionId, action: "BULK_IMPORT_INVENTORY" }, orderBy: { createdAt: "desc" } });
   assert.deepEqual(audit.afterState.createdItemIds, success.body.createdItemIds);
 
