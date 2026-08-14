@@ -122,8 +122,10 @@ export async function updateSupportInventory(req, res) {
     const why = reason(req); const shopId = text(req.params.shopId); const itemId = text(req.params.itemId); const active = await session(req, shopId); const data = {};
     for (const [key, value] of Object.entries(req.body || {})) if (MUTABLE_FIELDS.has(key)) data[key] = value;
     if (Object.keys(data).length === 0) throw http(400, "At least one supported inventory field is required.");
+    if (data.title !== undefined) { data.title = text(data.title); if (!data.title) throw http(400, "Item title is required."); }
     if (data.quantity !== undefined) { data.quantity = Number(data.quantity); if (!Number.isInteger(data.quantity) || data.quantity < 0) throw http(400, "Quantity must be a non-negative integer."); }
-    for (const field of ["price", "cost"]) if (data[field] !== undefined) { data[field] = data[field] === "" || data[field] === null ? null : Number(data[field]); if (data[field] !== null && (!Number.isFinite(data[field]) || data[field] < 0)) throw http(400, `${field} must be non-negative.`); }
+    if (data.price !== undefined) { if (data.price === null || data.price === "") throw http(400, "price is required."); data.price = Number(data.price); if (!Number.isFinite(data.price) || data.price < 0) throw http(400, "price must be non-negative."); }
+    if (data.cost !== undefined) { data.cost = data.cost === "" || data.cost === null ? null : Number(data.cost); if (data.cost !== null && (!Number.isFinite(data.cost) || data.cost < 0)) throw http(400, "cost must be non-negative."); }
     if (data.availability) { data.availability = text(data.availability).toUpperCase(); if (!AVAILABILITY.has(data.availability)) throw http(400, "Invalid availability."); if (data.availability !== "ARCHIVED") data.status = data.availability === "SOLD" ? "SOLD" : "AVAILABLE"; data.isDeleted = data.availability === "ARCHIVED"; }
     if (data.images !== undefined && !Array.isArray(data.images)) throw http(400, "Images must be an ordered array.");
     if (data.locationId !== undefined) { data.locationId = text(data.locationId) || null; if (data.locationId && !(await prisma.inventoryLocation.findFirst({ where: { id: data.locationId, shopId, isArchived: false } }))) throw http(400, "Location must belong to the selected shop."); }

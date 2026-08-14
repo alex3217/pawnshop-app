@@ -40,6 +40,8 @@ test("mutations require reason, reject negative quantity and cross-shop location
   const path = `/api/super-admin/shops/${shop.id}/inventory/${item.id}`;
   assert.equal((await api("patch", path).set("X-Support-Session-Id", sessionId).send({ quantity: 2 })).status, 400);
   assert.equal((await api("patch", path).set("X-Support-Session-Id", sessionId).send({ quantity: -1, reason: "Correct inventory count" })).status, 400);
+  assert.equal((await api("patch", path).set("X-Support-Session-Id", sessionId).send({ title: null, reason: "Reject missing item title" })).status, 400);
+  assert.equal((await api("patch", path).set("X-Support-Session-Id", sessionId).send({ price: null, reason: "Reject missing item price" })).status, 400);
   const foreign = await prisma.inventoryLocation.create({ data: { shopId: otherShop.id, name: "Foreign" } });
   assert.equal((await api("patch", path).set("X-Support-Session-Id", sessionId).send({ locationId: foreign.id, reason: "Correct item location" })).status, 400);
   const updated = await api("patch", path).set("X-Support-Session-Id", sessionId).set("X-Request-Id", "mutation-request").send({ sku: "SKU-42", quantity: 2, reason: "Correct verified stock record" });
