@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { canAccessShopWithStaffPermission } from "../middleware/staffAccess.middleware.js";
 import { deleteTrackedAssets, lockItemImagesForUpdate, reconcileAssetUrls } from "../services/uploadAssets.service.js";
 
 const AVAILABILITY = new Set(["AVAILABLE", "RESERVED", "SOLD", "PAWNED", "LAYAWAY", "UNAVAILABLE", "ARCHIVED"]);
@@ -161,8 +162,10 @@ export async function createInventoryLocation(req, res) { try { const why = reas
 
 export async function listOwnerInventoryAdminHistory(req, res) {
   try {
-    const item = await prisma.item.findFirst({ where: { id: text(req.params.id), shop: { ownerId: text(req.user?.sub) } }, select: { id: true, pawnShopId: true } });
-    if (!item) throw http(404, "Owned inventory item not found.");
+    const item = await prisma.item.findFirst({ where: { id: text(req.params.id) }, select: { id: true, pawnShopId: true, shop: { select: { ownerId: true } } } });
+    const role = text(req.user?.role).toUpperCase();
+    const authorized = item && (["ADMIN", "SUPER_ADMIN"].includes(role) || item.shop.ownerId === text(req.user?.sub) || canAccessShopWithStaffPermission(req, "inventory:read", item.pawnShopId));
+    if (!authorized) throw http(404, "Readable inventory item not found.");
     const events = await prisma.inventoryAdminEvent.findMany({ where: { itemId: item.id, shopId: item.pawnShopId }, select: { id: true, action: true, reason: true, beforeState: true, afterState: true, requestId: true, createdAt: true, actor: { select: { id: true, name: true, role: true } } }, orderBy: { createdAt: "desc" } });
     return res.json({ success: true, events });
   } catch (error) { return send(req, res, error); }
