@@ -40,6 +40,7 @@ async function boundedFetch(fetchImpl, url, method, timeoutMs) {
 
 export async function verifyProductionUploadReadiness({
   readyUrl,
+  expectedSha,
   itemImageUrls = [],
   auctionImageUrls = [],
   fixture = false,
@@ -47,6 +48,9 @@ export async function verifyProductionUploadReadiness({
   fetchImpl = globalThis.fetch,
 } = {}) {
   if (!readyUrl) throw new Error("--ready-url is required");
+  if (!/^[0-9a-f]{40}$/.test(String(expectedSha || ""))) {
+    throw new Error("--expected-sha must be an exact lowercase 40-character Git SHA");
+  }
   const ready = parseUrl(readyUrl, { fixture, ready: true });
   const response = await boundedFetch(fetchImpl, ready, "GET", timeoutMs);
   if (!response.ok) throw new Error(`Readiness evidence failed with HTTP ${response.status}: ${redactUrl(ready)}`);
@@ -54,6 +58,10 @@ export async function verifyProductionUploadReadiness({
   try { body = await response.json(); } catch { throw new Error("Readiness response is not valid JSON"); }
   if (body?.env !== "production") throw new Error("Readiness response does not identify production");
   if (body?.ready !== true || body?.ok !== true) throw new Error("Readiness response is not ready");
+  if (!/^[0-9a-f]{40}$/.test(String(body?.revision || ""))) {
+    throw new Error("Readiness response revision is not an exact lowercase 40-character Git SHA");
+  }
+  if (body.revision !== expectedSha) throw new Error("Readiness response revision does not match --expected-sha");
   for (const dependency of ["database", "storage", "imageProcessing"]) {
     if (body?.dependencies?.[dependency] !== "ok") throw new Error(`Readiness response lacks ${dependency} evidence`);
   }
@@ -78,6 +86,7 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (arg === "--fixture") options.fixture = true;
     else if (arg === "--ready-url") options.readyUrl = argv[++index];
+    else if (arg === "--expected-sha") options.expectedSha = argv[++index];
     else if (arg === "--item-image-url") options.itemImageUrls.push(argv[++index]);
     else if (arg === "--auction-image-url") options.auctionImageUrls.push(argv[++index]);
     else if (arg === "--timeout-ms") options.timeoutMs = Number(argv[++index]);

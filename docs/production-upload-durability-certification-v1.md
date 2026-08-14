@@ -46,7 +46,17 @@ mutation.
   image identity. No short-lived signature is persisted by this architecture.
 - `scripts/verify-production-upload-readiness.mjs` performs bounded GET/HEAD
   checks only, accepts no credentials, refuses non-HTTPS targets outside fixture
-  mode, disables redirects, and redacts query strings.
+  mode, disables redirects, redacts query strings, and requires the readiness
+  revision to exactly match an operator-supplied lowercase 40-character Git SHA.
+
+## Open PR #236 overlap
+
+PR #236 and this change both touch `apps/api/backend/src/app.js`, but neither
+supersedes nor depends on the other. PR #236 extracts and hardens CORS policy;
+PR #321 hardens the existing readiness handler's storage and dependency checks.
+Whichever PR lands second needs a narrow reconciliation that preserves both the
+`loadCorsPolicy`/`createCorsOptions` wiring from #236 and the readiness changes
+from #321. PR #236 must remain open and otherwise unchanged by this workstream.
 
 ## Provider configuration still required
 
@@ -92,6 +102,7 @@ system; never store secrets or URL query strings in tickets or logs.
    ```sh
    node scripts/verify-production-upload-readiness.mjs \
      --ready-url https://PRODUCTION_API_HOST/api/ready \
+     --expected-sha LOWERCASE_40_CHARACTER_RELEASE_SHA \
      --item-image-url https://PUBLIC_IMAGE_HOST/REDACTED_ITEM_PATH \
      --auction-image-url https://PUBLIC_IMAGE_HOST/REDACTED_AUCTION_PATH
    ```
