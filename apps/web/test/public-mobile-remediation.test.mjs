@@ -46,6 +46,15 @@ test("tutorial primary button states exceed WCAG AA without shrinking its target
   }
 });
 
+test("homepage card labels exceed WCAG AA in light and dark themes", async () => {
+  const css = await readFile(new URL("src/styles/home-page-v2.css", webRoot), "utf8");
+  assert.match(css, /\.home2-section-title span \{[\s\S]*color: #4f46e5;/);
+  assert.match(css, /data-theme="dark"\] \.home2-section-title > span \{[\s\S]*color: #a5b4fc;/);
+  assert.match(css, /not\(\[data-theme="dark"\]\) \.home2-page \.home2-section-title > span \{[\s\S]*color: #4338ca !important;/);
+  assert.ok(contrast("a5b4fc", "111827") >= 4.5);
+  assert.ok(contrast("4338ca", "ffffff") >= 4.5);
+});
+
 test("audited public pages defer to the application main landmark", async () => {
   for (const filename of [
     "HomePage.tsx",

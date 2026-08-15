@@ -267,6 +267,10 @@
   color: #a5b4fc;
 }
 
+:root[data-theme="dark"] .home2-section-title > span {
+  color: #a5b4fc;
+}
+
 :root[data-theme="dark"] .home2-hero p,
 :root[data-theme="dark"] .home2-section-title p,
 :root[data-theme="dark"] .home2-feature-list span,

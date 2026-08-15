@@ -41,6 +41,66 @@ const publicRoutes = [
   "/privacy",
 ];
 
+const homepageContrastViewports = [
+  { width: 320, height: 568 },
+  { width: 390, height: 844 },
+  { width: 430, height: 932 },
+  { width: 667, height: 375 },
+  { width: 1440, height: 900 },
+];
+
+for (const viewport of homepageContrastViewports) {
+  test(`homepage card labels retain computed contrast at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => {
+      localStorage.setItem("pawnloop-navigation-assistance-GUEST-v2", JSON.stringify({
+        automaticPrompts: false,
+        completedTopics: [],
+        dismissedGuidance: true,
+        floatingButtonVisible: false,
+      }));
+    });
+    await page.goto("/");
+
+    const labels = page.locator(".home2-section-title > span");
+    await expect(labels).toHaveCount(2);
+    await expect(labels.nth(0)).toHaveText("For buyers");
+    await expect(labels.nth(1)).toHaveText("For pawnshop owners");
+
+    for (const theme of ["light", "dark"]) {
+      await page.locator("html").evaluate((element, nextTheme) => {
+        element.dataset.theme = nextTheme;
+      }, theme);
+      await expect(page.locator(".home2-card").first()).toHaveCSS(
+        "background-color",
+        theme === "dark" ? "rgb(17, 24, 39)" : "rgb(255, 255, 255)",
+      );
+      await expect(page.locator(".home2-feature-link").first()).toHaveCSS(
+        "background-color",
+        theme === "dark" ? "rgb(17, 24, 39)" : "rgb(248, 250, 252)",
+      );
+
+      const measurements = await labels.evaluateAll((elements) => elements.map((element) => {
+        const foreground = getComputedStyle(element).color;
+        const card = element.closest<HTMLElement>(".home2-card")!;
+        return { foreground, background: getComputedStyle(card).backgroundColor };
+      }));
+      for (const measurement of measurements) {
+        expect(contrastRatio(measurement.foreground, measurement.background)).toBeGreaterThanOrEqual(4.5);
+      }
+
+      const geometry = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      }));
+      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+
+      const violations = (await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze()).violations;
+      expect(violations, `${theme} ${viewport.width}x${viewport.height}: ${JSON.stringify(violations, null, 2)}`).toEqual([]);
+    }
+  });
+}
+
 for (const viewport of [...portraitViewports, { width: 667, height: 375 }]) {
   test(`public pages keep the tutorial in flow at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
