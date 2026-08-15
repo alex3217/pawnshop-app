@@ -95,11 +95,17 @@ test("outside focusable controls retain focus when setup closes", async ({
   const themeToggle = page.locator(".site-theme-toggle");
 
   await trigger.click();
-  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  await themeToggle.focus();
+  await expect(themeToggle).toBeFocused();
+  await themeToggle.dispatchEvent("pointerdown");
 
   await expect(checklist).toBeHidden();
   await expect(themeToggle).toBeFocused();
   await expect(trigger).not.toBeFocused();
+
+  await themeToggle.press("Space");
+  await expect(themeToggle).toHaveAccessibleName("Switch to light mode");
+  await expect(themeToggle).toBeFocused();
 });
 
 test("Navigation Assistance returns focus to Owner setup for every close path", async ({
