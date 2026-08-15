@@ -218,6 +218,27 @@ test("owner setup supports keyboard scrolling and restores focus", async ({
   await expect
     .poll(() => items.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(0);
+  await items.evaluate((element) => new Promise<void>((resolve) => {
+    let previousScrollTop = element.scrollTop;
+    let stableFrames = 0;
+
+    const observeScroll = () => {
+      const currentScrollTop = element.scrollTop;
+      stableFrames = currentScrollTop === previousScrollTop
+        ? stableFrames + 1
+        : 0;
+      previousScrollTop = currentScrollTop;
+
+      if (stableFrames >= 3) {
+        resolve();
+        return;
+      }
+
+      window.requestAnimationFrame(observeScroll);
+    };
+
+    window.requestAnimationFrame(observeScroll);
+  }));
   const pageDownScrollTop = await items.evaluate(
     (element) => element.scrollTop,
   );
