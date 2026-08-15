@@ -219,7 +219,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(viewItem).toBeFocused();
     expect(await viewItem.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
     await expect(page.getByRole("img", { name: "Readable camera" })).toBeVisible();
-    await expect(page.getByRole("img", { name: "No image available for Pending guitar" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Pending guitar photo unavailable" })).toBeVisible();
     await expectNoOverflow(page);
     await expectNoSeriousAxeViolations(page);
   });
