@@ -245,7 +245,7 @@ export default function BuyerItemLocatorPage() {
   const [watchingItemId, setWatchingItemId] = useState<string | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchRequestRef = useRef(0);
+  const searchRequestRef = useRef(initialQuery.trim() ? 1 : 0);
 
   const loading = searchState === "loading";
   const canClearSearch = Boolean(
@@ -355,7 +355,7 @@ export default function BuyerItemLocatorPage() {
     }
 
     const controller = new AbortController();
-    const requestId = ++searchRequestRef.current;
+    const requestId = searchAttempt;
 
     async function load() {
       setSearchState("loading");
@@ -439,7 +439,7 @@ export default function BuyerItemLocatorPage() {
     setAppliedQuery(nextQuery);
     setLastSearchedQuery(nextQuery);
     setHasSearched(true);
-    setSearchAttempt((attempt) => attempt + 1);
+    setSearchAttempt(++searchRequestRef.current);
     setError(null);
     setNotice(null);
     setSearchState("loading");
@@ -466,7 +466,7 @@ export default function BuyerItemLocatorPage() {
     setItems([]);
     setTotalItems(0);
     setSelectedItemId(null);
-    setSearchAttempt((attempt) => attempt + 1);
+    setSearchAttempt(++searchRequestRef.current);
   }
 
   function clearSearch() {

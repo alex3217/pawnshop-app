@@ -95,11 +95,17 @@ test("outside focusable controls retain focus when setup closes", async ({
   const themeToggle = page.locator(".site-theme-toggle");
 
   await trigger.click();
-  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  await themeToggle.focus();
+  await expect(themeToggle).toBeFocused();
+  await themeToggle.dispatchEvent("pointerdown");
 
   await expect(checklist).toBeHidden();
   await expect(themeToggle).toBeFocused();
   await expect(trigger).not.toBeFocused();
+
+  await themeToggle.press("Space");
+  await expect(themeToggle).toHaveAccessibleName("Switch to light mode");
+  await expect(themeToggle).toBeFocused();
 });
 
 test("Navigation Assistance returns focus to Owner setup for every close path", async ({
@@ -218,6 +224,27 @@ test("owner setup supports keyboard scrolling and restores focus", async ({
   await expect
     .poll(() => items.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(0);
+  await items.evaluate((element) => new Promise<void>((resolve) => {
+    let previousScrollTop = element.scrollTop;
+    let stableFrames = 0;
+
+    const observeScroll = () => {
+      const currentScrollTop = element.scrollTop;
+      stableFrames = currentScrollTop === previousScrollTop
+        ? stableFrames + 1
+        : 0;
+      previousScrollTop = currentScrollTop;
+
+      if (stableFrames >= 3) {
+        resolve();
+        return;
+      }
+
+      window.requestAnimationFrame(observeScroll);
+    };
+
+    window.requestAnimationFrame(observeScroll);
+  }));
   const pageDownScrollTop = await items.evaluate(
     (element) => element.scrollTop,
   );
