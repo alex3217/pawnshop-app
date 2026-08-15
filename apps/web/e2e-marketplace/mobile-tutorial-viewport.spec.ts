@@ -260,31 +260,17 @@ test("mobile automatic tour has content and no empty header callout", async ({ p
   await expect(page.getByRole("link", { name: "Login", exact: true }).first()).toBeVisible();
 });
 
-test("environment banner and tutorial primary states retain computed AA contrast", async ({ page }) => {
+test("tutorial primary states retain computed AA contrast and a 44px target", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await prepareHomepage(page, true);
 
-  const banner = page.locator(".site-environment-indicator");
   const primary = page.getByTestId("button-primary");
-  await expect(banner).toBeVisible();
   await expect(primary).toBeVisible();
 
   for (const theme of ["light", "dark"]) {
     await page.locator("html").evaluate((element, nextTheme) => {
       element.dataset.theme = nextTheme;
     }, theme);
-
-    const bannerColors = await banner.evaluate((element) => {
-      const parent = getComputedStyle(element);
-      const children = Array.from(element.querySelectorAll<HTMLElement>("span, a, button"));
-      return {
-        background: parent.backgroundColor,
-        foregrounds: [parent.color, ...children.map((child) => getComputedStyle(child).color)],
-      };
-    });
-    for (const foreground of bannerColors.foregrounds) {
-      expect(contrastRatio(foreground, bannerColors.background)).toBeGreaterThanOrEqual(4.5);
-    }
 
     const assertPrimaryContrast = async () => {
       const colors = await primary.evaluate((element) => {
@@ -300,12 +286,58 @@ test("environment banner and tutorial primary states retain computed AA contrast
     await assertPrimaryContrast();
     await primary.hover();
     await assertPrimaryContrast();
+    await page.mouse.down();
+    await assertPrimaryContrast();
+    await page.mouse.move(0, 0);
+    await page.mouse.up();
+    await page.keyboard.press("Tab");
     await primary.focus();
     await expect(primary).toBeFocused();
     expect(await primary.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
     await primary.evaluate((element: HTMLButtonElement) => { element.disabled = true; });
     await assertPrimaryContrast();
     await primary.evaluate((element: HTMLButtonElement) => { element.disabled = false; });
+  }
+
+  const violations = (await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze()).violations;
+  expect(violations).toEqual([]);
+});
+
+test("environment banner follows its deployment contract and retains computed AA contrast", async ({ page }) => {
+  const deployEnvironment = String(process.env.VITE_DEPLOY_ENV || "development").trim().toLowerCase();
+  const requiresEnvironmentIndicator = deployEnvironment === "preview" || deployEnvironment === "staging";
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await prepareHomepage(page);
+
+  const banner = page.locator(".site-environment-indicator");
+  if (!requiresEnvironmentIndicator) {
+    await expect(
+      banner,
+      `${deployEnvironment} deployment contract intentionally disables the environment indicator`,
+    ).toHaveCount(0);
+    return;
+  }
+
+  await expect(banner).toHaveAttribute("data-deploy-environment", deployEnvironment);
+  await expect(banner).toBeVisible();
+
+  for (const theme of ["light", "dark"]) {
+    await page.locator("html").evaluate((element, nextTheme) => {
+      element.dataset.theme = nextTheme;
+    }, theme);
+
+    const bannerColors = await banner.evaluate((element) => {
+      const parent = getComputedStyle(element);
+      const descendants = Array.from(element.querySelectorAll<HTMLElement>("span, a, button, svg"));
+      return {
+        background: parent.backgroundColor,
+        foregrounds: [parent.color, ...descendants.map((child) => getComputedStyle(child).color)],
+      };
+    });
+    for (const foreground of bannerColors.foregrounds) {
+      expect(contrastRatio(foreground, bannerColors.background)).toBeGreaterThanOrEqual(4.5);
+    }
   }
 
   const violations = (await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze()).violations;
