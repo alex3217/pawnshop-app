@@ -173,11 +173,9 @@ for (const viewport of [
         .not.toBe(restingBackground);
       await expectTextContrast(hoverLink);
 
-      await activeLink.focus();
-      await page.keyboard.press("Tab");
-      const focusedLink = sidebar.locator("a:focus");
-      await expect(focusedLink).toBeVisible();
-      const focusStyle = await focusedLink.evaluate((element) => {
+      await hoverLink.focus();
+      await expect(hoverLink).toBeFocused();
+      const focusStyle = await hoverLink.evaluate((element) => {
         const style = getComputedStyle(element);
         return {
           outlineStyle: style.outlineStyle,

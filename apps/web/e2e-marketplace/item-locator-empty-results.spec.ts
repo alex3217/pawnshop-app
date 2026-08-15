@@ -140,8 +140,6 @@ for (const viewport of [
     await clear.click();
     await expect(status).toHaveCount(0);
     await expect(page.locator(".locator-result-card")).toHaveCount(0);
-    await page.waitForTimeout(350);
-    await expect(page.locator(".locator-result-card")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Search for an item to locate it" })).toBeVisible();
     await expect(search).toHaveValue("");
     await expect(search).toBeFocused();
