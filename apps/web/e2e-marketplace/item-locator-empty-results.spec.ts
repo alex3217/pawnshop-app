@@ -26,7 +26,7 @@ async function mockItemSearch(page: Page) {
       role: "CONSUMER",
     }));
     localStorage.setItem(
-      "pawnloop-navigation-assistance-GUEST-v2",
+      "pawnloop-navigation-assistance-CONSUMER-v2",
       JSON.stringify({
         automaticPrompts: false,
         completedTopics: ["full-tour"],
