@@ -5,7 +5,7 @@ let io;
 
 export function createSocketCorsOptions(env = process.env) {
   return {
-    origin: createCorsOriginHandler(parseAllowedOrigins(env)),
+    origin: createCorsOriginHandler(parseAllowedOrigins(env), env),
     credentials: true,
   };
 }

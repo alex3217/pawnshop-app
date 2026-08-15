@@ -113,9 +113,9 @@ function mountApi(app, path, router) {
   app.use(`/api${normalizedPath}`, router);
 }
 
-function createCorsOptions(allowedOrigins) {
+function createCorsOptions(allowedOrigins, env = process.env) {
   return {
-    origin: createCorsOriginHandler(allowedOrigins),
+    origin: createCorsOriginHandler(allowedOrigins, env),
     credentials: true,
     optionsSuccessStatus: 204,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -258,7 +258,7 @@ export function createApp(options = {}) {
     })
   );
 
-  const corsOptions = createCorsOptions(allowedOrigins);
+  const corsOptions = createCorsOptions(allowedOrigins, process.env);
   app.use(cors(corsOptions));
   app.options(/.*/, cors(corsOptions));
 

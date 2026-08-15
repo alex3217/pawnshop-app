@@ -278,6 +278,32 @@ test("an allowed browser origin receives CORS headers", async () => {
   );
 });
 
+test("a trusted staging preview receives exact credentialed CORS headers", async () => {
+  const previousAppEnv = process.env.APP_ENV;
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.APP_ENV = "staging";
+  process.env.NODE_ENV = "test";
+
+  try {
+    const stagingApp = createApp({
+      readinessCheck: async () => true,
+      authRateLimitStore: {},
+    });
+    const origin = "https://26d7e572.pawnloop-frontend.pages.dev";
+    const response = await request(stagingApp)
+      .get("/api/health")
+      .set("Origin", origin)
+      .expect(200);
+
+    assert.equal(response.headers["access-control-allow-origin"], origin);
+    assert.equal(response.headers["access-control-allow-credentials"], "true");
+    assert.match(response.headers.vary || "", /(?:^|,\s*)Origin(?:,|$)/);
+  } finally {
+    process.env.APP_ENV = previousAppEnv;
+    process.env.NODE_ENV = previousNodeEnv;
+  }
+});
+
 test("buyer subscription checkout preflight allows the idempotency header", async () => {
   const response = await request(app)
     .options("/api/stripe/checkout/buyer-subscription")
