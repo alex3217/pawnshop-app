@@ -1,0 +1,26 @@
+.public-preview-banner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid #92400e;
+  background: #fef3c7;
+  color: #451a03;
+  text-align: center;
+}
+
+.public-preview-banner strong { font-weight: 800; }
+
+.public-preview-unavailable {
+  max-width: 48rem;
+  margin: 4rem auto;
+  padding: 2rem;
+  border: 1px solid #d97706;
+  border-radius: 1rem;
+  background: #fffbeb;
+  color: #451a03;
+}
+
+.public-preview-unavailable div { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.public-preview-unavailable a { color: #78350f; font-weight: 700; text-decoration: underline; }

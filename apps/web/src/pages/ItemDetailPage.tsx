@@ -18,6 +18,7 @@ import { addToWatchlist } from "../services/watchlist";
 import ShopMap from "../components/ShopMap";
 import { formatShopAddress } from "../utils/shopAddress";
 import "../styles/item-detail-v2.css";
+import { usePublicPreview } from "../publicPreview/publicPreviewState";
 
 function normalizeLabel(value: string | null | undefined, fallback: string) {
   const normalized = String(value || "").trim();
@@ -196,6 +197,7 @@ function isAvailable(status: string | null | undefined) {
 }
 
 export default function ItemDetailPage() {
+  const { readOnly: publicPreviewReadOnly } = usePublicPreview();
   const { id = "" } = useParams();
   const navigate = useNavigate();
 
@@ -638,8 +640,8 @@ export default function ItemDetailPage() {
           {locationMessage ? <div className="item-detail-notice">{locationMessage}</div> : null}
 
           <div className="item-detail-actions">
-            <button type="button" onClick={handleSaveItem} disabled={savingWatchlist} className="item-detail-action item-detail-primary-action">
-              {savingWatchlist ? "Saving..." : "Watch item"}
+            <button type="button" onClick={handleSaveItem} disabled={publicPreviewReadOnly || savingWatchlist} className="item-detail-action item-detail-primary-action">
+              {publicPreviewReadOnly ? "Watchlist unavailable" : savingWatchlist ? "Saving..." : "Watch item"}
             </button>
 
             <Link to={shopHrefFor(item)} className="item-detail-action item-detail-secondary-action">View shop</Link>
@@ -649,11 +651,12 @@ export default function ItemDetailPage() {
             <button
               type="button"
               onClick={handleOpenOfferForm}
+              disabled={publicPreviewReadOnly}
               className="item-detail-action item-detail-primary-action"
               aria-controls="item-offer-form"
               title="Make offer"
             >
-              Make offer
+              {publicPreviewReadOnly ? "Offers unavailable" : "Make offer"}
             </button>
           </div>
         </div>
@@ -1275,8 +1278,9 @@ export default function ItemDetailPage() {
             />
           </label>
 
-          <button type="submit" disabled={submittingOffer}>
-            {submittingOffer ? "Sending..." : "Send offer"}
+          {publicPreviewReadOnly ? <p role="status">Offers are disabled during the browsing-only public preview.</p> : null}
+          <button type="submit" disabled={publicPreviewReadOnly || submittingOffer}>
+            {publicPreviewReadOnly ? "Offers unavailable" : submittingOffer ? "Sending..." : "Send offer"}
           </button>
         </form>
 
