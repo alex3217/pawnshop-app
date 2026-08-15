@@ -26,6 +26,10 @@ html { scroll-padding-top: 190px; }
 }
 
 .site-environment-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 6px 16px;
   background: #7c2d12;
   color: #ffffff;
@@ -34,6 +38,17 @@ html { scroll-padding-top: 190px; }
   font-weight: 900;
   letter-spacing: 0.08em;
   line-height: 1.4;
+}
+
+:root[data-theme="dark"] .site-environment-indicator {
+  border-bottom: 1px solid #fdba74;
+  background: #431407;
+  color: #ffffff;
+}
+
+.site-environment-indicator a,
+.site-environment-indicator button {
+  color: inherit;
 }
 
 .site-header-inner {

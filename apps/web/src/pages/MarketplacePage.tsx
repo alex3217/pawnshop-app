@@ -192,7 +192,7 @@ function ItemCard({
   );
 }
 
-function EmptyState({ clearFilters }: { clearFilters: () => void }) {
+function EmptyState() {
   return (
     <section className="mp2-empty">
       <h2>No marketplace items found</h2>
@@ -200,9 +200,6 @@ function EmptyState({ clearFilters }: { clearFilters: () => void }) {
         Try clearing filters, expanding your price range, or searching a different
         item category.
       </p>
-      <button type="button" onClick={clearFilters}>
-        Clear filters
-      </button>
     </section>
   );
 }
@@ -472,17 +469,6 @@ export default function MarketplacePage() {
     };
   }, [items, totalItems]);
 
-  const hasActiveFilters = Boolean(
-    query.trim() ||
-      categoryFilter !== "ALL" ||
-      conditionFilter !== "ALL" ||
-      shopFilter !== "ALL" ||
-      distanceFilter !== "25" ||
-      minPrice.trim() ||
-      maxPrice.trim() ||
-      sort !== "newest",
-  );
-
   async function handleSaveSearch() {
     const parts = [
       query.trim() ? `Search: ${query.trim()}` : "",
@@ -570,7 +556,7 @@ export default function MarketplacePage() {
   }
 
   return (
-    <main className="marketplace-v2">
+    <div className="marketplace-v2">
       <section className="mp2-hero">
         <div className="mp2-hero-copy">
           <span className="mp2-pill">PawnLoop marketplace</span>
@@ -637,7 +623,7 @@ export default function MarketplacePage() {
             </p>
           </div>
 
-          <button type="button" onClick={clearFilters} disabled={!hasActiveFilters}>
+          <button type="button" onClick={clearFilters}>
             Clear filters
           </button>
         </div>
@@ -769,9 +755,6 @@ export default function MarketplacePage() {
         <section className="mp2-error">
           <h2>Marketplace could not load</h2>
           <p>{error}</p>
-          <button type="button" onClick={clearFilters}>
-            Reset filters
-          </button>
         </section>
       ) : null}
 
@@ -782,7 +765,7 @@ export default function MarketplacePage() {
           ))}
         </section>
       ) : rankedItems.length === 0 ? (
-        <EmptyState clearFilters={clearFilters} />
+        <EmptyState />
       ) : viewMode === "map" ? (
         <MarketplaceMap
           items={rankedItems}
@@ -804,6 +787,6 @@ export default function MarketplacePage() {
           ))}
         </section>
       )}
-    </main>
+    </div>
   );
 }

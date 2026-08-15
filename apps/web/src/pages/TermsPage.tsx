@@ -4,7 +4,7 @@ const EFFECTIVE_DATE = "July 28, 2026";
 
 export default function TermsPage() {
   return (
-    <main className="legal-page">
+    <div className="legal-page">
       <div className="legal-page__container">
         <header className="legal-page__header">
           <span className="legal-page__eyebrow">Legal</span>
@@ -354,6 +354,6 @@ export default function TermsPage() {
           <Link to="/">Return to the homepage</Link>
         </nav>
       </div>
-    </main>
+    </div>
   );
 }

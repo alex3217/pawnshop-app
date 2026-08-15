@@ -1,9 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const portraitViewports = [
   { width: 320, height: 568 },
+  { width: 360, height: 800 },
   { width: 375, height: 667 },
   { width: 390, height: 844 },
+  { width: 393, height: 852 },
+  { width: 412, height: 915 },
   { width: 430, height: 932 },
 ];
 
@@ -18,6 +22,156 @@ async function prepareHomepage(page: Page, automaticPrompts = false) {
   }, automaticPrompts);
   await page.goto("/");
 }
+
+const publicRoutes = [
+  "/marketplace",
+  "/shops",
+  "/auctions",
+  "/terms",
+  "/privacy",
+];
+
+for (const viewport of [...portraitViewports, { width: 667, height: 375 }]) {
+  test(`public pages keep the tutorial in flow at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => {
+      localStorage.setItem("pawnloop-navigation-assistance-GUEST-v2", JSON.stringify({
+        automaticPrompts: false,
+        completedTopics: [],
+        dismissedGuidance: true,
+        floatingButtonVisible: true,
+      }));
+    });
+
+    for (const route of publicRoutes) {
+      await page.goto(route);
+      const card = page.getByLabel("Setup and instructions tutorial");
+      await expect(card).toBeVisible();
+      await expect(page.locator("main")).toHaveCount(1);
+
+      const geometry = await page.evaluate(() => {
+        const launcher = document.querySelector<HTMLElement>(".navigation-tour-floating")!;
+        const bounds = launcher.getBoundingClientRect();
+        const content = Array.from(document.querySelectorAll<HTMLElement>(
+          "main article, main section, main button, main a, footer",
+        )).filter((element) => {
+          if (!element.offsetParent) return false;
+          const box = element.getBoundingClientRect();
+          return box.width > 0 && box.height > 0 &&
+            box.left < bounds.right && box.right > bounds.left &&
+            box.top < bounds.bottom && box.bottom > bounds.top;
+        });
+
+        return {
+          position: getComputedStyle(launcher).position,
+          intersections: content.length,
+          scrollWidth: document.documentElement.scrollWidth,
+          viewportWidth: window.innerWidth,
+          bounds: bounds.toJSON(),
+        };
+      });
+
+      expect(geometry.position).toBe("relative");
+      expect(geometry.intersections).toBe(0);
+      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+      expect(geometry.bounds.left).toBeGreaterThanOrEqual(0);
+      expect(geometry.bounds.right).toBeLessThanOrEqual(geometry.viewportWidth);
+
+      const close = card.getByRole("button", { name: "Close tutorial" });
+      const closeBox = await close.boundingBox();
+      expect(closeBox!.width).toBeGreaterThanOrEqual(44);
+      expect(closeBox!.height).toBeGreaterThanOrEqual(44);
+      expect(closeBox!.x).toBeGreaterThanOrEqual(0);
+      expect(closeBox!.x + closeBox!.width).toBeLessThanOrEqual(viewport.width);
+      await close.click();
+      await expect(card).toBeHidden();
+      await expect(page.locator(".navigation-assistance-backdrop")).toHaveCount(0);
+    }
+  });
+}
+
+test("audited public mobile routes have no serious accessibility violations", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.addInitScript(() => {
+    localStorage.setItem("pawnloop-navigation-assistance-GUEST-v2", JSON.stringify({
+      automaticPrompts: false,
+      completedTopics: [],
+      dismissedGuidance: true,
+      floatingButtonVisible: false,
+    }));
+  });
+
+  for (const route of publicRoutes) {
+    await page.goto(route);
+    const serious = (await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze()).violations.filter(({ impact }) =>
+      impact === "serious" || impact === "critical"
+    );
+    expect(serious, `${route}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+  }
+});
+
+test("marketplace keeps one usable Clear filters action across result states", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    localStorage.setItem("pawnloop-navigation-assistance-GUEST-v2", JSON.stringify({
+      automaticPrompts: false,
+      completedTopics: [],
+      dismissedGuidance: true,
+      floatingButtonVisible: false,
+    }));
+  });
+
+  const assertSingleClear = async () => {
+    const clear = page.getByRole("button", { name: "Clear filters", exact: true });
+    await expect(clear).toHaveCount(1);
+    await expect(clear).toBeVisible();
+    await expect(clear).toBeEnabled();
+  };
+
+  let releaseLoading: (() => void) | undefined;
+  const loadingGate = new Promise<void>((resolve) => { releaseLoading = resolve; });
+  await page.route("**/api/items**", async (route) => {
+    await loadingGate;
+    await route.fulfill({ json: { items: [], total: 0 } });
+  });
+  await page.goto("/marketplace");
+  await expect(page.locator(".mp2-skeleton").first()).toBeVisible();
+  await assertSingleClear();
+  releaseLoading!();
+  await expect(page.locator(".mp2-empty")).toBeVisible();
+  await assertSingleClear();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await page.route("**/api/items**", (route) => route.fulfill({ status: 503, json: { error: "Unavailable" } }));
+  await page.goto("/marketplace?state=failure");
+  await expect(page.locator(".mp2-error")).toBeVisible();
+  await assertSingleClear();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await page.route("**/api/items**", (route) => route.fulfill({ json: [{
+    id: "mobile-clear-item",
+    pawnShopId: "mobile-clear-shop",
+    title: "Mobile regression item",
+    description: "A populated marketplace card",
+    price: 125,
+    status: "AVAILABLE",
+    category: "TOOLS",
+    condition: "GOOD",
+    images: [],
+    shop: { id: "mobile-clear-shop", name: "Regression Shop" },
+  }] }));
+  await page.goto("/marketplace?state=populated");
+  await expect(page.locator(".mp2-item-card")).toBeVisible();
+  await assertSingleClear();
+
+  await page.getByLabel("Search marketplace").fill("filtered");
+  await expect(page).toHaveURL(/search=filtered/);
+  await assertSingleClear();
+  await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  await expect(page.getByLabel("Search marketplace")).toHaveValue("");
+});
 
 for (const viewport of [...portraitViewports, { width: 667, height: 375 }]) {
   test(`homepage tutorial stays operable at ${viewport.width}x${viewport.height}`, async ({ page }) => {
