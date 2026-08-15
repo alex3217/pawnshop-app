@@ -221,8 +221,25 @@ export default function OwnerLocationsPage() {
     const shopId = selectActiveOwnerShopId(locations, queryShopId);
     const location = locations.find((item) => item.id === shopId) || locations[0];
     beginEditLocation(location);
-    window.requestAnimationFrame(() => document.querySelector(window.location.hash)?.scrollIntoView({ block: "center" }));
   }, [editingId, loading, locations]);
+
+  useEffect(() => {
+    if (loading || !editingId) return;
+
+    const revealDeepLinkedField = () => {
+      const target = document.getElementById(window.location.hash.slice(1));
+      if (!target) return;
+
+      target.scrollIntoView({ block: "center", inline: "nearest" });
+      const headerBottom = document.querySelector(".site-header")?.getBoundingClientRect().bottom || 0;
+      const targetTop = target.getBoundingClientRect().top;
+      if (targetTop < headerBottom) window.scrollBy({ top: targetTop - headerBottom - 16 });
+    };
+
+    revealDeepLinkedField();
+    window.addEventListener("hashchange", revealDeepLinkedField);
+    return () => window.removeEventListener("hashchange", revealDeepLinkedField);
+  }, [editingId, loading]);
 
   function beginEditLocation(location: LocationRecord) {
     setActionMessage("");
