@@ -11,6 +11,16 @@ const portraitViewports = [
   { width: 430, height: 932 },
 ];
 
+function contrastRatio(foreground: string, background: string) {
+  const parse = (color: string) => color.match(/[\d.]+/g)!.slice(0, 3).map(Number);
+  const luminance = (color: string) => parse(color)
+    .map((channel) => channel / 255)
+    .map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+    .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+  const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
 async function prepareHomepage(page: Page, automaticPrompts = false) {
   await page.addInitScript((automatic) => {
     localStorage.setItem("pawnloop-navigation-assistance-GUEST-v2", JSON.stringify({
@@ -248,6 +258,58 @@ test("mobile automatic tour has content and no empty header callout", async ({ p
   await tooltip.getByRole("button", { name: "Close", exact: true }).click();
   await expect(tooltip).toBeHidden();
   await expect(page.getByRole("link", { name: "Login", exact: true }).first()).toBeVisible();
+});
+
+test("environment banner and tutorial primary states retain computed AA contrast", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await prepareHomepage(page, true);
+
+  const banner = page.locator(".site-environment-indicator");
+  const primary = page.getByTestId("button-primary");
+  await expect(banner).toBeVisible();
+  await expect(primary).toBeVisible();
+
+  for (const theme of ["light", "dark"]) {
+    await page.locator("html").evaluate((element, nextTheme) => {
+      element.dataset.theme = nextTheme;
+    }, theme);
+
+    const bannerColors = await banner.evaluate((element) => {
+      const parent = getComputedStyle(element);
+      const children = Array.from(element.querySelectorAll<HTMLElement>("span, a, button"));
+      return {
+        background: parent.backgroundColor,
+        foregrounds: [parent.color, ...children.map((child) => getComputedStyle(child).color)],
+      };
+    });
+    for (const foreground of bannerColors.foregrounds) {
+      expect(contrastRatio(foreground, bannerColors.background)).toBeGreaterThanOrEqual(4.5);
+    }
+
+    const assertPrimaryContrast = async () => {
+      const colors = await primary.evaluate((element) => {
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return { foreground: style.color, background: style.backgroundColor, width: bounds.width, height: bounds.height };
+      });
+      expect(contrastRatio(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5);
+      expect(colors.width).toBeGreaterThanOrEqual(44);
+      expect(colors.height).toBeGreaterThanOrEqual(44);
+    };
+
+    await assertPrimaryContrast();
+    await primary.hover();
+    await assertPrimaryContrast();
+    await primary.focus();
+    await expect(primary).toBeFocused();
+    expect(await primary.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe("none");
+    await primary.evaluate((element: HTMLButtonElement) => { element.disabled = true; });
+    await assertPrimaryContrast();
+    await primary.evaluate((element: HTMLButtonElement) => { element.disabled = false; });
+  }
+
+  const violations = (await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze()).violations;
+  expect(violations).toEqual([]);
 });
 
 test("desktop tutorial shortcut keeps its established floating treatment", async ({ page }) => {

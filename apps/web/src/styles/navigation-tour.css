@@ -53,6 +53,41 @@
   white-space: nowrap;
 }
 
+/* React Joyride emits inline button colors, so the narrowly scoped important
+   declarations are required to make every primary-button state deterministic. */
+#react-joyride-portal [data-testid="button-primary"] {
+  min-width: 44px;
+  min-height: 44px;
+  border-color: #1d4ed8 !important;
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+#react-joyride-portal [data-testid="button-primary"]:hover {
+  border-color: #1e40af !important;
+  background: #1e40af !important;
+}
+
+#react-joyride-portal [data-testid="button-primary"]:active {
+  border-color: #1e3a8a !important;
+  background: #1e3a8a !important;
+}
+
+#react-joyride-portal [data-testid="button-primary"]:focus-visible {
+  outline: 3px solid #0f172a;
+  outline-offset: 3px;
+}
+
+#react-joyride-portal [data-testid="button-primary"]:disabled {
+  border-color: #475569 !important;
+  background: #475569 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
 .navigation-assistance-dialog button:disabled {
   cursor: wait;
   opacity: 0.6;

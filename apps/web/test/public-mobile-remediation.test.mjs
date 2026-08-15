@@ -25,6 +25,25 @@ test("environment banner colors exceed WCAG AA in light and dark themes", async 
   assert.ok(contrast("ffffff", "7c2d12") >= 4.5);
   assert.ok(contrast("ffffff", "431407") >= 4.5);
   assert.match(css, /\.site-environment-indicator a,[\s\S]*\.site-environment-indicator button[\s\S]*color: inherit;/);
+  assert.match(css, /:root \.site-header > \.site-environment-indicator :is\(span, a, button\) \{[\s\S]*color: #ffffff !important;[\s\S]*-webkit-text-fill-color: #ffffff !important;/);
+  assert.match(css, /:root \.site-header > \.site-environment-indicator svg \{[\s\S]*fill: currentColor;[\s\S]*stroke: currentColor;/);
+  assert.match(css, /:root \.site-header > \.site-environment-indicator a:hover,[\s\S]*color: #ffedd5 !important;/);
+  assert.match(css, /:root \.site-header > \.site-environment-indicator a:focus-visible,[\s\S]*outline: 3px solid #ffffff;/);
+  assert.ok(contrast("ffedd5", "7c2d12") >= 4.5);
+  assert.ok(contrast("ffedd5", "431407") >= 4.5);
+});
+
+test("tutorial primary button states exceed WCAG AA without shrinking its target", async () => {
+  const css = await readFile(new URL("src/styles/navigation-tour.css", webRoot), "utf8");
+  assert.match(css, /#react-joyride-portal \[data-testid="button-primary"\] \{[\s\S]*min-width: 44px;[\s\S]*min-height: 44px;[\s\S]*background: #1d4ed8 !important;[\s\S]*color: #ffffff !important;/);
+  assert.match(css, /\[data-testid="button-primary"\]:hover \{[\s\S]*background: #1e40af !important;/);
+  assert.match(css, /\[data-testid="button-primary"\]:active \{[\s\S]*background: #1e3a8a !important;/);
+  assert.match(css, /\[data-testid="button-primary"\]:focus-visible \{[\s\S]*outline: 3px solid #0f172a;/);
+  assert.match(css, /\[data-testid="button-primary"\]:disabled \{[\s\S]*background: #475569 !important;[\s\S]*opacity: 1;/);
+
+  for (const background of ["1d4ed8", "1e40af", "1e3a8a", "475569"]) {
+    assert.ok(contrast("ffffff", background) >= 4.5, background);
+  }
 });
 
 test("audited public pages defer to the application main landmark", async () => {
