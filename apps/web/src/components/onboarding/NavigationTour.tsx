@@ -78,16 +78,37 @@ function fullTourSteps(role: Role | null): Step[] {
   ];
 }
 
+function usableTourSteps(nextSteps: Step[]): Step[] {
+  return nextSteps.filter((step) => {
+    const hasContent = [step.title, step.content].some((value) =>
+      typeof value === "string" ? value.trim().length > 0 : value != null,
+    );
+    if (!hasContent) return false;
+
+    let target: Element | null = null;
+    if (typeof step.target === "string") {
+      try {
+        target = document.querySelector(step.target);
+      } catch {
+        return false;
+      }
+    } else if (step.target instanceof Element && document.contains(step.target)) {
+      target = step.target;
+    }
+
+    if (!(target instanceof HTMLElement)) return false;
+    const bounds = target.getBoundingClientRect();
+    const style = window.getComputedStyle(target);
+    return bounds.width > 0 && bounds.height > 0 &&
+      style.display !== "none" && style.visibility !== "hidden";
+  });
+}
+
 export default function NavigationTour({ role }: NavigationTourProps) {
   const location = useLocation();
   const [preferences, setPreferences] = useState(() => readPreferences(role));
   const [centerOpen, setCenterOpen] = useState(false);
-  const [run, setRun] = useState(() => {
-    const initial = readPreferences(role);
-    return initial.automaticPrompts &&
-      !initial.dismissedGuidance &&
-      !initial.completedTopics.includes("full-tour");
-  });
+  const [run, setRun] = useState(false);
   const [steps, setSteps] = useState<Step[]>(() => fullTourSteps(role));
   const [activeTopicId, setActiveTopicId] = useState("full-tour");
   const [pendingTour, setPendingTour] = useState<PendingTour | null>(null);
@@ -144,13 +165,13 @@ export default function NavigationTour({ role }: NavigationTourProps) {
   useEffect(() => {
     const next = readPreferences(role);
     setPreferences(next);
-    setRun(
+    const nextSteps = usableTourSteps(fullTourSteps(role));
+    setSteps(nextSteps);
+    setRun(nextSteps.length > 0 &&
       !centerOpenRef.current &&
-        next.automaticPrompts &&
-        !next.dismissedGuidance &&
-        !next.completedTopics.includes("full-tour"),
-    );
-    setSteps(fullTourSteps(role));
+      next.automaticPrompts &&
+      !next.dismissedGuidance &&
+      !next.completedTopics.includes("full-tour"));
     setActiveTopicId("full-tour");
     pendingTourRef.current = null;
     setPendingTour(null);
@@ -197,27 +218,7 @@ export default function NavigationTour({ role }: NavigationTourProps) {
 
   function queueTour(nextSteps: Step[], topicId: string, title: string) {
     if (pendingTourRef.current) return;
-    const fallbackTarget = '[data-tour="main-content"]';
-    const fallbackElement = document.querySelector(fallbackTarget);
-
-    if (!fallbackElement) {
-      setLaunchStatus(`Unable to start ${title} Instructions`);
-      return;
-    }
-
-    const validatedSteps = nextSteps.map((step) => {
-      if (typeof step.target === "string") {
-        try {
-          if (document.querySelector(step.target)) return step;
-        } catch {
-          // Invalid selectors use the guaranteed page-content fallback below.
-        }
-      } else if (step.target instanceof Element && document.contains(step.target)) {
-        return step;
-      }
-
-      return { ...step, target: fallbackTarget };
-    });
+    const validatedSteps = usableTourSteps(nextSteps);
 
     if (
       validatedSteps.length === 0 ||
@@ -306,9 +307,10 @@ export default function NavigationTour({ role }: NavigationTourProps) {
       {role !== "OWNER"
       && preferences.floatingButtonVisible
       && !floatingShortcutDismissed
+      && !run
       && !centerOpen
       && !pendingTour ? (
-        <div className="navigation-tour-floating">
+        <aside className="navigation-tour-floating" aria-label="Setup and instructions tutorial">
           <button
             type="button"
             className="navigation-tour-restart"
@@ -329,12 +331,12 @@ export default function NavigationTour({ role }: NavigationTourProps) {
                 "Setup and instructions shortcut closed for this session.",
               );
             }}
-            aria-label="Close setup and instructions shortcut"
-            title="Close setup and instructions shortcut"
+            aria-label="Close tutorial"
+            title="Close tutorial"
           >
             <span aria-hidden="true">×</span>
           </button>
-        </div>
+        </aside>
       ) : null}
 
       {centerOpen ? <NavigationAssistanceCenter

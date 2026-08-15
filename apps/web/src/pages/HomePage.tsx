@@ -50,7 +50,7 @@ const ownerFeatures = [
 
 export default function HomePage() {
   return (
-    <main className="home-page home2-page">
+    <div className="home-page home2-page">
       <section className="home2-hero">
         <div className="home2-hero-copy">
           <span className="home2-pill">Live marketplace + auction platform</span>
@@ -160,6 +160,6 @@ export default function HomePage() {
         <Link to="/watchlist">Watchlist</Link>
         <Link to="/offers">Offers</Link>
       </section>
-    </main>
+    </div>
   );
 }
