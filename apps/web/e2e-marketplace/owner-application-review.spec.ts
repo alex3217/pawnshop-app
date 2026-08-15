@@ -843,7 +843,7 @@ test("owner application header and setup shortcut stay usable across responsive 
     await expect(continueSetup).toBeVisible();
     await expect(openDashboard).toBeVisible();
     await expect(shortcut).toHaveCSS("height", "48px");
-    await shortcut.evaluate(element => element.scrollIntoView({ block: "center", inline: "nearest" }));
+    await shortcut.scrollIntoViewIfNeeded();
 
     const layout = await page.evaluate(() => {
       const rect = (selector: string) =>
