@@ -24,6 +24,7 @@ import BuyerItemLocatorPage from "./pages/BuyerItemLocatorPage";
 
 import BuyerSellItemPage from "./pages/BuyerSellItemPage";
 import OwnerRegistrationPage from "./pages/OwnerRegistrationPage";
+import { PublicPreviewUnavailable } from "./publicPreview/PublicPreviewUnavailable";
 
 type RouteConfig =
   | {
@@ -285,7 +286,7 @@ const publicRoutes: RouteConfig[] = [
   { path: "/auctions/:id", element: <AuctionDetailPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/login/mfa", element: <MfaLoginPage /> },
-  { path: "/register", element: <RegisterPage /> },
+  { path: "/register", element: <PublicPreviewUnavailable title="Registration is paused"><RegisterPage /></PublicPreviewUnavailable> },
   { path: "/verification-pending", element: <VerificationPendingPage /> },
   { path: "/verify-email", element: <VerifyEmailPage /> },
   { path: "/forgot-password", element: <ForgotPasswordPage /> },
@@ -547,7 +548,7 @@ export default function App() {
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
-                <Route path="/for-pawn-shops" element={<OwnerRegistrationPage />} />
+                <Route path="/for-pawn-shops" element={<PublicPreviewUnavailable title="Pawn shop applications are paused"><OwnerRegistrationPage /></PublicPreviewUnavailable>} />
       </Routes>
     </BrowserRouter>
   );

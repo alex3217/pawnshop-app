@@ -1,4 +1,4 @@
-import { API_BASE } from "../config";
+import { API_BASE, ENVIRONMENT } from "../config";
 import { getAuthHeaders, handleAuthenticationFailure } from "./auth";
 
 export class ApiError extends Error {
@@ -11,6 +11,18 @@ export class ApiError extends Error {
     this.status = status;
     this.payload = payload;
   }
+}
+
+let publicPreviewReadOnly = ENVIRONMENT.deployEnv === "production";
+
+const PUBLIC_PREVIEW_AUTH_MUTATIONS = new Set([
+  "POST /auth/login",
+  "POST /auth/mfa/challenge",
+  "POST /auth/refresh",
+]);
+
+export function setPublicPreviewReadOnly(readOnly: boolean) {
+  publicPreviewReadOnly = readOnly;
 }
 
 type ApiOptions = Omit<RequestInit, "body" | "headers"> & {
@@ -48,6 +60,17 @@ function getErrorMessage(payload: unknown, fallback: string) {
 }
 
 async function request<T>(method: string, path: string, options: ApiOptions = {}): Promise<T> {
+  if (
+    publicPreviewReadOnly &&
+    !["GET", "HEAD", "OPTIONS"].includes(method) &&
+    !PUBLIC_PREVIEW_AUTH_MUTATIONS.has(`${method} ${path}`)
+  ) {
+    throw new ApiError(
+      "PawnLoop public preview is currently read-only.",
+      503,
+      { success: false, code: "PUBLIC_PREVIEW_READ_ONLY" },
+    );
+  }
   const useJson = options.json ?? true;
   const useAuth = options.auth ?? true;
 
