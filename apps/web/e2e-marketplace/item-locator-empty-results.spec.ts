@@ -14,6 +14,7 @@ const existingItem = {
 
 async function mockItemSearch(page: Page) {
   let emptyRequestCount = 0;
+  const pendingEmptyResponses: Array<() => void> = [];
 
   await page.addInitScript(() => {
     localStorage.setItem("pawnloop-theme-v2", "light");
@@ -41,7 +42,7 @@ async function mockItemSearch(page: Page) {
 
     if (query === "missing zeppelin") {
       emptyRequestCount += 1;
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await new Promise<void>((resolve) => pendingEmptyResponses.push(resolve));
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -97,7 +98,10 @@ async function mockItemSearch(page: Page) {
     });
   });
 
-  return () => emptyRequestCount;
+  return {
+    getEmptyRequestCount: () => emptyRequestCount,
+    releaseEmptyResponse: () => pendingEmptyResponses.shift()?.(),
+  };
 }
 
 for (const viewport of [
@@ -106,7 +110,7 @@ for (const viewport of [
 ]) {
   test(`empty Item Locator results are immediate and actionable on ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    const getEmptyRequestCount = await mockItemSearch(page);
+    const { getEmptyRequestCount, releaseEmptyResponse } = await mockItemSearch(page);
 
     await page.goto("/buyer/item-locator?radius=50");
     const search = page.getByLabel("Search item keyword");
@@ -129,7 +133,11 @@ for (const viewport of [
     await expect(page.locator(".locator-result-card")).toHaveCount(1);
 
     await search.fill("missing zeppelin");
-    await page.getByRole("button", { name: "Locate item" }).click();
+    const firstEmptyRequest = page.waitForRequest((request) => (
+      new URL(request.url()).searchParams.get("q") === "missing zeppelin"
+    ));
+    await search.press("Enter");
+    await firstEmptyRequest;
 
     const status = page.getByRole("status");
     await expect(status).toContainText(
@@ -138,6 +146,7 @@ for (const viewport of [
     await expect(page.locator(".locator-result-card")).toHaveCount(0);
     await expect(clear).toBeEnabled();
     await clear.click();
+    releaseEmptyResponse();
     await expect(status).toHaveCount(0);
     await expect(page.locator(".locator-result-card")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Search for an item to locate it" })).toBeVisible();
@@ -146,7 +155,12 @@ for (const viewport of [
     await expect(page).toHaveURL(/\/buyer\/item-locator\?radius=50$/);
 
     await search.fill("missing zeppelin");
-    await page.getByRole("button", { name: "Locate item" }).click();
+    const secondEmptyRequest = page.waitForRequest((request) => (
+      new URL(request.url()).searchParams.get("q") === "missing zeppelin"
+    ));
+    await search.press("Enter");
+    await secondEmptyRequest;
+    releaseEmptyResponse();
     await expect(status).toContainText(
       "No pawnshops currently have “missing zeppelin” available.",
     );
@@ -165,11 +179,16 @@ for (const viewport of [
       "/saved-searches?q=missing+zeppelin&query=missing+zeppelin&radius=50",
     );
 
-    await page.getByRole("button", { name: "Locate item" }).click();
+    const thirdEmptyRequest = page.waitForRequest((request) => (
+      new URL(request.url()).searchParams.get("q") === "missing zeppelin"
+    ));
+    await search.press("Enter");
+    await thirdEmptyRequest;
     await expect(status).toContainText(
       "Searching PawnLoop inventory for “missing zeppelin”…",
     );
     await expect.poll(getEmptyRequestCount).toBe(3);
+    releaseEmptyResponse();
     await expect(status).toContainText(
       "No pawnshops currently have “missing zeppelin” available.",
     );
