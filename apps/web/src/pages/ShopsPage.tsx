@@ -798,7 +798,7 @@ export default function ShopsPage() {
   }
 
   return (
-    <main className="shops2-page">
+    <div className="shops2-page">
       <section className="shops2-hero">
         <div className="shops2-hero-copy">
           <span className="shops2-pill">Pawnshop discovery</span>
@@ -1213,6 +1213,6 @@ export default function ShopsPage() {
         </section>
       ) : null}
 
-    </main>
+    </div>
   );
 }

@@ -26,6 +26,7 @@ import {
 } from "../services/marketplaceTransactions";
 
 import "../styles/marketplace-buy-now.css";
+import { usePublicPreview } from "../publicPreview/publicPreviewState";
 
 const pageStyle: CSSProperties = {
   width:
@@ -159,6 +160,7 @@ function isConsumerPurchaseListing(
 }
 
 export default function MarketplaceBuyNowPage() {
+  const { readOnly: publicPreviewReadOnly } = usePublicPreview();
   const navigate =
     useNavigate();
 
@@ -1293,6 +1295,7 @@ export default function MarketplaceBuyNowPage() {
                         )
                       }
                       disabled={
+                        publicPreviewReadOnly ||
                         ownListing ||
                         reserving ||
                         reservingListingId !==
@@ -1328,6 +1331,8 @@ export default function MarketplaceBuyNowPage() {
                     >
                       {ownListing
                         ? "Your listing"
+                        : publicPreviewReadOnly
+                          ? "Purchases unavailable"
                         : reserving
                           ? "Reserving..."
                           : getAuthToken()

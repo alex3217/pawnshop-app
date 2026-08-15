@@ -13,6 +13,7 @@ import {
   getAuctionCountdown,
   getEffectiveAuctionStatus,
 } from "../../../../shared/auctionStatus.mjs";
+import { usePublicPreview } from "../publicPreview/publicPreviewState";
 
 type AuctionStatus = "SCHEDULED" | "LIVE" | "ENDED" | "CANCELED" | string;
 
@@ -182,6 +183,7 @@ function getEffectiveEndDate(auction: Auction | null) {
 }
 
 export default function AuctionDetailPage() {
+  const { readOnly: publicPreviewReadOnly } = usePublicPreview();
   const { id } = useParams<{ id: string }>();
 
   const [auction, setAuction] = useState<Auction | null>(null);
@@ -219,6 +221,7 @@ export default function AuctionDetailPage() {
   const suggestedBid = useMemo(() => getSuggestedBidValue(auction), [auction]);
 
   const bidDisabled =
+    publicPreviewReadOnly ||
     loading ||
     refreshing ||
     submitting ||
@@ -619,9 +622,11 @@ export default function AuctionDetailPage() {
                 disabled={bidDisabled}
                 className="auction2-primary-button"
               >
-                {submitting ? "Placing bid..." : "Place bid"}
+                {publicPreviewReadOnly ? "Bidding unavailable" : submitting ? "Placing bid..." : "Place bid"}
               </button>
             </div>
+
+            {publicPreviewReadOnly ? <div className="auction2-warning" role="status">Bids are disabled during the browsing-only public preview.</div> : null}
 
             {!token ? <div className="auction2-warning">Login as a buyer to place bids.</div> : null}
 

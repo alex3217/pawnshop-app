@@ -90,7 +90,7 @@
 
 .seller-listing-requirement {
   max-width: 150px;
-  color: var(--seller-danger, #b91c1c);
+  color: var(--danger);
   font-size: 12px;
   font-weight: 700;
 }

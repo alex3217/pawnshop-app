@@ -281,6 +281,16 @@ async function installAuth(
             "OWNER",
         }),
       );
+
+      localStorage.setItem(
+        "pawnloop-navigation-assistance-OWNER-v2",
+        JSON.stringify({
+          automaticPrompts: false,
+          completedTopics: ["full-tour"],
+          dismissedGuidance: true,
+          floatingButtonVisible: false,
+        }),
+      );
     },
     {
       ownerId:
@@ -314,6 +324,42 @@ async function installMocks(
         new URL(
           request.url(),
         ).pathname;
+
+      if (
+        method === "GET" &&
+        pathname === "/api/notifications"
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: jsonBody({ success: true, notifications: [] }),
+        });
+        return;
+      }
+
+      if (
+        method === "GET" &&
+        pathname === "/api/auth/me"
+      ) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: jsonBody({
+            success: true,
+            user: {
+              id: OWNER_ID,
+              name: "Scanner Marketplace Browser Owner",
+              email: "scanner-marketplace@pawnloop.test",
+              role: "OWNER",
+              ownerApplication: {
+                id: "scanner-marketplace-owner-application",
+                status: "APPROVED",
+              },
+            },
+          }),
+        });
+        return;
+      }
 
       if (
         method === "GET" &&

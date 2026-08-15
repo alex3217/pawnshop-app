@@ -13,6 +13,8 @@ const LOCAL_DEVELOPMENT_HOSTNAMES = new Set([
 ]);
 const DEPLOYED_CORS_CONFIGURATION_HELP =
   "CORS_ORIGINS, CORS_ORIGIN, FRONTEND_URL, or WEB_URL must contain explicit approved HTTP(S) origins.";
+const CLOUDFLARE_PREVIEW_PROJECT_HOSTNAME =
+  "pawnloop-frontend.pages.dev";
 
 function invalidDeployedCorsConfiguration(reason) {
   return new Error(
@@ -97,9 +99,59 @@ export function assertDeployedCorsConfiguration(env = process.env) {
   return allowedOrigins;
 }
 
-export function createCorsOriginHandler(allowedOrigins) {
+function isStagingEnvironment(env) {
+  const environments = [env.APP_ENV, env.NODE_ENV]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .filter(Boolean);
+
+  return (
+    environments.includes("staging") &&
+    !environments.includes("production")
+  );
+}
+
+export function isTrustedStagingPreviewOrigin(origin, env = process.env) {
+  if (!isStagingEnvironment(env) || typeof origin !== "string") {
+    return false;
+  }
+
+  let parsed;
+
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return false;
+  }
+
+  const previewSuffix = `.${CLOUDFLARE_PREVIEW_PROJECT_HOSTNAME}`;
+  const previewLabel = parsed.hostname.endsWith(previewSuffix)
+    ? parsed.hostname.slice(0, -previewSuffix.length)
+    : "";
+  const isCanonicalHttpsOrigin =
+    parsed.protocol === "https:" &&
+    parsed.username === "" &&
+    parsed.password === "" &&
+    parsed.port === "" &&
+    parsed.pathname === "/" &&
+    parsed.search === "" &&
+    parsed.hash === "" &&
+    origin === parsed.origin;
+  const isValidPreviewLabel =
+    previewLabel.length > 0 &&
+    previewLabel.length <= 63 &&
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(previewLabel);
+
+  return isCanonicalHttpsOrigin && isValidPreviewLabel;
+}
+
+export function createCorsOriginHandler(allowedOrigins, env = process.env) {
   return (origin, callback) => {
-    if (!origin || allowedOrigins.size === 0 || allowedOrigins.has(origin)) {
+    if (
+      !origin ||
+      allowedOrigins.size === 0 ||
+      allowedOrigins.has(origin) ||
+      isTrustedStagingPreviewOrigin(origin, env)
+    ) {
       return callback(null, true);
     }
 
