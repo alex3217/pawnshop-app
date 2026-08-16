@@ -1,4 +1,26 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function waitForStableScrollAndGeometry(control: Locator) {
+  await control.evaluate(element => new Promise<void>((resolve) => {
+    let previous: number[] | undefined;
+    let stableFrames = 0;
+
+    const observe = () => {
+      const rect = element.getBoundingClientRect();
+      const current = [window.scrollX, window.scrollY, rect.x, rect.y, rect.width, rect.height];
+      const stable = previous?.every((value, index) => Math.abs(value - current[index]) < 0.25) ?? false;
+      stableFrames = stable ? stableFrames + 1 : 0;
+      previous = current;
+
+      if (stableFrames >= 3) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(observe);
+    };
+    requestAnimationFrame(observe);
+  }));
+}
 
 const application = {
   id: "application-1",
@@ -1086,7 +1108,10 @@ test("new blank owner applications use accessible standardized controls and vali
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Save Draft" }).click();
   await expect(page.locator("#owner-businessTypeOther")).toBeFocused();
-  await page.locator("#owner-application-errors a").first().click();
+  const validationSummaryLink = page.locator("#owner-application-errors a").first();
+  await validationSummaryLink.scrollIntoViewIfNeeded();
+  await waitForStableScrollAndGeometry(validationSummaryLink);
+  await validationSummaryLink.click();
   await expect(page.locator("#owner-businessTypeOther")).toBeFocused();
   await expect(page.getByText(/Describe the other business type using 3 to/).first()).toBeVisible();
   const region = page.getByLabel(/^State \/ region/);
