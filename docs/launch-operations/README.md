@@ -9,6 +9,7 @@ This directory is the operator entry point for a paid-beta launch. Creating thes
 - [Incident response](incident-response.md): severity, command, lifecycle, emergency access, communications, and postmortems.
 - [Incident playbooks](incident-playbooks.md): service, security, data, payment, and provider scenarios.
 - [Rollback runbook](rollback-runbook.md): application/configuration rollback and database safety.
+- [Production release control](../production-release-control-v1.md): immutable-SHA promotion, production approvals, provider pause points, and required checks.
 - [Paid-beta launch checklist](paid-beta-launch-checklist.md): evidence-based go/no-go record.
 - [First 72 hours](first-72-hours.md): observation cadence, continuation decisions, and stop criteria.
 

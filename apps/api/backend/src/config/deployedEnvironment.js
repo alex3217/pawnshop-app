@@ -260,6 +260,9 @@ export function validateDeployedEnvironment(env, { environment } = {}) {
     violations.push("APP_VERSION must be immutable revision metadata");
   }
   const revision = resolveEffectiveRevision(env);
+  if (target === "production" && revision && !/^[0-9a-f]{40}$/.test(revision)) {
+    violations.push("production revision must be a full lowercase 40-character Git SHA");
+  }
 
   canonicalHttpsOrigin(env, "API_ORIGIN", violations);
   canonicalHttpsOrigin(env, "FRONTEND_URL", violations);
