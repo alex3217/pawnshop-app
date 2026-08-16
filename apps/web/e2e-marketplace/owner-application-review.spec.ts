@@ -1109,8 +1109,32 @@ test("new blank owner applications use accessible standardized controls and vali
   await page.getByRole("button", { name: "Save Draft" }).click();
   await expect(page.locator("#owner-businessTypeOther")).toBeFocused();
   const validationSummaryLink = page.locator("#owner-application-errors a").first();
-  await validationSummaryLink.scrollIntoViewIfNeeded();
+  await validationSummaryLink.evaluate(element => element.scrollIntoView({ block: "center", inline: "nearest" }));
   await waitForStableScrollAndGeometry(validationSummaryLink);
+  const linkBox = await validationSummaryLink.boundingBox();
+  expect(linkBox, "validation-summary link must have a usable pointer target").not.toBeNull();
+  const clickPoint = {
+    x: linkBox!.x + linkBox!.width / 2,
+    y: linkBox!.y + linkBox!.height / 2,
+  };
+  const viewport = page.viewportSize();
+  expect(viewport, "validation-summary pointer geometry requires a viewport").not.toBeNull();
+  expect(clickPoint.x, "validation-summary click point must be inside the viewport width").toBeGreaterThanOrEqual(0);
+  expect(clickPoint.x, "validation-summary click point must be inside the viewport width").toBeLessThan(viewport!.width);
+  expect(clickPoint.y, "validation-summary click point must be inside the viewport height").toBeGreaterThanOrEqual(0);
+  expect(clickPoint.y, "validation-summary click point must be inside the viewport height").toBeLessThan(viewport!.height);
+  const stickyHeaderBox = await page.locator(".site-header").boundingBox();
+  if (stickyHeaderBox) {
+    expect(clickPoint.y, "validation-summary click point must be below the sticky header").toBeGreaterThan(stickyHeaderBox.y + stickyHeaderBox.height);
+  }
+  const primaryNavigationBox = await page.getByRole("navigation", { name: "Primary navigation" }).boundingBox();
+  if (primaryNavigationBox) {
+    const coveredByPrimaryNavigation = clickPoint.x >= primaryNavigationBox.x
+      && clickPoint.x <= primaryNavigationBox.x + primaryNavigationBox.width
+      && clickPoint.y >= primaryNavigationBox.y
+      && clickPoint.y <= primaryNavigationBox.y + primaryNavigationBox.height;
+    expect(coveredByPrimaryNavigation, "validation-summary click point must not be covered by primary navigation").toBe(false);
+  }
   await validationSummaryLink.click();
   await expect(page.locator("#owner-businessTypeOther")).toBeFocused();
   await expect(page.getByText(/Describe the other business type using 3 to/).first()).toBeVisible();
