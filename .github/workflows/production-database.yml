@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       backup_evidence:
-        description: URL or ID for the fresh backup and restore-verification evidence
+        description: URL or ID for fresh backup and restore-verification evidence
         required: true
         type: string
       backup_confirmation:
@@ -33,12 +33,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
-
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DIRECT_URL: ${{ secrets.DATABASE_URL }}
       APPROVED_PRODUCTION_DATABASE_HOST: ${{ vars.PRODUCTION_DATABASE_HOST }}
       PRODUCTION_API_ORIGIN: ${{ vars.PRODUCTION_API_ORIGIN }}
+      PRODUCTION_RENDER_ORIGIN: ${{ vars.PRODUCTION_RENDER_ORIGIN }}
+      PRODUCTION_RENDER_SERVICE_ID: ${{ vars.PRODUCTION_RENDER_SERVICE_ID }}
+      PRODUCTION_RENDER_SERVICE_NAME: ${{ vars.PRODUCTION_RENDER_SERVICE_NAME }}
+      PRODUCTION_RENDER_ENVIRONMENT_ID: ${{ vars.PRODUCTION_RENDER_ENVIRONMENT_ID }}
+      PRODUCTION_RENDER_SOURCE_SHA: ${{ vars.PRODUCTION_RENDER_SOURCE_SHA }}
       RELEASE_SHA: ${{ inputs.release_sha }}
       CONFIRMED_DATABASE_HOST: ${{ inputs.production_database_host }}
       BACKUP_EVIDENCE: ${{ inputs.backup_evidence }}
@@ -49,62 +51,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Release SHA must be a full lowercase 40-character Git SHA."
-            exit 1
-          fi
-
-          if [ "$BACKUP_CONFIRMATION" != "BACKUP_EVIDENCE_VERIFIED" ]; then
-            echo "Exact backup-evidence confirmation was not supplied."
-            exit 1
-          fi
-
-          if [ -z "$BACKUP_EVIDENCE" ]; then
-            echo "A backup and restore-verification evidence reference is required."
-            exit 1
-          fi
-
-      - name: Verify exact production database target
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          node <<'NODE'
-          const databaseUrl = process.env.DATABASE_URL || "";
-          const approvedHost = process.env.APPROVED_PRODUCTION_DATABASE_HOST || "";
-          const confirmedHost = process.env.CONFIRMED_DATABASE_HOST || "";
-          const hostnamePattern = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/i;
-
-          if (!databaseUrl) throw new Error("Missing production DATABASE_URL secret.");
-          if (!approvedHost || !hostnamePattern.test(approvedHost)) {
-            throw new Error("PRODUCTION_DATABASE_HOST must be a valid hostname-only production variable.");
-          }
-          const normalizedHost = approvedHost.toLowerCase();
-          if (normalizedHost === "localhost" || normalizedHost.endsWith(".localhost") || /^127(?:\.|$)/.test(normalizedHost)) {
-            throw new Error("PRODUCTION_DATABASE_HOST must not be local or loopback.");
-          }
-          if (confirmedHost !== approvedHost) {
-            throw new Error("Operator database host confirmation does not exactly match the approved production host.");
-          }
-
-          let parsed;
-          try {
-            parsed = new URL(databaseUrl);
-          } catch {
-            throw new Error("Production DATABASE_URL is invalid.");
-          }
-          if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
-            throw new Error("Production DATABASE_URL is not PostgreSQL.");
-          }
-          if (parsed.hostname !== approvedHost) {
-            throw new Error("Production DATABASE_URL does not exactly target the approved host.");
-          }
-          console.log("Production database target verified without exposing connection details.");
-          NODE
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$BACKUP_CONFIRMATION" = "BACKUP_EVIDENCE_VERIFIED"
+          test -n "$BACKUP_EVIDENCE"
+          test "$CONFIRMED_DATABASE_HOST" = "$APPROVED_PRODUCTION_DATABASE_HOST"
 
       - name: Check out certified release SHA
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.release_sha }}
           fetch-depth: 0
@@ -117,65 +70,69 @@ jobs:
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
           git merge-base --is-ancestor "$RELEASE_SHA" origin/main
 
+      - name: Verify production containment before preparation
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/verify-production-containment.mjs
+
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20.20.2
           cache: npm
           cache-dependency-path: apps/api/backend/package-lock.json
 
-      - name: Install certified backend dependencies
-        run: npm --prefix apps/api/backend ci
+      - name: Install certified backend dependencies without lifecycle scripts
+        run: npm --prefix apps/api/backend ci --ignore-scripts
 
-      - name: Validate certified Prisma schema
+      - name: Generate and validate certified Prisma client explicitly
         working-directory: apps/api/backend
+        env:
+          DATABASE_URL: postgresql://schema-validation.invalid/pawnloop
+          DIRECT_URL: postgresql://schema-validation.invalid/pawnloop
         run: |
           npx --no-install prisma generate
           npx --no-install prisma validate
 
-      - name: Record pre-migration status
-        working-directory: apps/api/backend
-        shell: bash
-        run: |
-          set +e
-          npx --no-install prisma migrate status
-          status=$?
-          set -e
-          if [ "$status" -gt 1 ]; then
-            echo "Prisma migration status inspection failed unexpectedly."
-            exit "$status"
-          fi
-          echo "Pre-migration status inspected; the guarded application step remains authoritative for pending migrations."
-
-      - name: Re-verify all mutation guards
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$BACKUP_CONFIRMATION" = "BACKUP_EVIDENCE_VERIFIED"
-          test -n "$BACKUP_EVIDENCE"
-          test "$CONFIRMED_DATABASE_HOST" = "$APPROVED_PRODUCTION_DATABASE_HOST"
-          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-
-      - name: Apply certified production migrations
-        working-directory: apps/api/backend
-        run: npx --no-install prisma migrate deploy
-
-      - name: Verify post-migration status
-        working-directory: apps/api/backend
-        run: npx --no-install prisma migrate status
-
-      - name: Verify production readiness gate
+      - name: Verify exact production database target
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         shell: bash
         run: |
           set -euo pipefail
           node <<'NODE'
-          const value = process.env.PRODUCTION_API_ORIGIN || "";
-          let url;
-          try { url = new URL(value); } catch { throw new Error("PRODUCTION_API_ORIGIN is invalid."); }
-          if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-            throw new Error("PRODUCTION_API_ORIGIN must be a credential-free HTTPS origin.");
-          }
+          const value = process.env.DATABASE_URL || "";
+          const approved = process.env.APPROVED_PRODUCTION_DATABASE_HOST || "";
+          const confirmed = process.env.CONFIRMED_DATABASE_HOST || "";
+          if (!approved || confirmed !== approved) throw new Error("Production database host confirmation mismatch.");
+          let parsed; try { parsed = new URL(value); } catch { throw new Error("Production DATABASE_URL is invalid."); }
+          if (!["postgres:", "postgresql:"].includes(parsed.protocol) || parsed.hostname !== approved) throw new Error("Production database target mismatch.");
+          if (approved === "localhost" || approved.endsWith(".localhost") || /^127(?:\.|$)/.test(approved)) throw new Error("Production database host must not be local.");
+          console.log("Production database target verified without exposing connection details.");
           NODE
-          readiness_url="$(node -e 'const u=new URL(process.env.PRODUCTION_API_ORIGIN); process.stdout.write(new URL("/api/ready",u).href)')"
-          curl --fail --silent --show-error --max-time 15 --retry 2 --retry-all-errors "$readiness_url" >/dev/null
-          echo "Production /api/ready gate passed."
+
+      - name: Record pre-migration status
+        working-directory: apps/api/backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DATABASE_URL }}
+        run: npx --no-install prisma migrate status
+
+      - name: Re-verify production containment immediately before migration
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/verify-production-containment.mjs
+
+      - name: Apply certified production migrations
+        working-directory: apps/api/backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DATABASE_URL }}
+        run: npx --no-install prisma migrate deploy
+
+      - name: Verify post-migration status
+        working-directory: apps/api/backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DATABASE_URL }}
+        run: npx --no-install prisma migrate status

@@ -33,7 +33,7 @@ Every numbered mutation below is a separate pause point. Before each provider ac
 
 The API and frontend release is incomplete unless provider evidence proves both use the same certified SHA. Do not infer parity from successful health checks or source branch names. `GET /api/health` is liveness only; `GET /api/ready` is the production health gate.
 
-Export a redacted JSON evidence file with `expectedSha`, `api` (`readinessPath`, `status`, `ready`, `revision`), `frontend.revision`, `database.releaseSha`, and `releaseRecord.releaseSha`, then run `npm run verify:production-release -- <file>`. The verifier reads only that operator-collected evidence, requires `/api/ready`, and fails closed if any revision is missing, malformed, or different. It has no provider credentials or mutation capability. The API revision comes from `/api/ready`; the frontend revision and deploy ID come from Cloudflare's deployment record; the database release SHA comes from the guarded workflow run; and the release-record SHA is the immutable candidate recorded before mutation.
+Export a redacted JSON evidence file and run `npm run verify:production-release -- <file>`. The verifier checks evidence consistency and requires immutable references; it does not claim that operator-authored JSON proves authenticity. Independently collect records through provider APIs and record fresh UTC collection timestamps for the provenance envelope and each GitHub, database, Cloudflare, and Render record, `collectionMethod: independent-provider-api`, the exact GitHub repository/run ID/run URL/commit, production-database workflow run ID/run URL, Cloudflare account/project/deployment ID/deployment URL/source SHA, Render service/environment/deployment IDs/deployment URL/source SHA, and immutable release-record ID/URL/SHA. Every critical SHA must match. Missing, placeholder, malformed, stale, or contradictory identifiers fail closed. Outputs remain sanitized and must never contain response bodies, credentials, tokens, or environment values.
 
 ## Verification and rollback
 
@@ -43,7 +43,11 @@ Rollback requires the recorded last-known-good SHA, provider deploy IDs, and an 
 
 ## Required provider configuration
 
-Repository changes do not configure providers. An authorized operator must make and evidence the following changes manually before this control can be claimed effective.
+Repository code enforces immutable workflow inputs, exact database targeting, twice-executed production containment, narrowly scoped secrets, immutable Action references, lifecycle-disabled dependency installation, and evidence-consistency/provenance-reference contracts. Repository changes do not configure providers. The GitHub production environment must exist before merge or integration, and an authorized operator must make and evidence the following external changes before this control can be claimed effective.
+
+At the time of PR #314 remediation, the GitHub production environment does not exist, no required production-environment reviewer gate exists, the `main` ruleset does not require `Seller Subscription Browser Tests`, and PR #314 still needs a qualifying independent approval. Required reviewers, prevention of self-review where supported, and deployment branch/tag restrictions must be configured externally. Cloudflare automatic production builds also require direct operator verification; repository evidence must not claim that setting is complete.
+
+No migration may run unless both executable containment checks pass: once before dependency preparation and again in the step immediately preceding `prisma migrate deploy`. Each check independently queries the exact Render service and deploy records, requires the expected Production environment, maintenance enabled, automatic deployment disabled, a well-formed live deployment matching the configured immutable source SHA, and HTTP 503 from health/readiness at both the Render and canonical origins. Missing credentials/variables/records, provider failures, malformed JSON, wrong identity/origin, healthy or writable responses, and contradictory evidence fail closed.
 
 PR #314 implements the repository workflow, production revision validation, offline parity verifier, contract tests, and this runbook. PR #315 is independent Super Admin inventory-support work and provides no release-control dependency. PRs #317 and #318 are separate closed Super Admin work. None of those changes are duplicated here.
 
@@ -53,7 +57,8 @@ PR #314 implements the repository workflow, production revision validation, offl
 - Keep staging as the release-candidate service and production as a separate service/environment.
 - Set the production health-check path to `/api/ready`.
 - Ensure the API deploy UI/record exposes the exact commit SHA and restrict production deployment permission to approved operators.
-- Configure the GitHub `production` environment with required reviewers, prevent self-review where supported, restrict deployment branches/tags appropriately, and set `PRODUCTION_DATABASE_HOST` plus `PRODUCTION_API_ORIGIN` as non-secret variables and `DATABASE_URL` as a secret.
+- Configure the GitHub `production` environment with required reviewers, prevent self-review where supported, and restrict deployment branches/tags appropriately.
+- Add non-secret environment variables `PRODUCTION_DATABASE_HOST`, `PRODUCTION_API_ORIGIN`, `PRODUCTION_RENDER_ORIGIN`, `PRODUCTION_RENDER_SERVICE_ID`, `PRODUCTION_RENDER_SERVICE_NAME`, `PRODUCTION_RENDER_ENVIRONMENT_ID`, and immutable `PRODUCTION_RENDER_SOURCE_SHA`. Add secrets `DATABASE_URL` and read-only, least-privilege `RENDER_API_KEY`. Values belong only in GitHub environment configuration and must never be committed.
 
 ### Cloudflare
 
