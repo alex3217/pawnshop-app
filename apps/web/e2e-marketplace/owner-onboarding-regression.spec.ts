@@ -36,6 +36,14 @@ async function session(page: Page, activeShop = "shop-a") {
     localStorage.setItem("auth_role", "OWNER");
     localStorage.setItem("auth_user", JSON.stringify({ id: "owner-1", name: "Owner", email: "owner@test", role: "OWNER", ownerApplication: { id: "app-1", status: "APPROVED", submittedAt: null, reviewedAt: null, decisionReason: null, statusChangedAt: null } }));
     localStorage.setItem("pawnloop-owner-active-shop-owner-1", selectedShop);
+    // This checklist-focused suite deliberately opts out of the supported
+    // automatic navigation prompt while leaving assistance coverage untouched.
+    localStorage.setItem("pawnloop-navigation-assistance-OWNER-v2", JSON.stringify({
+      automaticPrompts: false,
+      completedTopics: ["full-tour"],
+      dismissedGuidance: true,
+      floatingButtonVisible: false,
+    }));
   }, { selectedShop: activeShop });
 }
 
@@ -67,6 +75,7 @@ async function mockOwnerApi(page: Page) {
 }
 
 async function openChecklist(page: Page) {
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await page.getByRole("button", { name: /Owner setup/ }).click();
   await expect(page.getByLabel("Pawn shop owner setup checklist")).toBeVisible();
 }
