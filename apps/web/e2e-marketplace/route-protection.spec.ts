@@ -21,20 +21,38 @@ async function installSession(page: Page, role: TestRole) {
 }
 
 async function mockApi(page: Page) {
-  await page.route("**/api/**", (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({
-      success: true,
-      items: [],
-      rows: [],
-      data: [],
-      shops: [],
-      capabilities: {},
-      notifications: [],
-      pagination: { page: 1, limit: 25, total: 0, totalPages: 0 },
-    }),
-  }));
+  await page.route("**/api/**", (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    const body = pathname === "/api/admin/owner-applications"
+      ? {
+          success: true,
+          rows: [],
+          pagination: {
+            page: 1,
+            limit: 25,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        }
+      : {
+          success: true,
+          items: [],
+          rows: [],
+          data: [],
+          shops: [],
+          capabilities: {},
+          notifications: [],
+          pagination: { page: 1, limit: 25, total: 0, totalPages: 0 },
+        };
+
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+  });
 }
 
 test.beforeEach(async ({ page }) => {

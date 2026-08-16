@@ -21,6 +21,8 @@ import { BUYER_NAVIGATION } from "../navigation/buyerNavigation";
 import { ENVIRONMENT } from "../config";
 import EnvironmentIndicator from "./EnvironmentIndicator.mjs";
 import "../styles/site-layout.css";
+import PublicPreviewBanner from "../publicPreview/PublicPreviewBanner";
+import { usePublicPreview } from "../publicPreview/publicPreviewState";
 
 type NavItem = {
   to: string;
@@ -196,6 +198,7 @@ function getWorkspaceLabel(
 }
 
 export default function SiteLayout() {
+  const { readOnly: publicPreviewReadOnly } = usePublicPreview();
   const mobileMenuRef = useRef<HTMLDetailsElement>(null);
   const primaryMoreMenuRef = useRef<HTMLDetailsElement>(null);
   const workspaceMenuRef = useRef<HTMLDetailsElement>(null);
@@ -354,7 +357,9 @@ export default function SiteLayout() {
       ...(showOwnerLinks ? OWNER_PRIMARY_NAV.slice(0, 2) : []),
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV.slice(0, 1) : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
-      ...(showGuestLinks ? GUEST_NAV : []),
+      ...(showGuestLinks
+        ? GUEST_NAV.filter((item) => !publicPreviewReadOnly || item.to !== "/register")
+        : []),
     ]);
 
     const workspace = dedupeNav([
@@ -389,7 +394,9 @@ export default function SiteLayout() {
       ...(showOwnerLinks ? OWNER_PRIMARY_NAV : []),
       ...(showAdminLinks ? ADMIN_PRIMARY_NAV : []),
       ...(showSuperAdminLinks ? SUPER_ADMIN_PRIMARY_NAV : []),
-      ...(showGuestLinks ? GUEST_NAV : []),
+      ...(showGuestLinks
+        ? GUEST_NAV.filter((item) => !publicPreviewReadOnly || item.to !== "/register")
+        : []),
       ...(!showBuyerLinks && role ? [{ to: "/knowledge", label: "Knowledge Center" }] : []),
       { to: "/terms", label: "Terms of Service" },
       { to: "/privacy", label: "Privacy Policy" },
@@ -415,6 +422,7 @@ export default function SiteLayout() {
   }, [
     isShopStaff,
     messageUnread,
+    publicPreviewReadOnly,
     role,
     showAdminLinks,
     showBuyerLinks,
@@ -471,6 +479,7 @@ export default function SiteLayout() {
 
   return (
     <div className="site-shell">
+      <PublicPreviewBanner />
       <header className="site-header">
         <EnvironmentIndicator environment={ENVIRONMENT} />
         <div className="site-header-inner">
@@ -538,9 +547,11 @@ export default function SiteLayout() {
                   <Link to="/login" className="site-secondary-button">
                     Login
                   </Link>
-                  <Link to="/register" className="site-primary-button">
-                    Register
-                  </Link>
+                  {publicPreviewReadOnly ? (
+                    <span className="site-primary-button" aria-disabled="true">Browsing only</span>
+                  ) : (
+                    <Link to="/register" className="site-primary-button">Register</Link>
+                  )}
                 </>
               )}
               </div>
@@ -557,9 +568,11 @@ export default function SiteLayout() {
                   <Link to="/login" className="site-mobile-account-link">
                     Login
                   </Link>
-                  <Link to="/register" className="site-mobile-account-link site-mobile-account-link--primary">
-                    Register
-                  </Link>
+                  {publicPreviewReadOnly ? (
+                    <span className="site-mobile-account-link site-mobile-account-link--primary" aria-disabled="true">Browsing only</span>
+                  ) : (
+                    <Link to="/register" className="site-mobile-account-link site-mobile-account-link--primary">Register</Link>
+                  )}
                 </>
               )}
 
@@ -714,9 +727,15 @@ export default function SiteLayout() {
         </div>
       </header>
 
-      <main className="site-main" data-tour="main-content">
-        <Outlet />
-      </main>
+      {role === "ADMIN" || role === "SUPER_ADMIN" ? (
+        <div className="site-main" data-tour="main-content">
+          <Outlet />
+        </div>
+      ) : (
+        <main className="site-main" data-tour="main-content">
+          <Outlet />
+        </main>
+      )}
 
       <ScrollToTopButton />
       <NavigationTour role={role} />

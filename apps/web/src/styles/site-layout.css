@@ -26,6 +26,10 @@ html { scroll-padding-top: 190px; }
 }
 
 .site-environment-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 6px 16px;
   background: #7c2d12;
   color: #ffffff;
@@ -34,6 +38,42 @@ html { scroll-padding-top: 190px; }
   font-weight: 900;
   letter-spacing: 0.08em;
   line-height: 1.4;
+}
+
+:root[data-theme="dark"] .site-environment-indicator {
+  border-bottom: 1px solid #fdba74;
+  background: #431407;
+  color: #ffffff;
+}
+
+.site-environment-indicator a,
+.site-environment-indicator button {
+  color: inherit;
+}
+
+/* The legacy light-theme inline-style correction uses !important on spans.
+   Keep this override limited to the environment banner and its controls. */
+:root .site-header > .site-environment-indicator,
+:root .site-header > .site-environment-indicator :is(span, a, button) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root .site-header > .site-environment-indicator svg {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+:root .site-header > .site-environment-indicator a:hover,
+:root .site-header > .site-environment-indicator button:hover {
+  color: #ffedd5 !important;
+  -webkit-text-fill-color: #ffedd5 !important;
+}
+
+:root .site-header > .site-environment-indicator a:focus-visible,
+:root .site-header > .site-environment-indicator button:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
 }
 
 .site-header-inner {

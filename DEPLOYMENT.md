@@ -135,6 +135,16 @@ workflow compares hostnames without printing credentials or the URL.
 
 ### Production
 
+Production releases are manual promotions of a staging-certified immutable SHA;
+they are not automatic deployments of the moving `main` branch. `main` is the
+development integration branch and staging is the release-candidate environment.
+The API and frontend must be deployed from the same certified SHA, with a pause
+and separately recorded approval before every external production mutation.
+Follow `docs/production-release-control-v1.md` for the authoritative sequence,
+required GitHub checks, provider settings, rollback evidence, and last-known-good
+SHA requirements. Production must never automatically deploy every `main`
+commit. Repository work alone does not change Render or Cloudflare settings.
+
 Do not deploy production until production env, a fresh manifest-validated database backup, Stripe webhook, and rollback are verified. Follow `docs/production-backup-recovery-runbook-v1.md`; backup and restore commands require explicit environment, approved hostname, and database selections.
 
 Production process startup and `check:prod-preflight` use the same backend
@@ -142,7 +152,7 @@ deployed-environment validator. Validation occurs before the HTTP server listens
 The contract requires:
 
 - `APP_ENV=production`, `NODE_ENV=production`, `APP_NAME=pawnloop-api`, and an
-  immutable non-secret `APP_VERSION` or Git revision;
+  exact full lowercase 40-character Git SHA as the effective non-secret revision;
 - canonical HTTPS `API_ORIGIN`, frontend/web origins, and exact HTTP/Socket.IO
   CORS allowlists;
 - PostgreSQL `DATABASE_URL` whose hostname exactly matches the non-secret
@@ -199,6 +209,16 @@ Production backend:
     http://127.0.0.1:6001/api/health
 
 ## Required Pre-Deploy Checks
+
+GitHub branch protection for `main` must require these exact checks:
+
+- Web and API Validation
+- Mobile TypeScript Validation
+- Backend Automated Tests
+- Seller Subscription Browser Tests
+
+All four results must belong to the certified immutable release SHA. Production
+approval and provider revision evidence remain required after CI succeeds.
 
     git status --short
     git log --oneline --decorate -12
@@ -298,18 +318,13 @@ Do not reuse or expose either webhook signing secret.
 
 ## Rollback
 
-Rollback code:
-
-    git log --oneline --decorate -12
-    git checkout <last-good-commit>
-    npm run build:web
-    npm run check:prod-readiness
-    npm run pm2:prod
-    npm run check:deploy:prod
-
-Last known safe checkpoint before deployment runbook work:
-
-    9ad86d0 Add PM2 deployment runbook config
+Do not use a local checkout or a stale hard-coded commit as a production rollback.
+Every release record must identify a reviewed last-known-good immutable SHA and
+provider deploy IDs before the first production mutation. Follow
+`docs/launch-operations/rollback-runbook.md` and
+`docs/production-release-control-v1.md`; verify schema compatibility, obtain the
+rollback approval, use the provider's manual rollback control, and gate recovery
+on `GET /api/ready`.
 ### Buyer shop map browser key
 
 Set `VITE_GOOGLE_MAPS_BROWSER_API_KEY` in the frontend build environment only. In Cloudflare Pages, add it under **Workers & Pages → pawnloop-frontend → Settings → Variables and Secrets** for both Preview and Production. For a frontend hosted on Render, add it to the frontend Web Service under **Environment** so it is present during the Vite build. Do not add it to the backend service and do not substitute the server-only `GOOGLE_GEOCODING_API_KEY`.

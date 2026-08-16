@@ -14,12 +14,12 @@ The IC/release authority (`OWNER/TBD`) considers rollback when a release causes 
 ## Application rollback
 
 1. Freeze unrelated releases and state-changing test traffic.
-2. Select the exact reviewed last-known-good revision using deployment evidence; do not rely on the stale checkpoint in `DEPLOYMENT.md`.
+2. Select the exact reviewed last-known-good immutable SHA and provider deploy IDs from the release record. A production release may not begin without this rollback identity.
 3. Confirm current-schema compatibility and required environment contract before changing traffic/deployment.
 4. Use the approved deployment-provider rollback mechanism owned by `OWNER/TBD`. This repository does not automate Render or Cloudflare rollback.
 5. Record deploy ID/revision/timestamps and validate as below. If rollback fails, return command to the IC and reassess containment.
 
-`DEPLOYMENT.md` contains a legacy local `git checkout`/PM2 sequence. It is not sufficient production-provider automation and must not be treated as authorization to mutate this worktree or provider state.
+Local `git checkout`/PM2 sequences are not production-provider rollback and must not be treated as authorization to mutate a worktree or provider state. Pause for explicit rollback approval before each Render, Cloudflare, database, traffic, or configuration mutation.
 
 ## Configuration rollback
 

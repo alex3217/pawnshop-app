@@ -259,7 +259,7 @@ export default function SuperAdminSellerPlansPage() {
   }
 
   return (
-    <main className="seller-plan-control">
+    <section className="seller-plan-control">
       <section className="seller-plan-hero">
         <div>
           <div className="seller-plan-kicker">Plans &amp; Billing · Seller</div>
@@ -433,7 +433,7 @@ export default function SuperAdminSellerPlansPage() {
           onClose={closeEditor}
         />
       ) : null}
-    </main>
+    </section>
   );
 }
 

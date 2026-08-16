@@ -50,6 +50,10 @@ import {
 import { createAuthRateLimiters } from "./middleware/authRateLimit.js";
 import { createCorsOriginHandler, parseAllowedOrigins } from "./cors.js";
 import { resolveEffectiveRevision } from "./config/deployedEnvironment.js";
+import {
+  createProductionWriteGate,
+  createPublicCapabilitiesPayload,
+} from "./config/productionWrites.js";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
@@ -109,9 +113,9 @@ function mountApi(app, path, router) {
   app.use(`/api${normalizedPath}`, router);
 }
 
-function createCorsOptions(allowedOrigins) {
+function createCorsOptions(allowedOrigins, env = process.env) {
   return {
-    origin: createCorsOriginHandler(allowedOrigins),
+    origin: createCorsOriginHandler(allowedOrigins, env),
     credentials: true,
     optionsSuccessStatus: 204,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -197,6 +201,7 @@ function createErrorResponse(err, req) {
 
 export function createApp(options = {}) {
   const app = express();
+  const runtimeEnv = options.env || process.env;
   app.locals.aiListingDependencies = options.aiListingDependencies;
   const trustProxyHops = loadTrustProxyConfig(process.env);
   const authRateLimitConfig =
@@ -257,7 +262,7 @@ export function createApp(options = {}) {
     })
   );
 
-  const corsOptions = createCorsOptions(allowedOrigins);
+  const corsOptions = createCorsOptions(allowedOrigins, process.env);
   app.use(cors(corsOptions));
   app.options(/.*/, cors(corsOptions));
 
@@ -382,12 +387,21 @@ export function createApp(options = {}) {
   app.get("/api/health", noStore, healthHandler);
   app.get("/ready", noStore, readinessHandler);
   app.get("/api/ready", noStore, readinessHandler);
+  const capabilitiesHandler = (_req, res) => {
+    return res.status(200).json(createPublicCapabilitiesPayload(runtimeEnv));
+  };
+  app.get("/capabilities", noStore, capabilitiesHandler);
+  app.get("/api/capabilities", noStore, capabilitiesHandler);
 
   /**
    * Stripe webhook must stay before express.json().
    */
   app.use("/webhooks/stripe", stripeWebhookRoutes);
   app.use("/api/webhooks/stripe", stripeWebhookRoutes);
+
+  // Fail closed before general body parsing. The exact, signed Stripe webhook
+  // mounts above retain their raw-body handling and signature verification.
+  app.use(createProductionWriteGate({ env: runtimeEnv }));
 
   app.use(authRateLimiters.beforeBody);
 

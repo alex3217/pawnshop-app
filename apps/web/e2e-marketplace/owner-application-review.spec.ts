@@ -37,6 +37,15 @@ async function storeSession(
   role: "ADMIN" | "SUPER_ADMIN" | "OWNER" | "CONSUMER",
 ) {
   await page.addInitScript((selectedRole) => {
+    localStorage.setItem(
+      `pawnloop-navigation-assistance-${selectedRole}-v2`,
+      JSON.stringify({
+        automaticPrompts: false,
+        completedTopics: ["full-tour"],
+        dismissedGuidance: true,
+        floatingButtonVisible: false,
+      }),
+    );
     localStorage.setItem("auth_token", `${selectedRole.toLowerCase()}-token`);
     localStorage.setItem("auth_role", selectedRole);
     localStorage.setItem("auth_user", JSON.stringify({
@@ -843,7 +852,7 @@ test("owner application header and setup shortcut stay usable across responsive 
     await expect(continueSetup).toBeVisible();
     await expect(openDashboard).toBeVisible();
     await expect(shortcut).toHaveCSS("height", "48px");
-    await shortcut.evaluate(element => element.scrollIntoView({ block: "center", inline: "nearest" }));
+    await shortcut.scrollIntoViewIfNeeded();
 
     const layout = await page.evaluate(() => {
       const rect = (selector: string) =>
@@ -1074,6 +1083,7 @@ test("new blank owner applications use accessible standardized controls and vali
   }
   await businessType.selectOption("Other");
   await expect(page.getByLabel(/Other business type/)).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Save Draft" }).click();
   await expect(page.locator("#owner-businessTypeOther")).toBeFocused();
   await page.locator("#owner-application-errors a").first().click();

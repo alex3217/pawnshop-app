@@ -9,7 +9,12 @@ export default function EnvironmentIndicator({ environment }) {
 
   return createElement(
     "div",
-    { className: "site-environment-indicator", role: "status" },
-    label,
+    {
+      className: "site-environment-indicator",
+      role: "status",
+      "data-deploy-environment": environment.deployEnv,
+    },
+    createElement("span", { "aria-hidden": "true" }, "⚠"),
+    createElement("span", null, label),
   );
 }
