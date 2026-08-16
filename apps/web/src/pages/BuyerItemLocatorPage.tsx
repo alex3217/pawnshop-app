@@ -245,7 +245,9 @@ export default function BuyerItemLocatorPage() {
   const [watchingItemId, setWatchingItemId] = useState<string | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchRequestRef = useRef(initialQuery.trim() ? 1 : 0);
+  const searchGenerationRef = useRef(initialQuery.trim() ? 1 : 0);
+  const activeSearchControllerRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
 
   const loading = searchState === "loading";
   const canClearSearch = Boolean(
@@ -261,6 +263,16 @@ export default function BuyerItemLocatorPage() {
   );
 
   const radiusMiles = Number(radius) || 25;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      searchGenerationRef.current += 1;
+      activeSearchControllerRef.current?.abort();
+      activeSearchControllerRef.current = null;
+    };
+  }, []);
 
   function locatorHandoffHref(path: string) {
     const params = new URLSearchParams();
@@ -354,8 +366,15 @@ export default function BuyerItemLocatorPage() {
       return;
     }
 
+    activeSearchControllerRef.current?.abort();
     const controller = new AbortController();
-    const requestId = searchAttempt;
+    activeSearchControllerRef.current = controller;
+    const requestGeneration = searchAttempt;
+    const isCurrentRequest = () => (
+      mountedRef.current
+      && !controller.signal.aborted
+      && requestGeneration === searchGenerationRef.current
+    );
 
     async function load() {
       setSearchState("loading");
@@ -373,7 +392,7 @@ export default function BuyerItemLocatorPage() {
           controller.signal,
         );
 
-        if (!controller.signal.aborted && requestId === searchRequestRef.current) {
+        if (isCurrentRequest()) {
           setItems(result.items);
           setTotalItems(result.total);
           setSelectedItemId(result.items[0]?.id || null);
@@ -390,7 +409,7 @@ export default function BuyerItemLocatorPage() {
           );
         }
       } catch (err) {
-        if (!controller.signal.aborted && requestId === searchRequestRef.current) {
+        if (isCurrentRequest()) {
           setItems([]);
           setTotalItems(0);
           setSelectedItemId(null);
@@ -404,6 +423,9 @@ export default function BuyerItemLocatorPage() {
 
     return () => {
       controller.abort();
+      if (activeSearchControllerRef.current === controller) {
+        activeSearchControllerRef.current = null;
+      }
     };
   }, [appliedQuery, radiusMiles, searchAttempt, userPoint]);
 
@@ -439,7 +461,9 @@ export default function BuyerItemLocatorPage() {
     setAppliedQuery(nextQuery);
     setLastSearchedQuery(nextQuery);
     setHasSearched(true);
-    setSearchAttempt(++searchRequestRef.current);
+    const requestGeneration = searchGenerationRef.current + 1;
+    searchGenerationRef.current = requestGeneration;
+    setSearchAttempt(requestGeneration);
     setError(null);
     setNotice(null);
     setSearchState("loading");
@@ -466,11 +490,15 @@ export default function BuyerItemLocatorPage() {
     setItems([]);
     setTotalItems(0);
     setSelectedItemId(null);
-    setSearchAttempt(++searchRequestRef.current);
+    const requestGeneration = searchGenerationRef.current + 1;
+    searchGenerationRef.current = requestGeneration;
+    setSearchAttempt(requestGeneration);
   }
 
   function clearSearch() {
-    searchRequestRef.current += 1;
+    searchGenerationRef.current += 1;
+    activeSearchControllerRef.current?.abort();
+    activeSearchControllerRef.current = null;
     setQuery("");
     setAppliedQuery("");
     setLastSearchedQuery("");
