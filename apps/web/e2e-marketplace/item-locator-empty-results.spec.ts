@@ -1,4 +1,27 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function waitForStableScrollAndGeometry(control: Locator) {
+  await control.evaluate(element => new Promise<void>((resolve) => {
+    let previous: number[] | undefined;
+    let stableFrames = 0;
+
+    const observe = () => {
+      const rect = element.getBoundingClientRect();
+      const current = [window.scrollX, window.scrollY, rect.x, rect.y, rect.width, rect.height];
+      const stable = previous?.every((value, index) => Math.abs(value - current[index]) < 0.25) ?? false;
+      stableFrames = stable ? stableFrames + 1 : 0;
+      previous = current;
+
+      if (stableFrames >= 3) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(observe);
+    };
+
+    requestAnimationFrame(observe);
+  }));
+}
 
 const existingItem = {
   id: "existing-camera",
@@ -487,6 +510,8 @@ for (const viewport of [
     );
     await expect(page.locator(".locator-result-card")).toHaveCount(0);
 
+    await clear.scrollIntoViewIfNeeded();
+    await waitForStableScrollAndGeometry(clear);
     await clear.click();
     await expect(page.getByRole("heading", { name: "Search for an item to locate it" })).toBeVisible();
     await expect(status).toHaveCount(0);
