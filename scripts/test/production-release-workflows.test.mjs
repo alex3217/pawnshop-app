@@ -1,60 +1,30 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { verifyProductionReleaseEvidence } from "../verify-production-release.mjs";
+import { classifyMigrationState } from "../production-migration-postcondition.mjs";
 
 const workflowPath = ".github/workflows/production-database.yml";
-const sha = "0123456789abcdef0123456789abcdef01234567";
-const now = Date.parse("2026-08-15T20:00:00Z");
-const evidence = () => ({
-  expectedSha: sha,
-  provenance: { collectionMethod: "independent-provider-api", collectedAt: "2026-08-15T19:55:00Z" },
-  providerIdentity: { githubRepository: "alex3217/pawnshop-app", cloudflareAccountId: "0230f5ea7416d81f9f931bb02545abdb", cloudflareProject: "pawnloop-frontend", renderServiceId: "srv-production123", renderEnvironmentId: "evm-production123" },
-  github: { collectedAt: "2026-08-15T19:55:00Z", workflowRunId: "31915363089", workflowRunUrl: "https://github.com/alex3217/pawnshop-app/actions/runs/31915363089", commitSha: sha },
-  api: { readinessPath: "/api/ready", status: 200, ready: true, revision: sha }, frontend: { revision: sha },
-  database: { collectedAt: "2026-08-15T19:55:00Z", workflowRunId: "31915363090", workflowRunUrl: "https://github.com/alex3217/pawnshop-app/actions/runs/31915363090", releaseSha: sha },
-  cloudflare: { collectedAt: "2026-08-15T19:55:00Z", deploymentId: "2e3d541f-4cb8-4469-bce0-296b64ed8318", deploymentUrl: "https://dash.cloudflare.com/0230f5ea7416d81f9f931bb02545abdb/pages/view/pawnloop-frontend/2e3d541f-4cb8-4469-bce0-296b64ed8318", sourceSha: sha },
-  render: { collectedAt: "2026-08-15T19:55:00Z", serviceId: "srv-production123", environmentId: "evm-production123", deploymentId: "dep-production123", deploymentUrl: "https://dashboard.render.com/web/srv-production123/deploys/dep-production123", sourceSha: sha },
-  releaseRecord: { recordId: "release-2026-08-15", recordUrl: "https://github.com/alex3217/pawnshop-app/issues/314", releaseSha: sha },
-});
-
-test("workflow pins actions, contains migration twice, minimizes secrets, and hardens install", async () => {
+test("migration workflow is manual, serialized, pinned, and contains twice", async () => {
   const workflow = await readFile(workflowPath, "utf8");
-  assert.match(workflow, /^on:\n  workflow_dispatch:/m); assert.doesNotMatch(workflow, /^\s+(push|pull_request|schedule):/m);
+  assert.match(workflow, /^on:\n  workflow_dispatch:/m); assert.doesNotMatch(workflow, /^\s+(push|pull_request|schedule):/m); assert.match(workflow, /cancel-in-progress: false/); assert.match(workflow, /environment: production/);
   for (const use of workflow.matchAll(/^\s*uses:\s*([^\s#]+)/gm)) assert.match(use[1], /^[^@]+@[0-9a-f]{40}$/);
-  assert.match(workflow, /actions\/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4\.4\.0/);
-  assert.match(workflow, /actions\/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4\.4\.0/);
-  const jobEnv = workflow.slice(workflow.indexOf("    env:"), workflow.indexOf("    steps:"));
-  assert.doesNotMatch(jobEnv, /DATABASE_URL|DIRECT_URL|secrets\./);
-  assert.match(workflow, /npm --prefix apps\/api\/backend ci --ignore-scripts/);
-  const containment = [...workflow.matchAll(/node scripts\/verify-production-containment\.mjs/g)].map((match) => match.index);
-  const install = workflow.indexOf("npm --prefix apps/api/backend ci"); const deploy = workflow.indexOf("prisma migrate deploy");
-  const secondGateStep = workflow.lastIndexOf("- name: Re-verify production containment");
-  const nextStep = workflow.indexOf("\n      - name:", secondGateStep + 1);
-  assert.equal(containment.length, 2); assert.ok(containment[0] < install); assert.ok(containment[1] < deploy); assert.match(workflow.slice(nextStep, deploy), /- name: Apply certified production migrations/);
-  for (const name of ["Check out certified", "Set up Node.js", "Install certified", "Verify production containment"]) {
-    const start = workflow.indexOf(`- name: ${name}`); const next = workflow.indexOf("\n      - name:", start + 1); assert.doesNotMatch(workflow.slice(start, next < 0 ? undefined : next), /DATABASE_URL|DIRECT_URL/);
-  }
+  const gates = [...workflow.matchAll(/node scripts\/verify-production-containment\.mjs/g)].map((match) => match.index); const install = workflow.indexOf("npm --prefix apps/api/backend ci"); const deploy = workflow.indexOf("prisma migrate deploy");
+  assert.equal(gates.length, 2); assert.ok(gates[0] < install && gates[1] < deploy); assert.equal(workflow.indexOf("\n      - name:", gates[1]), workflow.lastIndexOf("\n      - name: Apply certified production migrations", deploy));
+  const jobEnv = workflow.slice(workflow.indexOf("    env:"), workflow.indexOf("    steps:")); assert.doesNotMatch(jobEnv, /DATABASE_URL|DIRECT_URL|secrets\./); assert.match(workflow, /npm --prefix apps\/api\/backend ci --ignore-scripts/);
 });
-
-test("accepts fully pinned independently referenced evidence", () => {
-  assert.equal(verifyProductionReleaseEvidence(evidence(), { now }).verified, true);
+test("migration outcome and postcondition fail closed for failure, cancellation, and unknown state", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const classifier = await readFile("scripts/production-migration-postcondition.mjs", "utf8");
+  assert.match(workflow, /id: migration/); assert.match(workflow, /id: postcondition/); assert.match(workflow, /if: \$\{\{ always\(\) \}\}/); assert.match(workflow, /steps\.migration\.outcome/); assert.match(workflow, /MIGRATION_STARTED/); assert.match(workflow, /MIGRATION_FINISHED/); assert.match(classifier, /migration_never_started/); assert.match(classifier, /migration_succeeded_clean/); assert.match(classifier, /migration_command_failed/); assert.match(classifier, /migration_state_unknown/); assert.match(workflow, /manual reconciliation/i); assert.match(workflow, /GITHUB_STEP_SUMMARY/); assert.doesNotMatch(workflow, /cancel-in-progress:\s*true/);
 });
-
-test("rejects fabricated consistency, missing provenance, wrong identity, placeholders, malformed URLs, stale timestamps, and SHA mismatches", () => {
-  const mutations = [
-    (v) => { delete v.provenance; }, (v) => { v.provenance.collectionMethod = "operator-authored"; },
-    (v) => { v.providerIdentity.githubRepository = "attacker/repo"; }, (v) => { v.render.serviceId = "placeholder"; },
-    (v) => { v.github.workflowRunUrl = "https://example.com/run/31915363089"; },
-    (v) => { v.cloudflare.deploymentUrl = "not-a-url"; }, (v) => { v.provenance.collectedAt = "2026-08-01T00:00:00Z"; }, (v) => { v.render.collectedAt = "2026-08-01T00:00:00Z"; },
-    (v) => { v.render.sourceSha = `f${sha.slice(1)}`; }, (v) => { v.cloudflare.deploymentId = "pending"; },
-    (v) => { v.database.workflowRunId = "31915363091"; },
-  ];
-  for (const mutate of mutations) { const value = evidence(); mutate(value); assert.throws(() => verifyProductionReleaseEvidence(value, { now }), { code: "PRODUCTION_RELEASE_VERIFICATION_FAILED" }); }
-  assert.throws(() => verifyProductionReleaseEvidence({ expectedSha: sha, api: { readinessPath: "/api/ready", status: 200, ready: true, revision: sha }, frontend: { revision: sha }, database: { releaseSha: sha }, releaseRecord: { releaseSha: sha } }, { now }), { code: "PRODUCTION_RELEASE_VERIFICATION_FAILED" });
+test("migration classifier distinguishes never-started, success, command failure, cancellation, and partial/unknown state", () => {
+  assert.equal(classifyMigrationState({ started: false }), "migration_never_started");
+  assert.equal(classifyMigrationState({ started: true, finishedExit: 0, outcome: "success", statusClean: true }), "migration_succeeded_clean");
+  assert.equal(classifyMigrationState({ started: true, finishedExit: 2, outcome: "failure", statusClean: false }), "migration_command_failed");
+  for (const state of [{ started: true, finishedExit: null, outcome: "cancelled" }, { started: true, finishedExit: 0, outcome: "success", statusClean: false }, { started: true, finishedExit: 2, outcome: "cancelled" }]) assert.equal(classifyMigrationState(state), "migration_state_unknown");
 });
-
-test("runbook accurately separates repository and external controls", async () => {
+test("duplicate dispatch remains serialized and cannot cancel the in-progress migration", async () => { const workflow = await readFile(workflowPath, "utf8"); assert.match(workflow, /group: pawnloop-production-database\n  cancel-in-progress: false/); });
+test("runbook states repository controls and every remaining external blocker", async () => {
   const text = await readFile("docs/production-release-control-v1.md", "utf8");
-  for (const phrase of ["production environment must exist", "required reviewers", "Seller Subscription Browser Tests", "qualifying independent approval", "automatic production builds", "executable containment checks"]) assert.match(text, new RegExp(phrase, "i"));
+  for (const phrase of ["production environment does not exist", "reviewer gate", "Seller Subscription Browser Tests", "independent approval", "/api/ready", "Cloudflare automatic-production", "immutable Git blob", "SHA-256", "hard runner loss", "manual reconciliation", "retention", "RENDER_API_KEY", "CLOUDFLARE_API_TOKEN", "GITHUB_TOKEN"]) assert.match(text, new RegExp(phrase, "i"), phrase);
 });

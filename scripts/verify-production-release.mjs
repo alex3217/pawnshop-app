@@ -1,79 +1,71 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-const FULL_SHA = /^[0-9a-f]{40}$/;
-const INTEGER_ID = /^[1-9][0-9]{4,}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const PLACEHOLDER = /^(?:unknown|pending|placeholder|todo|tbd|example|none|n\/a)$/i;
-
-function requireFullSha(value, label, failures) {
-  if (!FULL_SHA.test(String(value || ""))) { failures.push(`${label} must be a full lowercase 40-character Git SHA`); return null; }
-  return value;
+const REPO = "alex3217/pawnshop-app";
+const SHA = /^[0-9a-f]{40}$/; const DIGEST = /^[0-9a-f]{64}$/; const INTEGER = /^[1-9][0-9]*$/; const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+function failure(message) { const error = new Error(`Production release verification failed: ${message}`); error.code = "PRODUCTION_RELEASE_VERIFICATION_FAILED"; error.guard = message; throw error; }
+function expect(condition, message) { if (!condition) failure(message); }
+function text(value, pattern, label) { const result = String(value || ""); expect(pattern.test(result), `${label} is missing or malformed`); return result; }
+function exactUrl(value, host, path, label) {
+  let url; try { url = new URL(value); } catch { failure(`${label} is malformed`); }
+  expect(url.protocol === "https:" && !url.username && !url.password && !url.port && !url.search && !url.hash && url.hostname === host && url.pathname === path, `${label} identity does not match`); return url;
+}
+function instant(value, now, maxAgeMs, label) { const time = Date.parse(value || ""); expect(Number.isFinite(time), `${label} is malformed`); expect(time <= now + 300_000, `${label} is future-dated`); expect(now - time <= maxAgeMs, `${label} is stale or reused`); return time; }
+function sha(value, label, expected) { const result = text(value, SHA, label); expect(!expected || result === expected, `${label} does not match release SHA`); return result; }
+function id(value, pattern, label) { return text(value, pattern, label); }
+function providerClients(clients) { for (const [provider, methods] of Object.entries({ github: ["getCommit", "getWorkflowRun", "getGitBlob"], cloudflare: ["getDeployment"], render: ["getService", "getDeployment"] })) for (const method of methods) expect(typeof clients?.[provider]?.[method] === "function", `${provider}.${method} read-only provider client is required`); }
+function credential(env, name) { const value = String(env[name] || ""); expect(value.length > 8, `${name} read-only credential is required`); return value; }
+async function fetchJson(fetchImpl, url, { headers, label }) {
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 10_000); let response;
+  try { response = await fetchImpl(url, { headers, redirect: "manual", signal: controller.signal }); } catch { failure(`${label} provider request failed or timed out`); } finally { clearTimeout(timer); }
+  expect(response.status === 200, `${label} provider request returned unexpected status`); const type = String(response.headers?.get?.("content-type") || "").toLowerCase(); expect(type.startsWith("application/json"), `${label} provider response content type mismatch`); const declared = Number(response.headers?.get?.("content-length")); expect(!Number.isFinite(declared) || declared <= 1024 * 1024, `${label} provider response is oversized`); let bytes; try { bytes = new Uint8Array(await response.arrayBuffer()); } catch { failure(`${label} provider response could not be read`); } expect(bytes.length <= 1024 * 1024, `${label} provider response is oversized`); try { return JSON.parse(new TextDecoder().decode(bytes)); } catch { failure(`${label} provider response is malformed`); }
+}
+export function createReadOnlyProviderClients({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
+  expect(typeof fetchImpl === "function", "fetch client is required"); const githubToken = credential(env, "GITHUB_TOKEN"); const cloudflareToken = credential(env, "CLOUDFLARE_API_TOKEN"); const renderToken = credential(env, "RENDER_API_KEY");
+  const githubHeaders = { Accept: "application/vnd.github+json", Authorization: `Bearer ${githubToken}`, "X-GitHub-Api-Version": "2022-11-28" }; const cfHeaders = { Accept: "application/json", Authorization: `Bearer ${cloudflareToken}` }; const renderHeaders = { Accept: "application/json", Authorization: `Bearer ${renderToken}` };
+  const github = (path, label) => fetchJson(fetchImpl, `https://api.github.com/repos/${REPO}/${path}`, { headers: githubHeaders, label });
+  return {
+    github: {
+      getCommit: async ({ sha }) => { const value = await github(`commits/${sha}`, "GitHub commit"); return { repository: REPO, sha: value.sha }; },
+      getWorkflowRun: async ({ runId }) => { const run = await github(`actions/runs/${runId}`, "GitHub workflow run"); const workflowId = id(run.workflow_id, INTEGER, "retrieved GitHub workflow ID"); const [workflow, jobs] = await Promise.all([github(`actions/workflows/${workflowId}`, "GitHub workflow"), github(`actions/runs/${runId}/attempts/${run.run_attempt}/jobs?per_page=100`, "GitHub workflow jobs")]); return { repository: run.repository?.full_name, id: run.id, name: run.name, path: workflow.path, event: run.event, conclusion: run.conclusion, status: run.status, headSha: run.head_sha, runAttempt: run.run_attempt, url: run.html_url, createdAt: run.created_at, completedAt: run.updated_at, jobs: (jobs.jobs || []).map((job) => ({ id: job.id, conclusion: job.conclusion, steps: job.steps?.map((step) => ({ name: step.name, conclusion: step.conclusion })) || [] })) }; },
+      getGitBlob: async ({ blobSha }) => { const value = await github(`git/blobs/${blobSha}`, "GitHub Git blob"); return { repository: REPO, sha: value.sha, encoding: value.encoding, content: value.content }; },
+    },
+    cloudflare: { getDeployment: async ({ accountId, project, deploymentId }) => { const value = await fetchJson(fetchImpl, `https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${project}/deployments/${deploymentId}`, { headers: cfHeaders, label: "Cloudflare deployment" }); const record = value.result; expect(value.success === true && record, "Cloudflare provider rejected deployment retrieval"); return { accountId, project, id: record.id, environment: record.environment, status: record.latest_stage?.status, branch: record.deployment_trigger?.metadata?.branch, sourceSha: record.deployment_trigger?.metadata?.commit_hash, url: record.url, createdAt: record.created_on }; } },
+    render: {
+      getService: async ({ serviceId }) => { const value = await fetchJson(fetchImpl, `https://api.render.com/v1/services/${serviceId}`, { headers: renderHeaders, label: "Render service" }); return { id: value.id, name: value.name, environmentId: value.environmentId, environmentName: value.environment?.name, origin: value.serviceDetails?.url }; },
+      getDeployment: async ({ serviceId, deploymentId }) => { const value = await fetchJson(fetchImpl, `https://api.render.com/v1/services/${serviceId}/deploys/${deploymentId}`, { headers: renderHeaders, label: "Render deployment" }); const record = value.deploy || value; return { id: record.id, serviceId: record.serviceId, environmentId: record.environmentId, status: record.status, sourceSha: record.commit?.id, verifiedAt: new Date().toISOString() }; },
+    },
+  };
 }
 
-function requireIdentifier(value, label, pattern, failures) {
-  const text = String(value || "");
-  if (!pattern.test(text) || PLACEHOLDER.test(text)) failures.push(`${label} is missing, placeholder, or malformed`);
-  return text;
-}
+export async function verifyProductionReleaseEvidence(input, { clients, now = Date.now(), maxAgeMs = 86_400_000 } = {}) {
+  providerClients(clients); expect(input?.repository === REPO, "wrong GitHub repository"); const releaseSha = sha(input?.expectedSha, "expectedSha");
+  const generalId = id(input?.github?.generalRun?.id, INTEGER, "general workflow run ID"); const databaseId = id(input?.github?.databaseRun?.id, INTEGER, "database workflow run ID"); expect(generalId !== databaseId, "workflow run IDs are reused");
+  exactUrl(input.github.generalRun.url, "github.com", `/alex3217/pawnshop-app/actions/runs/${generalId}`, "general workflow run URL"); exactUrl(input.github.databaseRun.url, "github.com", `/alex3217/pawnshop-app/actions/runs/${databaseId}`, "database workflow run URL");
+  const [commit, generalRun, databaseRun] = await Promise.all([clients.github.getCommit({ repository: REPO, sha: releaseSha }), clients.github.getWorkflowRun({ repository: REPO, runId: generalId }), clients.github.getWorkflowRun({ repository: REPO, runId: databaseId })]);
+  expect(commit?.repository === REPO && commit?.sha === releaseSha, "retrieved GitHub commit identity mismatch");
+  for (const [kind, run, expected] of [["general", generalRun, { id: generalId, name: "PawnShop Core CI", path: ".github/workflows/core-ci.yml", event: "push" }], ["database", databaseRun, { id: databaseId, name: "PawnLoop Production Database Migration", path: ".github/workflows/production-database.yml", event: "workflow_dispatch" }]]) {
+    expect(run?.repository === REPO && String(run?.id) === expected.id, `${kind} workflow retrieved from wrong repository or run ID`); expect(run.name === expected.name && run.path === expected.path && run.event === expected.event, `${kind} workflow identity or event mismatch`); expect(run.conclusion === "success" && run.status === "completed", `${kind} workflow did not complete successfully`); sha(run.headSha, `${kind} workflow head SHA`, releaseSha); expect(Number.isInteger(run.runAttempt) && run.runAttempt === Number(input.github[`${kind}Run`].attempt), `${kind} workflow run attempt mismatch`); exactUrl(run.url, "github.com", `/alex3217/pawnshop-app/actions/runs/${expected.id}`, `${kind} retrieved workflow URL`); instant(run.createdAt, now, maxAgeMs, `${kind} workflow createdAt`); instant(run.completedAt, now, maxAgeMs, `${kind} workflow completedAt`);
+  }
+  const databaseJob = databaseRun.jobs?.find((job) => String(job.id) === String(input.github.databaseRun.jobId)); expect(databaseJob?.conclusion === "success", "database immutable job identity or conclusion mismatch"); const migrationStep = databaseJob.steps?.find((step) => step.name === "Apply certified production migrations"); const postconditionStep = databaseJob.steps?.find((step) => step.name === "Reconcile migration outcome and emit sanitized evidence"); expect(migrationStep?.conclusion === "success" && postconditionStep?.conclusion === "success", "database run is not bound to successful migration and clean postcondition steps");
 
-function requireUrl(value, label, hostname, pathPattern, failures) {
-  let url;
-  try { url = new URL(value); } catch { failures.push(`${label} must be a valid immutable HTTPS URL`); return null; }
-  if (url.protocol !== "https:" || url.username || url.password || url.hostname !== hostname || !pathPattern.test(url.pathname)) {
-    failures.push(`${label} must be a valid immutable ${hostname} URL`); return null;
-  }
-  return url;
-}
+  const cf = input.cloudflare; const accountId = id(cf?.accountId, /^[0-9a-f]{32}$/, "Cloudflare account ID"); const deploymentId = id(cf?.deploymentId, UUID, "Cloudflare deployment ID"); expect(cf.project === "pawnloop-frontend", "wrong Cloudflare project"); exactUrl(cf.url, `${deploymentId}.pawnloop-frontend.pages.dev`, "/", "Cloudflare immutable deployment URL");
+  const cfRecord = await clients.cloudflare.getDeployment({ accountId, project: cf.project, deploymentId });
+  expect(cfRecord?.accountId === accountId && cfRecord?.project === cf.project && cfRecord?.id === deploymentId, "retrieved Cloudflare account, project, or deployment mismatch"); expect(cfRecord.environment === "production" && cfRecord.status === "success" && cfRecord.branch === "main", "Cloudflare environment, status, or branch mismatch"); sha(cfRecord.sourceSha, "Cloudflare source SHA", releaseSha); exactUrl(cfRecord.url, `${deploymentId}.pawnloop-frontend.pages.dev`, "/", "retrieved Cloudflare deployment URL"); instant(cfRecord.createdAt, now, maxAgeMs, "Cloudflare deployment timestamp");
 
-export function verifyProductionReleaseEvidence(evidence, { now = Date.now(), maxAgeMs = 86400000 } = {}) {
-  const failures = [];
-  const expected = requireFullSha(evidence?.expectedSha, "expectedSha", failures);
-  const revisions = [
-    ["api.revision", evidence?.api?.revision], ["frontend.revision", evidence?.frontend?.revision],
-    ["database.releaseSha", evidence?.database?.releaseSha], ["releaseRecord.releaseSha", evidence?.releaseRecord?.releaseSha],
-    ["github.commitSha", evidence?.github?.commitSha], ["cloudflare.sourceSha", evidence?.cloudflare?.sourceSha], ["render.sourceSha", evidence?.render?.sourceSha],
-  ];
-  if (evidence?.api?.readinessPath !== "/api/ready") failures.push("api.readinessPath must equal /api/ready");
-  if (evidence?.api?.status !== 200 || evidence?.api?.ready !== true) failures.push("API readiness evidence must report HTTP 200 and ready=true");
-  for (const [label, value] of revisions) {
-    const revision = requireFullSha(value, label, failures);
-    if (expected && revision && revision !== expected) failures.push(`${label} does not match expectedSha`);
-  }
-  if (evidence?.provenance?.collectionMethod !== "independent-provider-api") failures.push("provenance.collectionMethod must identify independent provider API collection; operator-authored JSON alone is not authentic evidence");
-  for (const [label, value] of [
-    ["provenance.collectedAt", evidence?.provenance?.collectedAt], ["github.collectedAt", evidence?.github?.collectedAt],
-    ["database.collectedAt", evidence?.database?.collectedAt], ["cloudflare.collectedAt", evidence?.cloudflare?.collectedAt], ["render.collectedAt", evidence?.render?.collectedAt],
-  ]) {
-    const collectedAt = Date.parse(value || "");
-    if (!Number.isFinite(collectedAt) || collectedAt > now + 300000 || now - collectedAt > maxAgeMs) failures.push(`${label} is missing, malformed, future-dated, or stale`);
-  }
-  const githubRunId = requireIdentifier(evidence?.github?.workflowRunId, "github.workflowRunId", INTEGER_ID, failures);
-  const githubUrl = requireUrl(evidence?.github?.workflowRunUrl, "github.workflowRunUrl", "github.com", /^\/alex3217\/pawnshop-app\/actions\/runs\/[1-9][0-9]{4,}$/, failures);
-  const databaseRunId = requireIdentifier(evidence?.database?.workflowRunId, "database.workflowRunId", INTEGER_ID, failures);
-  const databaseUrl = requireUrl(evidence?.database?.workflowRunUrl, "database.workflowRunUrl", "github.com", /^\/alex3217\/pawnshop-app\/actions\/runs\/[1-9][0-9]{4,}$/, failures);
-  if (githubUrl && githubUrl.pathname.split("/").at(-1) !== githubRunId) failures.push("GitHub workflow run URL and ID do not match");
-  if (databaseUrl && databaseUrl.pathname.split("/").at(-1) !== databaseRunId) failures.push("Database workflow run URL and ID do not match");
-  if (evidence?.providerIdentity?.githubRepository !== "alex3217/pawnshop-app") failures.push("Wrong GitHub provider/repository identity");
-  if (evidence?.providerIdentity?.cloudflareProject !== "pawnloop-frontend") failures.push("Wrong Cloudflare provider/project identity");
-  requireIdentifier(evidence?.providerIdentity?.cloudflareAccountId, "providerIdentity.cloudflareAccountId", /^[0-9a-f]{32}$/, failures);
-  const renderService = requireIdentifier(evidence?.render?.serviceId, "render.serviceId", /^srv-[a-z0-9]+$/, failures);
-  const renderEnvironment = requireIdentifier(evidence?.render?.environmentId, "render.environmentId", /^evm-[a-z0-9]+$/, failures);
-  const renderDeploy = requireIdentifier(evidence?.render?.deploymentId, "render.deploymentId", /^dep-[a-z0-9]+$/, failures);
-  if (evidence?.providerIdentity?.renderServiceId !== renderService || evidence?.providerIdentity?.renderEnvironmentId !== renderEnvironment) failures.push("Wrong Render provider/environment identity");
-  requireUrl(evidence?.render?.deploymentUrl, "render.deploymentUrl", "dashboard.render.com", new RegExp(`/${renderDeploy}$`), failures);
-  const cloudflareDeploy = requireIdentifier(evidence?.cloudflare?.deploymentId, "cloudflare.deploymentId", UUID, failures);
-  requireUrl(evidence?.cloudflare?.deploymentUrl, "cloudflare.deploymentUrl", "dash.cloudflare.com", new RegExp(`/${cloudflareDeploy}$`), failures);
-  requireIdentifier(evidence?.releaseRecord?.recordId, "releaseRecord.recordId", /^[a-z0-9][a-z0-9._-]{7,}$/i, failures);
-  requireUrl(evidence?.releaseRecord?.recordUrl, "releaseRecord.recordUrl", "github.com", /^\/alex3217\/pawnshop-app\/(?:issues|actions\/runs)\/[1-9][0-9]*$/, failures);
-  if (failures.length) { const error = new Error(`Production release verification failed:\n- ${failures.join("\n- ")}`); error.code = "PRODUCTION_RELEASE_VERIFICATION_FAILED"; error.failures = failures; throw error; }
-  return { verified: true, releaseSha: expected, evidenceAuthenticity: "provider-record-references-required-not-cryptographically-proven" };
+  const render = input.render; const serviceId = id(render?.serviceId, /^srv-[a-z0-9]+$/, "Render service ID"); const environmentId = id(render?.environmentId, /^evm-[a-z0-9]+$/, "Render environment ID"); const renderDeployId = id(render?.deploymentId, /^dep-[a-z0-9]+$/, "Render deployment ID"); exactUrl(render.origin, "pawnshop-app-bu8g.onrender.com", "/", "Render origin"); exactUrl(render.url, "dashboard.render.com", `/web/${serviceId}/deploys/${renderDeployId}`, "Render deployment URL");
+  const [service, renderDeploy] = await Promise.all([clients.render.getService({ serviceId }), clients.render.getDeployment({ serviceId, deploymentId: renderDeployId })]);
+  expect(service?.id === serviceId && service?.name === "pawnshop-app" && service?.environmentId === environmentId && service?.environmentName === "Production", "retrieved Render service or environment mismatch"); exactUrl(service.origin, "pawnshop-app-bu8g.onrender.com", "/", "retrieved Render origin"); expect(renderDeploy?.id === renderDeployId && renderDeploy?.serviceId === serviceId && renderDeploy?.environmentId === environmentId && renderDeploy?.status === "live", "retrieved Render deployment identity or status mismatch"); sha(renderDeploy.sourceSha, "Render source SHA", releaseSha); instant(renderDeploy.verifiedAt, now, maxAgeMs, "Render provider retrieval timestamp");
+
+  const record = input.releaseRecord; expect(record?.type === "git-blob", "mutable release records such as GitHub issues are forbidden"); const blobSha = id(record?.blobSha, SHA, "release record Git blob SHA"); const manifestDigest = id(record?.manifestSha256, DIGEST, "release manifest SHA-256"); exactUrl(record?.url, "github.com", `/alex3217/pawnshop-app/blob/${releaseSha}/${record.path}`, "immutable release record URL"); expect(/^docs\/releases\/[a-z0-9._-]+\.json$/i.test(record.path || ""), "release record path is not allowlisted");
+  const blob = await clients.github.getGitBlob({ repository: REPO, blobSha }); expect(blob?.repository === REPO && blob?.sha === blobSha && blob?.encoding === "base64", "retrieved immutable Git blob identity mismatch");
+  let bytes; try { bytes = Buffer.from(blob.content, "base64"); } catch { failure("release manifest encoding is invalid"); } expect(bytes.length > 0 && bytes.length <= 64 * 1024, "release manifest is empty or oversized"); expect(createHash("sha256").update(bytes).digest("hex") === manifestDigest, "release manifest digest mismatch"); let manifest; try { manifest = JSON.parse(bytes); } catch { failure("release manifest is invalid JSON"); } expect(manifest.repository === REPO && manifest.releaseSha === releaseSha && manifest.recordType === "git-blob", "release manifest repository, SHA, or record type mismatch");
+  return { verified: true, releaseSha, immutableRecord: { type: "git-blob", blobSha, manifestSha256: manifestDigest } };
 }
 
 async function main() {
-  if (!process.argv[2] || process.argv.length !== 3) throw new Error("Usage: node scripts/verify-production-release.mjs <redacted-evidence.json>");
-  const result = verifyProductionReleaseEvidence(JSON.parse(await readFile(process.argv[2], "utf8")));
-  process.stdout.write(`Production release evidence consistency and provider references verified for ${result.releaseSha}; authenticity still depends on independently retrieving the referenced provider records.\n`);
+  if (!process.argv[2] || process.argv.length !== 3) throw new Error("Usage: node scripts/verify-production-release.mjs <expected-evidence.json>");
+  const input = JSON.parse(await readFile(process.argv[2], "utf8")); const result = await verifyProductionReleaseEvidence(input, { clients: createReadOnlyProviderClients() }); process.stdout.write(`Production release provider evidence and immutable record verified for ${result.releaseSha}.\n`);
 }
-
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch((error) => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });

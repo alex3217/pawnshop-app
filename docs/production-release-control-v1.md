@@ -1,68 +1,45 @@
 # Production Release Control V1
 
-Production releases promote a certified immutable commit; they do not promote a moving branch. `main` is the development integration branch. Staging is the release-candidate environment. A commit is eligible for production only after that exact 40-character SHA has passed staging certification and all required GitHub checks.
+Production releases promote one certified 40-character commit, never `main`, `latest`, or another mutable name. Staging is the release-candidate environment; production remains contained until every repository and external control is independently proven.
 
-## Release record and required checks
+## Repository-enforced controls
 
-Create one release record containing the release ID, candidate SHA, staging deploy ID and certification evidence, production approvers, intended API and frontend provider deploy IDs, database migration/backup evidence, last-known-good SHA, rollback compatibility review, UTC timestamps, and redacted results. The candidate and every recorded component revision must be the same full lowercase 40-character SHA; branch names, `main`, `latest`, shortened SHAs, and missing evidence fail verification. Never copy credentials, database URLs, tokens, environment files, or authorization headers into the record.
+The manually dispatched production database workflow is serialized with `cancel-in-progress: false`, pins third-party Actions by commit, checks that the release SHA is on `origin/main`, installs dependencies without lifecycle scripts, scopes Render and database credentials to separate steps, and verifies containment twice. The first containment check precedes dependency preparation. The second is immediately before `prisma migrate deploy`; no mutable or untrusted step may occur between them.
 
-Branch protection for `main` must require these exact checks:
+Containment requires exact HTTPS allowlisted origins with no userinfo, ports, query, fragment, redirect, or alternate path. DNS results must be public. Every request has a timeout, strict content type, and 64 KiB body limit. The verifier directly retrieves the exact Render service and expected deployment, binds service name/ID, Production environment name/ID, origin, live deployment ID, source SHA, maintenance enabled, and auto-deploy disabled, and rejects conflicting active deployments. Both `/api/health` and `/api/ready` on the Render and canonical origins must return HTTP 503 with the approved bounded maintenance-body SHA-256. A generic 503 is not evidence. If Render changes the maintenance response and no stable public signature can be approved, the verifier fails closed and an operator must obtain fresh provider evidence; HTTP 503 alone never proves write containment.
 
-- `Web and API Validation`
-- `Mobile TypeScript Validation`
-- `Backend Automated Tests`
-- `Seller Subscription Browser Tests`
+Required GitHub production environment names (values never belong in the repository) are `PRODUCTION_DATABASE_HOST`, `PRODUCTION_API_ORIGIN`, `PRODUCTION_RENDER_ORIGIN`, `PRODUCTION_RENDER_SERVICE_ID`, `PRODUCTION_RENDER_SERVICE_NAME`, `PRODUCTION_RENDER_ENVIRONMENT_ID`, `PRODUCTION_RENDER_ENVIRONMENT_NAME`, `PRODUCTION_RENDER_DEPLOYMENT_ID`, `PRODUCTION_RENDER_SOURCE_SHA`, and `PRODUCTION_MAINTENANCE_BODY_SHA256`. Credential names are `DATABASE_URL` and read-only `RENDER_API_KEY`.
 
-The release owner must verify the checks belong to the certified SHA, not merely to a branch with the same name.
+## Evidence retrieval and authenticity
 
-## Certification gate
+The evidence JSON is only a set of identifiers and expected values; it is never proof. Verification must inject read-only provider clients and independently retrieve:
 
-1. Select a full 40-character SHA reachable from `main`; record it as immutable.
-2. Deploy that exact SHA to staging and complete the paid-beta launch checklist and staging certification. Link check runs, Render deploy IDs, staging database status, `/api/ready`, and approved non-destructive workflow evidence.
-3. Record a reviewed last-known-good production SHA. Confirm it remains compatible with the schema after any proposed migration. A missing last-known-good SHA or compatibility decision is a release blocker.
-4. Obtain the named production approval in the GitHub `production` environment and the provider approvals recorded in the release ticket. Staging approval is not production approval.
+- the exact GitHub commit, `PawnShop Core CI` run, and `PawnLoop Production Database Migration` run using `GITHUB_TOKEN`;
+- the exact Cloudflare Pages deployment using `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`;
+- the exact Render service and deployment using read-only `RENDER_API_KEY`.
 
-## Production mutation sequence
+Retrieved records are bound to `alex3217/pawnshop-app`, exact run IDs and URLs, workflow paths/names/events, successful conclusions, head SHA, run attempt, immutable database job ID, clean migration state, timestamps, Cloudflare account/project/deployment/environment/branch/URL, and Render environment/service/deployment/origin/status. URLs reject userinfo, ports, query strings, fragments, unrelated hosts, suffix attacks, and identifier mismatch. Retrieval timestamps and release-run timestamps must be fresh; stale, future, reused, or fabricated records fail closed. Provider response bodies, credentials, tokens, authorization values, and database locations must never be logged.
 
-Every numbered mutation below is a separate pause point. Before each provider action, stop, compare the provider target and immutable SHA with the release record, obtain/record the action-specific approval, and name the rollback action. Approval for one mutation does not authorize the next.
+## Immutable release record
 
-1. **Database migration, if required:** pause for the GitHub `production` environment approval, then manually dispatch `PawnLoop Production Database Migration` with the certified SHA, exact production database hostname, fresh backup/restore evidence reference, and exact backup confirmation. Do not invoke Prisma directly from an operator shell.
-2. **Render API:** pause again. In Render, manually deploy the certified SHA. Automatic deployment from `main` must be disabled. Record the deploy ID and verify `GET /api/ready` returns 200 before continuing.
-3. **Cloudflare frontend:** pause again. In Cloudflare, manually deploy the same certified SHA used by the API. Automatic Production builds from every `main` commit must be disabled. Record the deployment ID.
-4. **Traffic/domain/config changes, if any:** treat each as another external production mutation with its own pause, exact target confirmation, approval, evidence, and rollback instruction.
+The release manifest is a sanitized JSON file under `docs/releases/` in the exact release commit. Evidence records `type: git-blob`, the immutable Git blob SHA, the commit-pinned GitHub URL, repository, release commit, path, and SHA-256 digest of the manifest bytes. Verification retrieves that Git blob independently through the GitHub API, verifies its object identity and digest, then binds the decoded manifest to the repository and release SHA. GitHub issues, comments, wiki pages, Actions summaries, mutable branch URLs, and editable prose are explicitly forbidden as release records.
 
-The API and frontend release is incomplete unless provider evidence proves both use the same certified SHA. Do not infer parity from successful health checks or source branch names. `GET /api/health` is liveness only; `GET /api/ready` is the production health gate.
+Retain the release commit and Git blob for the lifetime of the production release plus the organization’s audit-retention period. Retain the provider run/deployment IDs and immutable database run/job identifiers for at least the same period. If an Actions artifact is additionally used, its retention must cover that period and its provider digest/attestation must be verified before relying on it.
 
-Export a redacted JSON evidence file and run `npm run verify:production-release -- <file>`. The verifier checks evidence consistency and requires immutable references; it does not claim that operator-authored JSON proves authenticity. Independently collect records through provider APIs and record fresh UTC collection timestamps for the provenance envelope and each GitHub, database, Cloudflare, and Render record, `collectionMethod: independent-provider-api`, the exact GitHub repository/run ID/run URL/commit, production-database workflow run ID/run URL, Cloudflare account/project/deployment ID/deployment URL/source SHA, Render service/environment/deployment IDs/deployment URL/source SHA, and immutable release-record ID/URL/SHA. Every critical SHA must match. Missing, placeholder, malformed, stale, or contradictory identifiers fail closed. Outputs remain sanitized and must never contain response bodies, credentials, tokens, or environment values.
+## Migration cancellation and reconciliation
 
-## Verification and rollback
+The migration step writes only sanitized start/finish markers and exposes an explicit step outcome. An `always()` postcondition classifies `migration_never_started`, `migration_succeeded_clean`, `migration_command_failed`, or `migration_state_unknown`. Only a successful command followed by a clean `prisma migrate status` is success. Cancellation after start, a missing finish marker, an interrupted status check, or contradictory outcome is unknown and fails the job. Failure and unknown/partial state require manual reconciliation of the exact GitHub run/job, provider state, and database migration status before retry; never repeat the dispatch merely because the prior run stopped.
 
-After each deployment, verify provider revision evidence and `/api/ready`; then perform only approved read-only smoke checks. Stop immediately on a revision mismatch, readiness failure, unknown migration state, missing evidence, or unapproved provider change.
+`always()` cannot execute after hard runner loss. The next attempt must therefore reconcile durable provider and database evidence before any mutation. Concurrency prevents overlapping or duplicate dispatches but cannot prove that a lost command did not partially apply.
 
-Rollback requires the recorded last-known-good SHA, provider deploy IDs, and an explicit schema-compatibility decision. Use the provider's manual rollback/redeploy control only after the rollback approval in `docs/launch-operations/rollback-runbook.md`. Database migrations are forward-only by default; never improvise a down migration or production restore.
+## Required checks and external controls
 
-## Required provider configuration
+The certified SHA must pass `Web and API Validation`, `Mobile TypeScript Validation`, `Backend Automated Tests`, and `Seller Subscription Browser Tests`. Repository code does not configure providers or GitHub policy. The following remain blockers and must not be claimed complete:
 
-Repository code enforces immutable workflow inputs, exact database targeting, twice-executed production containment, narrowly scoped secrets, immutable Action references, lifecycle-disabled dependency installation, and evidence-consistency/provenance-reference contracts. Repository changes do not configure providers. The GitHub production environment must exist before merge or integration, and an authorized operator must make and evidence the following external changes before this control can be claimed effective.
+- the GitHub production environment does not exist and therefore has no production-environment reviewer gate;
+- the `main` ruleset does not require `Seller Subscription Browser Tests`;
+- PR #314 lacks a qualifying independent approval;
+- Cloudflare automatic-production configuration remains unverified and requires direct operator verification;
+- Render’s production health-check path remains `/api/health`; changing it to `/api/ready` remains operator work.
 
-At the time of PR #314 remediation, the GitHub production environment does not exist, no required production-environment reviewer gate exists, the `main` ruleset does not require `Seller Subscription Browser Tests`, and PR #314 still needs a qualifying independent approval. Required reviewers, prevention of self-review where supported, and deployment branch/tag restrictions must be configured externally. Cloudflare automatic production builds also require direct operator verification; repository evidence must not claim that setting is complete.
-
-No migration may run unless both executable containment checks pass: once before dependency preparation and again in the step immediately preceding `prisma migrate deploy`. Each check independently queries the exact Render service and deploy records, requires the expected Production environment, maintenance enabled, automatic deployment disabled, a well-formed live deployment matching the configured immutable source SHA, and HTTP 503 from health/readiness at both the Render and canonical origins. Missing credentials/variables/records, provider failures, malformed JSON, wrong identity/origin, healthy or writable responses, and contradictory evidence fail closed.
-
-PR #314 implements the repository workflow, production revision validation, offline parity verifier, contract tests, and this runbook. PR #315 is independent Super Admin inventory-support work and provides no release-control dependency. PRs #317 and #318 are separate closed Super Admin work. None of those changes are duplicated here.
-
-### Render
-
-- Disable automatic production API deploys from `main`; require manual deployment of a selected immutable commit.
-- Keep staging as the release-candidate service and production as a separate service/environment.
-- Set the production health-check path to `/api/ready`.
-- Ensure the API deploy UI/record exposes the exact commit SHA and restrict production deployment permission to approved operators.
-- Configure the GitHub `production` environment with required reviewers, prevent self-review where supported, and restrict deployment branches/tags appropriately.
-- Add non-secret environment variables `PRODUCTION_DATABASE_HOST`, `PRODUCTION_API_ORIGIN`, `PRODUCTION_RENDER_ORIGIN`, `PRODUCTION_RENDER_SERVICE_ID`, `PRODUCTION_RENDER_SERVICE_NAME`, `PRODUCTION_RENDER_ENVIRONMENT_ID`, and immutable `PRODUCTION_RENDER_SOURCE_SHA`. Add secrets `DATABASE_URL` and read-only, least-privilege `RENDER_API_KEY`. Values belong only in GitHub environment configuration and must never be committed.
-
-### Cloudflare
-
-- Disable automatic Production deployment for every `main` commit; require a manual production promotion/deploy of the certified SHA.
-- Keep Preview/staging builds separate from Production and require production approval through the documented operator process.
-- Preserve the explicit Production Vite environment contract and record the Cloudflare deployment's source SHA.
-- Restrict production deployment and environment-variable changes to approved operators.
+Cloudflare project settings, Render settings, GitHub environments/rulesets/secrets/variables, deployment, workflow dispatch, and migration are all external operator actions. Each requires separate authority, exact target confirmation, approval, immutable evidence, and rollback planning. PR #314 does not complete any of them.

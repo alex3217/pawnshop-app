@@ -40,7 +40,10 @@ jobs:
       PRODUCTION_RENDER_SERVICE_ID: ${{ vars.PRODUCTION_RENDER_SERVICE_ID }}
       PRODUCTION_RENDER_SERVICE_NAME: ${{ vars.PRODUCTION_RENDER_SERVICE_NAME }}
       PRODUCTION_RENDER_ENVIRONMENT_ID: ${{ vars.PRODUCTION_RENDER_ENVIRONMENT_ID }}
+      PRODUCTION_RENDER_ENVIRONMENT_NAME: ${{ vars.PRODUCTION_RENDER_ENVIRONMENT_NAME }}
+      PRODUCTION_RENDER_DEPLOYMENT_ID: ${{ vars.PRODUCTION_RENDER_DEPLOYMENT_ID }}
       PRODUCTION_RENDER_SOURCE_SHA: ${{ vars.PRODUCTION_RENDER_SOURCE_SHA }}
+      PRODUCTION_MAINTENANCE_BODY_SHA256: ${{ vars.PRODUCTION_MAINTENANCE_BODY_SHA256 }}
       RELEASE_SHA: ${{ inputs.release_sha }}
       CONFIRMED_DATABASE_HOST: ${{ inputs.production_database_host }}
       BACKUP_EVIDENCE: ${{ inputs.backup_evidence }}
@@ -124,15 +127,56 @@ jobs:
         run: node scripts/verify-production-containment.mjs
 
       - name: Apply certified production migrations
+        id: migration
+        continue-on-error: true
         working-directory: apps/api/backend
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DATABASE_URL }}
-        run: npx --no-install prisma migrate deploy
+        shell: bash
+        run: |
+          set +e
+          state_file="$RUNNER_TEMP/pawnloop-migration-state"
+          printf 'MIGRATION_STARTED\n' >"$state_file"
+          npx --no-install prisma migrate deploy
+          migration_exit=$?
+          printf 'MIGRATION_FINISHED=%s\n' "$migration_exit" >>"$state_file"
+          printf 'exit_code=%s\n' "$migration_exit" >>"$GITHUB_OUTPUT"
+          exit "$migration_exit"
 
-      - name: Verify post-migration status
-        working-directory: apps/api/backend
+      - name: Reconcile migration outcome and emit sanitized evidence
+        id: postcondition
+        if: ${{ always() }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DATABASE_URL }}
-        run: npx --no-install prisma migrate status
+          MIGRATION_OUTCOME: ${{ steps.migration.outcome }}
+        shell: bash
+        run: |
+          set +e
+          state_file="$RUNNER_TEMP/pawnloop-migration-state"
+          migration_started="false"
+          migration_finished=""
+          migration_status_clean="false"
+          if [ -f "$state_file" ] && grep -qx 'MIGRATION_STARTED' "$state_file"; then
+            migration_started="true"
+            migration_finished="$(sed -n 's/^MIGRATION_FINISHED=//p' "$state_file" | tail -1)"
+            if grep -qx 'MIGRATION_FINISHED=0' "$state_file" && [ "$MIGRATION_OUTCOME" = "success" ]; then
+              npm --prefix apps/api/backend exec -- prisma migrate status >/dev/null
+              if [ "$?" -eq 0 ]; then migration_status_clean="true"; fi
+            fi
+          fi
+          state="$(MIGRATION_STARTED="$migration_started" MIGRATION_FINISHED_EXIT="$migration_finished" MIGRATION_STATUS_CLEAN="$migration_status_clean" node scripts/production-migration-postcondition.mjs)"
+          {
+            printf '### Production migration postcondition\n'
+            printf -- '- release_sha: `%s`\n' "$RELEASE_SHA"
+            printf -- '- run_id: `%s`\n' "$GITHUB_RUN_ID"
+            printf -- '- run_attempt: `%s`\n' "$GITHUB_RUN_ATTEMPT"
+            printf -- '- job: `%s`\n' "$GITHUB_JOB"
+            printf -- '- migration_state: `%s`\n' "$state"
+          } >>"$GITHUB_STEP_SUMMARY"
+          printf 'migration_state=%s\n' "$state" >>"$GITHUB_OUTPUT"
+          if [ "$state" != "migration_succeeded_clean" ]; then
+            echo "Migration is not proven clean; manual reconciliation is required before retry."
+            exit 1
+          fi
