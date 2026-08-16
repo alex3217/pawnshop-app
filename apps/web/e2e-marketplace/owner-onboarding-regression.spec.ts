@@ -81,13 +81,23 @@ async function openChecklist(page: Page, complete: boolean) {
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
   await trigger.click();
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByLabel("Pawn shop owner setup checklist")).toBeVisible();
+  const checklist = page.getByLabel("Pawn shop owner setup checklist");
+  await expect(checklist).toBeVisible();
+  await expect(checklist.getByLabel(`${complete ? 100 : 0}% complete`)).toBeVisible();
+  await expect(checklist.getByText(`${complete ? 9 : 0} of 9 complete`, { exact: true })).toBeVisible();
+}
+
+async function expectActiveShop(page: Page, expectedShop: "shop-a" | "shop-b", complete: boolean) {
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("pawnloop-owner-active-shop-owner-1"))).toBe(expectedShop);
+  await expect(page.locator("section").filter({ hasText: "Selected shop" }).locator("select").first()).toHaveValue(expectedShop);
+  await expect(page.getByRole("button", { name: /Owner setup/ })).toContainText(complete ? "9/9" : "0/9");
 }
 
 test("all nine actions render correct route, anchor, and completion copy", async ({ page }) => {
   await session(page);
   await mockOwnerApi(page);
   for (const complete of [false, true]) {
+    const expectedShop = complete ? "shop-b" : "shop-a";
     if (complete) {
       await page.evaluate(() => {
         localStorage.setItem("pawnloop-owner-active-shop-owner-1", "shop-b");
@@ -95,12 +105,20 @@ test("all nine actions render correct route, anchor, and completion copy", async
     }
     for (const [id, path, anchor, editPath, editAnchor] of definitions) {
       await page.goto("/owner");
+      await expectActiveShop(page, expectedShop, complete);
       await openChecklist(page, complete);
       const item = page.locator(".role-checklist-item").filter({ hasText: `Setup ${id}` });
+      await expect(item).toHaveClass(complete ? /\bcomplete\b/ : /^(?!.*\bcomplete\b)/);
       const action = item.getByRole("link", { name: complete ? "Edit" : "Complete setup" });
       await expect(action).toBeVisible();
       await action.click();
-      await expect(page).toHaveURL(new RegExp(`${complete ? editPath : path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\?[^#]*shopId=shop-[ab][^#]*#${complete ? editAnchor : anchor}$`));
+      const expectedPath = complete ? editPath : path;
+      const expectedAnchor = complete ? editAnchor : anchor;
+      await expect(page).toHaveURL(new RegExp(`${expectedPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\?[^#]*shopId=${expectedShop}(?:&[^#]*)?#${expectedAnchor}$`));
+      expect(new URL(page.url()).searchParams.get("shopId")).toBe(expectedShop);
+      expect(new URL(page.url()).hash).toBe(`#${expectedAnchor}`);
+      await expect(page.locator(`#${expectedAnchor}`)).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
     }
   }
 });
@@ -110,13 +128,17 @@ test("active shop synchronizes dashboard and floating progress across switching 
   await mockOwnerApi(page);
   await page.goto("/owner");
   const shopSelector = page.locator("section").filter({ hasText: "Selected shop" }).locator("select").first();
-  await expect(shopSelector).toHaveValue("shop-b", { timeout: 30_000 });
-  await expect(page.getByRole("button", { name: /Owner setup/ })).toContainText("9/9");
+  await expectActiveShop(page, "shop-b", true);
+  await openChecklist(page, true);
+  await page.getByRole("button", { name: "Close setup" }).click();
   await shopSelector.selectOption("shop-a");
-  await expect(page.getByRole("button", { name: /Owner setup/ })).toContainText("0/9");
+  await expectActiveShop(page, "shop-a", false);
+  await openChecklist(page, false);
+  await page.getByRole("button", { name: "Close setup" }).click();
   await page.reload();
-  await expect(page.locator("section").filter({ hasText: "Selected shop" }).locator("select").first()).toHaveValue("shop-a");
-  await expect(page.getByRole("button", { name: /Owner setup/ })).toContainText("0/9");
+  await expectActiveShop(page, "shop-a", false);
+  await openChecklist(page, false);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
 });
 
 for (const viewport of [
