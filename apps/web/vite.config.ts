@@ -1,6 +1,18 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolveEnvironmentContract } from "./src/environmentContract.mjs";
+
+const SHA = /^[0-9a-f]{40}$/;
+
+export function createReleaseArtifact(env: Record<string, string>, generatedAt = new Date()) {
+  const revision = String(env.CF_PAGES_COMMIT_SHA || env.GITHUB_SHA || env.VITE_RELEASE_SHA || "").trim();
+  if (!SHA.test(revision)) {
+    throw new Error("Frontend builds require an exact lowercase 40-character release SHA");
+  }
+  const artifact = JSON.stringify({ revision, generatedAt: generatedAt.toISOString() });
+  if (Buffer.byteLength(artifact) > 1024) throw new Error("Frontend release artifact exceeds its safety limit");
+  return artifact;
+}
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -15,9 +27,19 @@ export default defineConfig(({ command, mode }) => {
     isDev: command === "serve" && mode !== "production",
   });
   const apiTarget = env.VITE_API_TARGET || "http://127.0.0.1:6002";
+  const releaseArtifact = command === "build" ? createReleaseArtifact(env) : null;
+  const releasePlugin: Plugin | null = releaseArtifact ? {
+    name: "pawnloop-release-artifact",
+    generateBundle() {
+      this.emitFile({ type: "asset", fileName: "release.json", source: releaseArtifact });
+    },
+  } : null;
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      ...(releasePlugin ? [releasePlugin] : []),
+    ],
     server: {
       host: "127.0.0.1",
       port: 5176,

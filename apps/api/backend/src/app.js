@@ -73,7 +73,7 @@ function parseFrontendHosts(value) {
   );
 }
 
-function isFrontendRequest(req, frontendHosts) {
+function isFrontendRequest(req, frontendHosts, env) {
   const hostname = String(req.hostname || "")
     .trim()
     .toLowerCase();
@@ -82,7 +82,7 @@ function isFrontendRequest(req, frontendHosts) {
     return true;
   }
 
-  return process.env.SERVE_WEB === "1";
+  return env.SERVE_WEB === "1";
 }
 
 function isFrontendAssetRequest(req) {
@@ -145,7 +145,7 @@ function noStore(_req, res, next) {
   next();
 }
 
-async function runWithTimeout(task, timeoutMs, timers = globalThis) {
+async function runWithDeadline(task, timeoutMs, timers = globalThis) {
   let timeout;
   const controller = new AbortController();
   const timeoutError = new Error("Readiness check timed out");
@@ -165,19 +165,19 @@ async function runWithTimeout(task, timeoutMs, timers = globalThis) {
   }
 }
 
-function createHealthPayload(serviceName, env) {
+function createHealthPayload(serviceName, environment, runtimeEnv) {
   return {
     ok: true,
     success: true,
     service: serviceName,
-    env,
-    revision: resolveEffectiveRevision(process.env),
+    env: environment,
+    revision: resolveEffectiveRevision(runtimeEnv),
     ts: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),
   };
 }
 
-function createErrorResponse(err, req) {
+function createErrorResponse(err, req, runtimeEnv) {
   const rawStatus = Number(err?.statusCode || err?.status || 500);
   const statusCode = rawStatus >= 400 && rawStatus <= 599 ? rawStatus : 500;
   const message = err?.message || "Internal Server Error";
@@ -185,14 +185,14 @@ function createErrorResponse(err, req) {
   const body = {
     success: false,
     error:
-      process.env.NODE_ENV === "production" && statusCode >= 500
+      runtimeEnv.NODE_ENV === "production" && statusCode >= 500
         ? "Internal Server Error"
         : message,
     requestId: req.requestId,
     ...(err?.code ? { code: String(err.code) } : {}),
   };
 
-  if (process.env.NODE_ENV !== "production" && err?.details) {
+  if (runtimeEnv.NODE_ENV !== "production" && err?.details) {
     body.details = err.details;
   }
 
@@ -203,29 +203,29 @@ export function createApp(options = {}) {
   const app = express();
   const runtimeEnv = options.env || process.env;
   app.locals.aiListingDependencies = options.aiListingDependencies;
-  const trustProxyHops = loadTrustProxyConfig(process.env);
+  const trustProxyHops = loadTrustProxyConfig(runtimeEnv);
   const authRateLimitConfig =
-    options.authRateLimitConfig || loadAuthRateLimitConfig(process.env);
+    options.authRateLimitConfig || loadAuthRateLimitConfig(runtimeEnv);
   const authRateLimiters = createAuthRateLimiters({
     config: authRateLimitConfig,
     store: options.authRateLimitStore,
     now: options.now,
     auditMfaRateLimit: options.auditMfaRateLimit,
-    env: options.env || process.env,
+    env: runtimeEnv,
   });
   app.locals.authRateLimiters = authRateLimiters;
-  const uploadStorage = options.uploadStorage || createS3UploadStorage();
+  const uploadStorage = options.uploadStorage || createS3UploadStorage(undefined, { env: runtimeEnv });
   app.locals.uploadStorage = uploadStorage;
 
-  const serviceName = process.env.APP_NAME || "pawnloop-api";
-  const env = process.env.APP_ENV || process.env.NODE_ENV || "development";
+  const serviceName = runtimeEnv.APP_NAME || "pawnloop-api";
+  const environment = runtimeEnv.APP_ENV || runtimeEnv.NODE_ENV || "development";
   const readinessCheck =
     typeof options.readinessCheck === "function"
       ? options.readinessCheck
       : () => prisma.$queryRaw`SELECT 1`;
 
   const configuredReadinessTimeoutMs = Number.parseInt(
-    process.env.READINESS_TIMEOUT_MS || "",
+    runtimeEnv.READINESS_TIMEOUT_MS || "",
     10
   );
 
@@ -235,16 +235,16 @@ export function createApp(options = {}) {
       ? configuredReadinessTimeoutMs
       : 5000;
   const readinessTimers = options.readinessTimers || globalThis;
-  const allowedOrigins = parseAllowedOrigins(process.env);
+  const allowedOrigins = parseAllowedOrigins(runtimeEnv);
 
-  const frontendHosts = parseFrontendHosts(process.env.FRONTEND_HOSTS);
+  const frontendHosts = parseFrontendHosts(runtimeEnv.FRONTEND_HOSTS);
   const webBuildAvailable =
-    process.env.NODE_ENV === "production" &&
+    runtimeEnv.NODE_ENV === "production" &&
     path.extname(webIndexFile) === ".html";
 
-  const jsonLimit = process.env.JSON_LIMIT || "2mb";
-  const urlencodedLimit = process.env.URLENCODED_LIMIT || jsonLimit;
-  const morganFormat = process.env.NODE_ENV === "production" ? "combined" : "dev";
+  const jsonLimit = runtimeEnv.JSON_LIMIT || "2mb";
+  const urlencodedLimit = runtimeEnv.URLENCODED_LIMIT || jsonLimit;
+  const morganFormat = runtimeEnv.NODE_ENV === "production" ? "combined" : "dev";
 
   app.disable("x-powered-by");
 
@@ -258,11 +258,11 @@ export function createApp(options = {}) {
     helmet({
       crossOriginResourcePolicy: false,
       contentSecurityPolicy:
-        process.env.NODE_ENV === "production" ? undefined : false,
+        runtimeEnv.NODE_ENV === "production" ? undefined : false,
     })
   );
 
-  const corsOptions = createCorsOptions(allowedOrigins, process.env);
+  const corsOptions = createCorsOptions(allowedOrigins, runtimeEnv);
   app.use(cors(corsOptions));
   app.options(/.*/, cors(corsOptions));
 
@@ -276,7 +276,7 @@ export function createApp(options = {}) {
 
   if (webBuildAvailable) {
     app.use((req, res, next) => {
-      if (!isFrontendRequest(req, frontendHosts)) {
+      if (!isFrontendRequest(req, frontendHosts, runtimeEnv)) {
         return next();
       }
 
@@ -308,7 +308,7 @@ export function createApp(options = {}) {
   }
 
   const healthHandler = (_req, res) => {
-    return res.status(200).json(createHealthPayload(serviceName, env));
+    return res.status(200).json(createHealthPayload(serviceName, environment, runtimeEnv));
   };
 
   const readinessHandler = async (req, res) => {
@@ -319,31 +319,32 @@ export function createApp(options = {}) {
     };
     let activeDependency = "database";
     try {
-      await runWithTimeout(readinessCheck, readinessTimeoutMs, readinessTimers);
-      await runWithTimeout(() => authRateLimiters.check(), readinessTimeoutMs, readinessTimers);
-      dependencies.database = "ok";
-      activeDependency = "storage";
-      let storageResult;
-      if (typeof uploadStorage.check === "function") {
-        storageResult = await runWithTimeout((signal) => uploadStorage.check(signal), readinessTimeoutMs, readinessTimers);
-      }
-      if (env === "production" && storageResult?.enabled !== true) {
-        const error = new Error("Durable storage is unavailable");
-        error.name = "StorageReadinessError";
-        throw error;
-      }
-      dependencies.storage = "ok";
-      activeDependency = "imageProcessing";
-      await runWithTimeout(options.imageRuntimeCheck || checkImageRuntime, readinessTimeoutMs, readinessTimers);
-      dependencies.imageProcessing = "ok";
+      await runWithDeadline(async (signal) => {
+        await readinessCheck(signal);
+        await authRateLimiters.check(signal);
+        dependencies.database = "ok";
+        activeDependency = "storage";
+        const storageResult = typeof uploadStorage.check === "function"
+          ? await uploadStorage.check(signal)
+          : undefined;
+        if (environment === "production" && storageResult?.enabled !== true) {
+          const error = new Error("Durable storage is unavailable");
+          error.name = "StorageReadinessError";
+          throw error;
+        }
+        dependencies.storage = "ok";
+        activeDependency = "imageProcessing";
+        await (options.imageRuntimeCheck || checkImageRuntime)(signal);
+        dependencies.imageProcessing = "ok";
+      }, readinessTimeoutMs, readinessTimers);
 
       return res.status(200).json({
-        ...createHealthPayload(serviceName, env),
+        ...createHealthPayload(serviceName, environment, runtimeEnv),
         ready: true,
         dependencies,
       });
     } catch (error) {
-      if (process.env.NODE_ENV !== "test") {
+      if (runtimeEnv.NODE_ENV !== "test") {
         console.error(
           "[readiness] Dependency check failed.",
           {
@@ -355,7 +356,7 @@ export function createApp(options = {}) {
       }
 
       return res.status(503).json({
-        ...createHealthPayload(serviceName, env),
+        ...createHealthPayload(serviceName, environment, runtimeEnv),
         ok: false,
         success: false,
         ready: false,
@@ -377,7 +378,7 @@ export function createApp(options = {}) {
       success: true,
       service: serviceName,
       message: "API is running",
-      env,
+      env: environment,
     });
   };
 
@@ -495,7 +496,7 @@ export function createApp(options = {}) {
       });
     }
 
-    const { statusCode, body, message } = createErrorResponse(err, req);
+    const { statusCode, body, message } = createErrorResponse(err, req, runtimeEnv);
 
     console.error("[app:error]", {
       requestId: req.requestId,

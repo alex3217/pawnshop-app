@@ -20,6 +20,11 @@ const limits = Object.freeze({
 
 assert.ok(marker);
 assert.ok(storageDirectory);
+for (const forbidden of [
+  "PRODUCTION_DATABASE_HOST", "STAGING_DATABASE_HOST", "UPLOAD_STORAGE_ENDPOINT",
+  "UPLOAD_STORAGE_BUCKET", "UPLOAD_STORAGE_ACCESS_KEY_ID", "UPLOAD_STORAGE_SECRET_ACCESS_KEY",
+  "RENDER_API_KEY", "CLOUDFLARE_API_TOKEN",
+]) assert.equal(process.env[forbidden], undefined, `${forbidden} must not reach the isolated fixture`);
 const database = validateTestDatabaseEnvironment(process.env).database;
 Object.assign(process.env, { JWT_SECRET: SECRET, DURABLE_UPLOADS_ENABLED: "false" });
 

@@ -13,7 +13,8 @@ function assertManagedKey(key) {
   }
 }
 
-export function createS3UploadStorage(config = loadDurableUploadConfig(), options = {}) {
+export function createS3UploadStorage(config, options = {}) {
+  config ||= loadDurableUploadConfig(options.env);
   if (!config.enabled) {
     return {
       async put() {

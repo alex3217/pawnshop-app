@@ -55,10 +55,14 @@ mutation.
 - Readiness deadline coverage injects a controlled timer, leaves the storage
   dependency unresolved, fires the deadline explicitly, and proves the abort
   signal and bounded 503 response without relying on operating-system timing.
+- The frontend build emits a bounded `release.json` containing its immutable
+  build SHA and generation timestamp. This is repository evidence only; it does
+  not certify that any particular production deployment has occurred.
 - `scripts/verify-production-upload-readiness.mjs` performs bounded GET/HEAD
-  checks only, accepts no credentials, refuses non-HTTPS targets outside fixture
-  mode, disables redirects, redacts query strings, and requires the readiness
-  revision to exactly match an operator-supplied lowercase 40-character Git SHA.
+  checks only, accepts no credentials, rejects redirects and unsafe destinations,
+  redacts URLs, requires fresh API and frontend evidence, binds managed images to
+  the configured durable delivery origin and `uploads/` prefix, and requires both
+  deployed revisions to match one operator-supplied lowercase 40-character SHA.
 
 ## Open PR #236 overlap
 
@@ -113,7 +117,9 @@ system; never store secrets or URL query strings in tickets or logs.
 
    ```sh
    node scripts/verify-production-upload-readiness.mjs \
-     --ready-url https://PRODUCTION_API_HOST/api/ready \
+     --api-origin https://PRODUCTION_API_HOST \
+     --frontend-origin https://PRODUCTION_FRONTEND_HOST \
+     --storage-origin https://PUBLIC_IMAGE_HOST \
      --expected-sha LOWERCASE_40_CHARACTER_RELEASE_SHA \
      --item-image-url https://PUBLIC_IMAGE_HOST/REDACTED_ITEM_PATH \
      --auction-image-url https://PUBLIC_IMAGE_HOST/REDACTED_AUCTION_PATH

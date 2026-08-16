@@ -24,19 +24,15 @@ test("health stays shallow when readiness dependencies fail", async () => {
 });
 
 test("production readiness requires explicitly enabled durable storage", async () => {
-  const previous = process.env.APP_ENV;
-  process.env.APP_ENV = "production";
-  try {
-    const response = await request(app({ uploadStorage: { check: async () => ({ enabled: false, bucket: "must-not-leak" }) } }))
-      .get("/api/ready").expect(503);
-    assert.deepEqual(response.body.dependencies, {
-      database: "ok", storage: "unavailable", imageProcessing: "unavailable",
-    });
-    assert.doesNotMatch(JSON.stringify(response.body), /bucket|must-not-leak/i);
-  } finally {
-    if (previous === undefined) delete process.env.APP_ENV;
-    else process.env.APP_ENV = previous;
-  }
+  const response = await request(app({
+    env: { NODE_ENV: "production", APP_ENV: "production", RENDER_GIT_COMMIT: "0123456789abcdef0123456789abcdef01234567" },
+    authRateLimitStore: { check: async () => true },
+    uploadStorage: { check: async () => ({ enabled: false, bucket: "must-not-leak" }) },
+  })).get("/api/ready").expect(503);
+  assert.deepEqual(response.body.dependencies, {
+    database: "ok", storage: "unavailable", imageProcessing: "unavailable",
+  });
+  assert.doesNotMatch(JSON.stringify(response.body), /bucket|must-not-leak/i);
 });
 
 test("storage failure fails closed without leaking provider details", async () => {
@@ -132,4 +128,28 @@ test("all injected readiness checks pass without network credentials", async () 
   assert.deepEqual(response.body.dependencies, {
     database: "ok", storage: "ok", imageProcessing: "ok",
   });
+});
+
+test("one overall readiness deadline signal reaches every dependency", async () => {
+  const signals = [];
+  const instance = app({
+    readinessCheck: async (signal) => { signals.push(signal); },
+    authRateLimitConfig: { enabled: false },
+    uploadStorage: { check: async (signal) => { signals.push(signal); return { enabled: true }; } },
+    imageRuntimeCheck: async (signal) => { signals.push(signal); },
+  });
+  await request(instance).get("/api/ready").expect(200);
+  assert.equal(signals.length, 3);
+  assert.ok(signals[0] instanceof AbortSignal);
+  assert.equal(signals[1], signals[0]);
+  assert.equal(signals[2], signals[0]);
+});
+
+test("injected runtime environment controls health identity and revision", async () => {
+  const revision = "abcdef0123456789abcdef0123456789abcdef01";
+  const response = await request(app({ env: { NODE_ENV: "test", APP_ENV: "injected", APP_NAME: "injected-api", APP_VERSION: revision } }))
+    .get("/api/health").expect(200);
+  assert.equal(response.body.service, "injected-api");
+  assert.equal(response.body.env, "injected");
+  assert.equal(response.body.revision, revision);
 });

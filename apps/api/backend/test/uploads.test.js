@@ -7,7 +7,7 @@ import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { createAggregateMemoryStorage } from "../src/middleware/aggregateMemoryStorage.js";
 import { createUploadProtection } from "../src/middleware/uploadProtection.js";
-import { HARD_UPLOAD_LIMITS, loadUploadLimits } from "../src/config/uploads.js";
+import { HARD_UPLOAD_LIMITS, loadDurableUploadConfig, loadUploadLimits } from "../src/config/uploads.js";
 import { createS3UploadStorage } from "../src/services/uploadStorage.service.js";
 
 const SECRET = "upload-tests-only-secret-at-least-thirty-two-characters";
@@ -253,8 +253,29 @@ test("admin uploads still require a real target and receive no arbitrary path co
 });
 
 test("durable storage configuration fails closed without required provider settings", async () => {
-  const { loadDurableUploadConfig } = await import("../src/config/uploads.js");
   assert.throws(() => loadDurableUploadConfig({ DURABLE_UPLOADS_ENABLED: "true" }), /UPLOAD_STORAGE_/);
   assert.throws(() => loadDurableUploadConfig({ DURABLE_UPLOADS_ENABLED: "yes" }), /exactly true or false/);
   assert.equal(loadDurableUploadConfig({ DURABLE_UPLOADS_ENABLED: "false" }).enabled, false);
+});
+
+test("durable storage configuration requires canonical public HTTPS origins", () => {
+  const valid = {
+    DURABLE_UPLOADS_ENABLED: "true",
+    UPLOAD_STORAGE_ENDPOINT: "https://storage.pawnloop.com",
+    UPLOAD_STORAGE_REGION: "auto",
+    UPLOAD_STORAGE_BUCKET: "synthetic-test-bucket",
+    UPLOAD_STORAGE_ACCESS_KEY_ID: "synthetic-test-key",
+    UPLOAD_STORAGE_SECRET_ACCESS_KEY: "synthetic-test-secret",
+    UPLOAD_STORAGE_PUBLIC_BASE_URL: "https://images.pawnloop.com",
+    UPLOAD_STORAGE_FORCE_PATH_STYLE: "false",
+  };
+  assert.equal(loadDurableUploadConfig(valid).publicBaseUrl, valid.UPLOAD_STORAGE_PUBLIC_BASE_URL);
+  for (const value of [
+    "http://storage.pawnloop.com", "https://user:secret@storage.pawnloop.com",
+    "https://127.0.0.1", "https://10.0.0.1", "https://169.254.1.1",
+    "https://storage.pawnloop.com:8443", "https://storage.pawnloop.com/path",
+    "https://storage.pawnloop.com?token=secret", "https://storage.pawnloop.com#fragment",
+  ]) {
+    assert.throws(() => loadDurableUploadConfig({ ...valid, UPLOAD_STORAGE_ENDPOINT: value }), /canonical public HTTPS origin/);
+  }
 });

@@ -2,127 +2,108 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { redactUrl, verifyProductionUploadReadiness } from "./verify-production-upload-readiness.mjs";
 
-const readyUrl = "https://api.example.test/api/ready";
-const expectedSha = "0123456789abcdef0123456789abcdef01234567";
-const readyBody = {
-  ok: true,
-  ready: true,
-  env: "production",
-  revision: expectedSha,
+const sha = "0123456789abcdef0123456789abcdef01234567";
+const now = Date.parse("2026-08-16T12:00:00.000Z");
+const origins = {
+  apiOrigin: "https://api.pawnloop.com",
+  frontendOrigin: "https://pawnloop.com",
+  storageOrigin: "https://images.pawnloop.com",
+};
+const ready = {
+  env: "production", ready: true, ok: true, revision: sha,
+  ts: new Date(now).toISOString(),
   dependencies: { database: "ok", storage: "ok", imageProcessing: "ok" },
 };
+const release = { revision: sha, generatedAt: new Date(now).toISOString() };
 
-function response({ status = 200, body = readyBody, type = "application/json" } = {}) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    headers: { get: (name) => name.toLowerCase() === "content-type" ? type : null },
-    async json() { return body; },
+function json(body, init = {}) {
+  const bytes = Buffer.from(JSON.stringify(body));
+  return new Response(bytes, { status: 200, headers: { "content-type": "application/json", "content-length": String(bytes.length) }, ...init });
+}
+
+function fetcher({ readyBody = ready, releaseBody = release, readyResponse, releaseResponse, imageResponse } = {}) {
+  return async (url, init) => {
+    assert.equal(init.redirect, "manual");
+    assert.ok(init.signal instanceof AbortSignal);
+    if (url.pathname === "/api/ready") return readyResponse || json(readyBody);
+    if (url.pathname === "/release.json") return releaseResponse || json(releaseBody);
+    if (url.pathname.startsWith("/uploads/")) return imageResponse || new Response(null, { status: 200, headers: { "content-type": "image/webp" } });
+    throw new Error("unexpected request");
   };
 }
 
-test("offline success checks readiness plus optional item and auction images with GET/HEAD only", async () => {
-  const calls = [];
-  const fetchImpl = async (url, options) => {
-    calls.push({ url: String(url), ...options });
-    return options.method === "GET" ? response() : response({ type: "image/webp" });
-  };
-  const result = await verifyProductionUploadReadiness({
-    readyUrl,
-    expectedSha,
-    itemImageUrls: ["https://images.example.test/uploads/item.webp"],
-    auctionImageUrls: ["https://images.example.test/uploads/auction.webp"],
-    fetchImpl,
-  });
-  assert.deepEqual(result, { ready: true, checkedImages: 2 });
-  assert.deepEqual(calls.map(({ method }) => method), ["GET", "HEAD", "HEAD"]);
-  assert.equal(calls.every(({ redirect }) => redirect === "error"), true);
+function options(overrides = {}) {
+  return { ...origins, expectedSha: sha, now, fetchImpl: fetcher(), ...overrides };
+}
+
+test("credential-free evidence binds API, frontend, storage, SHA and GET/HEAD methods", async () => {
+  const methods = [];
+  const result = await verifyProductionUploadReadiness(options({
+    itemImageUrls: ["https://images.pawnloop.com/uploads/item.webp"],
+    auctionImageUrls: ["https://images.pawnloop.com/uploads/auction.jpg"],
+    fetchImpl: async (url, init) => { methods.push([url.pathname, init.method]); return fetcher()(url, init); },
+  }));
+  assert.deepEqual(result, { ready: true, checkedImages: 2, revision: sha });
+  assert.deepEqual(methods, [["/api/ready", "GET"], ["/release.json", "GET"], ["/uploads/item.webp", "HEAD"], ["/uploads/auction.jpg", "HEAD"]]);
 });
 
-test("missing dependency evidence exits the verification path", async () => {
-  await assert.rejects(
-    verifyProductionUploadReadiness({ readyUrl, expectedSha, fetchImpl: async () => response({ body: { ...readyBody, dependencies: { database: "ok", storage: "missing", imageProcessing: "ok" } } }) }),
-    /storage evidence/,
-  );
-});
-
-test("not-ready response fails even at HTTP 200", async () => {
-  await assert.rejects(
-    verifyProductionUploadReadiness({ readyUrl, expectedSha, fetchImpl: async () => response({ body: { ...readyBody, ready: false } }) }),
-    /not ready/,
-  );
-});
-
-test("bounded timeout is reported without exposing query strings", async () => {
-  const fetchImpl = async (_url, { signal }) => new Promise((_resolve, reject) => {
-    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-  });
-  await assert.rejects(
-    verifyProductionUploadReadiness({ readyUrl: `${readyUrl}?token=private`, expectedSha, timeoutMs: 5, fetchImpl }),
-    (error) => /timeout/.test(error.message) && !/token|private/.test(error.message),
-  );
-});
-
-test("unsafe URLs and non-HTTPS URLs are rejected outside fixture mode", async () => {
-  for (const value of [
-    "http://api.example.test/api/ready",
-    "https://user:pass@api.example.test/api/ready",
-    "file:///api/ready",
-  ]) {
-    await assert.rejects(verifyProductionUploadReadiness({ readyUrl: value, expectedSha, fetchImpl: async () => response() }), /HTTPS|required|Unsafe/);
+test("exact lowercase expected SHA is required", async () => {
+  for (const expectedSha of [undefined, "main", sha.toUpperCase(), `${sha}0`]) {
+    await assert.rejects(verifyProductionUploadReadiness(options({ expectedSha })), /exact lowercase 40-character/);
   }
 });
 
-test("HTTP 404 fails with safely redacted URL", async () => {
-  await assert.rejects(
-    verifyProductionUploadReadiness({ readyUrl: `${readyUrl}?signature=private`, expectedSha, fetchImpl: async () => response({ status: 404 }) }),
-    (error) => /HTTP 404/.test(error.message) && !/signature|private/.test(error.message),
-  );
+test("API and frontend revisions must both match", async () => {
+  const other = "abcdef0123456789abcdef0123456789abcdef01";
+  await assert.rejects(verifyProductionUploadReadiness(options({ fetchImpl: fetcher({ readyBody: { ...ready, revision: other } }) })), /Readiness revision/);
+  await assert.rejects(verifyProductionUploadReadiness(options({ fetchImpl: fetcher({ releaseBody: { ...release, revision: other } }) })), /Frontend revision/);
 });
 
-test("redirects are disabled and surfaced as a request error", async () => {
-  const fetchImpl = async (_url, { redirect }) => {
-    assert.equal(redirect, "error");
-    throw new TypeError("redirect blocked");
-  };
-  await assert.rejects(verifyProductionUploadReadiness({ readyUrl, expectedSha, fetchImpl }), /request error/);
+test("readiness requires all dependency evidence", async () => {
+  await assert.rejects(verifyProductionUploadReadiness(options({ fetchImpl: fetcher({ readyBody: { ...ready, dependencies: { ...ready.dependencies, storage: "unavailable" } } }) })), /storage evidence/);
 });
 
-test("an explicit exact lowercase expected revision is required", async () => {
-  for (const value of [undefined, null, [expectedSha], "", "main", "0123456", expectedSha.toUpperCase(), `${expectedSha}0`]) {
-    await assert.rejects(
-      verifyProductionUploadReadiness({ readyUrl, expectedSha: value, fetchImpl: async () => response() }),
-      /--expected-sha must be an exact lowercase 40-character Git SHA/,
-    );
+test("stale, future and malformed timestamps are rejected", async () => {
+  for (const ts of ["invalid", new Date(now - 86_400_001).toISOString(), new Date(now + 300_001).toISOString()]) {
+    await assert.rejects(verifyProductionUploadReadiness(options({ fetchImpl: fetcher({ readyBody: { ...ready, ts } }) })), /timestamp/);
+    await assert.rejects(verifyProductionUploadReadiness(options({ fetchImpl: fetcher({ releaseBody: { ...release, generatedAt: ts } }) })), /timestamp/);
   }
 });
 
-test("readiness requires an exact lowercase 40-character Git revision", async () => {
-  for (const revision of [undefined, null, [expectedSha], "", "main", "0123456", expectedSha.toUpperCase(), `${expectedSha}0`]) {
-    await assert.rejects(
-      verifyProductionUploadReadiness({
-        readyUrl,
-        expectedSha,
-        fetchImpl: async () => response({ body: { ...readyBody, revision } }),
-      }),
-      /response revision is not an exact lowercase 40-character Git SHA/,
-    );
+test("private, reserved, credentialed and noncanonical origins are rejected", async () => {
+  for (const apiOrigin of ["http://api.pawnloop.com", "https://127.0.0.1", "https://10.0.0.1", "https://169.254.1.1", "https://user:secret@api.pawnloop.com", "https://api.pawnloop.com/path", "not a URL"]) {
+    await assert.rejects(verifyProductionUploadReadiness(options({ apiOrigin })), /origin|malformed/);
   }
 });
 
-test("readiness revision must match the explicitly expected SHA", async () => {
-  await assert.rejects(
-    verifyProductionUploadReadiness({
-      readyUrl,
-      expectedSha,
-      fetchImpl: async () => response({ body: { ...readyBody, revision: "abcdef0123456789abcdef0123456789abcdef01" } }),
-    }),
-    /revision does not match --expected-sha/,
-  );
+test("origins must be distinct", async () => {
+  await assert.rejects(verifyProductionUploadReadiness(options({ frontendOrigin: origins.apiOrigin })), /must be distinct/);
 });
 
-test("redaction removes query strings, fragments, and credentials", () => {
-  const redacted = redactUrl("https://user:pass@images.example.test/a.png?signature=private#fragment");
-  assert.equal(redacted, "https://images.example.test/a.png");
-  assert.doesNotMatch(redacted, /user|pass|signature|private|fragment/);
+test("image evidence is restricted to canonical managed storage keys", async () => {
+  for (const value of ["https://other.pawnloop.com/uploads/a.webp", "https://images.pawnloop.com/private/a.webp", "https://images.pawnloop.com/uploads/../private.webp", "https://images.pawnloop.com/uploads/a.webp?signature=secret"]) {
+    await assert.rejects(verifyProductionUploadReadiness(options({ itemImageUrls: [value] })), /managed durable delivery/);
+  }
+});
+
+test("redirects are rejected", async () => {
+  await assert.rejects(verifyProductionUploadReadiness(options({ readyResponse: new Response(null, { status: 302, headers: { location: "https://other.invalid" } }), fetchImpl: fetcher({ readyResponse: new Response(null, { status: 302 }) }) })), /request error/);
+});
+
+test("declared and actual oversized JSON responses are rejected", async () => {
+  const declared = new Response("{}", { status: 200, headers: { "content-length": "65537" } });
+  await assert.rejects(verifyProductionUploadReadiness(options({ fetchImpl: fetcher({ readyResponse: declared }) })), /oversized/);
+  const actual = new Response(JSON.stringify({ ...ready, padding: "x".repeat(70_000) }), { status: 200 });
+  await assert.rejects(verifyProductionUploadReadiness(options({ fetchImpl: fetcher({ readyResponse: actual }) })), /oversized/);
+});
+
+test("timeouts and malformed URLs are redacted", async () => {
+  const secret = "must-not-appear";
+  await assert.rejects(verifyProductionUploadReadiness(options({ apiOrigin: `https://user:${secret}@api.pawnloop.com` })), (error) => !error.message.includes(secret));
+  await assert.rejects(verifyProductionUploadReadiness(options({ timeoutMs: 1, fetchImpl: (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true })) })), /timeout/);
+});
+
+test("redaction removes credentials, queries and fragments", () => {
+  assert.equal(redactUrl("https://user:secret@example.com/path?token=secret#secret"), "https://example.com/path");
+  assert.equal(redactUrl("not a URL secret"), "[invalid URL]");
 });

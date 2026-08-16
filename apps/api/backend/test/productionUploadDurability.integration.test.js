@@ -10,18 +10,31 @@ import { validateTestDatabaseEnvironment } from "../scripts/assert-test-database
 
 const execFileAsync = promisify(execFile);
 const helper = fileURLToPath(new URL("./helpers/productionUploadColdRestart.fixture.js", import.meta.url));
+const SAFE_CHILD_ENVIRONMENT_NAMES = [
+  "PATH", "Path", "HOME", "SystemRoot", "ComSpec", "PATHEXT",
+  "TEMP", "TMP", "TMPDIR", "DATABASE_URL",
+];
+
+function isolatedChildEnvironment(storageDirectory, marker) {
+  const env = {};
+  for (const name of SAFE_CHILD_ENVIRONMENT_NAMES) {
+    if (process.env[name] !== undefined) env[name] = process.env[name];
+  }
+  return {
+    ...env,
+    NODE_ENV: "test",
+    APP_ENV: "test",
+    REDIS_URL: "",
+    DURABLE_UPLOADS_ENABLED: "false",
+    COLD_RESTART_STORAGE_DIRECTORY: storageDirectory,
+    COLD_RESTART_MARKER: marker,
+  };
+}
 
 async function runProcess(mode, storageDirectory, marker) {
   const { stdout, stderr } = await execFileAsync(process.execPath, [helper, mode], {
     cwd: path.dirname(helper),
-    env: {
-      ...process.env,
-      NODE_ENV: "test",
-      APP_ENV: "test",
-      DURABLE_UPLOADS_ENABLED: "false",
-      COLD_RESTART_STORAGE_DIRECTORY: storageDirectory,
-      COLD_RESTART_MARKER: marker,
-    },
+    env: isolatedChildEnvironment(storageDirectory, marker),
     timeout: 30_000,
   });
   assert.equal(stderr, "");
@@ -61,7 +74,13 @@ test("uploaded image survives a complete process exit and fresh public read proc
       auctionDetail: [written.url],
     });
   } finally {
-    await runProcess("cleanup", storageDirectory, marker).catch(() => {});
-    await rm(storageDirectory, { recursive: true, force: true });
+    const cleanupResults = await Promise.allSettled([
+      runProcess("cleanup", storageDirectory, marker),
+      rm(storageDirectory, { recursive: true, force: true }),
+    ]);
+    const failures = cleanupResults.filter(({ status }) => status === "rejected");
+    if (failures.length) {
+      throw new AggregateError(failures.map(({ reason }) => reason), "Cold-restart fixture teardown failed");
+    }
   }
 });

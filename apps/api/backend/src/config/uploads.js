@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 const DEFAULTS = Object.freeze({
   maxFileBytes: 10 * 1024 * 1024,
   maxFiles: 10,
@@ -43,6 +45,33 @@ function required(env, name) {
   return value;
 }
 
+function unsafeStorageHostname(value) {
+  const hostname = String(value || "").toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) return true;
+  if (isIP(hostname) === 4) {
+    const [a, b] = hostname.split(".").map(Number);
+    return a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 0) ||
+      (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19));
+  }
+  if (isIP(hostname) === 6) {
+    return hostname === "::" || hostname === "::1" || /^f[cd]/.test(hostname) || /^fe[89ab]/.test(hostname) || /^::ffff:/.test(hostname);
+  }
+  return false;
+}
+
+function canonicalStorageUrl(value, name) {
+  let url;
+  try { url = new URL(value); } catch { throw new Error(`${name} must be a canonical public HTTPS origin`); }
+  if (
+    url.protocol !== "https:" || url.username || url.password || url.port ||
+    url.pathname !== "/" || url.search || url.hash || value !== url.origin ||
+    unsafeStorageHostname(url.hostname)
+  ) throw new Error(`${name} must be a canonical public HTTPS origin`);
+  return url.origin;
+}
+
 export function loadUploadLimits(env = process.env) {
   const limits = {
     maxFileBytes: positiveInteger(env, "UPLOAD_MAX_FILE_BYTES", DEFAULTS.maxFileBytes, HARD_MAXIMUMS.maxFileBytes),
@@ -74,27 +103,8 @@ export function loadDurableUploadConfig(env = process.env) {
   const enabled = rawEnabled === "true";
   if (!enabled) return Object.freeze({ enabled: false, limits: loadUploadLimits(env) });
 
-  const publicBaseUrl = required(env, "UPLOAD_STORAGE_PUBLIC_BASE_URL");
-  let parsedPublicUrl;
-  try {
-    parsedPublicUrl = new URL(publicBaseUrl);
-  } catch {
-    throw new Error("UPLOAD_STORAGE_PUBLIC_BASE_URL must be a valid URL");
-  }
-  if (parsedPublicUrl.protocol !== "https:" || parsedPublicUrl.username || parsedPublicUrl.password) {
-    throw new Error("UPLOAD_STORAGE_PUBLIC_BASE_URL must be an HTTPS URL without credentials");
-  }
-
-  const endpoint = required(env, "UPLOAD_STORAGE_ENDPOINT");
-  let parsedEndpoint;
-  try {
-    parsedEndpoint = new URL(endpoint);
-  } catch {
-    throw new Error("UPLOAD_STORAGE_ENDPOINT must be a valid URL");
-  }
-  if (!new Set(["http:", "https:"]).has(parsedEndpoint.protocol) || parsedEndpoint.username || parsedEndpoint.password) {
-    throw new Error("UPLOAD_STORAGE_ENDPOINT must be HTTP(S) without embedded credentials");
-  }
+  const publicBaseUrl = canonicalStorageUrl(required(env, "UPLOAD_STORAGE_PUBLIC_BASE_URL"), "UPLOAD_STORAGE_PUBLIC_BASE_URL");
+  const endpoint = canonicalStorageUrl(required(env, "UPLOAD_STORAGE_ENDPOINT"), "UPLOAD_STORAGE_ENDPOINT");
   const rawForcePathStyle = String(env.UPLOAD_STORAGE_FORCE_PATH_STYLE ?? "false").trim();
   if (rawForcePathStyle !== "true" && rawForcePathStyle !== "false") {
     throw new Error("UPLOAD_STORAGE_FORCE_PATH_STYLE must be exactly true or false");
@@ -102,12 +112,12 @@ export function loadDurableUploadConfig(env = process.env) {
 
   return Object.freeze({
     enabled: true,
-    endpoint: parsedEndpoint.href.replace(/\/+$/, ""),
+    endpoint,
     region: required(env, "UPLOAD_STORAGE_REGION"),
     bucket: required(env, "UPLOAD_STORAGE_BUCKET"),
     accessKeyId: required(env, "UPLOAD_STORAGE_ACCESS_KEY_ID"),
     secretAccessKey: required(env, "UPLOAD_STORAGE_SECRET_ACCESS_KEY"),
-    publicBaseUrl: parsedPublicUrl.href.replace(/\/+$/, ""),
+    publicBaseUrl,
     forcePathStyle: rawForcePathStyle === "true",
     limits: loadUploadLimits(env),
   });
