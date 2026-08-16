@@ -74,9 +74,13 @@ async function mockOwnerApi(page: Page) {
   });
 }
 
-async function openChecklist(page: Page) {
+async function openChecklist(page: Page, complete: boolean) {
+  const trigger = page.getByRole("button", { name: /Owner setup/ });
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await page.getByRole("button", { name: /Owner setup/ }).click();
+  await expect(trigger).toContainText(complete ? "9/9" : "0/9");
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByLabel("Pawn shop owner setup checklist")).toBeVisible();
 }
 
@@ -84,10 +88,14 @@ test("all nine actions render correct route, anchor, and completion copy", async
   await session(page);
   await mockOwnerApi(page);
   for (const complete of [false, true]) {
-    await page.addInitScript((selectedShop) => localStorage.setItem("pawnloop-owner-active-shop-owner-1", selectedShop), complete ? "shop-b" : "shop-a");
+    if (complete) {
+      await page.evaluate(() => {
+        localStorage.setItem("pawnloop-owner-active-shop-owner-1", "shop-b");
+      });
+    }
     for (const [id, path, anchor, editPath, editAnchor] of definitions) {
       await page.goto("/owner");
-      await openChecklist(page);
+      await openChecklist(page, complete);
       const item = page.locator(".role-checklist-item").filter({ hasText: `Setup ${id}` });
       const action = item.getByRole("link", { name: complete ? "Edit" : "Complete setup" });
       await expect(action).toBeVisible();
