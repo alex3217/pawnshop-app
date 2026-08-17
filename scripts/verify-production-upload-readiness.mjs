@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { isIP } from "node:net";
 import { pathToFileURL } from "node:url";
+import { isUnsafePublicDestinationHostname } from "../apps/api/backend/src/config/publicNetworkAddress.js";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
@@ -18,25 +18,11 @@ export function redactUrl(value) {
   }
 }
 
-function unsafeHostname(value) {
-  const hostname = String(value || "").toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
-  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) return true;
-  if (isIP(hostname) === 4) {
-    const [a, b] = hostname.split(".").map(Number);
-    return a === 0 || a === 10 || a === 127 || a >= 224 ||
-      (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 0) ||
-      (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19));
-  }
-  if (isIP(hostname) === 6) return hostname === "::" || hostname === "::1" || /^f[cd]/.test(hostname) || /^fe[89ab]/.test(hostname) || /^::ffff:/.test(hostname);
-  return false;
-}
-
 function parseOrigin(value, label, fixture) {
   let url;
   try { url = new URL(value); } catch { throw new Error(`${label} is malformed: [invalid URL]`); }
   const allowedProtocol = fixture ? new Set(["http:", "https:"]) : new Set(["https:"]);
-  if (!allowedProtocol.has(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash || value !== url.origin || (!fixture && unsafeHostname(url.hostname))) {
+  if (!allowedProtocol.has(url.protocol) || url.username || url.password || (!fixture && url.port) || url.pathname !== "/" || url.search || url.hash || value !== url.origin || (!fixture && isUnsafePublicDestinationHostname(url.hostname))) {
     throw new Error(`${label} must be a canonical public ${fixture ? "HTTP(S)" : "HTTPS"} origin: ${redactUrl(value)}`);
   }
   return url.origin;
@@ -45,7 +31,7 @@ function parseOrigin(value, label, fixture) {
 function parseImageUrl(value, storageOrigin, fixture) {
   let url;
   try { url = new URL(value); } catch { throw new Error(`Image URL is malformed: [invalid URL]`); }
-  if ((!fixture && unsafeHostname(url.hostname)) || url.origin !== storageOrigin || url.username || url.password || url.search || url.hash || !MANAGED_IMAGE_PATH.test(url.pathname)) {
+  if ((!fixture && isUnsafePublicDestinationHostname(url.hostname)) || url.origin !== storageOrigin || url.username || url.password || url.search || url.hash || !MANAGED_IMAGE_PATH.test(url.pathname)) {
     throw new Error(`Image URL is outside the managed durable delivery origin or prefix: ${redactUrl(value)}`);
   }
   return url;

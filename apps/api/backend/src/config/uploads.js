@@ -1,4 +1,4 @@
-import { isIP } from "node:net";
+import { isUnsafePublicDestinationHostname } from "./publicNetworkAddress.js";
 
 const DEFAULTS = Object.freeze({
   maxFileBytes: 10 * 1024 * 1024,
@@ -45,29 +45,13 @@ function required(env, name) {
   return value;
 }
 
-function unsafeStorageHostname(value) {
-  const hostname = String(value || "").toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
-  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) return true;
-  if (isIP(hostname) === 4) {
-    const [a, b] = hostname.split(".").map(Number);
-    return a === 0 || a === 10 || a === 127 || a >= 224 ||
-      (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 0) ||
-      (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19));
-  }
-  if (isIP(hostname) === 6) {
-    return hostname === "::" || hostname === "::1" || /^f[cd]/.test(hostname) || /^fe[89ab]/.test(hostname) || /^::ffff:/.test(hostname);
-  }
-  return false;
-}
-
 function canonicalStorageUrl(value, name) {
   let url;
   try { url = new URL(value); } catch { throw new Error(`${name} must be a canonical public HTTPS origin`); }
   if (
     url.protocol !== "https:" || url.username || url.password || url.port ||
     url.pathname !== "/" || url.search || url.hash || value !== url.origin ||
-    unsafeStorageHostname(url.hostname)
+    isUnsafePublicDestinationHostname(url.hostname)
   ) throw new Error(`${name} must be a canonical public HTTPS origin`);
   return url.origin;
 }

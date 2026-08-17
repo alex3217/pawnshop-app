@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { redactUrl, verifyProductionUploadReadiness } from "./verify-production-upload-readiness.mjs";
+import { isUnsafePublicDestinationHostname } from "../apps/api/backend/src/config/publicNetworkAddress.js";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 const now = Date.parse("2026-08-16T12:00:00.000Z");
@@ -71,9 +72,54 @@ test("stale, future and malformed timestamps are rejected", async () => {
 });
 
 test("private, reserved, credentialed and noncanonical origins are rejected", async () => {
-  for (const apiOrigin of ["http://api.pawnloop.com", "https://127.0.0.1", "https://10.0.0.1", "https://169.254.1.1", "https://user:secret@api.pawnloop.com", "https://api.pawnloop.com/path", "not a URL"]) {
+  for (const apiOrigin of ["http://api.pawnloop.com", "https://127.0.0.1", "https://10.0.0.1", "https://169.254.1.1", "https://user:secret@api.pawnloop.com", "https://api.pawnloop.com:8443", "https://api.pawnloop.com/path", "https://api.pawnloop.com?token=secret", "https://api.pawnloop.com#fragment", "not a URL"]) {
     await assert.rejects(verifyProductionUploadReadiness(options({ apiOrigin })), /origin|malformed/);
   }
+});
+
+const unsafeIpv4Destinations = [
+  "0.0.0.1", "10.0.0.1", "100.64.0.1", "127.0.0.1", "169.254.1.1",
+  "172.16.0.1", "192.0.0.1", "192.0.2.1", "192.168.1.1", "198.18.0.1",
+  "198.51.100.1", "203.0.113.1", "224.0.0.1", "240.0.0.1", "255.255.255.255",
+];
+const unsafeIpv6Destinations = [
+  "::", "::1", "::ffff:127.0.0.1", "64:ff9b:1::1", "100::1", "2001:db8::1",
+  "2002::1", "3fff::1", "5f00::1", "fc00::1", "fe80::1", "ff02::1",
+];
+const publicDestinations = [
+  "1.1.1.1", "8.8.8.8", "93.184.216.34", "2606:4700:4700::1111", "2001:4860:4860::8888",
+];
+
+test("offline verifier rejects every reserved literal before invoking fetch", async () => {
+  for (const address of [...unsafeIpv4Destinations, ...unsafeIpv6Destinations]) {
+    let fetchCalls = 0;
+    const origin = address.includes(":") ? `https://[${address}]` : `https://${address}`;
+    await assert.rejects(
+      verifyProductionUploadReadiness(options({ apiOrigin: origin, fetchImpl: async () => { fetchCalls += 1; throw new Error("must not fetch"); } })),
+      /canonical public HTTPS origin/,
+      address,
+    );
+    assert.equal(fetchCalls, 0, address);
+  }
+});
+
+test("offline verifier accepts ordinary public literal origins", async () => {
+  for (const address of publicDestinations) {
+    assert.equal(isUnsafePublicDestinationHostname(address), false, address);
+    const origin = address.includes(":") ? `https://[${address}]` : `https://${address}`;
+    const result = await verifyProductionUploadReadiness(options({ apiOrigin: origin }));
+    assert.equal(result.ready, true, address);
+  }
+});
+
+test("fixture mode preserves isolated private-origin verification", async () => {
+  const result = await verifyProductionUploadReadiness(options({
+    apiOrigin: "http://127.0.0.1:6101",
+    frontendOrigin: "http://127.0.0.1:6102",
+    storageOrigin: "http://127.0.0.1:6103",
+    fixture: true,
+  }));
+  assert.equal(result.ready, true);
 });
 
 test("origins must be distinct", async () => {
@@ -106,4 +152,16 @@ test("timeouts and malformed URLs are redacted", async () => {
 test("redaction removes credentials, queries and fragments", () => {
   assert.equal(redactUrl("https://user:secret@example.com/path?token=secret#secret"), "https://example.com/path");
   assert.equal(redactUrl("not a URL secret"), "[invalid URL]");
+});
+
+test("origin failures never expose credential or query values", async () => {
+  for (const [apiOrigin, secret] of [
+    ["https://user:credential-secret@198.51.100.1", "credential-secret"],
+    ["https://203.0.113.1?token=query-secret", "query-secret"],
+  ]) {
+    await assert.rejects(verifyProductionUploadReadiness(options({ apiOrigin })), (error) => {
+      assert.equal(error.message.includes(secret), false);
+      return true;
+    });
+  }
 });

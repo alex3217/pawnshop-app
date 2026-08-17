@@ -8,6 +8,7 @@ import { Readable } from "node:stream";
 import { createAggregateMemoryStorage } from "../src/middleware/aggregateMemoryStorage.js";
 import { createUploadProtection } from "../src/middleware/uploadProtection.js";
 import { HARD_UPLOAD_LIMITS, loadDurableUploadConfig, loadUploadLimits } from "../src/config/uploads.js";
+import { isUnsafePublicDestinationHostname } from "../src/config/publicNetworkAddress.js";
 import { createS3UploadStorage } from "../src/services/uploadStorage.service.js";
 
 const SECRET = "upload-tests-only-secret-at-least-thirty-two-characters";
@@ -277,5 +278,53 @@ test("durable storage configuration requires canonical public HTTPS origins", ()
     "https://storage.pawnloop.com?token=secret", "https://storage.pawnloop.com#fragment",
   ]) {
     assert.throws(() => loadDurableUploadConfig({ ...valid, UPLOAD_STORAGE_ENDPOINT: value }), /canonical public HTTPS origin/);
+  }
+});
+
+const unsafeIpv4Destinations = [
+  "0.0.0.1", "10.0.0.1", "100.64.0.1", "127.0.0.1", "169.254.1.1",
+  "172.16.0.1", "192.0.0.1", "192.0.2.1", "192.168.1.1", "198.18.0.1",
+  "198.51.100.1", "203.0.113.1", "224.0.0.1", "240.0.0.1", "255.255.255.255",
+];
+const unsafeIpv6Destinations = [
+  "::", "::1", "::ffff:127.0.0.1", "64:ff9b:1::1", "100::1", "2001:db8::1",
+  "2002::1", "3fff::1", "5f00::1", "fc00::1", "fe80::1", "ff02::1",
+];
+const publicDestinations = [
+  "1.1.1.1", "8.8.8.8", "93.184.216.34", "2606:4700:4700::1111", "2001:4860:4860::8888",
+];
+
+test("shared destination classifier matches non-public address prefixes without rejecting public literals", () => {
+  for (const hostname of [...unsafeIpv4Destinations, ...unsafeIpv6Destinations]) {
+    assert.equal(isUnsafePublicDestinationHostname(hostname), true, hostname);
+  }
+  for (const hostname of publicDestinations) {
+    assert.equal(isUnsafePublicDestinationHostname(hostname), false, hostname);
+  }
+  for (const hostname of ["", "localhost", "api.localhost", "storage.local", "[::1]", "LOCALHOST."]) {
+    assert.equal(isUnsafePublicDestinationHostname(hostname), true, hostname);
+  }
+});
+
+test("durable upload configuration rejects reserved literals and accepts ordinary public literals", () => {
+  const valid = {
+    DURABLE_UPLOADS_ENABLED: "true",
+    UPLOAD_STORAGE_ENDPOINT: "https://storage.pawnloop.com",
+    UPLOAD_STORAGE_REGION: "auto",
+    UPLOAD_STORAGE_BUCKET: "synthetic-test-bucket",
+    UPLOAD_STORAGE_ACCESS_KEY_ID: "synthetic-test-key",
+    UPLOAD_STORAGE_SECRET_ACCESS_KEY: "synthetic-test-secret",
+    UPLOAD_STORAGE_PUBLIC_BASE_URL: "https://images.pawnloop.com",
+    UPLOAD_STORAGE_FORCE_PATH_STYLE: "false",
+  };
+  for (const address of unsafeIpv4Destinations) {
+    assert.throws(() => loadDurableUploadConfig({ ...valid, UPLOAD_STORAGE_ENDPOINT: `https://${address}` }), /canonical public HTTPS origin/, address);
+  }
+  for (const address of unsafeIpv6Destinations) {
+    assert.throws(() => loadDurableUploadConfig({ ...valid, UPLOAD_STORAGE_ENDPOINT: `https://[${address}]` }), /canonical public HTTPS origin/, address);
+  }
+  for (const address of publicDestinations) {
+    const origin = address.includes(":") ? `https://[${address}]` : `https://${address}`;
+    assert.equal(loadDurableUploadConfig({ ...valid, UPLOAD_STORAGE_ENDPOINT: origin }).endpoint, origin, address);
   }
 });
