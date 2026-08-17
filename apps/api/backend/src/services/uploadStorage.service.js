@@ -1,4 +1,7 @@
 import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
+import https from "node:https";
+import { createPublicNetworkLookup } from "../config/publicNetworkAddress.js";
 import { loadDurableUploadConfig } from "../config/uploads.js";
 
 function publicObjectUrl(baseUrl, key) {
@@ -27,7 +30,11 @@ export function createS3UploadStorage(config, options = {}) {
     };
   }
 
-  const client = options.client || new S3Client({
+  const lookup = createPublicNetworkLookup(options.dnsLookup);
+  const requestHandler = options.requestHandler || new NodeHttpHandler({
+    httpsAgent: new https.Agent({ lookup }),
+  });
+  const clientConfig = {
     endpoint: config.endpoint,
     region: config.region,
     forcePathStyle: config.forcePathStyle,
@@ -35,7 +42,9 @@ export function createS3UploadStorage(config, options = {}) {
       accessKeyId: config.accessKeyId,
       secretAccessKey: config.secretAccessKey,
     },
-  });
+    requestHandler,
+  };
+  const client = options.client || (options.s3ClientFactory || ((value) => new S3Client(value)))(clientConfig);
 
   return {
     async put({ key, body, contentType, metadata }) {

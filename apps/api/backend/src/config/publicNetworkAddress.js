@@ -1,3 +1,6 @@
+import dns from "node:dns";
+import net from "node:net";
+
 function parseIpv4(value) {
   const parts = value.split(".");
   if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) return null;
@@ -100,4 +103,59 @@ export function isUnsafePublicDestinationHostname(value) {
     return UNSAFE_IPV6_PREFIXES.some(([prefix, bits]) => matchesPrefix(ipv6Address, prefix, bits, 128));
   }
   return hostname.includes(":");
+}
+
+export function assertPublicNetworkAddresses(addresses) {
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    throw new Error("Public DNS resolution failed");
+  }
+  const normalized = addresses.map((entry) => {
+    const address = typeof entry === "string" ? entry : entry?.address;
+    const family = net.isIP(address);
+    const declaredFamily = typeof entry === "string" ? family : Number(entry?.family || family);
+    if (!address || family === 0 || declaredFamily !== family || isUnsafePublicDestinationHostname(address)) {
+      throw new Error("Destination DNS resolution is not public");
+    }
+    return { address, family };
+  });
+  return normalized;
+}
+
+export function createPublicNetworkLookup(resolver = dns.lookup) {
+  return function publicNetworkLookup(hostname, options, callback) {
+    if (typeof options === "function") {
+      callback = options;
+      options = {};
+    }
+    const requested = typeof options === "number" ? { family: options } : { ...(options || {}) };
+    const literalFamily = net.isIP(hostname);
+    if (literalFamily) {
+      try {
+        const [result] = assertPublicNetworkAddresses([{ address: hostname, family: literalFamily }]);
+        if (requested.all) callback(null, [result]);
+        else callback(null, result.address, result.family);
+      } catch {
+        callback(new Error("Destination DNS resolution is not public"));
+      }
+      return;
+    }
+
+    resolver(hostname, { ...requested, all: true }, (error, results) => {
+      if (error) {
+        callback(new Error("Public DNS resolution failed"));
+        return;
+      }
+      try {
+        let validated = assertPublicNetworkAddresses(results);
+        if (requested.family === 4 || requested.family === 6) {
+          validated = validated.filter(({ family }) => family === requested.family);
+          if (validated.length === 0) throw new Error("Public DNS resolution failed");
+        }
+        if (requested.all) callback(null, validated);
+        else callback(null, validated[0].address, validated[0].family);
+      } catch (validationError) {
+        callback(new Error(validationError.message));
+      }
+    });
+  };
 }

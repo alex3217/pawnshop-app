@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { redactUrl, verifyProductionUploadReadiness } from "./verify-production-upload-readiness.mjs";
 import { isUnsafePublicDestinationHostname } from "../apps/api/backend/src/config/publicNetworkAddress.js";
 
@@ -26,6 +28,7 @@ function fetcher({ readyBody = ready, releaseBody = release, readyResponse, rele
   return async (url, init) => {
     assert.equal(init.redirect, "manual");
     assert.ok(init.signal instanceof AbortSignal);
+    if (init.lookup) await new Promise((resolve, reject) => init.lookup(url.hostname, {}, (error) => error ? reject(error) : resolve()));
     if (url.pathname === "/api/ready") return readyResponse || json(readyBody);
     if (url.pathname === "/release.json") return releaseResponse || json(releaseBody);
     if (url.pathname.startsWith("/uploads/")) return imageResponse || new Response(null, { status: 200, headers: { "content-type": "image/webp" } });
@@ -34,7 +37,17 @@ function fetcher({ readyBody = ready, releaseBody = release, readyResponse, rele
 }
 
 function options(overrides = {}) {
-  return { ...origins, expectedSha: sha, now, fetchImpl: fetcher(), ...overrides };
+  return {
+    ...origins,
+    expectedSha: sha,
+    now,
+    fetchImpl: fetcher(),
+    dnsLookup: (_hostname, request, callback) => {
+      assert.equal(request.all, true);
+      callback(null, [{ address: "93.184.216.34", family: 4 }]);
+    },
+    ...overrides,
+  };
 }
 
 test("credential-free evidence binds API, frontend, storage, SHA and GET/HEAD methods", async () => {
@@ -120,6 +133,85 @@ test("fixture mode preserves isolated private-origin verification", async () => 
     fixture: true,
   }));
   assert.equal(result.ready, true);
+});
+
+test("verifier rejects unsafe DNS before request transmission", async () => {
+  for (const results of [
+    [{ address: "127.0.0.1", family: 4 }],
+    [{ address: "10.0.0.1", family: 4 }],
+    [{ address: "fc00::1", family: 6 }],
+    [{ address: "1.1.1.1", family: 4 }, { address: "192.168.1.1", family: 4 }],
+    [],
+  ]) {
+    let transmitted = 0;
+    const dnsLookup = (_hostname, _request, callback) => callback(null, results);
+    const fetchImpl = async (url, init) => {
+      await new Promise((resolve, reject) => init.lookup(url.hostname, {}, (error) => error ? reject(error) : resolve()));
+      transmitted += 1;
+      return fetcher()(url, { ...init, lookup: undefined });
+    };
+    await assert.rejects(verifyProductionUploadReadiness(options({ dnsLookup, fetchImpl })), /request error/);
+    assert.equal(transmitted, 0);
+  }
+});
+
+test("resolver errors fail closed, are redacted, and transmit nothing", async () => {
+  let transmitted = 0;
+  const fetchImpl = async (url, init) => {
+    await new Promise((resolve, reject) => init.lookup(url.hostname, {}, (error) => error ? reject(error) : resolve()));
+    transmitted += 1;
+  };
+  await assert.rejects(verifyProductionUploadReadiness(options({
+    dnsLookup: (_hostname, _request, callback) => callback(new Error("resolver-secret")),
+    fetchImpl,
+  })), (error) => {
+    assert.doesNotMatch(error.message, /resolver-secret/);
+    return true;
+  });
+  assert.equal(transmitted, 0);
+});
+
+test("actual connections consume the validated lookup result and rebinding cannot bypass it", async () => {
+  const connected = [];
+  let resolution = 0;
+  const result = await verifyProductionUploadReadiness(options({
+    dnsLookup: (_hostname, _request, callback) => {
+      resolution += 1;
+      callback(null, [{ address: "93.184.216.34", family: 4 }]);
+    },
+    fetchImpl: async (url, init) => {
+      const connection = await new Promise((resolve, reject) => init.lookup(url.hostname, {}, (error, address, family) => error ? reject(error) : resolve({ address, family })));
+      connected.push(connection);
+      return fetcher()(url, { ...init, lookup: undefined });
+    },
+  }));
+  assert.equal(result.ready, true);
+  assert.equal(resolution, 2);
+  assert.deepEqual(connected, [{ address: "93.184.216.34", family: 4 }, { address: "93.184.216.34", family: 4 }]);
+
+  let calls = 0;
+  let transmitted = 0;
+  await assert.rejects(verifyProductionUploadReadiness(options({
+    dnsLookup: (_hostname, _request, callback) => callback(null, [{ address: ++calls <= 2 ? "93.184.216.34" : "127.0.0.1", family: 4 }]),
+    itemImageUrls: ["https://images.pawnloop.com/uploads/item.webp"],
+    fetchImpl: async (url, init) => {
+      await new Promise((resolve, reject) => init.lookup(url.hostname, {}, (error) => error ? reject(error) : resolve()));
+      transmitted += 1;
+      return fetcher()(url, { ...init, lookup: undefined });
+    },
+  })), /request error/);
+  assert.equal(transmitted, 2);
+});
+
+test("production CLI rejects --fixture before network activity", async () => {
+  const script = fileURLToPath(new URL("./verify-production-upload-readiness.mjs", import.meta.url));
+  const child = spawn(process.execPath, [script, "--fixture"], { stdio: ["ignore", "ignore", "pipe"] });
+  let stderr = "";
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const exitCode = await new Promise((resolve) => child.on("close", resolve));
+  assert.equal(exitCode, 1);
+  assert.match(stderr, /Unknown argument: --fixture/);
 });
 
 test("origins must be distinct", async () => {

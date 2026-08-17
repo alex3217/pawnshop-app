@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { pathToFileURL } from "node:url";
-import { isUnsafePublicDestinationHostname } from "../apps/api/backend/src/config/publicNetworkAddress.js";
+import https from "node:https";
+import { createPublicNetworkLookup, isUnsafePublicDestinationHostname } from "../apps/api/backend/src/config/publicNetworkAddress.js";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
@@ -37,11 +38,37 @@ function parseImageUrl(value, storageOrigin, fixture) {
   return url;
 }
 
-async function boundedFetch(fetchImpl, url, method, timeoutMs) {
+function productionFetch(url, { method, signal, lookup }) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(url, { method, signal, lookup }, (response) => {
+      const chunks = [];
+      let size = 0;
+      let oversized = false;
+      response.on("data", (chunk) => {
+        size += chunk.length;
+        if (size <= MAX_BODY_BYTES + 1) chunks.push(chunk);
+        else oversized = true;
+      });
+      response.on("end", () => {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (Array.isArray(value)) for (const item of value) headers.append(name, item);
+          else if (value !== undefined) headers.set(name, value);
+        }
+        const body = oversized ? Buffer.alloc(MAX_BODY_BYTES + 1) : Buffer.concat(chunks);
+        resolve(new Response(body, { status: response.statusCode, headers }));
+      });
+    });
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+async function boundedFetch(fetchImpl, lookup, url, method, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("request timed out")), timeoutMs);
   try {
-    const response = await fetchImpl(url, { method, signal: controller.signal, redirect: "manual" });
+    const response = await fetchImpl(url, { method, signal: controller.signal, redirect: "manual", lookup });
     if (response.status >= 300 && response.status < 400) throw new Error("redirect rejected");
     return response;
   } catch (error) {
@@ -79,7 +106,8 @@ export async function verifyProductionUploadReadiness({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxAgeMs = DEFAULT_MAX_AGE_MS,
   now = Date.now(),
-  fetchImpl = globalThis.fetch,
+  fetchImpl = productionFetch,
+  dnsLookup,
 } = {}) {
   if (!SHA.test(String(expectedSha || ""))) throw new Error("--expected-sha must be an exact lowercase 40-character Git SHA");
   const api = parseOrigin(apiOrigin, "API origin", fixture);
@@ -89,9 +117,10 @@ export async function verifyProductionUploadReadiness({
 
   const readyUrl = new URL("/api/ready", api);
   const releaseUrl = new URL("/release.json", frontend);
+  const lookup = fixture ? undefined : createPublicNetworkLookup(dnsLookup);
   const [readyResponse, releaseResponse] = await Promise.all([
-    boundedFetch(fetchImpl, readyUrl, "GET", timeoutMs),
-    boundedFetch(fetchImpl, releaseUrl, "GET", timeoutMs),
+    boundedFetch(fetchImpl, lookup, readyUrl, "GET", timeoutMs),
+    boundedFetch(fetchImpl, lookup, releaseUrl, "GET", timeoutMs),
   ]);
   if (!readyResponse.ok) throw new Error(`Readiness evidence failed with HTTP ${readyResponse.status}: ${redactUrl(readyUrl)}`);
   if (!releaseResponse.ok) throw new Error(`Frontend release evidence failed with HTTP ${releaseResponse.status}: ${redactUrl(releaseUrl)}`);
@@ -111,7 +140,7 @@ export async function verifyProductionUploadReadiness({
   const imageUrls = [...itemImageUrls.map((url) => ["item", url]), ...auctionImageUrls.map((url) => ["auction", url])];
   for (const [kind, value] of imageUrls) {
     const url = parseImageUrl(value, storage, fixture);
-    const image = await boundedFetch(fetchImpl, url, "HEAD", timeoutMs);
+    const image = await boundedFetch(fetchImpl, lookup, url, "HEAD", timeoutMs);
     if (!image.ok) throw new Error(`Public ${kind} image failed with HTTP ${image.status}: ${redactUrl(url)}`);
     const contentType = String(image.headers?.get?.("content-type") || "").toLowerCase();
     if (!contentType.startsWith("image/")) throw new Error(`Public ${kind} URL did not return an image: ${redactUrl(url)}`);
@@ -123,8 +152,7 @@ function parseArgs(argv) {
   const options = { itemImageUrls: [], auctionImageUrls: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--fixture") options.fixture = true;
-    else if (arg === "--api-origin") options.apiOrigin = argv[++index];
+    if (arg === "--api-origin") options.apiOrigin = argv[++index];
     else if (arg === "--frontend-origin") options.frontendOrigin = argv[++index];
     else if (arg === "--storage-origin") options.storageOrigin = argv[++index];
     else if (arg === "--expected-sha") options.expectedSha = argv[++index];

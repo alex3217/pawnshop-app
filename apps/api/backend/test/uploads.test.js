@@ -8,7 +8,7 @@ import { Readable } from "node:stream";
 import { createAggregateMemoryStorage } from "../src/middleware/aggregateMemoryStorage.js";
 import { createUploadProtection } from "../src/middleware/uploadProtection.js";
 import { HARD_UPLOAD_LIMITS, loadDurableUploadConfig, loadUploadLimits } from "../src/config/uploads.js";
-import { isUnsafePublicDestinationHostname } from "../src/config/publicNetworkAddress.js";
+import { assertPublicNetworkAddresses, createPublicNetworkLookup, isUnsafePublicDestinationHostname } from "../src/config/publicNetworkAddress.js";
 import { createS3UploadStorage } from "../src/services/uploadStorage.service.js";
 
 const SECRET = "upload-tests-only-secret-at-least-thirty-two-characters";
@@ -294,7 +294,7 @@ const publicDestinations = [
   "1.1.1.1", "8.8.8.8", "93.184.216.34", "2606:4700:4700::1111", "2001:4860:4860::8888",
 ];
 
-test("shared destination classifier matches non-public address prefixes without rejecting public literals", () => {
+test("shared destination classifier and DNS lookup enforce public numeric addresses", async () => {
   for (const hostname of [...unsafeIpv4Destinations, ...unsafeIpv6Destinations]) {
     assert.equal(isUnsafePublicDestinationHostname(hostname), true, hostname);
   }
@@ -304,7 +304,38 @@ test("shared destination classifier matches non-public address prefixes without 
   for (const hostname of ["", "localhost", "api.localhost", "storage.local", "[::1]", "LOCALHOST."]) {
     assert.equal(isUnsafePublicDestinationHostname(hostname), true, hostname);
   }
+  for (const addresses of [
+    [{ address: "127.0.0.1", family: 4 }],
+    [{ address: "10.1.2.3", family: 4 }],
+    [{ address: "fc00::1", family: 6 }],
+    [{ address: "::ffff:127.0.0.1", family: 6 }],
+    [{ address: "not-an-address", family: 4 }],
+    [{ address: "1.1.1.1", family: 6 }],
+    [{ address: "1.1.1.1", family: 4 }, { address: "192.168.1.1", family: 4 }],
+    [],
+  ]) {
+    const lookup = createPublicNetworkLookup((_hostname, options, callback) => {
+      assert.equal(options.all, true);
+      callback(null, addresses);
+    });
+    await assert.rejects(lookupResult(lookup, "storage.example.test"), /DNS|public/);
+  }
+  const resolverError = createPublicNetworkLookup((_hostname, _options, callback) => callback(new Error("secret resolver detail")));
+  await assert.rejects(lookupResult(resolverError, "storage.example.test"), (error) => {
+    assert.match(error.message, /DNS resolution failed/);
+    assert.doesNotMatch(error.message, /secret/);
+    return true;
+  });
+  const expected = [{ address: "1.1.1.1", family: 4 }, { address: "2606:4700:4700::1111", family: 6 }];
+  assert.deepEqual(assertPublicNetworkAddresses(expected), expected);
+  const lookup = createPublicNetworkLookup((_hostname, _options, callback) => callback(null, expected));
+  assert.deepEqual(await lookupResult(lookup, "storage.example.test"), { address: "1.1.1.1", family: 4 });
+  assert.deepEqual((await lookupResult(lookup, "storage.example.test", { all: true })).address, expected);
 });
+
+function lookupResult(lookup, hostname, options = {}) {
+  return new Promise((resolve, reject) => lookup(hostname, options, (error, address, family) => error ? reject(error) : resolve({ address, family })));
+}
 
 test("durable upload configuration rejects reserved literals and accepts ordinary public literals", () => {
   const valid = {
