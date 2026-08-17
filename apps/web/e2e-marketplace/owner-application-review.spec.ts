@@ -611,8 +611,74 @@ test("owner dashboard requires approval and handles responsive light and dark la
 });
 
 test("non-admin users cannot open the administrator application queue", async ({ page }) => {
+  let activeRole: "CONSUMER" | "OWNER" = "CONSUMER";
+  const protectedAdminRequests: string[] = [];
+  const backgroundResponseStatuses: number[] = [];
+  const shopsMineRoles: Array<"CONSUMER" | "OWNER"> = [];
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.startsWith("/api/admin/owner-applications")) {
+      protectedAdminRequests.push(pathname);
+    }
+  });
+  page.on("response", (response) => {
+    const pathname = new URL(response.url()).pathname;
+    if (
+      pathname.endsWith("/auth/shop-access") ||
+      pathname.endsWith("/notifications") ||
+      pathname === "/api/shop-conversations/unread-counts" ||
+      pathname.endsWith("/shops/mine")
+    ) {
+      backgroundResponseStatuses.push(response.status());
+    }
+  });
+  await page.route("**/auth/shop-access", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      success: true,
+      access: {
+        role: activeRole,
+        unrestricted: false,
+        shopIds: [],
+        permissions: [],
+        capabilities: {},
+        shops: [],
+      },
+    }),
+  }));
+  await page.route("**/notifications", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ success: true, notifications: [] }),
+  }));
+  await page.route("**/api/shop-conversations/unread-counts", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ success: true, seller: 0, shop: 0, total: 0 }),
+  }));
+  await page.route("**/shops/mine", (route) => {
+    shopsMineRoles.push(activeRole);
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([]),
+    });
+  });
+  await page.goto("/terms");
+
   for (const role of ["CONSUMER", "OWNER"] as const) {
-    await storeSession(page, role);
+    activeRole = role;
+    await page.evaluate((selectedRole) => {
+      localStorage.setItem("auth_token", `${selectedRole.toLowerCase()}-token`);
+      localStorage.setItem("auth_role", selectedRole);
+      localStorage.setItem("auth_user", JSON.stringify({
+        id: `${selectedRole.toLowerCase()}-1`,
+        name: "Workflow Test User",
+        email: "workflow@pawnloop.test",
+        role: selectedRole,
+      }));
+    }, role);
     for (const path of [
       "/admin/owner-applications",
       "/super-admin/owner-applications",
@@ -620,8 +686,15 @@ test("non-admin users cannot open the administrator application queue", async ({
       await page.goto(path);
       await expect(page).toHaveURL("/");
       await expect(page.getByRole("heading", { name: "Owner Applications" })).toHaveCount(0);
+      await expect.poll(() => page.evaluate(() => ({
+        token: localStorage.getItem("auth_token"),
+        role: localStorage.getItem("auth_role"),
+      }))).toEqual({ token: `${role.toLowerCase()}-token`, role });
     }
   }
+  expect(backgroundResponseStatuses).not.toContain(401);
+  expect(shopsMineRoles).toContain("OWNER");
+  expect(protectedAdminRequests).toEqual([]);
 });
 
 test("unauthenticated users cannot open either administrator application queue", async ({ page }) => {
