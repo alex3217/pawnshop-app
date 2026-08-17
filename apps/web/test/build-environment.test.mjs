@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { resolveBuildEnvironment } from "../scripts/build.mjs";
+
+const viteConfig = readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
 
 test("bare local builds fail closed without an explicit contract", () => {
   assert.throws(
@@ -56,4 +59,16 @@ test("complete explicit Production and staging contracts are preserved", () => {
     };
     assert.deepEqual(resolveBuildEnvironment(input), input);
   }
+});
+
+test("frontend release artifact is bounded and binds the immutable build SHA", () => {
+  assert.match(viteConfig, /CF_PAGES_COMMIT_SHA \|\| env\.GITHUB_SHA \|\| env\.VITE_RELEASE_SHA/);
+  assert.match(viteConfig, /fileName: "release\.json"/);
+  assert.match(viteConfig, /JSON\.stringify\(\{ revision, generatedAt:/);
+  assert.match(viteConfig, /Buffer\.byteLength\(artifact\) > 1024/);
+});
+
+test("frontend release artifact rejects mutable or missing revisions", () => {
+  assert.match(viteConfig, /const SHA = \/\^\[0-9a-f\]\{40\}\$\//);
+  assert.match(viteConfig, /Frontend builds require an exact lowercase 40-character release SHA/);
 });

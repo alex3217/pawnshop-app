@@ -162,6 +162,18 @@ test("deployed environments may explicitly disable uploads without storage crede
   assert.equal(metadata.durableUploadsEnabled, false);
 });
 
+test("production startup requires durable uploads explicitly enabled", () => {
+  for (const value of [undefined, "false", "yes"]) {
+    const env = validEnvironment("production");
+    if (value === undefined) delete env.DURABLE_UPLOADS_ENABLED;
+    else env.DURABLE_UPLOADS_ENABLED = value;
+    assert.throws(
+      () => validateDeployedEnvironment(env, { environment: "production" }),
+      /DURABLE_UPLOADS_ENABLED/,
+    );
+  }
+});
+
 test("staging rejects Stripe live mode", () => {
   const env = validEnvironment("staging");
   env.STRIPE_SECRET_KEY = "sk_live_synthetic_never_real";

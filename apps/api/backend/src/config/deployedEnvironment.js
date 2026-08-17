@@ -194,7 +194,13 @@ function validateScheduler(env, violations) {
 }
 
 function validateDurableUploads(env, violations) {
-  const enabled = parseExplicitBoolean(env, "DURABLE_UPLOADS_ENABLED", violations);
+  const target = clean(env, "APP_ENV") || clean(env, "NODE_ENV");
+  const enabled = parseExplicitBoolean(
+    env,
+    "DURABLE_UPLOADS_ENABLED",
+    violations,
+    target === "production" ? true : undefined,
+  );
   const uploadMaximums = {
     UPLOAD_MAX_FILE_BYTES: 10 * 1024 * 1024,
     UPLOAD_MAX_FILES: 10,

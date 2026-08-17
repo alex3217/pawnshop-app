@@ -7,7 +7,8 @@ import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { createAggregateMemoryStorage } from "../src/middleware/aggregateMemoryStorage.js";
 import { createUploadProtection } from "../src/middleware/uploadProtection.js";
-import { HARD_UPLOAD_LIMITS, loadUploadLimits } from "../src/config/uploads.js";
+import { HARD_UPLOAD_LIMITS, loadDurableUploadConfig, loadUploadLimits } from "../src/config/uploads.js";
+import { assertPublicNetworkAddresses, createPublicNetworkLookup, isUnsafePublicDestinationHostname } from "../src/config/publicNetworkAddress.js";
 import { createS3UploadStorage } from "../src/services/uploadStorage.service.js";
 
 const SECRET = "upload-tests-only-secret-at-least-thirty-two-characters";
@@ -236,7 +237,7 @@ test("upload protection enforces user, IP, and bounded concurrency without a que
   held.emit("finish"); assert.equal(protection.active, 0);
 });
 
-test("S3-compatible writes and deletes abort after the configured timeout", async () => {
+test("S3-compatible operations abort after the configured timeout", async () => {
   const client = { send(_command, { abortSignal }) { return new Promise((_resolve, reject) => abortSignal.addEventListener("abort", () => reject(abortSignal.reason), { once: true })); } };
   const storage = createS3UploadStorage({ enabled: true, endpoint: "https://storage.example.test", region: "auto", forcePathStyle: false, accessKeyId: "test", secretAccessKey: "test", bucket: "test", publicBaseUrl: "https://assets.example.test", limits: { ...limits, storageTimeoutMs: 5 } }, { client });
   async function expectTimeout(operation) {
@@ -245,6 +246,7 @@ test("S3-compatible writes and deletes abort after the configured timeout", asyn
   }
   await expectTimeout(() => storage.put({ key: "uploads/test.png", body: png, contentType: "image/png" }));
   await expectTimeout(() => storage.delete({ key: "uploads/test.png" }));
+  await expectTimeout(() => storage.check());
 });
 
 test("admin uploads still require a real target and receive no arbitrary path control", async () => {
@@ -252,8 +254,108 @@ test("admin uploads still require a real target and receive no arbitrary path co
 });
 
 test("durable storage configuration fails closed without required provider settings", async () => {
-  const { loadDurableUploadConfig } = await import("../src/config/uploads.js");
   assert.throws(() => loadDurableUploadConfig({ DURABLE_UPLOADS_ENABLED: "true" }), /UPLOAD_STORAGE_/);
   assert.throws(() => loadDurableUploadConfig({ DURABLE_UPLOADS_ENABLED: "yes" }), /exactly true or false/);
   assert.equal(loadDurableUploadConfig({ DURABLE_UPLOADS_ENABLED: "false" }).enabled, false);
+});
+
+test("durable storage configuration requires canonical public HTTPS origins", () => {
+  const valid = {
+    DURABLE_UPLOADS_ENABLED: "true",
+    UPLOAD_STORAGE_ENDPOINT: "https://storage.pawnloop.com",
+    UPLOAD_STORAGE_REGION: "auto",
+    UPLOAD_STORAGE_BUCKET: "synthetic-test-bucket",
+    UPLOAD_STORAGE_ACCESS_KEY_ID: "synthetic-test-key",
+    UPLOAD_STORAGE_SECRET_ACCESS_KEY: "synthetic-test-secret",
+    UPLOAD_STORAGE_PUBLIC_BASE_URL: "https://images.pawnloop.com",
+    UPLOAD_STORAGE_FORCE_PATH_STYLE: "false",
+  };
+  assert.equal(loadDurableUploadConfig(valid).publicBaseUrl, valid.UPLOAD_STORAGE_PUBLIC_BASE_URL);
+  for (const value of [
+    "http://storage.pawnloop.com", "https://user:secret@storage.pawnloop.com",
+    "https://127.0.0.1", "https://10.0.0.1", "https://169.254.1.1",
+    "https://storage.pawnloop.com:8443", "https://storage.pawnloop.com/path",
+    "https://storage.pawnloop.com?token=secret", "https://storage.pawnloop.com#fragment",
+  ]) {
+    assert.throws(() => loadDurableUploadConfig({ ...valid, UPLOAD_STORAGE_ENDPOINT: value }), /canonical public HTTPS origin/);
+  }
+});
+
+const unsafeIpv4Destinations = [
+  "0.0.0.1", "10.0.0.1", "100.64.0.1", "127.0.0.1", "169.254.1.1",
+  "172.16.0.1", "192.0.0.1", "192.0.2.1", "192.168.1.1", "198.18.0.1",
+  "198.51.100.1", "203.0.113.1", "224.0.0.1", "240.0.0.1", "255.255.255.255",
+];
+const unsafeIpv6Destinations = [
+  "::", "::1", "::ffff:127.0.0.1", "64:ff9b:1::1", "100::1", "2001:db8::1",
+  "2002::1", "3fff::1", "5f00::1", "fc00::1", "fe80::1", "ff02::1",
+];
+const publicDestinations = [
+  "1.1.1.1", "8.8.8.8", "93.184.216.34", "2606:4700:4700::1111", "2001:4860:4860::8888",
+];
+
+test("shared destination classifier and DNS lookup enforce public numeric addresses", async () => {
+  for (const hostname of [...unsafeIpv4Destinations, ...unsafeIpv6Destinations]) {
+    assert.equal(isUnsafePublicDestinationHostname(hostname), true, hostname);
+  }
+  for (const hostname of publicDestinations) {
+    assert.equal(isUnsafePublicDestinationHostname(hostname), false, hostname);
+  }
+  for (const hostname of ["", "localhost", "api.localhost", "storage.local", "[::1]", "LOCALHOST."]) {
+    assert.equal(isUnsafePublicDestinationHostname(hostname), true, hostname);
+  }
+  for (const addresses of [
+    [{ address: "127.0.0.1", family: 4 }],
+    [{ address: "10.1.2.3", family: 4 }],
+    [{ address: "fc00::1", family: 6 }],
+    [{ address: "::ffff:127.0.0.1", family: 6 }],
+    [{ address: "not-an-address", family: 4 }],
+    [{ address: "1.1.1.1", family: 6 }],
+    [{ address: "1.1.1.1", family: 4 }, { address: "192.168.1.1", family: 4 }],
+    [],
+  ]) {
+    const lookup = createPublicNetworkLookup((_hostname, options, callback) => {
+      assert.equal(options.all, true);
+      callback(null, addresses);
+    });
+    await assert.rejects(lookupResult(lookup, "storage.example.test"), /DNS|public/);
+  }
+  const resolverError = createPublicNetworkLookup((_hostname, _options, callback) => callback(new Error("secret resolver detail")));
+  await assert.rejects(lookupResult(resolverError, "storage.example.test"), (error) => {
+    assert.match(error.message, /DNS resolution failed/);
+    assert.doesNotMatch(error.message, /secret/);
+    return true;
+  });
+  const expected = [{ address: "1.1.1.1", family: 4 }, { address: "2606:4700:4700::1111", family: 6 }];
+  assert.deepEqual(assertPublicNetworkAddresses(expected), expected);
+  const lookup = createPublicNetworkLookup((_hostname, _options, callback) => callback(null, expected));
+  assert.deepEqual(await lookupResult(lookup, "storage.example.test"), { address: "1.1.1.1", family: 4 });
+  assert.deepEqual((await lookupResult(lookup, "storage.example.test", { all: true })).address, expected);
+});
+
+function lookupResult(lookup, hostname, options = {}) {
+  return new Promise((resolve, reject) => lookup(hostname, options, (error, address, family) => error ? reject(error) : resolve({ address, family })));
+}
+
+test("durable upload configuration rejects reserved literals and accepts ordinary public literals", () => {
+  const valid = {
+    DURABLE_UPLOADS_ENABLED: "true",
+    UPLOAD_STORAGE_ENDPOINT: "https://storage.pawnloop.com",
+    UPLOAD_STORAGE_REGION: "auto",
+    UPLOAD_STORAGE_BUCKET: "synthetic-test-bucket",
+    UPLOAD_STORAGE_ACCESS_KEY_ID: "synthetic-test-key",
+    UPLOAD_STORAGE_SECRET_ACCESS_KEY: "synthetic-test-secret",
+    UPLOAD_STORAGE_PUBLIC_BASE_URL: "https://images.pawnloop.com",
+    UPLOAD_STORAGE_FORCE_PATH_STYLE: "false",
+  };
+  for (const address of unsafeIpv4Destinations) {
+    assert.throws(() => loadDurableUploadConfig({ ...valid, UPLOAD_STORAGE_ENDPOINT: `https://${address}` }), /canonical public HTTPS origin/, address);
+  }
+  for (const address of unsafeIpv6Destinations) {
+    assert.throws(() => loadDurableUploadConfig({ ...valid, UPLOAD_STORAGE_ENDPOINT: `https://[${address}]` }), /canonical public HTTPS origin/, address);
+  }
+  for (const address of publicDestinations) {
+    const origin = address.includes(":") ? `https://[${address}]` : `https://${address}`;
+    assert.equal(loadDurableUploadConfig({ ...valid, UPLOAD_STORAGE_ENDPOINT: origin }).endpoint, origin, address);
+  }
 });

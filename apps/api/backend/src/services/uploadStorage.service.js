@@ -1,11 +1,23 @@
 import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
+import https from "node:https";
+import { createPublicNetworkLookup } from "../config/publicNetworkAddress.js";
 import { loadDurableUploadConfig } from "../config/uploads.js";
 
 function publicObjectUrl(baseUrl, key) {
   return `${baseUrl}/${key.split("/").map(encodeURIComponent).join("/")}`;
 }
 
-export function createS3UploadStorage(config = loadDurableUploadConfig(), options = {}) {
+function assertManagedKey(key) {
+  if (!/^uploads\/[A-Za-z0-9][A-Za-z0-9._-]*\.(?:jpg|png|webp)$/.test(String(key || ""))) {
+    const error = new Error("Storage object key is outside the managed upload prefix");
+    error.name = "StorageKeyError";
+    throw error;
+  }
+}
+
+export function createS3UploadStorage(config, options = {}) {
+  config ||= loadDurableUploadConfig(options.env);
   if (!config.enabled) {
     return {
       async put() {
@@ -18,7 +30,11 @@ export function createS3UploadStorage(config = loadDurableUploadConfig(), option
     };
   }
 
-  const client = options.client || new S3Client({
+  const lookup = createPublicNetworkLookup(options.dnsLookup);
+  const requestHandler = options.requestHandler || new NodeHttpHandler({
+    httpsAgent: new https.Agent({ lookup }),
+  });
+  const clientConfig = {
     endpoint: config.endpoint,
     region: config.region,
     forcePathStyle: config.forcePathStyle,
@@ -26,10 +42,13 @@ export function createS3UploadStorage(config = loadDurableUploadConfig(), option
       accessKeyId: config.accessKeyId,
       secretAccessKey: config.secretAccessKey,
     },
-  });
+    requestHandler,
+  };
+  const client = options.client || (options.s3ClientFactory || ((value) => new S3Client(value)))(clientConfig);
 
   return {
     async put({ key, body, contentType, metadata }) {
+      assertManagedKey(key);
       await client.send(new PutObjectCommand({
         Bucket: config.bucket,
         Key: key,
@@ -42,13 +61,18 @@ export function createS3UploadStorage(config = loadDurableUploadConfig(), option
       return { url: publicObjectUrl(config.publicBaseUrl, key) };
     },
     async delete({ key }) {
+      assertManagedKey(key);
       await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }), {
         abortSignal: AbortSignal.timeout(config.limits.storageTimeoutMs),
       });
     },
-    async check() {
+    async check(readinessSignal) {
+      const storageTimeoutSignal = AbortSignal.timeout(config.limits.storageTimeoutMs);
+      const abortSignal = readinessSignal
+        ? AbortSignal.any([readinessSignal, storageTimeoutSignal])
+        : storageTimeoutSignal;
       await client.send(new HeadBucketCommand({ Bucket: config.bucket }), {
-        abortSignal: AbortSignal.timeout(config.limits.storageTimeoutMs),
+        abortSignal,
       });
       return { enabled: true };
     },
