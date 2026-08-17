@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "advisory": "GHSA-ggr8-5vv4-36mx",
+      "source": 1145093,
+      "url": "https://github.com/advisories/GHSA-ggr8-5vv4-36mx",
+      "severity": "high",
+      "expiresAt": "2026-09-17T00:00:00.000Z",
+      "dependencyPath": [
+        { "name": "prisma", "version": "6.19.3" },
+        { "name": "@prisma/config", "version": "6.19.3" },
+        { "name": "deepmerge-ts", "version": "7.1.5" }
+      ],
+      "auditPackages": ["prisma", "@prisma/config", "deepmerge-ts"],
+      "reason": "Temporary development-only exception while no supported Prisma release uses deepmerge-ts >=8.0.0. Remove as soon as Prisma publishes a compatible fix."
+    }
+  ]
+}
