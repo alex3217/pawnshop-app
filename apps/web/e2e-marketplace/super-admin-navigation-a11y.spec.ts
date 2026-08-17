@@ -150,6 +150,7 @@ for (const viewport of [
     }) => {
       await page.setViewportSize(viewport);
       await page.goto("/super-admin/system");
+      await expect(page.getByRole("heading", { name: "System Health" })).toBeVisible();
       await page.evaluate((activeTheme: Theme) => {
         document.documentElement.dataset.theme = activeTheme;
       }, theme);
