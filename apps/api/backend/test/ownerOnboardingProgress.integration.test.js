@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { after, before } from "node:test";
 import request from "supertest";
+import { issueMfaStepUpProof } from "./helpers/mfaStepUp.fixture.js";
 
 const DOMAIN = "@owner-onboarding-progress.integration.test";
 const JWT_SECRET = "owner-onboarding-progress-test-secret-only";
@@ -100,18 +101,24 @@ test("all nine checklist destinations persist the facts used by progress", async
   state = (await progress(shopId)).completionById;
   assert.equal(state["seller-plan"], true);
 
-  const staff = await authenticated(request(app).post("/api/staff")).send({
+  const createStaffProof = await issueMfaStepUpProof({ token, userId: ownerId, scope: "privilege.staff.create" });
+  const staff = await authenticated(request(app).post("/api/staff"))
+    .set("x-mfa-step-up-proof", createStaffProof).send({
     shopId, email: `invite${DOMAIN}`, role: "SHOP_STAFF", permissions: ["inventory:read"],
   });
   assert.equal(staff.status, 201, JSON.stringify(staff.body));
   state = (await progress(shopId)).completionById;
   assert.equal(state.staff, true);
 
-  const disabled = await authenticated(request(app).patch(`/api/staff/${staff.body.id}`)).send({ status: "INACTIVE" });
+  const disableStaffProof = await issueMfaStepUpProof({ token, userId: ownerId, scope: "privilege.staff.update" });
+  const disabled = await authenticated(request(app).patch(`/api/staff/${staff.body.id}`))
+    .set("x-mfa-step-up-proof", disableStaffProof).send({ status: "INACTIVE" });
   assert.equal(disabled.status, 200, JSON.stringify(disabled.body));
   state = (await progress(shopId)).completionById;
   assert.equal(state.staff, false, "inactive staff must not complete setup");
-  await authenticated(request(app).patch(`/api/staff/${staff.body.id}`)).send({ status: "INVITED" });
+  const inviteStaffProof = await issueMfaStepUpProof({ token, userId: ownerId, scope: "privilege.staff.update" });
+  await authenticated(request(app).patch(`/api/staff/${staff.body.id}`))
+    .set("x-mfa-step-up-proof", inviteStaffProof).send({ status: "INVITED" });
 
   const item = await authenticated(request(app).post("/api/items")).send({
     pawnShopId: shopId, title: "First persisted item", price: 100, images: [],

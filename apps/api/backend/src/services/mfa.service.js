@@ -517,8 +517,9 @@ export async function cleanupExpiredMfaArtifacts({
       orderBy: { expiresAt: "asc" },
       take: batchSize,
     });
-    const deletedProofs = proofs.length
-      ? await tx.mfaStepUpProof.deleteMany({ where: { id: { in: proofs.map(({ id }) => id) } } })
+    const proofIds = proofs.map(({ id }) => id);
+    const deletedProofs = proofIds.length
+      ? await tx.mfaStepUpProof.deleteMany({ where: { id: { in: proofIds } } })
       : { count: 0 };
     const challenges = await tx.mfaChallenge.findMany({
       where: { OR: [{ expiresAt: { lte: cutoff } }, { consumedAt: { lte: cutoff } }] },
@@ -526,8 +527,9 @@ export async function cleanupExpiredMfaArtifacts({
       orderBy: { expiresAt: "asc" },
       take: batchSize,
     });
-    const deletedChallenges = challenges.length
-      ? await tx.mfaChallenge.deleteMany({ where: { id: { in: challenges.map(({ id }) => id) } } })
+    const challengeIds = challenges.map(({ id }) => id);
+    const deletedChallenges = challengeIds.length
+      ? await tx.mfaChallenge.deleteMany({ where: { id: { in: challengeIds } } })
       : { count: 0 };
     return { proofs: deletedProofs.count, challenges: deletedChallenges.count };
   });
