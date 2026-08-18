@@ -35,7 +35,7 @@ export class RedisUploadRateLimitStore extends RedisRateLimitStore {
   }
 }
 
-export function createUploadProtection({ limits, now = Date.now, store } = {}) {
+export function createUploadProtection({ limits, now = Date.now, store, requireDistributed = false } = {}) {
   const counters = new Map();
   const maxCounterEntries = 10_000;
   let active = 0;
@@ -66,6 +66,7 @@ export function createUploadProtection({ limits, now = Date.now, store } = {}) {
 
   async function rateLimit(req, res, next) {
     try {
+      if (requireDistributed && !distributedStore) throw new Error("Distributed rate-limit store is not configured");
       const userAllowed = await consume("user", keyFor(req, "user"), limits.rateLimitUserMax);
       const ipAllowed = userAllowed && await consume("ip", keyFor(req, "ip"), limits.rateLimitIpMax);
       if (ipAllowed) return next();
