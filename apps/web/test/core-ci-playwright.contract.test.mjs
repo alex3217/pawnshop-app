@@ -9,6 +9,9 @@ const workflow = await readFile(
 const packageJson = JSON.parse(
   await readFile(new URL("../package.json", import.meta.url), "utf8"),
 );
+const packageLock = JSON.parse(
+  await readFile(new URL("../package-lock.json", import.meta.url), "utf8"),
+);
 const config = await readFile(
   new URL("../playwright.seller-subscription-ci.config.ts", import.meta.url),
   "utf8",
@@ -22,19 +25,30 @@ function browserJobSource() {
   return source;
 }
 
-test("Core CI installs Chromium and runs the focused seller subscription browser gate", () => {
+test("Core CI uses the lockfile-matched Playwright container for the seller browser gate", () => {
   const job = browserJobSource();
+  const playwrightVersions = ["@playwright/test", "playwright", "playwright-core"].map(
+    (packageName) => packageLock.packages[`node_modules/${packageName}`]?.version,
+  );
+  const [playwrightVersion] = playwrightVersions;
+  const pinnedPlaywrightImage = `mcr.microsoft.com/playwright:v${playwrightVersion}-noble`;
 
   assert.match(workflow, /^on:\n  pull_request:/m);
+  assert.ok(playwrightVersion, "package-lock.json must resolve Playwright");
+  assert.deepEqual(playwrightVersions, [playwrightVersion, playwrightVersion, playwrightVersion]);
+  assert.equal(playwrightVersion, "1.62.0");
+  assert.match(
+    job,
+    new RegExp(`^\\s+image: ${pinnedPlaywrightImage.replaceAll(".", "\\.")}$`, "m"),
+  );
+  assert.match(job, /options: --user 1001 --ipc=host --init/);
   assert.match(job, /node-version: 20\.20\.2/);
   assert.match(job, /timeout-minutes: 20/);
-  assert.match(job, /Acquire::Retries "5";/);
-  assert.match(job, /Acquire::http::Timeout "30";/);
-  assert.match(job, /Acquire::https::Timeout "30";/);
-  assert.match(job, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"/);
   assert.match(job, /npm --prefix apps\/web ci/);
-  assert.match(job, /npm --prefix apps\/web exec -- playwright install --with-deps chromium/);
   assert.match(job, /npm --prefix apps\/web run test:ci:seller-subscription/);
+  assert.doesNotMatch(job, /playwright install --with-deps/);
+  assert.doesNotMatch(job, /Acquire::/);
+  assert.doesNotMatch(job, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT/);
   assert.doesNotMatch(job, /continue-on-error/);
 });
 
@@ -45,6 +59,11 @@ test("Core CI runs payment methods and buyer dashboard contrast regressions", ()
     job,
     /playwright test payment-methods\.spec\.ts buyer-dashboard-light-readability\.spec\.ts --config playwright\.marketplace\.config\.ts/,
   );
+  assert.match(job, /name: Upload Playwright failure artifacts/);
+  assert.match(job, /if: failure\(\)/);
+  assert.match(job, /uses: actions\/upload-artifact@v4/);
+  assert.match(job, /apps\/web\/\.playwright\/seller-subscription-report/);
+  assert.match(job, /apps\/web\/\.playwright\/seller-subscription-results/);
 });
 
 test("browser gate selects every changed subscription test by exact title", () => {
