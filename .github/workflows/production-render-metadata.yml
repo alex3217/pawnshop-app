@@ -1,0 +1,99 @@
+name: PawnLoop Production Render Metadata
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-production-render-metadata:
+    name: Discover Read-Only Production Render Metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    env:
+      RENDER_SERVICE_ID: srv-d9cj1r3bc2fs73fuvlm0
+      EXPECTED_SOURCE_SHA: 27096da51750479880289b7cd506933d971eb184
+
+    steps:
+      - name: Query and verify production Render metadata
+        shell: bash
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$RENDER_API_KEY"
+          echo "::add-mask::$RENDER_API_KEY"
+          node <<'NODE'
+          const apiKey = process.env.RENDER_API_KEY;
+          const serviceId = process.env.RENDER_SERVICE_ID;
+          const sourceSha = process.env.EXPECTED_SOURCE_SHA;
+          const apiBase = "https://api.render.com/v1";
+
+          function fail(message) {
+            throw new Error(`Render metadata verification failed: ${message}`);
+          }
+
+          async function getJson(path) {
+            let response;
+            try {
+              response = await fetch(`${apiBase}${path}`, {
+                method: "GET",
+                headers: {
+                  Accept: "application/json",
+                  Authorization: `Bearer ${apiKey}`,
+                },
+                redirect: "error",
+                signal: AbortSignal.timeout(15000),
+              });
+            } catch {
+              fail("authenticated GET request failed");
+            }
+            if (!response.ok) fail(`authenticated GET returned HTTP ${response.status}`);
+            const contentType = response.headers.get("content-type") || "";
+            if (!contentType.toLowerCase().includes("application/json")) fail("response was not JSON");
+            try {
+              return await response.json();
+            } catch {
+              fail("response contained malformed JSON");
+            }
+          }
+
+          const service = await getJson(`/services/${serviceId}`);
+          if (!service || typeof service !== "object" || Array.isArray(service)) fail("malformed service record");
+          if (service.id !== serviceId || typeof service.name !== "string" || !service.name) fail("incorrect service identity");
+
+          const environmentId = service.environmentId;
+          if (typeof environmentId !== "string" || !environmentId) fail("missing environment identity");
+          const environment = await getJson(`/environments/${environmentId}`);
+          if (!environment || environment.id !== environmentId || typeof environment.name !== "string" || !environment.name) fail("missing environment identity");
+          if (!Array.isArray(environment.serviceIds) || !environment.serviceIds.includes(serviceId)) fail("incorrect service environment identity");
+
+          const deployPage = await getJson(`/services/${serviceId}/deploys?status=live&limit=100`);
+          if (!Array.isArray(deployPage)) fail("malformed deployment list");
+          const deploys = deployPage.map((entry) => entry && typeof entry === "object" && "deploy" in entry ? entry.deploy : entry);
+          const matching = deploys.filter((deploy) => deploy && deploy.status === "live" && deploy.commit?.id === sourceSha);
+          if (matching.length !== 1) fail("no unique live deployment matched the exact source SHA");
+          const deploy = matching[0];
+          if (typeof deploy.id !== "string" || !deploy.id || (deploy.serviceId != null && deploy.serviceId !== serviceId)) fail("incorrect deployment identity");
+
+          const maintenanceEnabled = service.serviceDetails?.maintenanceMode?.enabled;
+          if (maintenanceEnabled !== true) fail("maintenance mode is not enabled");
+          const autoDeployDisabled = service.autoDeploy === false || service.autoDeploy === "no";
+          if (!autoDeployDisabled || service.autoDeployTrigger !== "off") fail("auto-deploy is not disabled");
+
+          const safeMetadata = {
+            serviceId,
+            serviceName: service.name,
+            environmentId,
+            environmentName: environment.name,
+            deployId: deploy.id,
+            deployStatus: deploy.status,
+            sourceSha: deploy.commit.id,
+            maintenanceEnabled,
+            autoDeploy: service.autoDeploy,
+            autoDeployTrigger: service.autoDeployTrigger,
+          };
+          for (const [key, value] of Object.entries(safeMetadata)) console.log(`${key}=${String(value)}`);
+          NODE
