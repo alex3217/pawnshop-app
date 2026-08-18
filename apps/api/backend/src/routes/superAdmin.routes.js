@@ -6,7 +6,7 @@ import {
   listSuperAdminAuditLogs,
 } from "../services/superAdminAudit.service.js";
 import { authRequired, requireRole } from "../middleware/auth.js";
-import { requireMfaStepUp } from "../middleware/mfaStepUp.js";
+import { requireMfaStepUp, requireMfaStepUpWhenRequired } from "../middleware/mfaStepUp.js";
 import {
   getSuperAdminOverview,
   getSuperAdminSystemHealth,
@@ -83,6 +83,15 @@ import {
 } from "../controllers/inventorySupport.controller.js";
 
 const router = Router();
+const requireShopBillingProof = requireMfaStepUpWhenRequired("configuration.shop.update");
+
+function requireShopBillingOverrideStepUp(req, res, next) {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  return ["subscriptionPlan", "subscriptionStatus", "subscriptionCurrentPeriodEnd", "cancelAtPeriodEnd"]
+    .some((field) => body[field] !== undefined)
+    ? requireShopBillingProof(req, res, next)
+    : next();
+}
 
 const SUPER_ADMIN_ROLES = ["SUPER_ADMIN"];
 const ID_MAX_LENGTH = 128;
@@ -277,10 +286,10 @@ router.get("/messaging/reports", asyncRoute(listMessagingReports));
 router.get("/messaging/analytics", asyncRoute(getMessagingAnalytics));
 router.get("/messaging/settings/defaults", asyncRoute(getMessagingSettingDefaults));
 router.get("/platform-settings/messaging-defaults", asyncRoute(getMessagingSettingDefaults));
-router.post("/beta-invites", asyncRoute(createBetaInvite));
+router.post("/beta-invites", requireMfaStepUpWhenRequired("privilege.beta-invite.create"), asyncRoute(createBetaInvite));
 router.get("/beta-invites", asyncRoute(listBetaInvites));
 router.get("/beta-invites/:id", asyncRoute(getBetaInvite));
-router.post("/beta-invites/:id/revoke", asyncRoute(revokeBetaInvite));
+router.post("/beta-invites/:id/revoke", requireMfaStepUpWhenRequired("privilege.beta-invite.revoke"), asyncRoute(revokeBetaInvite));
 
 router.patch(
   "/users/:id",
@@ -293,8 +302,8 @@ router.patch(
 router.post("/shops", asyncRoute(createSuperAdminShop));
 router.patch("/shops/:id/owner", requireMfaStepUp("privilege.shop-owner.reassign"), asyncRoute(reassignSuperAdminShopOwner));
 router.get("/integrations", asyncRoute(listSuperAdminIntegrations));
-router.patch("/integrations/:id/archive", asyncRoute(archiveSuperAdminIntegration));
-router.patch("/integrations/:id/restore", asyncRoute(restoreSuperAdminIntegration));
+router.patch("/integrations/:id/archive", requireMfaStepUpWhenRequired("configuration.integration.archive"), asyncRoute(archiveSuperAdminIntegration));
+router.patch("/integrations/:id/restore", requireMfaStepUpWhenRequired("configuration.integration.restore"), asyncRoute(restoreSuperAdminIntegration));
 
 router.get("/shops", asyncRoute(listSuperAdminShops));
 
@@ -311,6 +320,7 @@ router.post("/shops/:shopId/inventory-locations", validateIdParam("shopId", "Sho
 
 router.patch(
   "/shops/:id",
+  requireShopBillingOverrideStepUp,
   validateIdParam("id", "Shop id"),
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminShop)
@@ -329,6 +339,7 @@ router.get(
 
 router.patch(
   "/buyer-subscriptions/:id",
+  requireMfaStepUpWhenRequired("configuration.buyer-subscription.update"),
   validateIdParam("id", "Buyer subscription id"),
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminBuyerSubscription)
@@ -336,6 +347,7 @@ router.patch(
 
 router.post(
   "/buyer-subscriptions/:id/lifecycle",
+  requireMfaStepUpWhenRequired("configuration.buyer-subscription.lifecycle"),
   validateIdParam("id", "Buyer subscription id"),
   validateJsonObjectBody,
   asyncRoute(
@@ -347,6 +359,7 @@ router.get("/settlements", asyncRoute(listSuperAdminSettlements));
 
 router.patch(
   "/settlements/:id",
+  requireMfaStepUpWhenRequired("financial.settlement.cancel"),
   validateIdParam("id", "Settlement id"),
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminSettlement)

@@ -1,0 +1,58 @@
+name: PawnLoop Staging Release Receipt
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact main SHA approved for staging application deployment
+        required: true
+        type: string
+      migration_run_id:
+        description: Successful PawnLoop Staging Database apply_migrations run ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  authorize-staging-release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Check out exact main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Fail closed on SHA mismatch
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          test "$RELEASE_SHA" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+
+      - name: Download exact migration receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.migration_run_id }}
+          name: staging-migration-receipt-${{ inputs.migration_run_id }}
+          path: ${{ runner.temp }}/migration-evidence
+
+      - name: Verify exact-SHA migration receipt
+        env:
+          EXPECTED_RELEASE_SHA: ${{ inputs.release_sha }}
+          EXPECTED_MIGRATION_RUN_ID: ${{ inputs.migration_run_id }}
+        run: |
+          set -euo pipefail
+          registry_digest="$(find apps/api/backend/prisma/migrations -type f -name migration.sql -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
+          EXPECTED_REGISTRY_DIGEST="$registry_digest" node scripts/verify-staging-migration-evidence.mjs "$RUNNER_TEMP/migration-evidence/staging-migration-receipt.json"
+
+      - name: Emit manual deployment authorization receipt
+        run: |
+          echo "Exact-SHA migrations are verified. This workflow does not deploy or contact Render."
+          echo "A separately authorized operator must bind the manual Render deployment to ${{ inputs.release_sha }} and retain the provider deployment receipt."

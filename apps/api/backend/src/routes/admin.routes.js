@@ -24,9 +24,16 @@ import {
   getOwnerApplicationReviewHistory,
   updateOwnerApplicationStatus,
 } from "../controllers/admin.controller.js";
-import { requireMfaStepUp } from "../middleware/mfaStepUp.js";
+import { requireMfaStepUp, requireMfaStepUpWhenRequired } from "../middleware/mfaStepUp.js";
 
 const router = Router();
+const requireOwnerAccessProof = requireMfaStepUpWhenRequired("privilege.owner-access.review");
+
+function requireOwnerAccessTransitionStepUp(req, res, next) {
+  return new Set(["APPROVED", "SUSPENDED"]).has(String(req.body?.status || "").trim().toUpperCase())
+    ? requireOwnerAccessProof(req, res, next)
+    : next();
+}
 
 function asyncRoute(handler) {
   return function wrappedRoute(req, res, next) {
@@ -102,6 +109,7 @@ router.get(
 router.patch(
   "/owner-applications/:id/status",
   validateIdParam("id", "Owner application id"),
+  requireOwnerAccessTransitionStepUp,
   asyncRoute(updateOwnerApplicationStatus),
 );
 

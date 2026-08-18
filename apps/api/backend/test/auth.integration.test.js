@@ -670,7 +670,7 @@ test("database role, not stale JWT role, controls authorization", async () => {
     { sub: user.id, role: "CONSUMER", authVersion: user.authVersion, jti: crypto.randomUUID() },
     TEST_JWT_SECRET,
   );
-  const proof = await issueMfaStepUpProof({ token: staleLowRole, userId: user.id, scope: "privilege.super-admin-user.create" });
+  const { proof } = await issueMfaStepUpProof({ app, token: staleLowRole, userId: user.id, scope: "privilege.super-admin-user.create" });
   const allowed = await request(app)
     .post("/api/auth/super-admin/users")
     .set("Authorization", `Bearer ${staleLowRole}`)
@@ -705,7 +705,7 @@ test("admin and super-admin creation use the centralized password policy", async
     password: "short",
     role: "CONSUMER",
   };
-  const adminProof = await issueMfaStepUpProof({ token, userId: admin.id, scope: "privilege.admin-user.create" });
+  const { proof: adminProof } = await issueMfaStepUpProof({ app, token, userId: admin.id, scope: "privilege.admin-user.create" });
   const adminResponse = await request(app)
     .post("/api/admin/users")
     .set("Authorization", `Bearer ${token}`)
@@ -713,7 +713,7 @@ test("admin and super-admin creation use the centralized password policy", async
     .send(input);
   assert.equal(adminResponse.status, 400);
   assert.equal(adminResponse.body.code, "PASSWORD_TOO_SHORT");
-  const superProof = await issueMfaStepUpProof({ token, userId: admin.id, scope: "privilege.super-admin-user.create" });
+  const { proof: superProof } = await issueMfaStepUpProof({ app, token, userId: admin.id, scope: "privilege.super-admin-user.create" });
   const superResponse = await request(app)
     .post("/api/auth/super-admin/users")
     .set("Authorization", `Bearer ${token}`)
@@ -763,7 +763,7 @@ test("admin deactivation increments authVersion and invalidates an issued token"
     },
     TEST_JWT_SECRET,
   );
-  const proof = await issueMfaStepUpProof({ token: actorToken, userId: superAdmin.id, scope: "privilege.admin-user.block" });
+  const { proof } = await issueMfaStepUpProof({ app, token: actorToken, userId: superAdmin.id, scope: "privilege.admin-user.block" });
   const deactivated = await request(app)
     .delete(`/api/admin/users/${target.id}`)
     .set("Authorization", `Bearer ${actorToken}`)
@@ -808,7 +808,7 @@ test("super-admin role changes increment authVersion", async () => {
     },
     TEST_JWT_SECRET,
   );
-  const proof = await issueMfaStepUpProof({ token: actorToken, userId: superAdmin.id, scope: "privilege.super-admin-user.update" });
+  const { proof } = await issueMfaStepUpProof({ app, token: actorToken, userId: superAdmin.id, scope: "privilege.super-admin-user.update" });
   const response = await request(app)
     .patch(`/api/super-admin/users/${target.id}`)
     .set("Authorization", `Bearer ${actorToken}`)
@@ -872,7 +872,7 @@ test("verified super admins can create privileged users", async () => {
     password: superAdminPassword,
   });
   assert.equal(login.status, 200);
-  const proof = await issueMfaStepUpProof({ token: login.body.token, userId: superAdmin.id, scope: "privilege.super-admin-user.create" });
+  const { proof } = await issueMfaStepUpProof({ app, token: login.body.token, userId: superAdmin.id, scope: "privilege.super-admin-user.create" });
   const response = await request(app)
     .post("/api/auth/super-admin/users")
     .set("Authorization", `Bearer ${login.body.token}`)

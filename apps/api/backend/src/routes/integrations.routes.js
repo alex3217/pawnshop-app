@@ -2,6 +2,7 @@
 
 import { Router } from "express";
 import { authRequired, requireRole } from "../middleware/auth.js";
+import { requireMfaStepUpWhenRequired } from "../middleware/mfaStepUp.js";
 import {
   listMyIntegrations,
   createIntegration,
@@ -40,6 +41,7 @@ router.post(
   "/",
   authRequired,
   requireRole(...OWNER_ADMIN_ROLES),
+  requireMfaStepUpWhenRequired("configuration.integration.create"),
   asyncRoute(createIntegration),
 );
 
@@ -47,6 +49,7 @@ router.patch(
   "/:id",
   authRequired,
   requireRole(...OWNER_ADMIN_ROLES),
+  requireMfaStepUpWhenRequired("configuration.integration.update"),
   asyncRoute(updateIntegration),
 );
 
@@ -76,6 +79,7 @@ router.post(
   "/:id/mappings",
   authRequired,
   requireRole(...OWNER_ADMIN_ROLES),
+  requireMfaStepUpWhenRequired("configuration.integration-mapping.create"),
   asyncRoute(createIntegrationMapping),
 );
 
@@ -83,6 +87,7 @@ router.delete(
   "/:id/mappings/:mappingId",
   authRequired,
   requireRole(...OWNER_ADMIN_ROLES),
+  requireMfaStepUpWhenRequired("configuration.integration-mapping.delete"),
   asyncRoute(deleteIntegrationMapping),
 );
 
@@ -104,6 +109,7 @@ router.delete(
   "/:id",
   authRequired,
   requireRole(...OWNER_ADMIN_ROLES),
+  requireMfaStepUpWhenRequired("configuration.integration.delete"),
   asyncRoute(deleteIntegration),
 );
 

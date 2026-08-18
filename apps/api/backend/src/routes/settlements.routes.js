@@ -2,6 +2,7 @@
 
 import { Router } from "express";
 import { authRequired, requireRole } from "../middleware/auth.js";
+import { requireMfaStepUpWhenRequired } from "../middleware/mfaStepUp.js";
 import {
   listMySettlements,
   getSettlementById,
@@ -183,6 +184,7 @@ router.post(
   "/",
   authRequired,
   requireRole(...ADMIN_ROLES),
+  requireMfaStepUpWhenRequired("financial.settlement.create"),
   normalizeSettlementBody,
   asyncRoute(createOrFinalizeSettlement),
 );

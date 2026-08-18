@@ -76,7 +76,7 @@ jobs:
       - name: Validate workflow YAML and security contracts
         run: |
           ruby -e 'require "yaml"; Dir[".github/workflows/*.yml"].each { |path| YAML.safe_load(File.read(path), permitted_classes: [], aliases: true) }'
-          node --test scripts/test/security-workflow.contract.test.mjs
+          node --test scripts/test/security-workflow.contract.test.mjs scripts/test/staging-migration-evidence.contract.test.mjs
 
       - name: Validate Production deployment target
         run: node scripts/check-deployment-environment.mjs

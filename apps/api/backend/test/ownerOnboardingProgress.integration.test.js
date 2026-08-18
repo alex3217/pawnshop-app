@@ -101,7 +101,7 @@ test("all nine checklist destinations persist the facts used by progress", async
   state = (await progress(shopId)).completionById;
   assert.equal(state["seller-plan"], true);
 
-  const createStaffProof = await issueMfaStepUpProof({ token, userId: ownerId, scope: "privilege.staff.create" });
+  const { proof: createStaffProof } = await issueMfaStepUpProof({ app, token, userId: ownerId, scope: "privilege.staff.create" });
   const staff = await authenticated(request(app).post("/api/staff"))
     .set("x-mfa-step-up-proof", createStaffProof).send({
     shopId, email: `invite${DOMAIN}`, role: "SHOP_STAFF", permissions: ["inventory:read"],
@@ -110,13 +110,13 @@ test("all nine checklist destinations persist the facts used by progress", async
   state = (await progress(shopId)).completionById;
   assert.equal(state.staff, true);
 
-  const disableStaffProof = await issueMfaStepUpProof({ token, userId: ownerId, scope: "privilege.staff.update" });
+  const { proof: disableStaffProof } = await issueMfaStepUpProof({ app, token, userId: ownerId, scope: "privilege.staff.update" });
   const disabled = await authenticated(request(app).patch(`/api/staff/${staff.body.id}`))
     .set("x-mfa-step-up-proof", disableStaffProof).send({ status: "INACTIVE" });
   assert.equal(disabled.status, 200, JSON.stringify(disabled.body));
   state = (await progress(shopId)).completionById;
   assert.equal(state.staff, false, "inactive staff must not complete setup");
-  const inviteStaffProof = await issueMfaStepUpProof({ token, userId: ownerId, scope: "privilege.staff.update" });
+  const { proof: inviteStaffProof } = await issueMfaStepUpProof({ app, token, userId: ownerId, scope: "privilege.staff.update" });
   await authenticated(request(app).patch(`/api/staff/${staff.body.id}`))
     .set("x-mfa-step-up-proof", inviteStaffProof).send({ status: "INVITED" });
 

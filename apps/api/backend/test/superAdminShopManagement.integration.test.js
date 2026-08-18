@@ -83,7 +83,7 @@ test("profile, billing, disable, restore, and reassignment are atomic and audite
   for (const isDeleted of [true, false]) assert.equal((await api("patch", `/api/super-admin/shops/${shop.id}`).send({ isDeleted })).status, 200);
   const reassign = async (ownerId) => {
     const token = tokenFor(actor);
-    const proof = await issueMfaStepUpProof({ token, userId: actor.id, scope: "privilege.shop-owner.reassign" });
+    const { proof } = await issueMfaStepUpProof({ app, token, userId: actor.id, scope: "privilege.shop-owner.reassign" });
     return request(app).patch(`/api/super-admin/shops/${shop.id}/owner`)
       .set("Authorization", `Bearer ${token}`).set("x-mfa-step-up-proof", proof).send({ ownerId });
   };

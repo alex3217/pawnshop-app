@@ -158,3 +158,26 @@ jobs:
         if: inputs.operation == 'apply_migrations'
         working-directory: apps/api/backend
         run: npx --no-install prisma migrate status
+
+      - name: Create exact-SHA migration receipt
+        if: inputs.operation == 'apply_migrations'
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry_digest="$(find apps/api/backend/prisma/migrations -type f -name migration.sql -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg releaseSha "$GITHUB_SHA" \
+            --arg registryDigest "$registry_digest" \
+            --argjson workflowRunId "$GITHUB_RUN_ID" \
+            '{repository:$repository,releaseSha:$releaseSha,registryDigest:$registryDigest,workflowRunId:$workflowRunId,migrateDeploy:"success",postMigrationStatus:"clean"}' \
+            > "$RUNNER_TEMP/staging-migration-receipt.json"
+
+      - name: Upload exact-SHA migration receipt
+        if: inputs.operation == 'apply_migrations'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: staging-migration-receipt-${{ github.run_id }}
+          path: ${{ runner.temp }}/staging-migration-receipt.json
+          retention-days: 30
+          if-no-files-found: error

@@ -47,3 +47,15 @@ export function requireMfaStepUp(operationScope) {
     }
   };
 }
+
+export function requireMfaStepUpWhenRequired(operationScope) {
+  const enforce = requireMfaStepUp(operationScope);
+  return async function enforceConfiguredMfaStepUp(req, res, next) {
+    try {
+      if (loadMfaConfig(process.env).rolloutMode !== "required") return next();
+    } catch {
+      return res.status(503).json({ success: false, error: "MFA protection unavailable" });
+    }
+    return enforce(req, res, next);
+  };
+}
