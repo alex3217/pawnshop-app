@@ -279,9 +279,9 @@ router.get("/users/lookup", asyncRoute(lookupSuperAdminUsers));
 router.get("/users/:id/governance", validateIdParam("id", "User id"), asyncRoute(getUserGovernance));
 router.post("/users/:id/governance-actions", requireMfaStepUp("privilege.user-governance"), validateIdParam("id", "User id"), validateJsonObjectBody, asyncRoute(mutateUserGovernance));
 router.get("/messaging/conversations", asyncRoute(listMessagingGovernance));
-router.get("/messaging/conversations/:id/content", validateIdParam("id", "Conversation id"), asyncRoute(getModerationContent));
-router.post("/messaging/conversations/:id/content", validateIdParam("id", "Conversation id"), validateJsonObjectBody, asyncRoute(getModerationContent));
-router.post("/messaging/conversations/:id/moderation", validateIdParam("id", "Conversation id"), validateJsonObjectBody, asyncRoute(moderateConversation));
+router.get("/messaging/conversations/:id/content", requireMfaStepUpWhenRequired("privilege.messaging.content.read"), validateIdParam("id", "Conversation id"), asyncRoute(getModerationContent));
+router.post("/messaging/conversations/:id/content", requireMfaStepUpWhenRequired("privilege.messaging.content.read"), validateIdParam("id", "Conversation id"), validateJsonObjectBody, asyncRoute(getModerationContent));
+router.post("/messaging/conversations/:id/moderation", requireMfaStepUpWhenRequired("privilege.messaging.moderate"), validateIdParam("id", "Conversation id"), validateJsonObjectBody, asyncRoute(moderateConversation));
 router.get("/messaging/reports", asyncRoute(listMessagingReports));
 router.get("/messaging/analytics", asyncRoute(getMessagingAnalytics));
 router.get("/messaging/settings/defaults", asyncRoute(getMessagingSettingDefaults));
@@ -299,7 +299,7 @@ router.patch(
   asyncRoute(updateSuperAdminUser)
 );
 
-router.post("/shops", asyncRoute(createSuperAdminShop));
+router.post("/shops", requireMfaStepUpWhenRequired("privilege.shop.create"), asyncRoute(createSuperAdminShop));
 router.patch("/shops/:id/owner", requireMfaStepUp("privilege.shop-owner.reassign"), asyncRoute(reassignSuperAdminShopOwner));
 router.get("/integrations", asyncRoute(listSuperAdminIntegrations));
 router.patch("/integrations/:id/archive", requireMfaStepUpWhenRequired("configuration.integration.archive"), asyncRoute(archiveSuperAdminIntegration));
@@ -307,16 +307,16 @@ router.patch("/integrations/:id/restore", requireMfaStepUpWhenRequired("configur
 
 router.get("/shops", asyncRoute(listSuperAdminShops));
 
-router.post("/shops/:shopId/support-sessions", validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(startInventorySupport));
-router.post("/shops/:shopId/support-sessions/end", validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(endInventorySupport));
+router.post("/shops/:shopId/support-sessions", requireMfaStepUpWhenRequired("privilege.support-session.start"), validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(startInventorySupport));
+router.post("/shops/:shopId/support-sessions/end", requireMfaStepUpWhenRequired("privilege.support-session.end"), validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(endInventorySupport));
 router.get("/shops/:shopId/inventory", validateIdParam("shopId", "Shop id"), asyncRoute(listSupportInventory));
-router.post("/shops/:shopId/inventory", validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(createSupportInventory));
-router.patch("/shops/:shopId/inventory/:itemId", validateIdParam("shopId", "Shop id"), validateIdParam("itemId", "Item id"), validateJsonObjectBody, asyncRoute(updateSupportInventory));
-router.post("/shops/:shopId/inventory/:itemId/listing", validateIdParam("shopId", "Shop id"), validateIdParam("itemId", "Item id"), validateJsonObjectBody, asyncRoute(changeListingState));
+router.post("/shops/:shopId/inventory", requireMfaStepUpWhenRequired("privilege.support.inventory.create"), validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(createSupportInventory));
+router.patch("/shops/:shopId/inventory/:itemId", requireMfaStepUpWhenRequired("privilege.support.inventory.update"), validateIdParam("shopId", "Shop id"), validateIdParam("itemId", "Item id"), validateJsonObjectBody, asyncRoute(updateSupportInventory));
+router.post("/shops/:shopId/inventory/:itemId/listing", requireMfaStepUpWhenRequired("privilege.support.listing.update"), validateIdParam("shopId", "Shop id"), validateIdParam("itemId", "Item id"), validateJsonObjectBody, asyncRoute(changeListingState));
 router.get("/shops/:shopId/inventory/history", validateIdParam("shopId", "Shop id"), asyncRoute(listInventoryHistory));
 router.get("/shops/:shopId/inventory/:itemId/history", validateIdParam("shopId", "Shop id"), validateIdParam("itemId", "Item id"), asyncRoute(listInventoryHistory));
 router.get("/shops/:shopId/inventory-locations", validateIdParam("shopId", "Shop id"), asyncRoute(listInventoryLocations));
-router.post("/shops/:shopId/inventory-locations", validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(createInventoryLocation));
+router.post("/shops/:shopId/inventory-locations", requireMfaStepUpWhenRequired("privilege.support.location.create"), validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(createInventoryLocation));
 
 router.patch(
   "/shops/:id",

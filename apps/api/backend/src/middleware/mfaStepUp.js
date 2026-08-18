@@ -59,3 +59,12 @@ export function requireMfaStepUpWhenRequired(operationScope) {
     return enforce(req, res, next);
   };
 }
+
+export function requireMfaStepUpForRoles(operationScope, ...roles) {
+  const protectedRoles = new Set(roles);
+  if (protectedRoles.size === 0) throw new Error("At least one privileged role is required");
+  const enforce = requireMfaStepUpWhenRequired(operationScope);
+  return function enforceRoleStepUp(req, res, next) {
+    return protectedRoles.has(req.user?.role) ? enforce(req, res, next) : next();
+  };
+}

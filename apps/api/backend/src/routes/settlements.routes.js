@@ -127,6 +127,7 @@ router.patch(
   "/:id/fulfillment",
   authRequired,
   requireRole(...FULFILLMENT_ROLES),
+  requireMfaStepUpWhenRequired("financial.settlement.fulfillment"),
   validateSettlementIdParam,
   asyncRoute(updateSettlementFulfillment),
 );

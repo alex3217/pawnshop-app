@@ -4,6 +4,7 @@ import test from "node:test";
 import { cleanupExpiredMfaArtifacts, completeMfaChallenge, consumeStepUpProof, verifyStepUpMfaChallenge } from "../src/services/mfa.service.js";
 import { createTotpCode, createTotpSecret, digestMfaValue, encryptTotpSecret } from "../src/services/mfaCrypto.service.js";
 import { verifyMfaStepUp } from "../src/controllers/mfaStepUp.controller.js";
+import { requireMfaStepUpForRoles } from "../src/middleware/mfaStepUp.js";
 
 const key = Buffer.alloc(32, 41);
 const now = new Date("2030-01-01T00:00:00.000Z");
@@ -188,4 +189,20 @@ test("artifact cleanup is bounded, retention-aware, and idempotent", async () =>
   assert.deepEqual(await cleanupExpiredMfaArtifacts({ retentionSeconds: 60, batchSize: 1, prismaClient, now }), { proofs: 1, challenges: 1 });
   assert.deepEqual(await cleanupExpiredMfaArtifacts({ retentionSeconds: 60, batchSize: 1, prismaClient, now }), { proofs: 1, challenges: 0 });
   assert.deepEqual(await cleanupExpiredMfaArtifacts({ retentionSeconds: 60, batchSize: 1, prismaClient, now }), { proofs: 0, challenges: 0 });
+});
+
+test("role-sensitive step-up preserves ordinary party actions and denies an administrator without proof", async () => {
+  const middleware = requireMfaStepUpForRoles("financial.marketplace.fulfillment", "ADMIN", "SUPER_ADMIN");
+  let continued = false;
+  await middleware({ user: { role: "OWNER" } }, {}, () => { continued = true; });
+  assert.equal(continued, true);
+  const response = { status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+  const previous = { mode: process.env.MFA_MODE, key: process.env.MFA_ENCRYPTION_KEY };
+  process.env.MFA_MODE = "required";
+  process.env.MFA_ENCRYPTION_KEY = key.toString("base64");
+  await middleware({ user: { sub: "admin-a", role: "ADMIN" }, get: () => "", ip: "127.0.0.1" }, response, () => assert.fail("must not continue"));
+  if (previous.mode === undefined) delete process.env.MFA_MODE; else process.env.MFA_MODE = previous.mode;
+  if (previous.key === undefined) delete process.env.MFA_ENCRYPTION_KEY; else process.env.MFA_ENCRYPTION_KEY = previous.key;
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.body.scope, "financial.marketplace.fulfillment");
 });

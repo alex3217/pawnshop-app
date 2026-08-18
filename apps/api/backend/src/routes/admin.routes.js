@@ -114,38 +114,44 @@ router.patch(
 );
 
 router.get("/items", asyncRoute(adminListItems));
-router.post("/items", asyncRoute(createAdminItem));
+router.post("/items", requireMfaStepUpWhenRequired("privilege.admin-item.create"), asyncRoute(createAdminItem));
 router.patch(
   "/items/:id",
   validateIdParam("id", "Item id"),
+  requireMfaStepUpWhenRequired("privilege.admin-item.update"),
   asyncRoute(updateAdminItem),
 );
 router.delete(
   "/items/:id",
   validateIdParam("id", "Item id"),
+  requireMfaStepUpWhenRequired("privilege.admin-item.delete"),
   asyncRoute(softDeleteItem),
 );
 router.patch(
   "/items/:id/restore",
   validateIdParam("id", "Item id"),
+  requireMfaStepUpWhenRequired("privilege.admin-item.restore"),
   asyncRoute(restoreItem),
 );
 
 router.get("/shops", asyncRoute(adminListShops));
-router.post("/shops", asyncRoute(createAdminShop));
+router.post("/shops", requireMfaStepUpWhenRequired("privilege.admin-shop.create"), asyncRoute(createAdminShop));
 router.patch(
   "/shops/:id",
   validateIdParam("id", "Shop id"),
+  requireMfaStepUpWhenRequired("privilege.admin-shop.update"),
   asyncRoute(updateAdminShop),
 );
 router.delete(
   "/shops/:id",
   validateIdParam("id", "Shop id"),
+  requireMfaStepUpWhenRequired("privilege.admin-shop.delete"),
   asyncRoute(softDeleteShop),
 );
 router.patch(
   "/shops/:id/restore",
   validateIdParam("id", "Shop id"),
+  requireMfaStepUpWhenRequired("privilege.admin-shop.restore"),
   asyncRoute(restoreShop),
 );
 

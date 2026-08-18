@@ -97,3 +97,22 @@ test("concurrent proof consumption allows exactly one protected mutation", async
   assert.deepEqual(responses.map(({ status }) => status).sort(), [200, 403]);
   assert.equal((await prisma.user.findUnique({ where: { id: target.id } })).isActive, true);
 });
+
+test("every newly protected route category rejects an administrator without proof before mutation", async () => {
+  const token = tokenFor();
+  const calls = [
+    request(app).patch("/api/settlements/missing/fulfillment").send({ status: "SHIPPED" }),
+    request(app).post("/api/stripe/payment-intents/settlements/missing").send({}),
+    request(app).post("/api/marketplace-transactions/missing/customer-sell/offline-payment").send({}),
+    request(app).post("/api/super-admin/shops/missing/support-sessions").send({ reason: "review" }),
+    request(app).post("/api/super-admin/shops/missing/inventory").send({ reason: "review" }),
+    request(app).post("/api/super-admin/messaging/conversations/missing/moderation").send({}),
+    request(app).post("/api/training/admin").send({}),
+    request(app).post("/api/locations/backfill-coordinates").send({}),
+    request(app).post("/api/locations/missing/verify-location").send({}),
+    request(app).post("/api/super-admin/shops").send({}),
+  ];
+  const responses = await Promise.all(calls.map((call) => auth(call, token)));
+  assert.deepEqual(responses.map(({ status }) => status), Array(calls.length).fill(403));
+  assert.ok(responses.every(({ body }) => body.code === "MFA_STEP_UP_REQUIRED" && typeof body.scope === "string"));
+});

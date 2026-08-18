@@ -25,7 +25,7 @@ import {
   createShopFinanceConnectOnboardingLink,
   getShopFinanceConnectStatus,
 } from "../controllers/shopFinanceConnect.controller.js";
-import { requireMfaStepUp, requireMfaStepUpWhenRequired } from "../middleware/mfaStepUp.js";
+import { requireMfaStepUp, requireMfaStepUpForRoles, requireMfaStepUpWhenRequired } from "../middleware/mfaStepUp.js";
 
 const router = Router();
 const FINANCE_ROLES = ["OWNER", "ADMIN", "SUPER_ADMIN"];
@@ -123,7 +123,7 @@ router.get("/:id/items", getShopItems);
 router.get("/:id", getShopById);
 
 // Owner/Admin
-router.post("/", authRequired, requireRole("OWNER", "ADMIN"), createShop);
-router.put("/:id", authRequired, requireRole("OWNER", "ADMIN"), updateShop);
+router.post("/", authRequired, requireRole("OWNER", "ADMIN"), requireMfaStepUpForRoles("privilege.shop.create", "ADMIN"), createShop);
+router.put("/:id", authRequired, requireRole("OWNER", "ADMIN"), requireMfaStepUpForRoles("privilege.shop.update", "ADMIN"), updateShop);
 
 export default router;
