@@ -62,7 +62,10 @@ test("complete explicit Production and staging contracts are preserved", () => {
 });
 
 test("frontend release artifact is bounded and binds the immutable build SHA", () => {
-  assert.match(viteConfig, /CF_PAGES_COMMIT_SHA \|\| env\.GITHUB_SHA \|\| env\.VITE_RELEASE_SHA/);
+  assert.match(
+    viteConfig,
+    /CF_PAGES_COMMIT_SHA[\s\S]*env\.GITHUB_SHA[\s\S]*env\.RENDER_GIT_COMMIT[\s\S]*env\.VITE_RELEASE_SHA/,
+  );
   assert.match(viteConfig, /fileName: "release\.json"/);
   assert.match(viteConfig, /JSON\.stringify\(\{ revision, generatedAt:/);
   assert.match(viteConfig, /Buffer\.byteLength\(artifact\) > 1024/);
