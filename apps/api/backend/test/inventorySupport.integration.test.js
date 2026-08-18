@@ -174,9 +174,47 @@ test("listing changes reject ambiguous multiple active listings", async () => {
   assert.equal(response.status, 409); assert.match(response.body.error, /Multiple active marketplace listings/);
 });
 
+test("Super Admin publication enforces the managed-public-media gate", async () => {
+  await prisma.marketplaceListing.deleteMany({ where: { itemId: item.id } });
+  await prisma.item.update({ where: { id: item.id }, data: { availability: "AVAILABLE", status: "AVAILABLE", quantity: 1, isDeleted: false } });
+  const listing = await prisma.marketplaceListing.create({ data: { itemId: item.id, sellerUserId: owner.id, sellerShopId: shop.id, listingType: "SHOP_TO_CUSTOMER", status: "DRAFT", title: item.title, price: 100, images: ["https://unmanaged.invalid/support-publication.png"] } });
+  const listingPath = `/api/super-admin/shops/${shop.id}/inventory/${item.id}/listing`;
+  const publish = () => api("post", listingPath).set("X-Support-Session-Id", sessionId).send({ action: "publish", reason: "Verify managed publication policy" });
+
+  let response = await publish();
+  assert.equal(response.status, 422);
+  assert.equal(response.body.code, "MANAGED_PUBLIC_MEDIA_REQUIRED");
+  assert.equal((await prisma.marketplaceListing.findUnique({ where: { id: listing.id } })).status, "DRAFT");
+
+  const otherItem = await prisma.item.create({ data: { pawnShopId: shop.id, title: "Publication image owner", price: 25, images: [] } });
+  const crossItemUrl = "https://assets.integration.test/publication-cross-item.png";
+  await prisma.uploadAsset.create({ data: { id: "publication-cross-item", objectKey: "inventory/publication-cross-item.png", deliveryUrl: crossItemUrl, kind: "ITEM_IMAGE", uploaderId: superAdmin.id, shopId: shop.id, itemId: otherItem.id, status: "ATTACHED", attachedAt: new Date(), deleteAfter: null } });
+  await prisma.marketplaceListing.update({ where: { id: listing.id }, data: { images: [crossItemUrl] } });
+  response = await publish();
+  assert.equal(response.status, 422);
+  assert.equal(response.body.code, "MANAGED_PUBLIC_MEDIA_REQUIRED");
+
+  const crossUploaderUrl = "https://assets.integration.test/publication-cross-uploader.png";
+  await prisma.uploadAsset.create({ data: { id: "publication-cross-uploader", objectKey: "inventory/publication-cross-uploader.png", deliveryUrl: crossUploaderUrl, kind: "ITEM_IMAGE", uploaderId: admin.id, shopId: shop.id, itemId: item.id, status: "TEMPORARY", deleteAfter: new Date(Date.now() + 60_000) } });
+  await prisma.marketplaceListing.update({ where: { id: listing.id }, data: { images: [crossUploaderUrl] } });
+  response = await publish();
+  assert.equal(response.status, 422);
+  assert.equal(response.body.code, "MANAGED_PUBLIC_MEDIA_REQUIRED");
+  assert.equal((await prisma.uploadAsset.findUnique({ where: { id: "publication-cross-uploader" } })).status, "TEMPORARY");
+
+  const managedUrl = "https://assets.integration.test/publication-managed.png";
+  await prisma.uploadAsset.create({ data: { id: "publication-managed", objectKey: "inventory/publication-managed.png", deliveryUrl: managedUrl, kind: "ITEM_IMAGE", uploaderId: superAdmin.id, shopId: shop.id, itemId: item.id, status: "ATTACHED", attachedAt: new Date(), deleteAfter: null } });
+  await prisma.marketplaceListing.update({ where: { id: listing.id }, data: { images: [managedUrl] } });
+  response = await publish();
+  assert.equal(response.status, 200);
+  assert.equal(response.body.listing.status, "ACTIVE");
+});
+
 test("listing changes preserve sellability invariants", async () => {
   await prisma.marketplaceListing.deleteMany({ where: { itemId: item.id } });
-  const listing = await prisma.marketplaceListing.create({ data: { itemId: item.id, sellerUserId: owner.id, sellerShopId: shop.id, listingType: "SHOP_TO_CUSTOMER", status: "DRAFT", title: item.title, price: 100 } });
+  const managedUrl = "https://assets.integration.test/invariant-managed.png";
+  await prisma.uploadAsset.create({ data: { id: "invariant-managed", objectKey: "inventory/invariant-managed.png", deliveryUrl: managedUrl, kind: "ITEM_IMAGE", uploaderId: superAdmin.id, shopId: shop.id, itemId: item.id, status: "ATTACHED", attachedAt: new Date(), deleteAfter: null } });
+  const listing = await prisma.marketplaceListing.create({ data: { itemId: item.id, sellerUserId: owner.id, sellerShopId: shop.id, listingType: "SHOP_TO_CUSTOMER", status: "DRAFT", title: item.title, price: 100, images: [managedUrl] } });
   await prisma.item.update({ where: { id: item.id }, data: { availability: "UNAVAILABLE", status: "AVAILABLE", isDeleted: false } });
   const listingPath = `/api/super-admin/shops/${shop.id}/inventory/${item.id}/listing`;
   assert.equal((await api("post", listingPath).set("X-Support-Session-Id", sessionId).send({ action: "publish", reason: "Reject unavailable marketplace listing" })).status, 409);

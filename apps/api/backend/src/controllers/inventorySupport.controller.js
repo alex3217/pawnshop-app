@@ -1,6 +1,11 @@
 import { prisma } from "../lib/prisma.js";
 import { canAccessShopWithStaffPermission } from "../middleware/staffAccess.middleware.js";
-import { deleteTrackedAssets, lockItemImagesForUpdate, reconcileAssetUrls } from "../services/uploadAssets.service.js";
+import {
+  assertManagedPublicListingImages,
+  deleteTrackedAssets,
+  lockItemImagesForUpdate,
+  reconcileAssetUrls,
+} from "../services/uploadAssets.service.js";
 
 const AVAILABILITY = new Set(["AVAILABLE", "RESERVED", "SOLD", "PAWNED", "LAYAWAY", "UNAVAILABLE", "ARCHIVED"]);
 const LISTING_ACTIONS = new Map([["publish", "ACTIVE"], ["unpublish", "DRAFT"], ["archive", "REMOVED"], ["restore", "DRAFT"]]);
@@ -23,7 +28,11 @@ function actorId(req) { return text(req.superAdmin?.id || req.user?.sub); }
 function send(req, res, error) {
   const status = Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode < 500 ? error.statusCode : 500;
   if (status === 500) (req.app?.locals?.logger || console).error("[inventory-support] request failed", { requestId: req.requestId || null, actorId: actorId(req), errorType: error?.name || "Error" });
-  return res.status(status).json({ success: false, error: status === 500 ? "Inventory support failed." : error.message });
+  return res.status(status).json({
+    success: false,
+    error: status === 500 ? "Inventory support failed." : error.message,
+    ...(error?.publicCode ? { code: error.publicCode } : {}),
+  });
 }
 function reason(req) { const value = text(req.body?.reason); if (value.length < 8) throw http(400, "A specific support reason of at least 8 characters is required."); return value; }
 
@@ -153,8 +162,46 @@ export async function updateSupportInventory(req, res) {
 
 export async function changeListingState(req, res) {
   try {
-    const why = reason(req); const shopId = text(req.params.shopId); const itemId = text(req.params.itemId); const action = text(req.body.action).toLowerCase(); const next = LISTING_ACTIONS.get(action); if (!next) throw http(400, "Invalid listing action."); const active = await session(req, shopId);
-    const result = await prisma.$transaction(async (tx) => { const locked = await lockItemImagesForUpdate(tx, itemId); if (!locked || locked.pawnShopId !== shopId) throw http(404, "Item not found."); const item = await tx.item.findUnique({ where: { id: itemId } }); if (action === "publish" && (item.isDeleted || item.availability !== "AVAILABLE" || item.quantity < 1)) throw http(409, "Only available, in-stock inventory can be published."); await assertCommerceSafe(tx, item, { availability: action }); const activeListings = await tx.marketplaceListing.findMany({ where: { itemId, status: "ACTIVE" }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], take: 2 }); if (activeListings.length > 1) throw http(409, "Multiple active marketplace listings require manual resolution."); const listing = activeListings[0] || await tx.marketplaceListing.findFirst({ where: { itemId }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }] }); if (!listing) throw http(409, "This inventory item has no existing marketplace listing."); if (["RESERVED", "SOLD"].includes(listing.status)) throw http(409, "Reserved or sold listings cannot be changed from support mode."); const updated = await tx.marketplaceListing.update({ where: { id: listing.id }, data: { status: next, ...(next === "ACTIVE" ? { publishedAt: new Date() } : {}) } }); const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } }); await tx.inventoryAdminEvent.create({ data: { shopId, itemId, actorId: actorId(req), supportSessionId: active.id, action: `LISTING_${action.toUpperCase()}`, reason: why, requestId: req.requestId || null, beforeState: { id: listing.id, status: listing.status }, afterState: { id: updated.id, status: updated.status } } }); await notifyOwner(tx, shop, item, `LISTING_${action.toUpperCase()}`); return updated; }); return res.json({ success: true, listing: result });
+    const why = reason(req);
+    const shopId = text(req.params.shopId);
+    const itemId = text(req.params.itemId);
+    const action = text(req.body.action).toLowerCase();
+    const next = LISTING_ACTIONS.get(action);
+    if (!next) throw http(400, "Invalid listing action.");
+    const active = await session(req, shopId);
+    const result = await prisma.$transaction(async (tx) => {
+      const locked = await lockItemImagesForUpdate(tx, itemId);
+      if (!locked || locked.pawnShopId !== shopId) throw http(404, "Item not found.");
+      const item = await tx.item.findUnique({ where: { id: itemId } });
+      if (action === "publish" && (item.isDeleted || item.availability !== "AVAILABLE" || item.quantity < 1)) {
+        throw http(409, "Only available, in-stock inventory can be published.");
+      }
+      await assertCommerceSafe(tx, item, { availability: action });
+      const activeListings = await tx.marketplaceListing.findMany({
+        where: { itemId, status: "ACTIVE" },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take: 2,
+      });
+      if (activeListings.length > 1) throw http(409, "Multiple active marketplace listings require manual resolution.");
+      const listing = activeListings[0] || await tx.marketplaceListing.findFirst({
+        where: { itemId },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      });
+      if (!listing) throw http(409, "This inventory item has no existing marketplace listing.");
+      if (["RESERVED", "SOLD"].includes(listing.status)) throw http(409, "Reserved or sold listings cannot be changed from support mode.");
+      if (next === "ACTIVE") {
+        await assertManagedPublicListingImages({ listing, prismaClient: tx });
+      }
+      const updated = await tx.marketplaceListing.update({
+        where: { id: listing.id },
+        data: { status: next, ...(next === "ACTIVE" ? { publishedAt: new Date() } : {}) },
+      });
+      const shop = await tx.pawnShop.findUnique({ where: { id: shopId }, select: { id: true, name: true, ownerId: true } });
+      await tx.inventoryAdminEvent.create({ data: { shopId, itemId, actorId: actorId(req), supportSessionId: active.id, action: `LISTING_${action.toUpperCase()}`, reason: why, requestId: req.requestId || null, beforeState: { id: listing.id, status: listing.status }, afterState: { id: updated.id, status: updated.status } } });
+      await notifyOwner(tx, shop, item, `LISTING_${action.toUpperCase()}`);
+      return updated;
+    });
+    return res.json({ success: true, listing: result });
   } catch (error) { return send(req, res, error); }
 }
 
