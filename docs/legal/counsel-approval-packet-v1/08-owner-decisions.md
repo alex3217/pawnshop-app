@@ -10,7 +10,7 @@ This record separates owner-approved proposals from counsel conclusions and veri
 - Public business phone authorized for publication: `713-299-8847`
 - Legal entity, assumed-name usage, and contracting language remain pending counsel confirmation.
 
-The owner did not authorize publication of the personal name, street/mailing address, or current email addresses. Those values must remain in restricted storage. Before public operation, role-based legal, privacy, and support email addresses must be created, tested, and approved for publication.
+The owner did not authorize publication of the personal name, street/mailing address, or private email addresses. Those values must remain in restricted storage. The owner approved `support@pawnloop.com` as the public support address; it must be created, tested, monitored, and assigned before it is operational. Role-based legal and privacy addresses remain required.
 
 ## Accepted owner proposals
 
@@ -32,12 +32,12 @@ The exact enabled, controlled-test, and deferred feature/category lists are reco
 
 ## Unresolved blocking inputs
 
-1. Texas registered agent and registered-office record
+1. Registered agent has been identified in the restricted record; Texas registered-office, filing, and consent evidence remains pending
 2. Counsel and law firm
 3. Tax accountant/adviser and written marketplace-tax responsibility conclusion
 4. Insurance types, carrier, and approved limits, or documented authorized acceptance of operating without coverage
 5. Separate alternates for incident command and critical operating roles
-6. Role-based public legal, privacy, and support email addresses
+6. Role-based public legal and privacy email addresses; support address delivery, monitoring, and ownership evidence
 7. At least one and preferably three to five eligible, licensed Houston-area beta shops
 8. Exact Stripe Connect charge architecture, negative-balance responsibility, dispute allocation, payout controls, and reserve capability
 9. Approved legal documents and exact publication/assent versions
