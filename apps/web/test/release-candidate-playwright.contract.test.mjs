@@ -44,7 +44,6 @@ test("release-candidate browser jobs use the lockfile-matched Playwright contain
 });
 
 test("release-candidate CI shards the full Chromium suite with strict artifacts", () => {
-  assert.match(workflow, /push:\n    branches:\n      - fix\/release-candidate-qa-accessibility-v1/);
   assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
   assert.match(workflow, /--project=chromium --shard=\$\{\{ matrix\.shard \}\}\/4/);
   assert.match(chromiumJob, /timeout-minutes: 30/);
@@ -75,6 +74,14 @@ test("release-candidate remediation PRs run the strict gate before integration",
     workflow,
     /pull_request:\n    branches:\n      - main\n      - fix\/release-candidate-qa-accessibility-v1/,
   );
+});
+
+test("release-candidate certification runs on main pushes and manual dispatch", () => {
+  assert.match(
+    workflow,
+    /push:\n    branches:\n      - main\n      - fix\/release-candidate-qa-accessibility-v1/,
+  );
+  assert.match(workflow, /^  workflow_dispatch:\s*$/m);
 });
 
 test("WebKit gates every B01-B06 remediation spec without title filtering", () => {
