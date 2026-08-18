@@ -4,7 +4,7 @@ Status: completion template. Entries describe repository evidence or required de
 
 No personnel, contacts, hours, service levels, or provider certifications are established here. Public launch and transactional beta are **NOT YET CERTIFIED**.
 
-PR #352 replaced and integrated PR #330, and PR #355 replaced and integrated PR #315. Final accessibility evidence from PR #354 remains pending refresh before selecting the immutable release-candidate SHA.
+PR #352 replaced and integrated PR #330, PR #355 replaced and integrated PR #315, and PR #354 merged final accessibility evidence with a `CONDITIONAL` classification. Its local automated evidence does not establish provider, support, monitoring, backup, rollback, incident, staging, production, or real-shop readiness, and it does not select an immutable release candidate.
 
 ## Support and escalation matrix
 

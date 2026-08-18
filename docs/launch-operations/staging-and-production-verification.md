@@ -2,9 +2,9 @@
 
 These checklists record evidence; they do not authorize provider changes or production data access.
 
-Repository baseline: current `main` is `ef0e55e91f3d960bd66b3960b5a23277318faeac`. GitHub Actions run `32135509506` passed the read-only Render metadata discovery and verified live backend SHA `27096da51750479880289b7cd506933d971eb184`, maintenance mode enabled, and automatic deployment disabled. The live SHA differs from current main. No deployment, configuration change, migration application, or transactional test is authorized by this record, and public launch and transactional beta remain **NOT YET CERTIFIED**.
+Repository baseline: current `main` is `5073e8ba72632f79f486b27cc50f3bbd86833fa9`. GitHub Actions run `32135509506` passed the read-only Render metadata discovery and verified live backend SHA `27096da51750479880289b7cd506933d971eb184`, maintenance mode enabled, and automatic deployment disabled. The live SHA differs from current main. No deployment, configuration change, migration application, immutable release-candidate selection, or transactional test is authorized by this record, and public launch and transactional beta remain **NOT YET CERTIFIED**.
 
-PR #352 replaced and integrated PR #330; PR #355 replaced and integrated PR #315. PR #355 completed 618 local automated executions with zero failures and 14 successful GitHub checks. Its two migrations are merged into repository history but have not been applied to production. Final accessibility evidence from PR #354 remains pending refresh before selecting the immutable release-candidate SHA.
+PR #352 replaced and integrated PR #330; PR #355 replaced and integrated PR #315. PR #355 completed 618 local automated executions with zero failures and 14 successful GitHub checks. Its two migrations are merged into repository history but have not been applied to production. PR #354 is merged: 162 frontend Node tests, 7 managed-image service tests, 44 role-route assertions, and 459 Playwright tests passed with 0 failed, 0 skipped, and 0 flaky; the canonical production-contract frontend build and exact Super Admin management-route protection passed. Classification remains `CONDITIONAL`.
 
 ## Staging certification
 
@@ -29,6 +29,8 @@ PR #352 replaced and integrated PR #330; PR #355 replaced and integrated PR #315
 - [ ] Final result is `CERTIFIED`, `NOT CERTIFIED`, or `CONTROLLED BETA ONLY` with evidence links.
 
 Current result: `NOT CERTIFIED`.
+
+The merged accessibility evidence does not replace manual assistive-technology testing, manual reduced-motion and visual review, deployed staging certification, database-backed media/provider validation, security and vulnerability disposition, backup/restore, monitoring, rollback and incident evidence, counsel approval, real pawn-shop transactional-beta validation, or final production/provider verification.
 
 ## Production deployment and smoke test
 

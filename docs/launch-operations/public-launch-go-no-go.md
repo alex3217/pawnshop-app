@@ -4,7 +4,7 @@ This is an evidence template, not a statement of readiness. Unchecked items bloc
 
 Current disposition: **NOT YET CERTIFIED** for both unrestricted public launch and transactional beta. Production remains contained behind Render maintenance mode and the repository public-preview read-only gate; Render automatic deployment remains disabled. Changing any of those controls, deploying, selecting a release candidate, or enabling transactions requires separate authorization.
 
-PR #352 replaced and integrated PR #330, and PR #355 replaced and integrated PR #315. Their managed-public-media, publication-bypass, and Super Admin shop-inventory support controls are merged. Final accessibility evidence from PR #354 remains pending refresh before selecting the immutable release-candidate SHA.
+PR #352 replaced and integrated PR #330, and PR #355 replaced and integrated PR #315. Their managed-public-media, publication-bypass, and Super Admin shop-inventory support controls are merged. PR #354 accessibility evidence is also merged with a `CONDITIONAL` classification. Manual assistive-technology, reduced-motion, and visual review plus deployed staging certification remain required. No immutable release candidate is selected by this checklist.
 
 ## Decision record
 
