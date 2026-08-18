@@ -2,6 +2,8 @@
 
 Status: draft issue-spotting checklist only. It is not legal advice and does not establish compliance. Every conclusion below is **PENDING COUNSEL REVIEW**.
 
+Public launch and transactional beta are **NOT YET CERTIFIED**. Repository controls, provider evidence, and product tests do not substitute for counsel decisions. Counsel review does not itself authorize deployment, provider changes, production writes, or launch.
+
 Legal operator shown in existing repository copy: Bealtair LLC. Confirm the correct contracting entity and public identity before publication: **PENDING COUNSEL REVIEW**.
 
 Required placeholders:
@@ -32,6 +34,7 @@ Required placeholders:
 - [ ] Decide payment processor/platform/shop responsibilities and chargeback/refund allocation: **PENDING COUNSEL REVIEW**.
 - [ ] Determine sales/use tax, information reporting, withholding, and marketplace-facilitator obligations: **PENDING COUNSEL REVIEW**.
 - [ ] Approve consumer-protection disclosures and practices, including advertising, estimates, dark-pattern avoidance, warranties, and unfair/deceptive-practice risk: **PENDING COUNSEL REVIEW**.
+- [ ] Approve the initial pawn-shop beta geography, eligibility/licensing evidence, enabled marketplace/pawn/auction/payment flows, caps, prohibited categories, shop/customer disclosures, support/escalation duties, entry/exit criteria, and suspension/offboarding terms: **PENDING COUNSEL REVIEW**.
 
 ## Privacy, data, content, and communications
 
@@ -61,3 +64,5 @@ Required placeholders:
 - [ ] Approved seller/shop, marketplace sale/buyer, auction, sell/pawn submission, prohibited-items, refund/return/cancellation/dispute, subscription, cookie, messaging/moderation, IP-reporting, and accessibility policies: **PENDING COUNSEL REVIEW**.
 - [ ] Approved launch-geography/category matrix and required shop/customer disclosures: **PENDING COUNSEL REVIEW**.
 - [ ] Written review record identifies document version, reviewer, date, jurisdictions/scope, required changes, and final approval: **PENDING COUNSEL REVIEW**.
+
+Counsel deliverables must use actual approved values when available; until then, use `PENDING COUNSEL REVIEW`, `PENDING OWNER ASSIGNMENT`, `PENDING OPERATOR EVIDENCE`, `NOT YET CERTIFIED`, or `TBD WITH APPROVAL`. Do not infer personnel, contacts, dates, jurisdictions, response commitments, provider certifications, or approval from this checklist.

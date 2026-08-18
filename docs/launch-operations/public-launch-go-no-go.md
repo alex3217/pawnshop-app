@@ -2,19 +2,23 @@
 
 This is an evidence template, not a statement of readiness. Unchecked items block unrestricted public launch unless the authorized decision owner records an approved, time-bounded exception that does not waive legal, security, privacy, financial-integrity, or data-recovery requirements.
 
+Current disposition: **NOT YET CERTIFIED** for both unrestricted public launch and transactional beta. Production remains contained behind Render maintenance mode and the repository public-preview read-only gate; Render automatic deployment remains disabled. Changing any of those controls, deploying, selecting a release candidate, or enabling transactions requires separate authorization.
+
+Final documentation parity must be refreshed after PR #330 and PR #315 integration and before selecting the immutable release-candidate SHA.
+
 ## Decision record
 
-- Release ID / revision: TBD
-- Launch scope, geography, categories, and enabled workflows: TBD
-- Release owner: OWNER: TBD
-- Technical approver: OWNER: TBD
-- Security/privacy approver: OWNER: TBD
+- Release ID / revision: TBD WITH APPROVAL
+- Launch scope, geography, categories, and enabled workflows: TBD WITH APPROVAL
+- Release owner: PENDING OWNER ASSIGNMENT
+- Technical approver: PENDING OWNER ASSIGNMENT
+- Security/privacy approver: PENDING OWNER ASSIGNMENT
 - Legal approval: PENDING COUNSEL REVIEW
-- Finance/payments approver: OWNER: TBD
-- Support/operations approver: OWNER: TBD
-- Decision and UTC time: TBD
-- RTO: PENDING APPROVAL
-- RPO: PENDING APPROVAL
+- Finance/payments approver: PENDING OWNER ASSIGNMENT
+- Support/operations approver: PENDING OWNER ASSIGNMENT
+- Decision and UTC time: TBD WITH APPROVAL
+- RTO: TBD WITH APPROVAL
+- RPO: TBD WITH APPROVAL
 
 ## Required launch evidence
 
@@ -35,5 +39,15 @@ This is an evidence template, not a statement of readiness. Unchecked items bloc
 - [ ] Production deployment window, maintenance communication, status-page owner, go/no-go time, rollback threshold, and first-72-hours roster are assigned.
 - [ ] Production smoke test is approved for scope and identities; no unsafe state-changing probe is planned.
 - [ ] Final decision contains evidence links and explicitly records every exception and residual risk.
+
+## Scope-specific gates
+
+Read-only public preview may expose only separately approved read paths while production writes remain fail-closed. It still requires approved public legal content and contacts for what is shown, privacy/security review, accessible role-based read-only QA, monitoring and incident ownership, verified provider containment, and an authorized release decision. It must not be described as transactional beta.
+
+Transactional beta additionally requires counsel-approved transaction policies and consent, verified Stripe/provider configuration, durable storage certification, migration/backup/restore/rollback evidence, support and financial reconciliation ownership, approved write enablement, and real pawn-shop beta validation. Public launch additionally requires all P0 and P1 gates in the audit to pass for the approved geography, categories, roles, and scale.
+
+Initial pawn-shop beta entry criteria: immutable candidate and scope approved; P0 gates passed; P1 exceptions expressly approved; production/provider evidence current; named support/incident/finance owners; caps and stop criteria recorded; each participating shop's eligibility, authority, licenses, training, and contacts verified as counsel/operations require; role-based QA and bounded test transactions reconciled. Status: **NOT YET CERTIFIED**.
+
+Initial pawn-shop beta exit criteria: real participating shops have completed the approved observation period and representative workflows; no unresolved P0 issue or unexplained financial/data variance; support, disputes, refunds, prohibited-item escalation, monitoring, accessibility, backup/restore and rollback evidence meets approved criteria; owners approve expansion, pause, or termination. Values, cohort, dates, and evidence: **PENDING OPERATOR EVIDENCE**.
 
 Decision options: `GO`, `NO-GO`, or `CONTROLLED BETA ONLY`. Absence of evidence is `NO-GO` for unrestricted public launch.

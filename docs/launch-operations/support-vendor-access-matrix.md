@@ -2,6 +2,10 @@
 
 Status: completion template. Entries describe repository evidence or required decisions; they do not prove external configuration.
 
+No personnel, contacts, hours, service levels, or provider certifications are established here. Public launch and transactional beta are **NOT YET CERTIFIED**.
+
+Final documentation parity must be refreshed after PR #330 and PR #315 integration and before selecting the immutable release-candidate SHA.
+
 ## Support and escalation matrix
 
 | Intake or event | First owner | Escalation | Required record |
@@ -18,6 +22,8 @@ Status: completion template. Entries describe repository evidence or required de
 | Availability/provider incident | On-call: OWNER: TBD | Incident commander per severity | Incident ID and `incident-response.md` evidence |
 | Data breach or secret exposure | Security: OWNER: TBD | Incident commander and counsel | Security incident; notification duties PENDING COUNSEL REVIEW |
 
+Support contact, published hours, after-hours coverage, queue/case system, case owner, escalation targets, acknowledgment/response expectations, and handoff procedure: **PENDING OWNER ASSIGNMENT** and **TBD WITH APPROVAL**. Real pawn shops must validate intake, escalation, usability, and operating-hours assumptions before transactional-beta entry.
+
 Do not promise response times, refunds, outcomes, or legal disclosures until approved. Customer identity verification, access limits, evidence retention, appeal rules, and emergency routing remain TBD.
 
 ## Vendor and external-dependency inventory
@@ -33,6 +39,8 @@ Do not promise response times, refunds, outcomes, or legal disclosures until app
 | Redis-compatible store | Shared rate limiting/runtime coordination where configured | Pseudonymous rate-limit keys and operational metadata | Confirm fail-open/fail-closed behavior per endpoint, topology, eviction, monitoring, and outage drill: TBD |
 | Hosting/CDN/DNS providers | API/web runtime, edge, DNS/TLS | Logs, IP/device metadata, deployed artifacts/config | Provider identity, region, access, rollback, status communications, and failover: TBD |
 | Source control/CI and monitoring/support tools | Build/release/observability/support | Source, logs, alerts, customer cases as applicable | Exact vendors, retention, access, subprocessors, DPA/security review: TBD |
+
+Named ownership and operator evidence are required specifically for Stripe, Render, Cloudflare, PostgreSQL/database hosting, email delivery, and durable object storage. Repository references establish integrations or controls only; account ownership, billing authority, support tier, region, live configuration, access roles, recovery contacts, and certification remain **PENDING OWNER ASSIGNMENT** / **PENDING OPERATOR EVIDENCE**.
 
 For every vendor record legal entity, service owner, contract/DPA, subprocessors, data categories/subjects, purpose, regions/transfers, credentials, access roles, retention/deletion, security review, incident contact, status page, exit/export plan, outage behavior, and renewal date. Privacy/legal conclusions are **PENDING COUNSEL REVIEW**.
 
@@ -53,3 +61,12 @@ For each dataset assign OWNER: TBD and document source, purpose, legal basis **P
 - [ ] Run repository and artifact secret scanning; triage history findings through the security process without printing secrets.
 - [ ] Define emergency rotation order and dependencies; do not rotate blindly during an incident.
 - [ ] Record reviewer, date, evidence references, exceptions, owners, and due dates.
+
+## Monitoring, recovery, and service objectives
+
+- [ ] Assign monitoring, dashboard, alert-routing, paging, incident-command, communications, financial-reconciliation, and provider-escalation owners: **PENDING OWNER ASSIGNMENT**.
+- [ ] Define and approve SLIs for availability, latency, errors, authentication, marketplace/auction/payment workflows, webhook age, job queues, storage, database readiness, and support intake: **TBD WITH APPROVAL**.
+- [ ] Define SLOs/error budgets and escalation thresholds without inventing values: **TBD WITH APPROVAL**.
+- [ ] Approve RTO and RPO by service/data class, then produce backup freshness, protected retention, isolated restore, elapsed recovery, and data-loss evidence: **TBD WITH APPROVAL** / **PENDING OPERATOR EVIDENCE**.
+- [ ] Approve SEV0–SEV3 acknowledgment, update, escalation, and recovery expectations. Repository severity definitions exist; targets and owners remain **TBD WITH APPROVAL**.
+- [ ] Record the immutable last-known-good release, configuration fingerprint, compatible schema, provider deploy IDs, rollback thresholds, rehearsal result, and recovery point: **PENDING OPERATOR EVIDENCE**.
