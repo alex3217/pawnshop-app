@@ -1,5 +1,6 @@
-import { parse } from "csv-parse/sync";
 import { prisma } from "../lib/prisma.js";
+import { INVENTORY_IMPORT_LIMITS } from "../config/inventoryImport.js";
+import { parseInventoryCsv } from "../services/inventoryCsv.service.js";
 
 function sendError(req, res, error, fallback = "Internal server error") {
   const status =
@@ -76,11 +77,7 @@ export async function importInventoryCsv(req, res) {
       if (!active) return res.status(403).json({ success: false, error: "Support session is invalid, ended, or belongs to another shop." });
     }
 
-    const rows = parse(req.file.buffer, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-    });
+    const rows = parseInventoryCsv(req.file.buffer);
 
     const runImport = async (db) => {
       const importJob = await db.inventoryImportJob.create({ data: { userId, shopId, filename: req.file.originalname || "upload.csv", status: "PENDING" } });
@@ -128,11 +125,12 @@ export async function importInventoryCsv(req, res) {
           await db.$executeRawUnsafe("RELEASE SAVEPOINT inventory_import_row");
         }
         failedCount += 1;
-        errors.push({
-          line,
-          row,
-          error: error instanceof Error ? error.message : "Unknown row error",
-        });
+        if (errors.length < INVENTORY_IMPORT_LIMITS.maxRetainedErrors) {
+          errors.push({
+            line,
+            error: error instanceof Error ? error.message : "Unknown row error",
+          });
+        }
         }
       }
       const finalStatus = failedCount > 0 && successCount === 0 ? "FAILED" : "COMPLETED";

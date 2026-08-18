@@ -16,6 +16,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  repository-history-secret-scan:
+    name: Repository History Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete repository history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Scan repository history without exposing detected values
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          ghcr.io/gitleaks/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854
+          git --no-banner --redact=100 --gitleaks-ignore-path /repo/.gitleaksignore /repo
+
   web-api-validation:
     name: Web and API Validation
     runs-on: ubuntu-latest
@@ -26,10 +44,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20.20.2
           cache: npm
@@ -52,6 +72,11 @@ jobs:
 
       - name: Deployment environment contract tests
         run: node --test apps/web/test/build-environment.test.mjs apps/web/test/core-ci-playwright.contract.test.mjs apps/web/test/environment-contract.test.mjs apps/web/test/environment-contract-consumption.test.mjs apps/web/test/environment-indicator.runtime.test.mjs apps/web/test/seller-plan-control.contract.test.mjs apps/web/test/upload-workflow.contract.test.mjs scripts/test-deployment-environment-cli.mjs
+
+      - name: Validate workflow YAML and security contracts
+        run: |
+          ruby -e 'require "yaml"; Dir[".github/workflows/*.yml"].each { |path| YAML.safe_load(File.read(path), permitted_classes: [], aliases: true) }'
+          node --test scripts/test/security-workflow.contract.test.mjs
 
       - name: Validate Production deployment target
         run: node scripts/check-deployment-environment.mjs
@@ -123,10 +148,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20.20.2
           cache: npm
@@ -168,10 +195,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20.20.2
           cache: npm
@@ -202,10 +231,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20.20.2
           cache: npm
@@ -223,7 +254,7 @@ jobs:
 
       - name: Upload Playwright failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: seller-subscription-playwright-${{ github.run_id }}
           path: |
