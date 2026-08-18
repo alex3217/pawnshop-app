@@ -103,6 +103,21 @@ export function validateStripeConnectReturnUrl(
     throw httpError(`Invalid ${fieldName}`, 400, "INVALID_CONNECT_URL");
   }
 
+  const schemeSeparator = raw.indexOf("://");
+  const authorityStart = schemeSeparator + 3;
+  const authorityEndCandidate = raw.slice(authorityStart).search(/[/?#]/);
+  const authorityEnd = authorityEndCandidate === -1
+    ? raw.length
+    : authorityStart + authorityEndCandidate;
+  const rawAuthority = raw.slice(authorityStart, authorityEnd);
+
+  // Do not let URL normalization turn an encoded or backslash-obfuscated host
+  // into a trusted origin after validation. Percent-encoding remains valid in
+  // the path and query, where checkout state is expected.
+  if (schemeSeparator <= 0 || /[%\\]/.test(rawAuthority)) {
+    throw httpError(`Invalid ${fieldName}`, 400, "INVALID_CONNECT_URL");
+  }
+
   const isLocalHttp =
     parsed.protocol === "http:" &&
     ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);

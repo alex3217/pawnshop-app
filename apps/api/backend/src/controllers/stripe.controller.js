@@ -120,26 +120,6 @@ function isAdminRequest(req) {
   return ["ADMIN", "SUPER_ADMIN"].includes(String(user.role || "").toUpperCase());
 }
 
-function assertAbsoluteHttpUrl(value, fieldName) {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    throw createHttpError(`Missing ${fieldName}`, 400);
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw createHttpError(`Invalid ${fieldName}`, 400);
-  }
-
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw createHttpError(`${fieldName} must use http or https`, 400);
-  }
-
-  return parsed.toString();
-}
-
 function unixToIsoOrNull(value) {
   const seconds = Number(value);
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
@@ -413,12 +393,12 @@ export async function createSubscriptionCheckoutSession(req, res) {
         req?.body?.billingInterval || "MONTH"
       );
 
-    const successUrl = assertAbsoluteHttpUrl(
+    const successUrl = validateStripeConnectReturnUrl(
       req?.body?.successUrl,
       "successUrl"
     );
 
-    const cancelUrl = assertAbsoluteHttpUrl(
+    const cancelUrl = validateStripeConnectReturnUrl(
       req?.body?.cancelUrl,
       "cancelUrl"
     );
