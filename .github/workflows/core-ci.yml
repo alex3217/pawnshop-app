@@ -195,7 +195,7 @@ jobs:
   seller-subscription-browser-tests:
     name: Seller Subscription Browser Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -211,7 +211,17 @@ jobs:
       - name: Install frontend dependencies
         run: npm --prefix apps/web ci
 
+      - name: Configure resilient Ubuntu package downloads
+        run: |
+          printf '%s\n' \
+            'Acquire::Retries "5";' \
+            'Acquire::http::Timeout "30";' \
+            'Acquire::https::Timeout "30";' |
+            sudo tee /etc/apt/apt.conf.d/80-pawnloop-ci-network >/dev/null
+
       - name: Install Chromium and Linux browser dependencies
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
         run: npm --prefix apps/web exec -- playwright install --with-deps chromium
 
       - name: Run seller subscription browser tests
