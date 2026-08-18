@@ -52,6 +52,7 @@ function createFakePrisma({
   transactionUpdateCount = 1,
   listingUpdateCount = 1,
   itemUpdateCount = 1,
+  itemIsDeleted = false,
 } = {}) {
   const calls = {
     findUnique: 0,
@@ -59,6 +60,7 @@ function createFakePrisma({
     transactionUpdate: null,
     listingUpdate: null,
     itemUpdate: null,
+    itemUpdates: [],
   };
 
   const client = {
@@ -93,9 +95,10 @@ function createFakePrisma({
       async updateMany(parameters) {
         calls.itemUpdate =
           parameters;
+        calls.itemUpdates.push(parameters);
 
         return {
-          count: itemUpdateCount,
+          count: Array.isArray(itemUpdateCount) ? (itemUpdateCount.shift() ?? 0) : itemUpdateCount,
         };
       },
     },
@@ -106,6 +109,7 @@ function createFakePrisma({
       calls.databaseTransactions += 1;
       return operation(client);
     };
+  client.$queryRaw = async () => [{ id: "item-webhook-test", pawnShopId: "shop-webhook-test", images: [], isDeleted: itemIsDeleted }];
 
   return {
     client,
@@ -243,8 +247,24 @@ test(
         .itemUpdate.data.status,
       "SOLD",
     );
+    assert.equal(
+      prismaClient.calls
+        .itemUpdate.data.availability,
+      "SOLD",
+    );
   },
 );
+
+test("payment finalization preserves archived availability", async () => {
+  const prismaClient = createFakePrisma({ itemIsDeleted: true });
+  const result = await finalizeMarketplacePaymentSucceeded({
+    paymentIntent: createPaymentIntent(),
+    prismaClient: prismaClient.client,
+  });
+  assert.equal(result.itemMarkedSold, true);
+  assert.deepEqual(prismaClient.calls.itemUpdates[0].where, { id: "item-webhook-test" });
+  assert.deepEqual(prismaClient.calls.itemUpdates[0].data, { status: "SOLD" });
+});
 
 test(
   "keeps a partially available listing active after payment",

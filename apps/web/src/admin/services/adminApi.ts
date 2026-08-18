@@ -179,6 +179,11 @@ export type AdminItemRow = {
   } | null;
 };
 
+export type InventorySupportSession = { id: string; shopId: string; reason: string; startedAt: string; endedAt?: string | null };
+export type SupportInventoryItem = AdminItemRow & { description?: string | null; sku?: string | null; barcode?: string | null; serialNumber?: string | null; quantity: number; cost?: string | number | null; locationId?: string | null; availability: string; images?: string[]; location?: { id: string; name: string } | null; marketplaceListings?: Array<{ id: string; status: string }> };
+export type InventorySupportLocation = { id: string; shopId: string; name: string; isArchived: boolean };
+export type InventorySupportEvent = { id: string; action: string; reason: string; requestId?: string | null; beforeState?: Record<string, unknown> | null; afterState?: Record<string, unknown> | null; createdAt: string; actor?: { id: string; name: string; role: string } };
+
 export type AdminShopRow = {
   id: string;
   name: string;
@@ -1112,6 +1117,16 @@ export const adminApi = {
     );
     return normalizeList(payload);
   },
+
+  startInventorySupport: (shopId: string, reason: string) => adminRequest<{ success: true; session: InventorySupportSession; shop: AdminShopRow }>(`/super-admin/shops/${encodeURIComponent(shopId)}/support-sessions`, { method: "POST", ...jsonBody({ reason }) }),
+  endInventorySupport: (shopId: string, sessionId: string, reason: string) => adminRequest(`/super-admin/shops/${encodeURIComponent(shopId)}/support-sessions/end`, { method: "POST", headers: { "X-Support-Session-Id": sessionId }, body: JSON.stringify({ reason }) }),
+  getSupportInventory: (shopId: string, sessionId: string, query?: string) => adminRequest<{ success: true; items: SupportInventoryItem[] }>(`/super-admin/shops/${encodeURIComponent(shopId)}/inventory`, { headers: { "X-Support-Session-Id": sessionId }, query: { archived: "true", ...(query ? { q: query } : {}) } }),
+  createSupportInventory: (shopId: string, sessionId: string, input: Record<string, unknown>) => adminRequest<{ success: true; item: SupportInventoryItem }>(`/super-admin/shops/${encodeURIComponent(shopId)}/inventory`, { method: "POST", headers: { "X-Support-Session-Id": sessionId }, body: JSON.stringify(input) }),
+  updateSupportInventory: (shopId: string, itemId: string, sessionId: string, input: Record<string, unknown>) => adminRequest<{ success: true; item: SupportInventoryItem }>(`/super-admin/shops/${encodeURIComponent(shopId)}/inventory/${encodeURIComponent(itemId)}`, { method: "PATCH", headers: { "X-Support-Session-Id": sessionId }, body: JSON.stringify(input) }),
+  changeSupportListing: (shopId: string, itemId: string, sessionId: string, action: string, reason: string) => adminRequest(`/super-admin/shops/${encodeURIComponent(shopId)}/inventory/${encodeURIComponent(itemId)}/listing`, { method: "POST", headers: { "X-Support-Session-Id": sessionId }, body: JSON.stringify({ action, reason }) }),
+  getSupportLocations: (shopId: string, sessionId: string) => adminRequest<{ success: true; locations: InventorySupportLocation[] }>(`/super-admin/shops/${encodeURIComponent(shopId)}/inventory-locations`, { headers: { "X-Support-Session-Id": sessionId } }),
+  createSupportLocation: (shopId: string, sessionId: string, name: string, reason: string) => adminRequest<{ success: true; location: InventorySupportLocation }>(`/super-admin/shops/${encodeURIComponent(shopId)}/inventory-locations`, { method: "POST", headers: { "X-Support-Session-Id": sessionId }, body: JSON.stringify({ name, reason }) }),
+  getSupportHistory: (shopId: string, sessionId: string, itemId?: string) => adminRequest<{ success: true; events: InventorySupportEvent[] }>(`/super-admin/shops/${encodeURIComponent(shopId)}/inventory${itemId ? `/${encodeURIComponent(itemId)}` : ""}/history`, { headers: { "X-Support-Session-Id": sessionId } }),
 
   softDeleteItem: (id: string, signal?: AbortSignal) =>
     adminRequest(`/admin/items/${encodeURIComponent(id)}`, {

@@ -101,6 +101,8 @@ model User {
   blockedMessagingShops           BuyerMessagingShopBlock[]        @relation("BuyerMessagingBlocks")
   messagingBlocksCreated          BuyerMessagingShopBlock[]        @relation("BuyerMessagingBlockActors")
   buyerMessagingProfileAudits     BuyerMessagingProfileAudit[]
+  inventorySupportSessions        InventorySupportSession[]        @relation("InventorySupportActor")
+  inventoryAdminEvents            InventoryAdminEvent[]            @relation("InventoryAdminEventActor")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -412,6 +414,9 @@ model PawnShop {
   conversations                      ShopConversation[]               @relation("ShopConversationPrimaryShop")
   receivedShopConversations          ShopConversation[]               @relation("ShopConversationRecipientShop")
   buyerMessagingBlocks               BuyerMessagingShopBlock[]
+  inventoryLocations                 InventoryLocation[]
+  inventorySupportSessions           InventorySupportSession[]
+  inventoryAdminEvents               InventoryAdminEvent[]
 
   @@index([ownerId, isDeleted])
   @@index([isDeleted, isActive, isPublic, createdAt])
@@ -477,6 +482,13 @@ model Item {
   images                  String[]
   category                String?
   condition               String?
+  sku                     String?
+  barcode                 String?
+  serialNumber            String?
+  quantity                Int                      @default(1)
+  cost                    Decimal?                 @db.Decimal(10, 2)
+  locationId              String?
+  availability            InventoryAvailability    @default(AVAILABLE)
   status                  ItemStatus               @default(AVAILABLE)
   isDeleted               Boolean                  @default(false)
   createdAt               DateTime                 @default(now())
@@ -491,10 +503,69 @@ model Item {
   customerSellAcquisition CustomerSellFulfillment? @relation("CustomerSellAcquiredItem")
   uploadAssets            UploadAsset[]
   shopConversations       ShopConversation[]
+  location                InventoryLocation?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  adminEvents             InventoryAdminEvent[]
 
   @@index([pawnShopId, status, isDeleted])
   @@index([category, status, isDeleted])
   @@index([createdAt])
+  @@index([pawnShopId, sku])
+  @@index([pawnShopId, barcode])
+  @@index([pawnShopId, serialNumber])
+  @@index([locationId, availability])
+}
+
+model InventoryLocation {
+  id         String   @id @default(cuid())
+  shopId     String
+  name       String
+  isArchived Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  shop       PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  items      Item[]
+
+  @@unique([shopId, name])
+  @@index([shopId, isArchived])
+}
+
+model InventorySupportSession {
+  id        String                @id @default(cuid())
+  shopId    String
+  actorId   String
+  reason    String
+  requestId String?
+  startedAt DateTime              @default(now())
+  expiresAt DateTime
+  endedAt   DateTime?
+  shop      PawnShop              @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  actor     User                  @relation("InventorySupportActor", fields: [actorId], references: [id], onDelete: Restrict)
+  events    InventoryAdminEvent[]
+
+  @@index([actorId, endedAt, startedAt])
+  @@index([shopId, startedAt])
+}
+
+model InventoryAdminEvent {
+  id               String                  @id @default(cuid())
+  shopId           String
+  itemId           String?
+  actorId          String
+  supportSessionId String
+  action           String
+  reason           String
+  requestId        String?
+  beforeState      Json?
+  afterState       Json?
+  createdAt        DateTime                @default(now())
+  shop             PawnShop                @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  item             Item?                   @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  actor            User                    @relation("InventoryAdminEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  supportSession   InventorySupportSession @relation(fields: [supportSessionId], references: [id], onDelete: Restrict)
+
+  @@index([shopId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([supportSessionId, createdAt])
 }
 
 enum UploadAssetStatus {
@@ -1169,6 +1240,16 @@ enum ItemStatus {
   AVAILABLE
   PENDING
   SOLD
+}
+
+enum InventoryAvailability {
+  AVAILABLE
+  RESERVED
+  SOLD
+  PAWNED
+  LAYAWAY
+  UNAVAILABLE
+  ARCHIVED
 }
 
 enum AuctionStatus {

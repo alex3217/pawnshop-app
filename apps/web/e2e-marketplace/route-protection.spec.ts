@@ -130,7 +130,12 @@ test("wrong-role users cannot render another role's protected shell", async ({ p
   await expect(page.locator(".admin-layout")).toHaveCount(0);
 
   await installSession(page, "ADMIN");
-  for (const path of ["/buyer/dashboard", "/owner", "/super-admin"]) {
+  for (const path of [
+    "/buyer/dashboard",
+    "/owner",
+    "/super-admin",
+    "/super-admin/shops/shop-one/manage",
+  ]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
     await expect(page.locator(".buyer-dashboard, .owner-dashboard, .admin-layout")).toHaveCount(0);
