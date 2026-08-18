@@ -31,6 +31,27 @@ test("reconciliation attaches owned assets and denies cross-shop attachment", as
   );
 });
 
+test("uploader-scoped reconciliation denies another uploader's temporary asset", async () => {
+  const row = asset({ uploaderId: "user-2" });
+  await assert.rejects(
+    reconcileAssetUrls({
+      tx: { $queryRaw: async () => [row] },
+      shopId: row.shopId,
+      itemId: row.itemId,
+      uploaderId: "user-1",
+      nextUrls: [row.deliveryUrl],
+    }),
+    (error) => error.statusCode === 403,
+  );
+});
+
+test("strict reconciliation rejects arbitrary unmanaged URLs", async () => {
+  await assert.rejects(
+    reconcileAssetUrls({ tx: { $queryRaw: async () => [] }, shopId: "shop-1", itemId: "item-1", nextUrls: ["https://unmanaged.invalid/image.png"], requireManaged: true }),
+    (error) => error.statusCode === 400 && /managed upload assets/.test(error.message),
+  );
+});
+
 test("replacement marks only the owning shop object for post-commit deletion", async () => {
   const owned = asset({ status: "ATTACHED" });
   const tx = {

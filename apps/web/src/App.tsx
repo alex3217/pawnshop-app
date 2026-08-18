@@ -106,6 +106,7 @@ const AdminSystemPage = lazyPage(() => import("./admin/pages/AdminSystemPage"));
 const AdminSettingsPage = lazyPage(() => import("./admin/pages/AdminSettingsPage"));
 
 const AdminItemsPage = lazyPage(() => import("./pages/AdminItemsPage"));
+const SuperAdminShopSupportPage = lazyPage(() => import("./pages/SuperAdminShopSupportPage"));
 const AdminUsersPage = lazyPage(() => import("./pages/AdminUsersPage"));
 const SuperAdminOverviewPage = lazyPage(() => import("./admin/pages/SuperAdminOverviewPage"));
 const SuperAdminAuditPage = lazyPage(() => import("./admin/pages/SuperAdminAuditPage"));
@@ -430,6 +431,7 @@ const superAdminRoutes: RouteConfig[] = [
   { path: "growth/leads/:leadId", element: <GrowthLeadDetailPage /> },
   { path: "users", element: <AdminUsersPage /> },
   { path: "shops", element: <AdminShopsPage /> },
+  { path: "shops/:shopId/manage", element: <SuperAdminShopSupportPage /> },
   { path: "owners", element: <AdminOwnersPage /> },
   { path: "auctions", element: <AdminAuctionsPage /> },
   { path: "offers", element: <AdminOffersPage /> },

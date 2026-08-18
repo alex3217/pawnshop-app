@@ -490,6 +490,9 @@ export default function AdminShopsPage() {
                         <div className="super-admin-row-actions">
                           {isSuperAdminSurface ? (
                             <>
+                              <Link className="btn btn-primary" to={`/super-admin/shops/${shop.id}/manage`}>
+                                Manage shop
+                              </Link>
                               <Link className="btn btn-secondary" to={`/shops/${shop.id}`}>
                                 View
                               </Link>

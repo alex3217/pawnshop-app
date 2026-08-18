@@ -37,8 +37,11 @@ export function validateTestDatabaseEnvironment(env = process.env) {
       errors.push("DATABASE_URL database name is malformed");
     }
 
-    if (databaseName !== APPROVED_TEST_DATABASE) {
-      errors.push(`Database name must be ${APPROVED_TEST_DATABASE}`);
+    const requestedDatabase = String(env.TEST_DATABASE_NAME || APPROVED_TEST_DATABASE).trim();
+    if (!/^pawnshop_test(?:_[a-z0-9_]+)?$/.test(requestedDatabase)) {
+      errors.push("TEST_DATABASE_NAME must be pawnshop_test or a pawnshop_test_* disposable name");
+    } else if (databaseName !== requestedDatabase) {
+      errors.push(`Database name must be ${requestedDatabase}`);
     }
   }
 

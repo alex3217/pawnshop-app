@@ -69,6 +69,17 @@ import {
   moderateConversation,
   mutateUserGovernance,
 } from "../controllers/superAdminGovernance.controller.js";
+import {
+  startInventorySupport,
+  endInventorySupport,
+  listSupportInventory,
+  createSupportInventory,
+  updateSupportInventory,
+  changeListingState,
+  listInventoryHistory,
+  listInventoryLocations,
+  createInventoryLocation,
+} from "../controllers/inventorySupport.controller.js";
 
 const router = Router();
 
@@ -87,6 +98,7 @@ export const SUPER_ADMIN_ROUTE_MAP = Object.freeze({
   userGovernanceAction: "POST /api/super-admin/users/:id/governance-actions",
   messagingGovernance: "GET /api/super-admin/messaging/conversations",
   shops: "GET /api/super-admin/shops",
+  startShopSupport: "POST /api/super-admin/shops/:shopId/support-sessions",
   updateShop: "PATCH /api/super-admin/shops/:id",
   sellerPlans: "GET /api/super-admin/plans/seller",
   validateSellerPlanStripe: "POST /api/super-admin/plans/seller/:code/validate-stripe",
@@ -283,6 +295,17 @@ router.patch("/integrations/:id/archive", asyncRoute(archiveSuperAdminIntegratio
 router.patch("/integrations/:id/restore", asyncRoute(restoreSuperAdminIntegration));
 
 router.get("/shops", asyncRoute(listSuperAdminShops));
+
+router.post("/shops/:shopId/support-sessions", validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(startInventorySupport));
+router.post("/shops/:shopId/support-sessions/end", validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(endInventorySupport));
+router.get("/shops/:shopId/inventory", validateIdParam("shopId", "Shop id"), asyncRoute(listSupportInventory));
+router.post("/shops/:shopId/inventory", validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(createSupportInventory));
+router.patch("/shops/:shopId/inventory/:itemId", validateIdParam("shopId", "Shop id"), validateIdParam("itemId", "Item id"), validateJsonObjectBody, asyncRoute(updateSupportInventory));
+router.post("/shops/:shopId/inventory/:itemId/listing", validateIdParam("shopId", "Shop id"), validateIdParam("itemId", "Item id"), validateJsonObjectBody, asyncRoute(changeListingState));
+router.get("/shops/:shopId/inventory/history", validateIdParam("shopId", "Shop id"), asyncRoute(listInventoryHistory));
+router.get("/shops/:shopId/inventory/:itemId/history", validateIdParam("shopId", "Shop id"), validateIdParam("itemId", "Item id"), asyncRoute(listInventoryHistory));
+router.get("/shops/:shopId/inventory-locations", validateIdParam("shopId", "Shop id"), asyncRoute(listInventoryLocations));
+router.post("/shops/:shopId/inventory-locations", validateIdParam("shopId", "Shop id"), validateJsonObjectBody, asyncRoute(createInventoryLocation));
 
 router.patch(
   "/shops/:id",

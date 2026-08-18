@@ -3,6 +3,7 @@ import {
   claimCustomerItemIntakeLink,
   loadCustomerItemIntakeForLinkage,
 } from "../services/itemIntake.service.js";
+import { assertManagedPublicListingImages } from "../services/uploadAssets.service.js";
 
 const LISTING_TYPES = new Set([
   "CUSTOMER_TO_CUSTOMER",
@@ -90,6 +91,10 @@ function sendError(res, error, fallback = "Internal server error") {
             code:
               error.linkageCode,
           }
+        : error?.publicCode
+          ? {
+              code: error.publicCode,
+            }
         : prismaConflict
           ? {
               code:
@@ -897,6 +902,12 @@ export async function updateMarketplaceListing(req, res) {
     });
 
     if (!["DRAFT", "PAUSED"].includes(existing.status)) {
+      if (existing.status === "ACTIVE" && req.body?.images !== undefined) {
+        await assertManagedPublicListingImages({
+          listing: existing,
+          images: normalizeImages(req.body.images),
+        });
+      }
       return res.status(400).json({
         success: false,
         error: "Only draft or paused listings can be edited",
@@ -954,6 +965,7 @@ export async function publishMarketplaceListing(req, res) {
     }
 
     assertRequiredListingData({}, existing);
+    await assertManagedPublicListingImages({ listing: existing });
     assertShopToCustomerHasPhoto({}, existing);
 
     const listing = await prisma.marketplaceListing.update({
