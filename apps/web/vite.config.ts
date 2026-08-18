@@ -5,7 +5,13 @@ import { resolveEnvironmentContract } from "./src/environmentContract.mjs";
 const SHA = /^[0-9a-f]{40}$/;
 
 export function createReleaseArtifact(env: Record<string, string>, generatedAt = new Date()) {
-  const revision = String(env.CF_PAGES_COMMIT_SHA || env.GITHUB_SHA || env.VITE_RELEASE_SHA || "").trim();
+  const revision = String(
+    env.CF_PAGES_COMMIT_SHA
+      || env.GITHUB_SHA
+      || env.RENDER_GIT_COMMIT
+      || env.VITE_RELEASE_SHA
+      || "",
+  ).trim();
   if (!SHA.test(revision)) {
     throw new Error("Frontend builds require an exact lowercase 40-character release SHA");
   }
