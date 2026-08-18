@@ -27,6 +27,11 @@ test("Core CI installs Chromium and runs the focused seller subscription browser
 
   assert.match(workflow, /^on:\n  pull_request:/m);
   assert.match(job, /node-version: 20\.20\.2/);
+  assert.match(job, /timeout-minutes: 20/);
+  assert.match(job, /Acquire::Retries "5";/);
+  assert.match(job, /Acquire::http::Timeout "30";/);
+  assert.match(job, /Acquire::https::Timeout "30";/);
+  assert.match(job, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"/);
   assert.match(job, /npm --prefix apps\/web ci/);
   assert.match(job, /npm --prefix apps\/web exec -- playwright install --with-deps chromium/);
   assert.match(job, /npm --prefix apps\/web run test:ci:seller-subscription/);
