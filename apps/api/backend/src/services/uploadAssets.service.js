@@ -1,6 +1,20 @@
 import { prisma } from "../lib/prisma.js";
 
 const TEMPORARY_TTL_MS = 24 * 60 * 60 * 1000;
+const PUBLIC_LISTING_IMAGE_KINDS = new Set(["ITEM_IMAGE"]);
+
+export const MANAGED_PUBLIC_MEDIA_ERROR = Object.freeze({
+  statusCode: 422,
+  code: "MANAGED_PUBLIC_MEDIA_REQUIRED",
+  message: "Publish this listing with attached, shop-owned inventory photos uploaded through PawnLoop.",
+});
+
+function managedPublicMediaError() {
+  const error = new Error(MANAGED_PUBLIC_MEDIA_ERROR.message);
+  error.statusCode = MANAGED_PUBLIC_MEDIA_ERROR.statusCode;
+  error.publicCode = MANAGED_PUBLIC_MEDIA_ERROR.code;
+  return error;
+}
 
 function safeReason(error) {
   return String(error?.name || "StorageError").slice(0, 80);
@@ -23,6 +37,51 @@ export async function recordUploadedAsset({ id, target, uploaderId, key, url, ki
       deleteAfter: new Date(Date.now() + TEMPORARY_TTL_MS),
     },
   });
+}
+
+export async function assertManagedPublicListingImages({
+  listing,
+  images = listing?.images,
+  prismaClient = prisma,
+}) {
+  if (listing?.listingType !== "SHOP_TO_CUSTOMER") return;
+
+  const urls = [...new Set((Array.isArray(images) ? images : []).filter(Boolean))];
+  if (!listing?.sellerShopId || !listing?.itemId || urls.length === 0) {
+    throw managedPublicMediaError();
+  }
+
+  const assets = await prismaClient.uploadAsset.findMany({
+    where: { deliveryUrl: { in: urls } },
+    select: {
+      deliveryUrl: true,
+      kind: true,
+      status: true,
+      shopId: true,
+      itemId: true,
+      attachedAt: true,
+      deleteAfter: true,
+      deletedAt: true,
+      objectKey: true,
+    },
+  });
+  const byUrl = new Map(assets.map((asset) => [asset.deliveryUrl, asset]));
+  const valid = urls.every((url) => {
+    const asset = byUrl.get(url);
+    return Boolean(
+      asset
+      && asset.shopId === listing.sellerShopId
+      && asset.itemId === listing.itemId
+      && PUBLIC_LISTING_IMAGE_KINDS.has(asset.kind)
+      && asset.status === "ATTACHED"
+      && asset.attachedAt
+      && asset.deleteAfter === null
+      && asset.deletedAt === null
+      && asset.objectKey,
+    );
+  });
+
+  if (!valid) throw managedPublicMediaError();
 }
 
 export async function lockShopBrandingForUpdate(tx, shopId) {
