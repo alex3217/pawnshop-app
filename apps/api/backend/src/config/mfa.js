@@ -66,6 +66,18 @@ export function loadMfaConfig(env = process.env) {
       5,
       5,
     ),
+    artifactRetentionSeconds: positiveInteger(
+      "MFA_ARTIFACT_RETENTION_SECONDS",
+      env.MFA_ARTIFACT_RETENTION_SECONDS,
+      604800,
+      2592000,
+    ),
+    cleanupBatchSize: positiveInteger(
+      "MFA_CLEANUP_BATCH_SIZE",
+      env.MFA_CLEANUP_BATCH_SIZE,
+      100,
+      500,
+    ),
     enrollmentTtlSeconds: positiveInteger(
       "MFA_ENROLLMENT_TTL_SECONDS",
       env.MFA_ENROLLMENT_TTL_SECONDS,

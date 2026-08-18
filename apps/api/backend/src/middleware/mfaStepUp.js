@@ -1,6 +1,6 @@
 import { loadMfaConfig } from "../config/mfa.js";
 import { consumeStepUpProof } from "../services/mfa.service.js";
-import { digestMfaValue } from "../services/mfaCrypto.service.js";
+import { stepUpSessionDigest } from "../controllers/mfaStepUp.controller.js";
 import { createMfaAuditEvent } from "../services/mfaAudit.service.js";
 import { prisma } from "../lib/prisma.js";
 
@@ -35,7 +35,7 @@ export function requireMfaStepUp(operationScope) {
       await consumeStepUpProof({
         proof,
         userId: req.user.sub,
-        sessionDigest: digestMfaValue(`session:${String(req.auth?.token || "")}`, config.encryptionKey),
+        sessionDigest: stepUpSessionDigest(req, config.encryptionKey),
         operationScope,
         encryptionKey: config.encryptionKey,
       });

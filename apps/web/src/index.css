@@ -1081,3 +1081,10 @@ small {
   color: #8df0cc;
   font-weight: 900;
 }
+/* One-shot privileged reauthentication dialog. */
+.mfa-step-up-backdrop { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 1rem; background: rgb(15 23 42 / 72%); }
+.mfa-step-up-dialog { width: min(30rem, 100%); border-radius: .75rem; padding: 1.25rem; background: var(--surface, #fff); color: var(--text, #111827); box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 35%); }
+.mfa-step-up-dialog form, .mfa-step-up-dialog label { display: grid; gap: .5rem; }
+.mfa-step-up-dialog form { gap: 1rem; }
+.mfa-step-up-dialog input, .mfa-step-up-dialog select { min-height: 44px; }
+.mfa-step-up-actions { display: flex; justify-content: flex-end; gap: .75rem; }

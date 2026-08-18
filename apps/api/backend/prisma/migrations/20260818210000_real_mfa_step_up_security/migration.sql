@@ -3,6 +3,7 @@ ADD COLUMN "operationScope" TEXT;
 
 DROP INDEX IF EXISTS "MfaChallenge_userId_purpose_consumedAt_expiresAt_idx";
 CREATE INDEX "MfaChallenge_userId_purpose_sessionDigest_operationScope_consumedAt_expiresAt_idx" ON "MfaChallenge"("userId", "purpose", "sessionDigest", "operationScope", "consumedAt", "expiresAt");
+CREATE INDEX "MfaChallenge_expiresAt_idx" ON "MfaChallenge"("expiresAt");
 
 -- CreateTable
 CREATE TABLE "MfaStepUpProof" (

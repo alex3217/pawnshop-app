@@ -4,6 +4,7 @@ import { createMfaAuditEvent } from "../services/mfaAudit.service.js";
 import { prisma } from "../lib/prisma.js";
 import {
   createMfaChallenge,
+  cleanupExpiredMfaArtifacts,
   recordMfaChallengeFailure,
   verifyStepUpMfaChallenge,
 } from "../services/mfa.service.js";
@@ -22,9 +23,9 @@ function audit(req) {
 }
 
 export function stepUpSessionDigest(req, encryptionKey) {
-  const token = String(req.auth?.token || "");
-  if (!token) throw new Error("Authenticated bearer session is required");
-  return digestMfaValue(`session:${token}`, encryptionKey);
+  const sessionId = String(req.user?.jti || "").trim();
+  if (!sessionId) throw new Error("Authenticated session identifier is required");
+  return digestMfaValue(`session:${sessionId}`, encryptionKey);
 }
 
 function operationScope(req) {
@@ -58,6 +59,10 @@ export async function beginMfaStepUp(req, res) {
   try {
     const config = loadMfaConfig(process.env);
     if (config.rolloutMode !== "required") return generic(res);
+    await cleanupExpiredMfaArtifacts({
+      retentionSeconds: config.artifactRetentionSeconds,
+      batchSize: config.cleanupBatchSize,
+    });
     const issued = await createMfaChallenge({
       userId: req.user.sub,
       purpose: "STEP_UP",

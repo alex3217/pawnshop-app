@@ -497,6 +497,42 @@ export async function consumeStepUpProof({
   });
 }
 
+export async function cleanupExpiredMfaArtifacts({
+  retentionSeconds = 604800,
+  batchSize = 100,
+  prismaClient = prisma,
+  now = new Date(),
+}) {
+  if (!Number.isSafeInteger(retentionSeconds) || retentionSeconds < 1 || retentionSeconds > 2592000) {
+    throw new Error("MFA artifact retention must be between 1 and 2592000 seconds");
+  }
+  if (!Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > 500) {
+    throw new Error("MFA cleanup batch size must be between 1 and 500");
+  }
+  const cutoff = new Date(now.getTime() - retentionSeconds * 1000);
+  return prismaClient.$transaction(async (tx) => {
+    const proofs = await tx.mfaStepUpProof.findMany({
+      where: { OR: [{ expiresAt: { lte: cutoff } }, { consumedAt: { lte: cutoff } }] },
+      select: { id: true },
+      orderBy: { expiresAt: "asc" },
+      take: batchSize,
+    });
+    const deletedProofs = proofs.length
+      ? await tx.mfaStepUpProof.deleteMany({ where: { id: { in: proofs.map(({ id }) => id) } } })
+      : { count: 0 };
+    const challenges = await tx.mfaChallenge.findMany({
+      where: { OR: [{ expiresAt: { lte: cutoff } }, { consumedAt: { lte: cutoff } }] },
+      select: { id: true },
+      orderBy: { expiresAt: "asc" },
+      take: batchSize,
+    });
+    const deletedChallenges = challenges.length
+      ? await tx.mfaChallenge.deleteMany({ where: { id: { in: challenges.map(({ id }) => id) } } })
+      : { count: 0 };
+    return { proofs: deletedProofs.count, challenges: deletedChallenges.count };
+  });
+}
+
 export async function invalidatePendingMfaChallenges({
   userId, prismaClient = prisma, now = new Date(),
 }) {

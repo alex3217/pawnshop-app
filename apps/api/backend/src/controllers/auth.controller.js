@@ -1,6 +1,7 @@
 // File: apps/api/backend/src/controllers/auth.controller.js
 
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
 import { validatePassword } from "../services/passwordPolicy.service.js";
@@ -167,7 +168,7 @@ function safeUser(user) {
   return result;
 }
 
-function issueToken(user) {
+export function issueToken(user) {
   const secret = getJwtSecret();
 
   if (!secret) {
@@ -184,6 +185,7 @@ function issueToken(user) {
       role: normalizeRole(user.role),
       email: user.email,
       authVersion: user.authVersion,
+      jti: crypto.randomUUID(),
     },
     secret,
     { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }

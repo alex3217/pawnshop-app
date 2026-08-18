@@ -22,6 +22,7 @@ import {
   requireMfaEnrollmentEligible,
 } from "../controllers/mfaEnrollment.controller.js";
 import { beginMfaStepUp, verifyMfaStepUp } from "../controllers/mfaStepUp.controller.js";
+import { requireMfaStepUp } from "../middleware/mfaStepUp.js";
 
 const router = Router();
 

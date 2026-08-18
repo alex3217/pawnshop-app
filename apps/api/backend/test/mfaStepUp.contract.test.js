@@ -27,3 +27,12 @@ test("challenge creation and verification use authenticated rate limiters", () =
   assert.match(limiter, /mfaStepUpCreate: enrollmentLimiter/);
   assert.match(limiter, /mfaStepUpVerify: enrollmentLimiter/);
 });
+
+test("step-up is bound to JWT jti and proof consumption fails safe before downstream work", () => {
+  const controller = fs.readFileSync(new URL("../src/controllers/mfaStepUp.controller.js", import.meta.url), "utf8");
+  const middleware = fs.readFileSync(new URL("../src/middleware/mfaStepUp.js", import.meta.url), "utf8");
+  assert.match(controller, /req\.user\?\.jti/);
+  assert.doesNotMatch(controller, /session:\$\{token\}/);
+  assert.ok(middleware.indexOf("await consumeStepUpProof") < middleware.indexOf("return next()"));
+  assert.match(middleware, /MFA_STEP_UP_REQUIRED/);
+});

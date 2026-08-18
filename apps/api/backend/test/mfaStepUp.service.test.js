@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import test from "node:test";
-import { completeMfaChallenge, consumeStepUpProof, verifyStepUpMfaChallenge } from "../src/services/mfa.service.js";
+import { cleanupExpiredMfaArtifacts, completeMfaChallenge, consumeStepUpProof, verifyStepUpMfaChallenge } from "../src/services/mfa.service.js";
 import { createTotpCode, createTotpSecret, digestMfaValue, encryptTotpSecret } from "../src/services/mfaCrypto.service.js";
 import { verifyMfaStepUp } from "../src/controllers/mfaStepUp.controller.js";
 
@@ -128,4 +128,64 @@ test("a recovery code is consumed atomically and cannot be reused for another ch
   fixture.state.proof = null;
   await assert.rejects(verify(), (error) => error.code === "MFA_CODE_INVALID");
   assert.equal(fixture.state.proof, null);
+});
+
+test("two simultaneous sessions cannot exchange operation proofs", async () => {
+  const sessionOne = verificationFixture();
+  const sessionTwo = verificationFixture();
+  sessionTwo.state.challenge.sessionDigest = "session-b";
+  const codeOne = await createTotpCode({ secret, epochSeconds: Math.floor(now.getTime() / 1000) });
+  await verifyStepUpMfaChallenge({
+    credential: sessionOne.challengeCredential, userId: "user-a", sessionDigest: "session-a",
+    operationScope: "refund.create", method: "totp", code: codeOne, encryptionKey: key,
+    prismaClient: sessionOne.prismaClient, now, epochSeconds: Math.floor(now.getTime() / 1000),
+  });
+  const rawProof = "session-one-proof";
+  sessionOne.state.proof.credentialDigest = digestMfaValue(rawProof, key);
+  sessionOne.prismaClient.$transaction = async (callback) => callback({
+    mfaStepUpProof: { updateMany: async ({ where, data }) => {
+      const matches = where.sessionDigest === "session-a" && sessionOne.state.proof.consumedAt === null;
+      if (matches) sessionOne.state.proof.consumedAt = data.consumedAt;
+      return { count: matches ? 1 : 0 };
+    } },
+  });
+  await assert.rejects(consumeStepUpProof({
+    proof: rawProof, userId: "user-a", sessionDigest: "session-b",
+    operationScope: "refund.create", encryptionKey: key, prismaClient: sessionOne.prismaClient, now,
+  }));
+  assert.equal(sessionOne.state.proof.consumedAt, null);
+});
+
+test("concurrent proof consumption permits exactly one winner", async () => {
+  let consumed = false;
+  const prismaClient = { $transaction: async (callback) => callback({
+    mfaStepUpProof: { updateMany: async ({ data }) => {
+      if (consumed) return { count: 0 };
+      consumed = true;
+      await Promise.resolve();
+      void data;
+      return { count: 1 };
+    } },
+  }) };
+  const input = { proof: "race-proof", userId: "user-a", sessionDigest: "session-a", operationScope: "refund.create", encryptionKey: key, prismaClient, now };
+  const results = await Promise.allSettled([consumeStepUpProof(input), consumeStepUpProof(input)]);
+  assert.deepEqual(results.map(({ status }) => status).sort(), ["fulfilled", "rejected"]);
+});
+
+test("artifact cleanup is bounded, retention-aware, and idempotent", async () => {
+  const state = { proofs: ["p1", "p2"], challenges: ["c1"] };
+  const tx = {
+    mfaStepUpProof: {
+      findMany: async ({ take }) => state.proofs.slice(0, take).map((id) => ({ id })),
+      deleteMany: async ({ where }) => { const ids = where.id.in; state.proofs = state.proofs.filter((id) => !ids.includes(id)); return { count: ids.length }; },
+    },
+    mfaChallenge: {
+      findMany: async ({ take }) => state.challenges.slice(0, take).map((id) => ({ id })),
+      deleteMany: async ({ where }) => { const ids = where.id.in; state.challenges = state.challenges.filter((id) => !ids.includes(id)); return { count: ids.length }; },
+    },
+  };
+  const prismaClient = { $transaction: async (callback) => callback(tx) };
+  assert.deepEqual(await cleanupExpiredMfaArtifacts({ retentionSeconds: 60, batchSize: 1, prismaClient, now }), { proofs: 1, challenges: 1 });
+  assert.deepEqual(await cleanupExpiredMfaArtifacts({ retentionSeconds: 60, batchSize: 1, prismaClient, now }), { proofs: 1, challenges: 0 });
+  assert.deepEqual(await cleanupExpiredMfaArtifacts({ retentionSeconds: 60, batchSize: 1, prismaClient, now }), { proofs: 0, challenges: 0 });
 });
