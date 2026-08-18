@@ -20,7 +20,7 @@ jobs:
   chromium-release-candidate:
     name: Chromium release candidate (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -33,7 +33,17 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm --prefix apps/web ci
-      - run: npm --prefix apps/web exec -- playwright install --with-deps chromium
+      - name: Configure resilient Ubuntu package downloads
+        run: |
+          printf '%s\n' \
+            'Acquire::Retries "5";' \
+            'Acquire::http::Timeout "30";' \
+            'Acquire::https::Timeout "30";' |
+            sudo tee /etc/apt/apt.conf.d/80-pawnloop-ci-network >/dev/null
+      - name: Install Chromium and Linux dependencies
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npm --prefix apps/web exec -- playwright install --with-deps chromium
       - name: Run full Chromium shard
         working-directory: apps/web
         run: npx playwright test --config=playwright.release-candidate.config.ts --project=chromium --shard=${{ matrix.shard }}/4

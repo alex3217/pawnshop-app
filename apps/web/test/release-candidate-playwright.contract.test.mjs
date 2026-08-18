@@ -5,11 +5,21 @@ import test from "node:test";
 const workflow = await readFile(new URL("../../../.github/workflows/release-candidate-qa.yml", import.meta.url), "utf8");
 const config = await readFile(new URL("../playwright.release-candidate.config.ts", import.meta.url), "utf8");
 const viteConfig = await readFile(new URL("../vite.release-candidate.config.ts", import.meta.url), "utf8");
+const chromiumJob = workflow.slice(
+  workflow.indexOf("  chromium-release-candidate:"),
+  workflow.indexOf("  cross-browser-critical:"),
+);
 
 test("release-candidate CI shards the full Chromium suite with strict artifacts", () => {
   assert.match(workflow, /push:\n    branches:\n      - fix\/release-candidate-qa-accessibility-v1/);
   assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
   assert.match(workflow, /--project=chromium --shard=\$\{\{ matrix\.shard \}\}\/4/);
+  assert.match(chromiumJob, /timeout-minutes: 30/);
+  assert.match(chromiumJob, /Acquire::Retries "5";/);
+  assert.match(chromiumJob, /Acquire::http::Timeout "30";/);
+  assert.match(chromiumJob, /Acquire::https::Timeout "30";/);
+  assert.match(chromiumJob, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"/);
+  assert.match(chromiumJob, /playwright install --with-deps chromium/);
   assert.match(workflow, /if: failure\(\)/);
   assert.match(workflow, /include-hidden-files: true/);
   assert.doesNotMatch(workflow, /continue-on-error/);
