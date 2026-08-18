@@ -4,7 +4,7 @@ Audit date: 2026-08-18
 
 Branch: `audit/legal-operational-readiness-current-main-v2`
 
-Starting and current `origin/main`: `9f1de9b68636fee00f5ca606a931fca5a4dadb41`
+Starting and current `origin/main`: `ef0e55e91f3d960bd66b3960b5a23277318faeac`
 
 Scope: repository documentation and supplied production-containment evidence only. No provider, database, environment, deployment, secret, or production system was accessed or changed.
 
@@ -17,14 +17,16 @@ Repository controls already implemented:
 - production public-preview business writes fail closed unless separately enabled;
 - production durable-upload readiness and safety controls are merged;
 - canonical migration history restoration is merged;
-- read-only production Render metadata discovery is merged; and
+- read-only production Render metadata discovery is merged;
+- PR #352 replaced and integrated PR #330, merging managed-public-media controls;
+- PR #355 replaced and integrated PR #315, merging Super Admin shop-inventory support and closing the publication bypass; and
 - immutable release, containment, backup/restore, rollback, and incident procedures exist as repository controls or templates.
 
-Supplied operator evidence: GitHub Actions run `32135509506` passed and verified production Render maintenance mode enabled, automatic deployment disabled, and live backend source SHA `27096da51750479880289b7cd506933d971eb184`. Current main is `9f1de9b68636fee00f5ca606a931fca5a4dadb41`; these are different revisions. This evidence proves only the bounded metadata assertions made by that run.
+Supplied evidence: PR #355 completed 618 local automated executions with zero failures and 14 successful GitHub checks. Its two migrations are merged into repository history but have not been applied to production. GitHub Actions run `32135509506` passed and verified production Render maintenance mode enabled, automatic deployment disabled, and live backend source SHA `27096da51750479880289b7cd506933d971eb184`. Current main is `ef0e55e91f3d960bd66b3960b5a23277318faeac`; these are different revisions. This evidence proves only the bounded repository and metadata assertions recorded by those workstreams.
 
 Provider configuration, monitoring, backups, restore/rollback drills, privileged access, staffing, and live transactional behavior remain **PENDING OPERATOR EVIDENCE**. Legal decisions remain **PENDING COUNSEL REVIEW**. Deployments, migrations, maintenance/auto-deploy/write-gate changes, provider mutations, and production tests require separate authorization. Beta fitness requires validation with real pawn shops.
 
-Final documentation parity must be refreshed after PR #330 and PR #315 integration and before selecting the immutable release-candidate SHA.
+The PR #352 and PR #355 integration facts are synchronized here. Final accessibility evidence from PR #354 remains pending refresh before selecting the immutable release-candidate SHA.
 
 Priority meanings: P0 blocks any transactional beta or unrestricted public launch; P1 blocks unrestricted public launch and normally blocks beta unless an authorized, documented exception is permissible; P2 is required during controlled-beta validation before expansion; P3 is a post-certification improvement. Evidence absence never counts as passage.
 
@@ -53,7 +55,7 @@ Priority meanings: P0 blocks any transactional beta or unrestricted public launc
 
 | Gate | Current status | Required acceptance evidence |
 |---|---|---|
-| Accessibility and role-based QA | PENDING OPERATOR EVIDENCE | Keyboard, screen-reader, contrast, responsive/browser/device evidence plus negative authorization and representative buyer, shop staff/owner, support/admin journeys on the exact candidate. |
+| Accessibility and role-based QA | PENDING OPERATOR EVIDENCE | Keyboard, screen-reader, contrast, responsive/browser/device evidence plus negative authorization and representative buyer, shop staff/owner, support/admin journeys on the exact candidate. Final accessibility evidence from PR #354 remains pending refresh. |
 | Financial operations and reconciliation | PENDING OWNER ASSIGNMENT | Daily procedure, internal/provider identity correlation, zero unexplained variance, refund/dispute/payout ownership, holds/corrections approval, and tested escalation. |
 | Vendor/data inventory and agreements | PENDING COUNSEL REVIEW | Owners, purpose/data/regions/subprocessors, contract/DPA/security review, retention/deletion, outage/exit plan, renewal, and incident contacts for every provider. |
 | Security and vulnerability readiness | PENDING OPERATOR EVIDENCE | Candidate dependency/secret/artifact scans, threat and tenant-access review, accepted-risk authority, remediation ownership, and no unaccepted launch-blocking findings. |
@@ -92,4 +94,4 @@ Unrestricted public launch requires completed P0 and P1 evidence for the approve
 
 This replacement reuses useful documentation from stale draft PR #299 without changing, rebasing, closing, or pushing its original branch. It makes no application, test, schema, migration, dependency, lockfile, workflow, provider, environment, database, or secret change.
 
-Before release-candidate selection, refresh all six documents against main after PR #330 and PR #315 land, reconcile their final code/documentation behavior, rerun required validations, and bind evidence to the selected immutable SHA. That synchronization is documentation work; any release/provider action remains separately authorized.
+Before release-candidate selection, refresh final accessibility evidence from PR #354, reconcile its final result with these documents, rerun required validations, and bind evidence to the selected immutable SHA. That synchronization is documentation work; any release/provider action remains separately authorized.

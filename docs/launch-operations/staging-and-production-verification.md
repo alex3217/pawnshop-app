@@ -2,9 +2,9 @@
 
 These checklists record evidence; they do not authorize provider changes or production data access.
 
-Repository baseline: current `main` is `9f1de9b68636fee00f5ca606a931fca5a4dadb41`. GitHub Actions run `32135509506` passed the read-only Render metadata discovery and verified live backend SHA `27096da51750479880289b7cd506933d971eb184`, maintenance mode enabled, and automatic deployment disabled. The live SHA differs from current main. No deployment, configuration change, or transactional test is authorized by this record, and public launch and transactional beta remain **NOT YET CERTIFIED**.
+Repository baseline: current `main` is `ef0e55e91f3d960bd66b3960b5a23277318faeac`. GitHub Actions run `32135509506` passed the read-only Render metadata discovery and verified live backend SHA `27096da51750479880289b7cd506933d971eb184`, maintenance mode enabled, and automatic deployment disabled. The live SHA differs from current main. No deployment, configuration change, migration application, or transactional test is authorized by this record, and public launch and transactional beta remain **NOT YET CERTIFIED**.
 
-Refresh this document after PR #330 and PR #315 integrate and before selecting the immutable release-candidate SHA.
+PR #352 replaced and integrated PR #330; PR #355 replaced and integrated PR #315. PR #355 completed 618 local automated executions with zero failures and 14 successful GitHub checks. Its two migrations are merged into repository history but have not been applied to production. Final accessibility evidence from PR #354 remains pending refresh before selecting the immutable release-candidate SHA.
 
 ## Staging certification
 
@@ -34,7 +34,7 @@ Current result: `NOT CERTIFIED`.
 
 Follow [`DEPLOYMENT.md`](../../DEPLOYMENT.md) and [`rollback-runbook.md`](rollback-runbook.md). OWNER: TBD must approve the exact target and each state-changing step. Never use local synthetic webhook/payment scripts against production.
 
-Repository controls already implemented include the production read-only write gate, durable-upload readiness controls, canonical migration history, and read-only Render metadata discovery. Provider settings, live storage, backups, monitoring, deployment identity, and rollback capability require **PENDING OPERATOR EVIDENCE**. Counsel decisions remain **PENDING COUNSEL REVIEW**. Deployment, maintenance-mode changes, automatic-deployment changes, write enablement, migrations, provider changes, and transactional smoke tests are release actions requiring separate authorization.
+Repository controls already implemented include the production read-only write gate, durable-upload readiness controls, canonical migration history, read-only Render metadata discovery, managed-public-media enforcement, a closed publication bypass, and Super Admin shop-inventory support. Provider settings, live storage, backups, monitoring, deployment identity, migration application, and rollback capability require **PENDING OPERATOR EVIDENCE**. Counsel decisions remain **PENDING COUNSEL REVIEW**. Deployment, maintenance-mode changes, automatic-deployment changes, write enablement, migrations, provider changes, and transactional smoke tests are release actions requiring separate authorization.
 
 Pre-deployment:
 

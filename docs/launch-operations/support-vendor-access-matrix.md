@@ -4,7 +4,7 @@ Status: completion template. Entries describe repository evidence or required de
 
 No personnel, contacts, hours, service levels, or provider certifications are established here. Public launch and transactional beta are **NOT YET CERTIFIED**.
 
-Final documentation parity must be refreshed after PR #330 and PR #315 integration and before selecting the immutable release-candidate SHA.
+PR #352 replaced and integrated PR #330, and PR #355 replaced and integrated PR #315. Final accessibility evidence from PR #354 remains pending refresh before selecting the immutable release-candidate SHA.
 
 ## Support and escalation matrix
 
