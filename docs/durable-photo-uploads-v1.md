@@ -20,6 +20,10 @@ the client cannot choose an object key or destination URL. The response ID also
 identifies a tenant-scoped `UploadAsset` lifecycle row. `DELETE /api/uploads/:id`
 can remove only the caller's own unattached temporary asset. Attached assets must
 be removed through their owning item or shop update, which repeats authorization.
+Super Admin inventory-support edits use the same locked reconciliation path:
+new image URLs must resolve to temporary assets for that exact shop and item,
+replacements attach and detach transactionally, and physical deletion occurs only
+after commit with a final reference check.
 
 ## Formats, limits, and lifecycle
 

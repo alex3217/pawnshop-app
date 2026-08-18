@@ -1,6 +1,20 @@
 import { prisma } from "../lib/prisma.js";
 
 const TEMPORARY_TTL_MS = 24 * 60 * 60 * 1000;
+const PUBLIC_LISTING_IMAGE_KINDS = new Set(["ITEM_IMAGE"]);
+
+export const MANAGED_PUBLIC_MEDIA_ERROR = Object.freeze({
+  statusCode: 422,
+  code: "MANAGED_PUBLIC_MEDIA_REQUIRED",
+  message: "Publish this listing with attached, shop-owned inventory photos uploaded through PawnLoop.",
+});
+
+function managedPublicMediaError() {
+  const error = new Error(MANAGED_PUBLIC_MEDIA_ERROR.message);
+  error.statusCode = MANAGED_PUBLIC_MEDIA_ERROR.statusCode;
+  error.publicCode = MANAGED_PUBLIC_MEDIA_ERROR.code;
+  return error;
+}
 
 function safeReason(error) {
   return String(error?.name || "StorageError").slice(0, 80);
@@ -25,6 +39,51 @@ export async function recordUploadedAsset({ id, target, uploaderId, key, url, ki
   });
 }
 
+export async function assertManagedPublicListingImages({
+  listing,
+  images = listing?.images,
+  prismaClient = prisma,
+}) {
+  if (listing?.listingType !== "SHOP_TO_CUSTOMER") return;
+
+  const urls = [...new Set((Array.isArray(images) ? images : []).filter(Boolean))];
+  if (!listing?.sellerShopId || !listing?.itemId || urls.length === 0) {
+    throw managedPublicMediaError();
+  }
+
+  const assets = await prismaClient.uploadAsset.findMany({
+    where: { deliveryUrl: { in: urls } },
+    select: {
+      deliveryUrl: true,
+      kind: true,
+      status: true,
+      shopId: true,
+      itemId: true,
+      attachedAt: true,
+      deleteAfter: true,
+      deletedAt: true,
+      objectKey: true,
+    },
+  });
+  const byUrl = new Map(assets.map((asset) => [asset.deliveryUrl, asset]));
+  const valid = urls.every((url) => {
+    const asset = byUrl.get(url);
+    return Boolean(
+      asset
+      && asset.shopId === listing.sellerShopId
+      && asset.itemId === listing.itemId
+      && PUBLIC_LISTING_IMAGE_KINDS.has(asset.kind)
+      && asset.status === "ATTACHED"
+      && asset.attachedAt
+      && asset.deleteAfter === null
+      && asset.deletedAt === null
+      && asset.objectKey,
+    );
+  });
+
+  if (!valid) throw managedPublicMediaError();
+}
+
 export async function lockShopBrandingForUpdate(tx, shopId) {
   const rows = await tx.$queryRaw`
     SELECT "id", "logoUrl", "bannerUrl", "isDeleted"
@@ -47,7 +106,7 @@ export async function lockItemImagesForUpdate(tx, itemId) {
 
 async function lockUploadAssetByUrl(tx, deliveryUrl) {
   const rows = await tx.$queryRaw`
-    SELECT "id", "objectKey", "deliveryUrl", "shopId", "itemId", "status"
+    SELECT "id", "objectKey", "deliveryUrl", "uploaderId", "shopId", "itemId", "status"
     FROM "UploadAsset"
     WHERE "deliveryUrl" = ${deliveryUrl}
     FOR UPDATE
@@ -85,7 +144,7 @@ export async function deleteUploadAssetForActor({ assetId, actorId, shopId, stor
   return deleteTrackedAssets({ assets: [asset], storage, prismaClient, logger, requestId });
 }
 
-export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUrls = [], nextUrls = [] }) {
+export async function reconcileAssetUrls({ tx, shopId, itemId = null, uploaderId = null, previousUrls = [], nextUrls = [], requireManaged = false }) {
   const previous = new Set((previousUrls || []).filter(Boolean));
   const next = new Set((nextUrls || []).filter(Boolean));
   const added = [...next].filter((url) => !previous.has(url));
@@ -96,15 +155,22 @@ export async function reconcileAssetUrls({ tx, shopId, itemId = null, previousUr
     const byUrl = new Map(assets.map((asset) => [asset.deliveryUrl, asset]));
     for (const url of added) {
       const asset = byUrl.get(url);
-      if (!asset) continue; // Existing externally hosted images remain supported.
-      if (asset.shopId !== shopId || (itemId && asset.itemId !== itemId) || !["TEMPORARY", "ATTACHED"].includes(asset.status)) {
+      if (!asset) {
+        if (requireManaged) {
+          const error = new Error("Images must reference managed upload assets");
+          error.statusCode = 400;
+          throw error;
+        }
+        continue; // Existing externally hosted images remain supported by legacy owner flows.
+      }
+      if (asset.shopId !== shopId || (itemId && asset.itemId !== itemId) || (uploaderId && asset.uploaderId !== uploaderId) || !["TEMPORARY", "ATTACHED"].includes(asset.status)) {
         const error = new Error("Uploaded image does not belong to this resource");
         error.statusCode = 403;
         throw error;
       }
     }
     const attached = await tx.uploadAsset.updateMany({
-      where: { deliveryUrl: { in: added }, shopId, ...(itemId ? { itemId } : {}), status: { in: ["TEMPORARY", "ATTACHED"] } },
+      where: { deliveryUrl: { in: added }, shopId, ...(itemId ? { itemId } : {}), ...(uploaderId ? { uploaderId } : {}), status: { in: ["TEMPORARY", "ATTACHED"] } },
       data: { status: "ATTACHED", attachedAt: new Date(), deleteAfter: null, lastError: null },
     });
     if (attached.count !== assets.length) {

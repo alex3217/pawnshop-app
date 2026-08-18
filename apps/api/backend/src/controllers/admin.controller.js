@@ -669,7 +669,7 @@ export async function softDeleteItem(req, res) {
       metadata: { moderationType: "soft_delete" },
       mutation: async (tx) => {
         const current = await lockItemImagesForUpdate(tx, id);
-        const updated = await tx.item.update({ where: { id }, data: { isDeleted: true } });
+        const updated = await tx.item.update({ where: { id }, data: { isDeleted: true, availability: "ARCHIVED" } });
         if (current) removedAssets = await reconcileAssetUrls({ tx, shopId: current.pawnShopId, itemId: id, previousUrls: current.images, nextUrls: [] });
         return updated;
       },
@@ -690,10 +690,11 @@ export async function restoreItem(req, res) {
       action: "MODERATE_ITEM_RESTORE",
       targetItemId: id,
       metadata: { moderationType: "restore" },
-      mutation: (tx) => tx.item.update({
-        where: { id },
-        data: { isDeleted: false },
-      }),
+      mutation: async (tx) => {
+        await lockItemImagesForUpdate(tx, id);
+        const current = await tx.item.findUnique({ where: { id }, select: { status: true } });
+        return tx.item.update({ where: { id }, data: { isDeleted: false, availability: current?.status === "SOLD" ? "SOLD" : "AVAILABLE" } });
+      },
     });
 
     return res.json({ ok: true, id: item.id, isDeleted: item.isDeleted });

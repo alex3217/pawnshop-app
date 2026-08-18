@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { toAmountCents } from "../lib/stripe.js";
+import { lockItemImagesForUpdate } from "./uploadAssets.service.js";
 
 const PAYABLE_STATUSES = [
   "PENDING",
@@ -401,17 +402,17 @@ export async function finalizeMarketplacePaymentSucceeded({
         listingSold = true;
 
         if (listing.itemId) {
-          const itemResult =
+          const lockedItem = await lockItemImagesForUpdate(tx, listing.itemId);
+          const itemResult = lockedItem &&
             await tx.item.updateMany({
-              where: {
-                id: listing.itemId,
-              },
+              where: { id: listing.itemId },
               data: {
                 status: "SOLD",
+                ...(!lockedItem.isDeleted ? { availability: "SOLD" } : {}),
               },
             });
 
-          if (itemResult.count !== 1) {
+          if (itemResult?.count !== 1) {
             throw httpError(
               "Linked inventory could not be finalized",
               409,

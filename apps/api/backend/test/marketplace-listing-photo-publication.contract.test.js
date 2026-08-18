@@ -8,4 +8,6 @@ test("shop-to-customer publication requires a photo at the API boundary", async 
   assert.match(source, /listingType === "SHOP_TO_CUSTOMER"/);
   assert.match(source, /At least one photo is required to publish/);
   assert.match(source, /assertShopToCustomerHasPhoto\(\{\}, existing\)/);
+  assert.match(source, /assertManagedPublicListingImages\(\{ listing: existing \}\)/);
+  assert.match(source, /existing\.status === "ACTIVE" && req\.body\?\.images !== undefined/);
 });
