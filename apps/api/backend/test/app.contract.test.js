@@ -397,7 +397,7 @@ test("consumer tokens cannot access owner-only routes", async () => {
   });
 });
 
-test("Stripe refunds require ADMIN or SUPER_ADMIN and validate a reason", async () => {
+test("Stripe refunds require ADMIN or SUPER_ADMIN plus operation-bound MFA step-up", async () => {
   const tokenFor = (id) => {
     const user = authenticatedUsers.get(id);
     return jwt.sign({
@@ -420,9 +420,10 @@ test("Stripe refunds require ADMIN or SUPER_ADMIN and validate a reason", async 
     .set("Authorization", `Bearer ${tokenFor("admin-onboarding-test")}`)
     .set("Idempotency-Key", "admin-invalid-reason")
     .send({ marketplaceTransactionId: "transaction_1", amountCents: 100, reason: " " })
-    .expect(400);
+    .expect(403);
 
-  assert.match(response.body.error, /reason is required/i);
+  assert.equal(response.body.code, "MFA_STEP_UP_REQUIRED");
+  assert.equal(response.body.scope, "refund.create");
 });
 
 test("PUT /api/shops/:id/onboarding/complete enforces the owner launch contract", async () => {

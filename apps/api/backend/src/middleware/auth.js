@@ -46,9 +46,6 @@ function getTokenFromRequest(req) {
   return (
     getBearerToken(req.headers.authorization) ||
     getBearerToken(req.headers.Authorization) ||
-    String(req.cookies?.token || "").trim() ||
-    String(req.cookies?.accessToken || "").trim() ||
-    String(req.cookies?.access_token || "").trim() ||
     null
   );
 }

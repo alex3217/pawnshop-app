@@ -6,6 +6,10 @@ export const PRODUCTION_AUTH_MUTATION_ALLOWLIST = Object.freeze([
   "POST /api/auth/login",
   "POST /auth/mfa/challenge",
   "POST /api/auth/mfa/challenge",
+  "POST /auth/mfa/step-up",
+  "POST /api/auth/mfa/step-up",
+  "POST /auth/mfa/step-up/verify",
+  "POST /api/auth/mfa/step-up/verify",
   "POST /auth/refresh",
   "POST /api/auth/refresh",
 ]);

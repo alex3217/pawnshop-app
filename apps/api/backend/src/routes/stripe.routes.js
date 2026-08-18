@@ -10,6 +10,7 @@ import {
   createSettlementPaymentIntent,
 } from "../controllers/stripe.controller.js";
 import { createBillingPortalSession, createPaymentMethodSetupSession, listPaymentMethods, removePaymentMethod, setDefaultPaymentMethod } from "../controllers/paymentMethods.controller.js";
+import { requireMfaStepUp } from "../middleware/mfaStepUp.js";
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.post(
   "/refunds",
   authRequired,
   requireRole("ADMIN", "SUPER_ADMIN"),
+  requireMfaStepUp("refund.create"),
   createStripeRefund,
 );
 

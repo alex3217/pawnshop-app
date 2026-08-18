@@ -330,6 +330,8 @@ export async function consumeMfaRecoveryCode({
 export async function createMfaChallenge({
   userId,
   purpose,
+  sessionDigest = null,
+  operationScope = null,
   encryptionKey,
   ttlSeconds = 300,
   attempts = 5,
@@ -342,6 +344,9 @@ export async function createMfaChallenge({
   }
   if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 5) {
     throw new Error("MFA challenge attempts must be between 1 and 5");
+  }
+  if (purpose === "STEP_UP" && (!sessionDigest || !operationScope)) {
+    throw new Error("STEP_UP challenges require session and operation scope binding");
   }
   const credential = generateOpaqueChallengeCredential();
   const credentialDigest = digestMfaValue(credential, encryptionKey);
@@ -360,6 +365,8 @@ export async function createMfaChallenge({
         authVersion: currentUser.authVersion,
         credentialDigest,
         attemptsRemaining: attempts,
+        sessionDigest,
+        operationScope,
         expiresAt: new Date(now.getTime() + ttlSeconds * 1000),
       },
     });
@@ -370,6 +377,124 @@ export async function createMfaChallenge({
     return created;
   });
   return { challenge, credential };
+}
+
+export async function verifyStepUpMfaChallenge({
+  credential,
+  userId,
+  sessionDigest,
+  operationScope,
+  method,
+  code,
+  encryptionKey,
+  proofTtlSeconds = 120,
+  audit,
+  prismaClient = prisma,
+  now = new Date(),
+  epochSeconds = Math.floor(now.getTime() / 1000),
+}) {
+  if (!Number.isSafeInteger(proofTtlSeconds) || proofTtlSeconds < 1 || proofTtlSeconds > 120) {
+    throw new Error("MFA step-up proof TTL must be between 1 and 120 seconds");
+  }
+  const credentialDigest = digestMfaValue(credential, encryptionKey);
+  return prismaClient.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw`
+      SELECT c."id", c."userId", c."credentialDigest", c."purpose", c."expiresAt",
+             c."attemptsRemaining", c."consumedAt", c."authVersion", c."sessionDigest",
+             c."operationScope", u."authVersion" AS "currentAuthVersion", u."isActive",
+             m."id" AS "mfaCredentialId", m."encryptedTotpSecret", m."enabledAt",
+             m."lastAcceptedTotpCounter"
+      FROM "MfaChallenge" c
+      JOIN "User" u ON u."id" = c."userId"
+      JOIN "UserMfaCredential" m ON m."userId" = c."userId"
+      WHERE c."credentialDigest" = ${credentialDigest}
+      FOR UPDATE OF c, m
+    `;
+    const challenge = rows[0];
+    if (!challenge || !matchesMfaDigest(credential, challenge.credentialDigest, encryptionKey)
+      || challenge.purpose !== "STEP_UP" || challenge.consumedAt || challenge.expiresAt <= now
+      || challenge.attemptsRemaining < 1 || challenge.authVersion !== challenge.currentAuthVersion
+      || !challenge.isActive || !challenge.enabledAt || challenge.userId !== userId
+      || challenge.sessionDigest !== sessionDigest || challenge.operationScope !== operationScope) {
+      throw mfaError("MFA_CHALLENGE_INVALID", "MFA challenge is invalid");
+    }
+
+    if (method === "recovery_code") {
+      const codeDigest = digestMfaValue(code, encryptionKey);
+      const codes = await tx.$queryRaw`
+        SELECT "id", "codeDigest" FROM "UserMfaRecoveryCode"
+        WHERE "credentialId" = ${challenge.mfaCredentialId}
+          AND "codeDigest" = ${codeDigest} AND "consumedAt" IS NULL AND "invalidatedAt" IS NULL
+        FOR UPDATE
+      `;
+      const stored = codes[0];
+      if (!stored || !matchesMfaDigest(code, stored.codeDigest, encryptionKey)) {
+        throw mfaError("MFA_CODE_INVALID", "MFA code is invalid");
+      }
+      await tx.userMfaRecoveryCode.update({ where: { id: stored.id }, data: { consumedAt: now } });
+      await createMfaAuditEvent(tx, {
+        event: "RECOVERY_CODE_USED", ...auditContext(challenge.userId, audit),
+        metadata: { outcome: "succeeded", purpose: "STEP_UP" },
+      });
+    } else {
+      const secret = decryptTotpSecret(challenge.encryptedTotpSecret, encryptionKey);
+      const verified = await verifyTotpCode({
+        secret, token: code, epochSeconds,
+        lastAcceptedCounter: challenge.lastAcceptedTotpCounter,
+      });
+      if (!verified.valid) throw mfaError("MFA_CODE_INVALID", "MFA code is invalid");
+      await tx.userMfaCredential.update({
+        where: { id: challenge.mfaCredentialId }, data: { lastAcceptedTotpCounter: verified.counter },
+      });
+    }
+
+    const proof = generateOpaqueChallengeCredential();
+    await tx.mfaStepUpProof.create({
+      data: {
+        challengeId: challenge.id,
+        userId,
+        sessionDigest,
+        operationScope,
+        credentialDigest: digestMfaValue(proof, encryptionKey),
+        expiresAt: new Date(now.getTime() + proofTtlSeconds * 1000),
+      },
+    });
+    await tx.mfaChallenge.update({
+      where: { id: challenge.id }, data: { consumedAt: now, attemptsRemaining: 0 },
+    });
+    await createMfaAuditEvent(tx, {
+      event: "STEP_UP_SUCCEEDED", ...auditContext(challenge.userId, audit),
+      metadata: { outcome: "succeeded", purpose: "STEP_UP" },
+    });
+    return { proof, challengeId: challenge.id, expiresInSeconds: proofTtlSeconds };
+  });
+}
+
+export async function consumeStepUpProof({
+  proof,
+  userId,
+  sessionDigest,
+  operationScope,
+  encryptionKey,
+  prismaClient = prisma,
+  now = new Date(),
+}) {
+  const credentialDigest = digestMfaValue(proof, encryptionKey);
+  return prismaClient.$transaction(async (tx) => {
+    const consumed = await tx.mfaStepUpProof.updateMany({
+      where: {
+        credentialDigest,
+        userId,
+        sessionDigest,
+        operationScope,
+        consumedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: { consumedAt: now },
+    });
+    if (consumed.count !== 1) throw mfaError("MFA_STEP_UP_REQUIRED", "Valid step-up proof required");
+    return { consumed: true };
+  });
 }
 
 export async function invalidatePendingMfaChallenges({
@@ -462,6 +587,9 @@ export async function completeMfaChallenge({
   prismaClient = prisma,
   now = new Date(),
 }) {
+  if (purpose === "STEP_UP") {
+    throw mfaError("MFA_CODE_REQUIRED", "TOTP or recovery-code verification is required");
+  }
   const credentialDigest = digestMfaValue(credential, encryptionKey);
   return prismaClient.$transaction(async (tx) => {
     const rows = await tx.$queryRaw`
@@ -506,6 +634,9 @@ export async function completeMfaChallenge({
 export async function recordMfaChallengeFailure({
   credential,
   purpose,
+  userId = null,
+  sessionDigest = null,
+  operationScope = null,
   encryptionKey,
   audit,
   prismaClient = prisma,
@@ -515,7 +646,8 @@ export async function recordMfaChallengeFailure({
   return prismaClient.$transaction(async (tx) => {
     const rows = await tx.$queryRaw`
       SELECT c."id", c."userId", c."purpose", c."attemptsRemaining", c."consumedAt",
-             c."expiresAt", c."authVersion", u."authVersion" AS "currentAuthVersion"
+             c."expiresAt", c."authVersion", c."sessionDigest", c."operationScope",
+             u."authVersion" AS "currentAuthVersion"
       FROM "MfaChallenge" c
       JOIN "User" u ON u."id" = c."userId"
       WHERE c."credentialDigest" = ${credentialDigest}
@@ -523,6 +655,11 @@ export async function recordMfaChallengeFailure({
     `;
     const challenge = rows[0];
     if (!challenge || challenge.consumedAt || challenge.purpose !== purpose) {
+      throw mfaError("MFA_CHALLENGE_INVALID", "MFA challenge is invalid");
+    }
+    if ((userId && challenge.userId !== userId)
+      || (sessionDigest && challenge.sessionDigest !== sessionDigest)
+      || (operationScope && challenge.operationScope !== operationScope)) {
       throw mfaError("MFA_CHALLENGE_INVALID", "MFA challenge is invalid");
     }
     if (challenge.expiresAt <= now) {

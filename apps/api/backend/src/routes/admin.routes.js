@@ -24,6 +24,7 @@ import {
   getOwnerApplicationReviewHistory,
   updateOwnerApplicationStatus,
 } from "../controllers/admin.controller.js";
+import { requireMfaStepUp } from "../middleware/mfaStepUp.js";
 
 const router = Router();
 
@@ -63,20 +64,23 @@ function validateIdParam(paramName, label) {
 router.use(authRequired, requireRole("ADMIN", "SUPER_ADMIN"));
 
 router.get("/users", asyncRoute(listUsers));
-router.post("/users", asyncRoute(createAdminUser));
+router.post("/users", requireMfaStepUp("privilege.admin-user.create"), asyncRoute(createAdminUser));
 router.patch(
   "/users/:id",
   validateIdParam("id", "User id"),
+  requireMfaStepUp("privilege.admin-user.update"),
   asyncRoute(updateAdminUser),
 );
 router.delete(
   "/users/:id",
   validateIdParam("id", "User id"),
+  requireMfaStepUp("privilege.admin-user.block"),
   asyncRoute(blockUser),
 );
 router.patch(
   "/users/:id/unblock",
   validateIdParam("id", "User id"),
+  requireMfaStepUp("privilege.admin-user.unblock"),
   asyncRoute(unblockUser),
 );
 

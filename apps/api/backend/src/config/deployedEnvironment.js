@@ -320,7 +320,9 @@ export function validateDeployedEnvironment(env, { environment } = {}) {
     if (!rateLimit.enabled) violations.push("AUTH_RATE_LIMIT_ENABLED must equal true");
   } catch (error) { violations.push(error.message); }
 
-  const mfaMode = requireValue(env, "MFA_MODE", violations, { secret: false }).toLowerCase();
+  const rawMfaMode = requireValue(env, "MFA_MODE", violations, { secret: false });
+  const mfaMode = rawMfaMode.toLowerCase();
+  if (target === "production" && rawMfaMode !== "required") violations.push("MFA_MODE must equal required in production");
   requireValue(env, "REDIS_URL", violations);
   try { loadMfaConfig(env); } catch (error) { violations.push(error.message); }
   const schedulers = validateScheduler(env, violations);

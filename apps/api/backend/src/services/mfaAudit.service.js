@@ -31,7 +31,7 @@ const SAFE_STRING_VALUES = Object.freeze({
   ]),
   reason: new Set([
     "invalid_code", "attempts_exhausted", "expired", "auth_version_mismatch",
-    "rate_limited", "locked_out",
+    "rate_limited", "locked_out", "invalid_proof",
   ]),
   purpose: new Set([
     "ENROLLMENT_CONFIRMATION", "LOGIN", "STEP_UP",

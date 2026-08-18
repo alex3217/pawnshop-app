@@ -6,6 +6,7 @@ import {
   listSuperAdminAuditLogs,
 } from "../services/superAdminAudit.service.js";
 import { authRequired, requireRole } from "../middleware/auth.js";
+import { requireMfaStepUp } from "../middleware/mfaStepUp.js";
 import {
   getSuperAdminOverview,
   getSuperAdminSystemHealth,
@@ -267,7 +268,7 @@ router.get("/system", asyncRoute(getSuperAdminSystemHealth));
 router.get("/users", asyncRoute(listSuperAdminUsers));
 router.get("/users/lookup", asyncRoute(lookupSuperAdminUsers));
 router.get("/users/:id/governance", validateIdParam("id", "User id"), asyncRoute(getUserGovernance));
-router.post("/users/:id/governance-actions", validateIdParam("id", "User id"), validateJsonObjectBody, asyncRoute(mutateUserGovernance));
+router.post("/users/:id/governance-actions", requireMfaStepUp("privilege.user-governance"), validateIdParam("id", "User id"), validateJsonObjectBody, asyncRoute(mutateUserGovernance));
 router.get("/messaging/conversations", asyncRoute(listMessagingGovernance));
 router.get("/messaging/conversations/:id/content", validateIdParam("id", "Conversation id"), asyncRoute(getModerationContent));
 router.post("/messaging/conversations/:id/content", validateIdParam("id", "Conversation id"), validateJsonObjectBody, asyncRoute(getModerationContent));
@@ -283,13 +284,14 @@ router.post("/beta-invites/:id/revoke", asyncRoute(revokeBetaInvite));
 
 router.patch(
   "/users/:id",
+  requireMfaStepUp("privilege.super-admin-user.update"),
   validateIdParam("id", "User id"),
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminUser)
 );
 
 router.post("/shops", asyncRoute(createSuperAdminShop));
-router.patch("/shops/:id/owner", asyncRoute(reassignSuperAdminShopOwner));
+router.patch("/shops/:id/owner", requireMfaStepUp("privilege.shop-owner.reassign"), asyncRoute(reassignSuperAdminShopOwner));
 router.get("/integrations", asyncRoute(listSuperAdminIntegrations));
 router.patch("/integrations/:id/archive", asyncRoute(archiveSuperAdminIntegration));
 router.patch("/integrations/:id/restore", asyncRoute(restoreSuperAdminIntegration));
@@ -317,7 +319,7 @@ router.patch(
 router.get("/plans/seller", asyncRoute(getSuperAdminSellerPlans));
 router.post("/plans/seller/:code/impact", validateJsonObjectBody, asyncRoute(previewSuperAdminSellerPlanImpact));
 router.post("/plans/seller/:code/validate-stripe", validateJsonObjectBody, asyncRoute(validateSuperAdminSellerPlanStripeReferences));
-router.patch("/plans/seller/:code", validateJsonObjectBody, asyncRoute(updateSuperAdminSellerPlan));
+router.patch("/plans/seller/:code", requireMfaStepUp("configuration.seller-plan.update"), validateJsonObjectBody, asyncRoute(updateSuperAdminSellerPlan));
 router.get("/plans/buyer", asyncRoute(getSuperAdminBuyerPlans));
 
 router.get(
@@ -417,12 +419,14 @@ router.get("/pricing-rules", asyncRoute(listSuperAdminPricingRules));
 
 router.post(
   "/pricing-rules",
+  requireMfaStepUp("configuration.pricing-rule.create"),
   validateJsonObjectBody,
   asyncRoute(createSuperAdminPricingRule)
 );
 
 router.patch(
   "/pricing-rules/:id",
+  requireMfaStepUp("configuration.pricing-rule.update"),
   validateIdParam("id", "Pricing rule id"),
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminPricingRule)
@@ -432,6 +436,7 @@ router.get("/platform-settings", asyncRoute(getSuperAdminPlatformSettings));
 
 router.patch(
   "/platform-settings",
+  requireMfaStepUp("configuration.platform-settings.update"),
   validateJsonObjectBody,
   asyncRoute(updateSuperAdminPlatformSettings)
 );
@@ -442,11 +447,13 @@ router.get(
 );
 router.post(
   "/platform-settings/configurations/:area",
+  requireMfaStepUp("configuration.platform.create"),
   validateJsonObjectBody,
   asyncRoute(createPlatformConfiguration),
 );
 router.patch(
   "/platform-settings/configurations/:area/:id",
+  requireMfaStepUp("configuration.platform.update"),
   validateIdParam("id", "Configuration id"),
   validateJsonObjectBody,
   asyncRoute(updatePlatformConfiguration),

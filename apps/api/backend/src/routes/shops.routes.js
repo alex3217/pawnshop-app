@@ -25,6 +25,7 @@ import {
   createShopFinanceConnectOnboardingLink,
   getShopFinanceConnectStatus,
 } from "../controllers/shopFinanceConnect.controller.js";
+import { requireMfaStepUp } from "../middleware/mfaStepUp.js";
 
 const router = Router();
 const FINANCE_ROLES = ["OWNER", "ADMIN", "SUPER_ADMIN"];
@@ -47,6 +48,7 @@ router.post(
   "/:id/finance/payouts",
   authRequired,
   requireRole(...FINANCE_ROLES),
+  requireMfaStepUp("payout.request"),
   requestShopFinancePayout,
 );
 
@@ -54,6 +56,7 @@ router.post(
   "/:id/finance/payouts/:payoutId/cancel",
   authRequired,
   requireRole(...FINANCE_ROLES),
+  requireMfaStepUp("payout.cancel"),
   cancelShopFinancePayout,
 );
 
@@ -61,6 +64,7 @@ router.post(
   "/:id/finance/payouts/:payoutId/process",
   authRequired,
   requireRole("ADMIN", "SUPER_ADMIN"),
+  requireMfaStepUp("payout.process"),
   processShopFinancePayout,
 );
 
