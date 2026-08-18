@@ -61,7 +61,7 @@ test("Core CI runs payment methods and buyer dashboard contrast regressions", ()
   );
   assert.match(job, /name: Upload Playwright failure artifacts/);
   assert.match(job, /if: failure\(\)/);
-  assert.match(job, /uses: actions\/upload-artifact@v4/);
+  assert.match(job, /uses: actions\/upload-artifact@[0-9a-f]{40}\s+# v4\.6\.2/);
   assert.match(job, /apps\/web\/\.playwright\/seller-subscription-report/);
   assert.match(job, /apps\/web\/\.playwright\/seller-subscription-results/);
 });

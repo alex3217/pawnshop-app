@@ -1,0 +1,6 @@
+# Reviewed synthetic test-fixture fingerprints. Do not add path/rule wildcards.
+bbf1cf89362b85c516ee0c61dc6729dc1c47cf04:apps/web/e2e-marketplace/privileged-mfa-login.spec.ts:generic-api-key:5
+46727201cc208c91c54eabd264e4b9eac9b1a1da:apps/api/backend/test/mfaEnrollment.integration.test.js:generic-api-key:11
+5f9f3c83398b70d4166c280e9c13733c4c26a07c:apps/api/backend/test/mfaEnrollment.integration.test.js:generic-api-key:11
+fd72210d877622a05859865eb5720b2a38ef4381:apps/api/backend/test/marketplaceTransactionFulfillment.integration.test.js:generic-api-key:12
+3162a3158c7d2470a53b94c1a4c1cedf54157598:apps/api/backend/test/marketplaceTransactions.reserve.integration.test.js:generic-api-key:12
