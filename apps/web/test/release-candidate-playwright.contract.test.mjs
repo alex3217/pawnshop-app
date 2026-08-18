@@ -23,6 +23,17 @@ test("release-candidate CI covers critical engines and representative mobile vie
   assert.match(workflow, /webkit-critical/);
   assert.match(workflow, /mobile-chromium/);
   assert.match(workflow, /mobile-webkit/);
+  assert.match(workflow, /timeout-minutes: 30/);
+  assert.match(workflow, /project: firefox-critical\n\s+browser: firefox/);
+  assert.match(workflow, /project: webkit-critical\n\s+browser: webkit/);
+  assert.match(workflow, /project: mobile-chromium\n\s+browser: chromium/);
+  assert.match(workflow, /project: mobile-webkit\n\s+browser: webkit/);
+  assert.match(workflow, /Acquire::Retries "5";/);
+  assert.match(workflow, /Acquire::http::Timeout "30";/);
+  assert.match(workflow, /Acquire::https::Timeout "30";/);
+  assert.match(workflow, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"/);
+  assert.match(workflow, /playwright install --with-deps \$\{\{ matrix\.browser \}\}/);
+  assert.doesNotMatch(workflow, /playwright install --with-deps chromium firefox webkit/);
   assert.match(config, /Pixel 7/);
   assert.match(config, /iPhone 14/);
 });
