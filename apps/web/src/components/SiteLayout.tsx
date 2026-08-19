@@ -19,6 +19,7 @@ import NotificationCenter from "./NotificationCenter";
 import { getShopMessageUnreadCounts } from "../services/shopMessaging";
 import { BUYER_NAVIGATION } from "../navigation/buyerNavigation";
 import { ENVIRONMENT } from "../config";
+import { PUBLIC_SUPPORT_EMAIL, PUBLIC_SUPPORT_MAILTO } from "../supportContact";
 import EnvironmentIndicator from "./EnvironmentIndicator.mjs";
 import "../styles/site-layout.css";
 import PublicPreviewBanner from "../publicPreview/PublicPreviewBanner";
@@ -771,17 +772,22 @@ export default function SiteLayout() {
                   </Link>
                 ))}
                 {group.label === "Legal & help" ? (
-                  <button
-                    type="button"
-                    className="navigation-assistance-footer-control"
-                    onClick={() => {
-                      window.dispatchEvent(
-                        new Event("pawnloop:open-navigation-assistance"),
-                      );
-                    }}
-                  >
-                    Navigation Assistance
-                  </button>
+                  <>
+                    <a href={PUBLIC_SUPPORT_MAILTO}>
+                      Email support: {PUBLIC_SUPPORT_EMAIL}
+                    </a>
+                    <button
+                      type="button"
+                      className="navigation-assistance-footer-control"
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new Event("pawnloop:open-navigation-assistance"),
+                        );
+                      }}
+                    >
+                      Navigation Assistance
+                    </button>
+                  </>
                 ) : null}
               </nav>
             ))}
