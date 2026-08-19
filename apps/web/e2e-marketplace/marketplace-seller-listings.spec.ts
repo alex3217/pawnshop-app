@@ -19,6 +19,8 @@ const ITEM_ID =
 const LISTING_ID =
   "seller-listings-browser-listing";
 
+const DESTINATION_CUSTOMER_ID = "seller-listings-destination-customer";
+
 const LISTING_TITLE =
   "Seller listings browser item";
 
@@ -364,6 +366,14 @@ async function installMocks(
           }),
         });
 
+        return;
+      }
+
+      if (
+        method === "GET" &&
+        pathname === "/api/marketplace-listings/destinations/customers"
+      ) {
+        await route.fulfill({ status: 200, contentType: "application/json", body: jsonBody({ success: true, rows: [{ id: DESTINATION_CUSTOMER_ID, publicDisplayName: "Destination Buyer", publicMessageIdentifier: "destination_buyer" }] }) });
         return;
       }
 
@@ -804,6 +814,13 @@ test(
     );
 
     await page
+      .getByLabel("Find receiving customer")
+      .fill("destination");
+
+    await page.getByRole("button", { name: "Search" }).click();
+    await page.getByLabel("Receiving customer", { exact: true }).selectOption(DESTINATION_CUSTOMER_ID);
+
+    await page
       .getByLabel(
         "Listing title",
       )
@@ -858,6 +875,9 @@ test(
     expect(
       state.lastCreate?.sellerShopId,
     ).toBeNull();
+
+    expect(state.lastCreate?.destinationUserId).toBe(DESTINATION_CUSTOMER_ID);
+    expect(state.lastCreate?.destinationShopId).toBeNull();
 
     expect(
       state.lastCreate?.itemId,

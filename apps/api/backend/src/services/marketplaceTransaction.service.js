@@ -642,6 +642,14 @@ function assertListingCanBePurchased({
     );
   }
 
+  if (listing.destinationUserId && listing.destinationUserId !== buyer.id) {
+    throw httpError("This listing was sent to another customer", 403, "LISTING_DESTINATION_FORBIDDEN");
+  }
+
+  if (listing.destinationShopId && listing.destinationShopId !== buyerShop?.id) {
+    throw httpError("This listing was sent to another shop", 403, "LISTING_DESTINATION_FORBIDDEN");
+  }
+
   if (
     listing.sellerShop &&
     listing.sellerShop.isDeleted

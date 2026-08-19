@@ -57,6 +57,22 @@ const LISTING_INCLUDE = {
       ownerId: true,
     },
   },
+  destinationUser: {
+    select: {
+      id: true,
+      publicDisplayName: true,
+      publicMessageIdentifier: true,
+    },
+  },
+  destinationShop: {
+    select: {
+      id: true,
+      name: true,
+      city: true,
+      state: true,
+      ownerId: true,
+    },
+  },
   item: {
     select: {
       id: true,
@@ -276,6 +292,73 @@ async function assertLinkedItemAccess({
   }
 
   return item;
+}
+
+async function resolveListingDestination({ listingType, destinationUserId, destinationShopId, sellerUserId }) {
+  if (listingType === "CUSTOMER_TO_CUSTOMER") {
+    if (!destinationUserId) {
+      const error = new Error("Select a customer destination");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (destinationShopId) {
+      const error = new Error("Customer-to-customer listings cannot include a shop destination");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (destinationUserId === sellerUserId) {
+      const error = new Error("You cannot send a listing to yourself");
+      error.statusCode = 400;
+      throw error;
+    }
+    const destination = await prisma.user.findFirst({
+      where: { id: destinationUserId, role: "CONSUMER", isActive: true, messageDiscoverable: true },
+      select: { id: true },
+    });
+    if (!destination) {
+      const error = new Error("Customer destination is unavailable");
+      error.statusCode = 404;
+      throw error;
+    }
+    return { destinationUserId, destinationShopId: null };
+  }
+
+  if (listingType === "CUSTOMER_TO_SHOP") {
+    if (!destinationShopId) {
+      const error = new Error("Select a shop destination");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (destinationUserId) {
+      const error = new Error("Customer-to-shop listings cannot include a customer destination");
+      error.statusCode = 400;
+      throw error;
+    }
+    const destination = await prisma.pawnShop.findFirst({
+      where: { id: destinationShopId, isDeleted: false, isActive: true, isPublic: true },
+      select: { id: true },
+    });
+    if (!destination) {
+      const error = new Error("Shop destination is unavailable");
+      error.statusCode = 404;
+      throw error;
+    }
+    return { destinationUserId: null, destinationShopId };
+  }
+
+  if (destinationUserId || destinationShopId) {
+    const error = new Error("This listing type cannot include a destination");
+    error.statusCode = 400;
+    throw error;
+  }
+  return { destinationUserId: null, destinationShopId: null };
+}
+
+function canAccessDirectedListing(listing, user) {
+  if (!listing.destinationUserId && !listing.destinationShopId) return true;
+  if (!user) return false;
+  if (isAdminRole(user.role) || listing.sellerUserId === user.sub) return true;
+  return listing.destinationUserId === user.sub || listing.destinationShop?.ownerId === user.sub;
 }
 
 export async function getOwnedListingOrThrow({
@@ -517,10 +600,20 @@ export async function createMarketplaceListing(req, res) {
         req.body?.intakeId,
       );
 
+    const destinationUserId = normalizeString(req.body?.destinationUserId);
+    const destinationShopId = normalizeString(req.body?.destinationShopId);
+
     validateListingActor({
       listingType,
       role,
       sellerShopId,
+    });
+
+    const destination = await resolveListingDestination({
+      listingType,
+      destinationUserId,
+      destinationShopId,
+      sellerUserId,
     });
 
     if (
@@ -607,6 +700,7 @@ export async function createMarketplaceListing(req, res) {
 
     const listingData = {
       ...data,
+      ...destination,
       itemId,
       sellerUserId,
 
@@ -726,6 +820,8 @@ export async function listMarketplaceListings(req, res) {
 
     const where = {
       status: "ACTIVE",
+      destinationUserId: null,
+      destinationShopId: null,
       ...(listingType ? { listingType } : {}),
       ...(category
         ? {
@@ -823,7 +919,7 @@ export async function getMarketplaceListing(req, res) {
       include: LISTING_INCLUDE,
     });
 
-    if (!listing) {
+    if (!listing || !canAccessDirectedListing(listing, req.user)) {
       return res.status(404).json({
         success: false,
         error: "Marketplace listing not found",
@@ -840,6 +936,78 @@ export async function getMarketplaceListing(req, res) {
       error,
       "Failed to load marketplace listing",
     );
+  }
+}
+
+export async function searchMarketplaceCustomerDestinations(req, res) {
+  try {
+    const query = (normalizeString(req.query?.search || req.query?.q) || "").slice(0, 120);
+    if (query.length < 2) return res.json({ success: true, rows: [] });
+    const rows = await prisma.user.findMany({
+      where: {
+        id: { not: req.user.sub }, role: "CONSUMER", isActive: true,
+        messageDiscoverable: true, publicDisplayName: { not: null },
+        OR: [
+          { publicDisplayName: { contains: query, mode: "insensitive" } },
+          { publicMessageIdentifier: { contains: query.replace(/^@/, ""), mode: "insensitive" } },
+        ],
+      },
+      take: 20,
+      orderBy: [{ publicDisplayName: "asc" }, { id: "asc" }],
+      select: { id: true, publicDisplayName: true, publicMessageIdentifier: true },
+    });
+    return res.json({ success: true, rows });
+  } catch (error) {
+    return sendError(res, error, "Failed to search customer destinations");
+  }
+}
+
+export async function searchMarketplaceShopDestinations(req, res) {
+  try {
+    const query = (normalizeString(req.query?.search || req.query?.q) || "").slice(0, 120);
+    if (query.length < 2) return res.json({ success: true, rows: [] });
+    const rows = await prisma.pawnShop.findMany({
+      where: {
+        isDeleted: false, isActive: true, isPublic: true,
+        OR: [
+          { name: { contains: query, mode: "insensitive" } },
+          { city: { contains: query, mode: "insensitive" } },
+          { state: { contains: query, mode: "insensitive" } },
+          { zip: { contains: query, mode: "insensitive" } },
+        ],
+      },
+      take: 20,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      select: { id: true, name: true, city: true, state: true, zip: true },
+    });
+    return res.json({ success: true, rows });
+  } catch (error) {
+    return sendError(res, error, "Failed to search shop destinations");
+  }
+}
+
+export async function listReceivedMarketplaceListings(req, res) {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) return res.status(401).json({ success: false, error: "Unauthorized" });
+    const status = normalizeEnum(req.query?.status);
+    if (status && !LISTING_STATUSES.has(status)) {
+      return res.status(400).json({ success: false, error: "Invalid marketplace listing status" });
+    }
+    const rows = await prisma.marketplaceListing.findMany({
+      where: {
+        ...(status ? { status } : { status: { in: ["ACTIVE", "RESERVED"] } }),
+        OR: [
+          { destinationUserId: userId },
+          { destinationShop: { ownerId: userId, isDeleted: false } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      include: LISTING_INCLUDE,
+    });
+    return res.json({ success: true, rows });
+  } catch (error) {
+    return sendError(res, error, "Failed to load received marketplace listings");
   }
 }
 

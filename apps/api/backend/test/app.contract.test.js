@@ -800,6 +800,17 @@ test("my marketplace listings require authentication", async () => {
   });
 });
 
+test("marketplace destination searches and received listings require authentication", async () => {
+  for (const path of [
+    "/api/marketplace-listings/destinations/customers?search=buyer",
+    "/api/marketplace-listings/destinations/shops?search=shop",
+    "/api/marketplace-listings/received",
+  ]) {
+    const response = await request(app).get(path).expect(401);
+    assert.deepEqual(response.body, { error: "Unauthorized" });
+  }
+});
+
 test("marketplace transaction read routes require authentication", async () => {
   for (const path of [
     "/api/marketplace-transactions/mine/purchases",

@@ -6,6 +6,9 @@ import {
   getMarketplaceListing,
   listMarketplaceListings,
   listMyMarketplaceListings,
+  listReceivedMarketplaceListings,
+  searchMarketplaceCustomerDestinations,
+  searchMarketplaceShopDestinations,
   pauseMarketplaceListing,
   publishMarketplaceListing,
   updateMarketplaceListing,
@@ -13,6 +16,7 @@ import {
 
 import {
   authRequired,
+  optionalAuth,
   requireRole,
 } from "../middleware/auth.js";
 
@@ -26,6 +30,10 @@ const MARKETPLACE_SELLER_ROLES = [
 ];
 
 router.get("/", listMarketplaceListings);
+
+router.get("/destinations/customers", authRequired, requireRole("CONSUMER", "ADMIN", "SUPER_ADMIN"), searchMarketplaceCustomerDestinations);
+router.get("/destinations/shops", authRequired, requireRole("CONSUMER", "ADMIN", "SUPER_ADMIN"), searchMarketplaceShopDestinations);
+router.get("/received", authRequired, requireRole(...MARKETPLACE_SELLER_ROLES), listReceivedMarketplaceListings);
 
 router.get(
   "/mine",
@@ -69,6 +77,6 @@ router.post(
   cancelMarketplaceListing,
 );
 
-router.get("/:id", getMarketplaceListing);
+router.get("/:id", optionalAuth, getMarketplaceListing);
 
 export default router;

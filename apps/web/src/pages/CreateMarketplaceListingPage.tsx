@@ -23,8 +23,12 @@ import {
 
 import {
   createMarketplaceListing,
+  searchMarketplaceCustomerDestinations,
+  searchMarketplaceShopDestinations,
   updateMarketplaceListing,
+  type MarketplaceCustomerDestination,
   type MarketplaceListingType,
+  type MarketplaceShopDestination,
 } from "../services/marketplaceListings";
 import ItemImagePicker from "../components/ItemImagePicker";
 import AiDescriptionControl from "../components/AiDescriptionControl";
@@ -192,6 +196,13 @@ export default function CreateMarketplaceListingPage() {
         "sellerShopId",
       ),
   );
+
+  const [destinationQuery, setDestinationQuery] = useState("");
+  const [destinationUserId, setDestinationUserId] = useState("");
+  const [destinationShopId, setDestinationShopId] = useState("");
+  const [customerDestinations, setCustomerDestinations] = useState<MarketplaceCustomerDestination[]>([]);
+  const [shopDestinations, setShopDestinations] = useState<MarketplaceShopDestination[]>([]);
+  const [searchingDestinations, setSearchingDestinations] = useState(false);
 
   const [
     itemId,
@@ -414,12 +425,42 @@ export default function CreateMarketplaceListingPage() {
     value: MarketplaceListingType,
   ) {
     setListingType(value);
+    setDestinationQuery("");
+    setDestinationUserId("");
+    setDestinationShopId("");
+    setCustomerDestinations([]);
+    setShopDestinations([]);
 
     if (
       !isShopListing(value)
     ) {
       setSellerShopId("");
       setItemId("");
+    }
+  }
+
+  async function handleDestinationSearch() {
+    const query = destinationQuery.trim();
+    if (query.length < 2) {
+      setError("Enter at least 2 characters to search destinations.");
+      return;
+    }
+    setSearchingDestinations(true);
+    setError("");
+    try {
+      if (listingType === "CUSTOMER_TO_CUSTOMER") {
+        const rows = await searchMarketplaceCustomerDestinations(query);
+        setCustomerDestinations(rows);
+        setShopDestinations([]);
+      } else if (listingType === "CUSTOMER_TO_SHOP") {
+        const rows = await searchMarketplaceShopDestinations(query);
+        setShopDestinations(rows);
+        setCustomerDestinations([]);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to search destinations.");
+    } finally {
+      setSearchingDestinations(false);
     }
   }
 
@@ -512,6 +553,16 @@ export default function CreateMarketplaceListingPage() {
       return;
     }
 
+    if (listingType === "CUSTOMER_TO_CUSTOMER" && !destinationUserId) {
+      setError("Search for and select the customer receiving this listing.");
+      return;
+    }
+
+    if (listingType === "CUSTOMER_TO_SHOP" && !destinationShopId) {
+      setError("Search for and select the shop receiving this listing.");
+      return;
+    }
+
     const parsedPrice =
       Number(price);
 
@@ -585,6 +636,9 @@ export default function CreateMarketplaceListingPage() {
           shopListing
             ? sellerShopId
             : null,
+
+        destinationUserId: listingType === "CUSTOMER_TO_CUSTOMER" ? destinationUserId : null,
+        destinationShopId: listingType === "CUSTOMER_TO_SHOP" ? destinationShopId : null,
 
         itemId:
           shopListing
@@ -796,6 +850,59 @@ export default function CreateMarketplaceListingPage() {
                   )}
                 </select>
               </label>
+            ) : null}
+
+            {listingType === "CUSTOMER_TO_CUSTOMER" || listingType === "CUSTOMER_TO_SHOP" ? (
+              <div className="wide">
+                <label htmlFor="marketplace-destination-search">
+                  <span>{listingType === "CUSTOMER_TO_CUSTOMER" ? "Find receiving customer" : "Find receiving shop"}</span>
+                </label>
+                <div className="create-listing-destination-search">
+                  <input
+                    id="marketplace-destination-search"
+                    type="search"
+                    value={destinationQuery}
+                    onChange={(event) => setDestinationQuery(event.target.value)}
+                    minLength={2}
+                    autoComplete="off"
+                    aria-describedby="marketplace-destination-help"
+                  />
+                  <button type="button" onClick={() => void handleDestinationSearch()} disabled={searchingDestinations}>
+                    {searchingDestinations ? "Searching…" : "Search"}
+                  </button>
+                </div>
+                <small id="marketplace-destination-help">
+                  {listingType === "CUSTOMER_TO_CUSTOMER" ? "Search by public display name or @identifier." : "Search by shop name or location."}
+                </small>
+
+                {listingType === "CUSTOMER_TO_CUSTOMER" && customerDestinations.length ? (
+                  <label>
+                    <span>Receiving customer</span>
+                    <select required value={destinationUserId} onChange={(event) => setDestinationUserId(event.target.value)}>
+                      <option value="">Select a customer</option>
+                      {customerDestinations.map((destination) => (
+                        <option key={destination.id} value={destination.id}>
+                          {destination.publicDisplayName} (@{destination.publicMessageIdentifier})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+
+                {listingType === "CUSTOMER_TO_SHOP" && shopDestinations.length ? (
+                  <label>
+                    <span>Receiving shop</span>
+                    <select required value={destinationShopId} onChange={(event) => setDestinationShopId(event.target.value)}>
+                      <option value="">Select a shop</option>
+                      {shopDestinations.map((destination) => (
+                        <option key={destination.id} value={destination.id}>
+                          {destination.name}{[destination.city, destination.state].filter(Boolean).length ? ` — ${[destination.city, destination.state].filter(Boolean).join(", ")}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
             ) : null}
 
             {isShopListing(
