@@ -1061,16 +1061,8 @@ export default function MarketplaceBuyNowPage() {
         </section>
       ) : (
         <section
-          style={{
-            display:
-              "grid",
-
-            gridTemplateColumns:
-              "repeat(auto-fit, minmax(270px, 1fr))",
-
-            gap:
-              18,
-          }}
+          className="marketplace-buy-now-grid"
+          aria-label="Buy Now listings"
         >
           {filteredListings.map(
             (listing) => {
@@ -1090,135 +1082,45 @@ export default function MarketplaceBuyNowPage() {
                 reservingListingId ===
                 listing.id;
 
+              const purchaseDisabled =
+                publicPreviewReadOnly ||
+                ownListing ||
+                reserving ||
+                reservingListingId !== null;
+
               return (
                 <article
                   key={listing.id}
-                  style={{
-                    ...panelStyle,
-
-                    overflow:
-                      "hidden",
-
-                    display:
-                      "flex",
-
-                    flexDirection:
-                      "column",
-                  }}
+                  className="marketplace-buy-now-card"
                 >
-                  <div
-                    style={{
-                      minHeight:
-                        220,
-
-                      background:
-                        "var(--bg-soft)",
-
-                      display:
-                        "grid",
-
-                      placeItems:
-                        "center",
-
-                      overflow:
-                        "hidden",
-                    }}
-                  >
+                  <div className="marketplace-buy-now-card-media">
                     {image ? (
                       <img
                         src={image}
                         alt={
                           listing.title
                         }
-                        style={{
-                          width:
-                            "100%",
-
-                          height:
-                            220,
-
-                          objectFit:
-                            "cover",
-                        }}
                       />
                     ) : (
-                      <strong
-                        style={{
-                          color:
-                            "var(--muted)",
-                        }}
-                      >
+                      <strong>
                         PawnLoop listing
                       </strong>
                     )}
                   </div>
 
-                  <div
-                    style={{
-                      padding:
-                        20,
-
-                      display:
-                        "flex",
-
-                      flexDirection:
-                        "column",
-
-                      gap:
-                        13,
-
-                      flex:
-                        1,
-                    }}
-                  >
+                  <div className="marketplace-buy-now-card-body">
                     <div>
-                      <p
-                        style={{
-                          margin:
-                            "0 0 6px",
-
-                          color:
-                            "var(--accent)",
-
-                          fontSize:
-                            12,
-
-                          fontWeight:
-                            900,
-
-                          textTransform:
-                            "uppercase",
-
-                          letterSpacing:
-                            "0.06em",
-                        }}
-                      >
+                      <p className="marketplace-buy-now-card-type">
                         {readable(
                           listing.listingType,
                         )}
                       </p>
 
-                      <h2
-                        style={{
-                          fontSize:
-                            22,
-
-                          marginBottom:
-                            7,
-                        }}
-                      >
+                      <h2 className="marketplace-buy-now-card-title">
                         {listing.title}
                       </h2>
 
-                      <strong
-                        style={{
-                          color:
-                            "var(--text-strong)",
-
-                          fontSize:
-                            24,
-                        }}
-                      >
+                      <strong className="marketplace-buy-now-card-price">
                         {money(
                           listing.price,
                           listing.currency,
@@ -1226,34 +1128,12 @@ export default function MarketplaceBuyNowPage() {
                       </strong>
                     </div>
 
-                    <p
-                      style={{
-                        color:
-                          "var(--muted)",
-
-                        margin:
-                          0,
-
-                        flex:
-                          1,
-                      }}
-                    >
+                    <p className="marketplace-buy-now-card-description">
                       {listing.description ||
                         "Active marketplace listing available for direct purchase."}
                     </p>
 
-                    <div
-                      style={{
-                        color:
-                          "var(--muted)",
-
-                        fontSize:
-                          14,
-
-                        fontWeight:
-                          700,
-                      }}
-                    >
+                    <div className="marketplace-buy-now-card-meta">
                       <div>
                         Seller:{" "}
                         {listing.sellerShop?.name ||
@@ -1287,72 +1167,45 @@ export default function MarketplaceBuyNowPage() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void buyNow(
-                          listing,
-                        )
-                      }
-                      disabled={
-                        publicPreviewReadOnly ||
-                        ownListing ||
-                        reserving ||
-                        reservingListingId !==
-                          null
-                      }
-                      style={{
-                        ...buttonStyle,
-
-                        width:
-                          "100%",
-
-                        borderColor:
-                          ownListing
-                            ? "var(--border)"
-                            : "var(--accent)",
-
-                        background:
-                          ownListing
-                            ? "var(--surface-strong)"
-                            : "var(--accent)",
-
-                        color:
-                          ownListing
-                            ? "var(--muted)"
-                            : "white",
-
-                        opacity:
-                          reservingListingId !==
-                            null
-                            ? 0.65
-                            : 1,
-                      }}
-                    >
-                      {ownListing
-                        ? "Your listing"
-                        : publicPreviewReadOnly
+                    <div className="marketplace-buy-now-card-actions">
+                      {ownListing ? (
+                        <>
+                          <span className="marketplace-buy-now-owner-badge">
+                            Your listing
+                          </span>
+                          <Link
+                            className="marketplace-buy-now-secondary-action"
+                            to={`/marketplace/listings/${encodeURIComponent(listing.id)}/edit`}
+                          >
+                            Edit listing
+                          </Link>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="marketplace-buy-now-purchase-action"
+                          onClick={() => void buyNow(listing)}
+                          disabled={purchaseDisabled}
+                        >
+                          {publicPreviewReadOnly
                           ? "Purchases unavailable"
-                        : reserving
-                          ? "Reserving..."
-                          : getAuthToken()
-                            ? "Buy now"
-                            : "Sign in to buy"}
-                    </button>
+                            : reserving
+                              ? "Reserving..."
+                              : getAuthToken()
+                                ? "Buy now"
+                                : "Sign in to buy"}
+                        </button>
+                      )}
 
-                    {listing.itemId ? (
-                      <Link
-                        to={`/items/${encodeURIComponent(listing.itemId)}`}
-                        style={{
-                          ...buttonStyle,
-
-                          width:
-                            "100%",
-                        }}
-                      >
-                        View item details
-                      </Link>
-                    ) : null}
+                      {listing.itemId ? (
+                        <Link
+                          className="marketplace-buy-now-secondary-action"
+                          to={`/items/${encodeURIComponent(listing.itemId)}`}
+                        >
+                          View item details
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
                 </article>
               );

@@ -13,6 +13,7 @@
   --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.12);
 
   color: var(--text);
+  scroll-margin-top: 190px;
 }
 
 .marketplace-buy-now-page h1,
@@ -126,6 +127,153 @@
   font-weight: 800;
 }
 
+.marketplace-buy-now-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 360px));
+  justify-content: start;
+  align-items: stretch;
+  gap: 20px;
+}
+
+.marketplace-buy-now-card {
+  display: flex;
+  width: 100%;
+  max-width: 360px;
+  min-width: 0;
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.marketplace-buy-now-card-media {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  place-items: center;
+  border-bottom: 1px solid var(--border);
+  background: #e2e8f0;
+  color: var(--muted);
+}
+
+.marketplace-buy-now-card-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.marketplace-buy-now-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+
+.marketplace-buy-now-card-type {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.marketplace-buy-now-card-title {
+  margin: 0 0 8px;
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.marketplace-buy-now-card-price {
+  color: var(--text-strong);
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.marketplace-buy-now-card-description {
+  flex: 1;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.marketplace-buy-now-card-meta {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.marketplace-buy-now-card-actions {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.marketplace-buy-now-purchase-action,
+.marketplace-buy-now-secondary-action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 11px 16px;
+  font: inherit;
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
+}
+
+.marketplace-buy-now-purchase-action {
+  flex: 1 1 150px;
+  border-color: #3730a3;
+  background: #3730a3;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  cursor: pointer;
+}
+
+.marketplace-buy-now-purchase-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.65 !important;
+}
+
+.marketplace-buy-now-secondary-action {
+  flex: 1 1 130px;
+  background: var(--surface-strong);
+  color: var(--text-strong);
+}
+
+.marketplace-buy-now-owner-badge {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  align-self: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+:root[data-theme="dark"] .marketplace-buy-now-card-media,
+.dark .marketplace-buy-now-card-media {
+  background: #1e293b;
+}
+
 .marketplace-buy-now-empty-actions {
   display: flex;
   justify-content: center;
@@ -135,6 +283,18 @@
 }
 
 @media (max-width: 680px) {
+  .marketplace-buy-now-page {
+    scroll-margin-top: 16px;
+  }
+
+  .marketplace-buy-now-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .marketplace-buy-now-card {
+    max-width: none;
+  }
+
   .marketplace-buy-now-filter-heading {
     align-items: stretch;
     flex-direction: column;

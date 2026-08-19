@@ -3,6 +3,7 @@ import {
   test,
   type Page,
 } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const LISTING_ID =
   "buy-now-browser-listing";
@@ -29,7 +30,9 @@ function jsonBody(
   return JSON.stringify(value);
 }
 
-function listingRecord() {
+function listingRecord(
+  overrides: Record<string, unknown> = {},
+) {
   return {
     id:
       LISTING_ID,
@@ -70,8 +73,9 @@ function listingRecord() {
     quantity:
       2,
 
-    images:
-      [],
+    images: [
+      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='400' viewBox='0 0 800 400'%3E%3Crect width='800' height='400' fill='%234338ca'/%3E%3C/svg%3E",
+    ],
 
     allowOffers:
       true,
@@ -147,17 +151,19 @@ function listingRecord() {
       pawnShopId:
         "buy-now-browser-shop",
     },
+
+    ...overrides,
   };
 }
 
-function listingListPayload() {
+function listingListPayload(
+  rows = [listingRecord()],
+) {
   return {
     success:
       true,
 
-    rows: [
-      listingRecord(),
-    ],
+    rows,
 
     pagination: {
       page:
@@ -167,7 +173,7 @@ function listingListPayload() {
         48,
 
       total:
-        1,
+        rows.length,
 
       totalPages:
         1,
@@ -383,6 +389,7 @@ async function installAuth(
 async function installMocks(
   page: Page,
   state: MockState,
+  rows = [listingRecord()],
 ) {
   await page.route(
     "https://js.stripe.com/**",
@@ -431,7 +438,7 @@ async function installMocks(
 
           body:
             jsonBody(
-              listingListPayload(),
+              listingListPayload(rows),
             ),
         });
 
@@ -549,6 +556,121 @@ async function installMocks(
     },
   );
 }
+
+async function keepNavigationHelpVisible(
+  page: Page,
+) {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "pawnloop-navigation-assistance-CONSUMER-v2",
+      JSON.stringify({
+        automaticPrompts: false,
+        completedTopics: [],
+        dismissedGuidance: true,
+        floatingButtonVisible: true,
+      }),
+    );
+  });
+}
+
+test("one published customer listing keeps a bounded 4:3 card and clears navigation help", async ({ page }) => {
+  const state: MockState = { reserveRequests: 0, lastReservation: null };
+  await installAuth(page);
+  await keepNavigationHelpVisible(page);
+  await installMocks(page, state, [
+    listingRecord({
+      itemId: null,
+      sellerShopId: null,
+      sellerShop: null,
+      listingType: "CUSTOMER_TO_CUSTOMER",
+    }),
+  ]);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto("/marketplace/buy-now");
+
+  const card = page.locator(".marketplace-buy-now-card");
+  const media = page.locator(".marketplace-buy-now-card-media");
+  const image = media.locator("img");
+  const resultCount = page.locator(".marketplace-buy-now-result-count");
+  const siteHeader = page.locator(".site-header");
+  const help = page.getByLabel("Setup and instructions tutorial");
+  const action = page.getByRole("button", { name: "Buy now", exact: true });
+
+  await expect(card).toBeVisible();
+  await expect(help).toBeVisible();
+  const cardBox = await card.boundingBox();
+  const mediaBox = await media.boundingBox();
+  const resultBox = await resultCount.boundingBox();
+  const headerBox = await siteHeader.boundingBox();
+  const helpBox = await help.boundingBox();
+  const actionBox = await action.boundingBox();
+  expect(cardBox?.width).toBeGreaterThanOrEqual(340);
+  expect(cardBox?.width).toBeLessThanOrEqual(380);
+  expect((mediaBox?.width || 0) / (mediaBox?.height || 1)).toBeCloseTo(4 / 3, 1);
+  await expect(image).toHaveCSS("object-fit", "contain");
+  expect(await image.evaluate((node) => ({ width: node.naturalWidth, height: node.naturalHeight }))).toEqual({ width: 800, height: 400 });
+  expect(resultBox?.y || 0).toBeGreaterThan((headerBox?.y || 0) + (headerBox?.height || 0));
+  expect(helpBox?.y || 0).toBeGreaterThan((actionBox?.y || 0) + (actionBox?.height || 0));
+  expect(actionBox?.height || 0).toBeGreaterThanOrEqual(44);
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    accessibility.violations.filter(({ impact }) => impact === "serious" || impact === "critical"),
+  ).toEqual([]);
+  if (process.env.BUY_NOW_SCREENSHOT_DIR) {
+    await page.screenshot({
+      path: `${process.env.BUY_NOW_SCREENSHOT_DIR}/buy-now-after-desktop.png`,
+      fullPage: true,
+    });
+  }
+});
+
+test("Buy Now cards form a left-aligned three-column desktop grid", async ({ page }) => {
+  const state: MockState = { reserveRequests: 0, lastReservation: null };
+  const rows = Array.from({ length: 4 }, (_, index) =>
+    listingRecord({ id: `${LISTING_ID}-${index}`, itemId: null, title: `Grid listing ${index + 1}` }),
+  );
+  await installMocks(page, state, rows);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto("/marketplace/buy-now");
+  const cards = page.locator(".marketplace-buy-now-card");
+  await expect(cards).toHaveCount(4);
+  const boxes = await cards.evaluateAll((nodes) => nodes.map((node) => {
+    const box = node.getBoundingClientRect();
+    return { left: box.left, top: box.top, width: box.width };
+  }));
+  expect(boxes.slice(0, 3).every((box) => box.top === boxes[0].top)).toBe(true);
+  expect(boxes[3].top).toBeGreaterThan(boxes[0].top);
+  expect(boxes[3].left).toBe(boxes[0].left);
+  expect(boxes.every((box) => box.width <= 380)).toBe(true);
+});
+
+test("mobile Buy Now uses one readable column without horizontal overflow or help overlap", async ({ page }) => {
+  const state: MockState = { reserveRequests: 0, lastReservation: null };
+  await installAuth(page);
+  await keepNavigationHelpVisible(page);
+  await installMocks(page, state);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/marketplace/buy-now");
+  const card = page.locator(".marketplace-buy-now-card");
+  const help = page.getByLabel("Setup and instructions tutorial");
+  const action = page.getByRole("button", { name: "Buy now", exact: true });
+  await expect(card).toBeVisible();
+  await expect(help).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const cardBox = await card.boundingBox();
+  const helpBox = await help.boundingBox();
+  const actionBox = await action.boundingBox();
+  expect(cardBox?.width || 0).toBeLessThanOrEqual(358);
+  expect(helpBox?.y || 0).toBeGreaterThan((actionBox?.y || 0) + (actionBox?.height || 0));
+  if (process.env.BUY_NOW_SCREENSHOT_DIR) {
+    await page.screenshot({
+      path: `${process.env.BUY_NOW_SCREENSHOT_DIR}/buy-now-after-mobile.png`,
+      fullPage: true,
+    });
+  }
+});
 
 test(
   "guest Buy Now sends the user to login with a return path",
@@ -795,18 +917,12 @@ test(
       "/marketplace/buy-now",
     );
 
-    await expect(
-      page.getByRole(
-        "button",
-        {
-          name:
-            "Your listing",
-
-          exact:
-            true,
-        },
-      ),
-    ).toBeDisabled();
+    await expect(page.getByText("Your listing", { exact: true })).toHaveClass(/marketplace-buy-now-owner-badge/);
+    await expect(page.getByRole("link", { name: "Edit listing", exact: true })).toHaveAttribute(
+      "href",
+      `/marketplace/listings/${LISTING_ID}/edit`,
+    );
+    await expect(page.getByRole("button", { name: "Buy now", exact: true })).toHaveCount(0);
 
     expect(
       state.reserveRequests,
