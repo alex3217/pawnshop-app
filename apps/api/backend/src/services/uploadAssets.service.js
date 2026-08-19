@@ -6,7 +6,7 @@ const PUBLIC_LISTING_IMAGE_KINDS = new Set(["ITEM_IMAGE"]);
 export const MANAGED_PUBLIC_MEDIA_ERROR = Object.freeze({
   statusCode: 422,
   code: "MANAGED_PUBLIC_MEDIA_REQUIRED",
-  message: "Publish this listing with attached managed photos uploaded through PawnLoop.",
+  message: "Publish this listing with attached, shop-owned inventory photos uploaded through PawnLoop.",
 });
 
 function managedPublicMediaError() {

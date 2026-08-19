@@ -577,10 +577,14 @@ export async function createMarketplaceListing(req, res) {
       );
 
     if (CUSTOMER_LISTING_TYPES.has(listingType) && data.images?.length) {
-      return res.status(400).json({
-        success: false,
-        error: "Create the draft before attaching managed marketplace listing photos",
-      });
+      if (intakeId) {
+        data.images = [];
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: "Create the draft before attaching managed marketplace listing photos",
+        });
+      }
     }
 
     assertRequiredListingData(
