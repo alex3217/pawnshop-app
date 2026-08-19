@@ -45,6 +45,8 @@ export type MarketplaceListing = {
   itemId?: string | null;
   sellerUserId: string;
   sellerShopId?: string | null;
+  destinationUserId?: string | null;
+  destinationShopId?: string | null;
   listingType: MarketplaceListingType;
   status: MarketplaceListingStatus;
   title: string;
@@ -65,7 +67,28 @@ export type MarketplaceListing = {
   updatedAt: string;
   seller: MarketplaceListingUser;
   sellerShop?: MarketplaceListingShop | null;
+  destinationUser?: MarketplaceListingDestinationUser | null;
+  destinationShop?: MarketplaceShopDestination | null;
   item?: MarketplaceListingItem | null;
+};
+
+export type MarketplaceCustomerDestination = {
+  reference: string;
+  displayName: string;
+  publicIdentifier: string;
+};
+
+export type MarketplaceListingDestinationUser = {
+  publicDisplayName: string;
+  publicMessageIdentifier: string;
+};
+
+export type MarketplaceShopDestination = {
+  id: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
 };
 
 export type MarketplaceListingFilters = {
@@ -284,9 +307,6 @@ export async function getMarketplaceListingById(
 
   const data = await api.get<unknown>(
     `/marketplace-listings/${encodeURIComponent(normalizedId)}`,
-    {
-      auth: false,
-    },
   );
 
   return unwrapListing(data);
@@ -301,6 +321,9 @@ export type CreateMarketplaceListingInput = {
   intakeId?: string | null;
   listingType: MarketplaceListingType;
   sellerShopId?: string | null;
+  audience?: "PUBLIC_MARKETPLACE" | "SPECIFIC_CUSTOMER";
+  destinationCustomerReference?: string | null;
+  destinationShopId?: string | null;
   itemId?: string | null;
   title: string;
   description?: string | null;
@@ -318,6 +341,9 @@ export type CreateMarketplaceListingInput = {
 };
 
 export type UpdateMarketplaceListingInput = {
+  audience?: "PUBLIC_MARKETPLACE" | "SPECIFIC_CUSTOMER";
+  destinationCustomerReference?: string | null;
+  destinationShopId?: string | null;
   title?: string;
   description?: string | null;
   category?: string | null;
@@ -423,6 +449,9 @@ function normalizeCreateListingInput(
       String(
         input.sellerShopId || "",
       ).trim() || null,
+
+    destinationCustomerReference: String(input.destinationCustomerReference || "").trim() || null,
+    destinationShopId: String(input.destinationShopId || "").trim() || null,
 
     itemId:
       String(
@@ -546,6 +575,26 @@ export async function getMyMarketplaceListings(
   return unwrapListingList(
     data,
   ).rows;
+}
+
+function unwrapRows<T>(data: unknown): T[] {
+  if (!isObject(data)) return [];
+  if (Array.isArray(data.rows)) return data.rows as T[];
+  return isObject(data.data) && Array.isArray(data.data.rows) ? data.data.rows as T[] : [];
+}
+
+export async function searchMarketplaceCustomerDestinations(search: string, signal?: AbortSignal): Promise<MarketplaceCustomerDestination[]> {
+  const query = new URLSearchParams({ search: search.trim() });
+  return unwrapRows<MarketplaceCustomerDestination>(await api.get(`/marketplace-listings/destinations/customers?${query}`, { signal }));
+}
+
+export async function searchMarketplaceShopDestinations(search: string, signal?: AbortSignal): Promise<MarketplaceShopDestination[]> {
+  const query = new URLSearchParams({ search: search.trim() });
+  return unwrapRows<MarketplaceShopDestination>(await api.get(`/marketplace-listings/destinations/shops?${query}`, { signal }));
+}
+
+export async function getReceivedMarketplaceListings(): Promise<MarketplaceListing[]> {
+  return unwrapListingList(await api.get("/marketplace-listings/received")).rows;
 }
 
 export async function createMarketplaceListing(

@@ -96,15 +96,30 @@ async function createOfferFixture({ intent = "SELL_OFFERS", competing = true } =
 async function createListingPurchaseFixture() {
   const seller = await createUser(`listing-seller-${Date.now()}`);
   const buyer = await createUser(`listing-buyer-${Date.now()}`, "OWNER");
+  const unauthorizedBuyer = await createUser(`listing-outsider-${Date.now()}`, "OWNER");
   const buyerShop = await prisma.pawnShop.create({
     data: {
       name: "Established Listing Buyer Shop",
       ownerId: buyer.id,
+      isActive: true,
+      isPublic: true,
+      isDeleted: false,
+    },
+  });
+  const unauthorizedBuyerShop = await prisma.pawnShop.create({
+    data: {
+      name: "Unauthorized Listing Buyer Shop",
+      ownerId: unauthorizedBuyer.id,
+      isActive: true,
+      isPublic: true,
+      isDeleted: false,
     },
   });
   const listing = await prisma.marketplaceListing.create({
     data: {
       sellerUserId: seller.id,
+      destinationUserId: null,
+      destinationShopId: buyerShop.id,
       listingType: "CUSTOMER_TO_SHOP",
       status: "ACTIVE",
       title: "Established customer listing",
@@ -125,6 +140,8 @@ async function createListingPurchaseFixture() {
     seller,
     buyer,
     buyerShop,
+    unauthorizedBuyer,
+    unauthorizedBuyerShop,
     listing,
   };
 }
@@ -476,6 +493,22 @@ test("customer SELL transaction is rejected by the generic Stripe payment workfl
 
 test("CUSTOMER_TO_SHOP listing purchase retains its origin and enters Stripe payment", async () => {
   const fixture = await createListingPurchaseFixture();
+
+  assert.equal(fixture.listing.destinationShopId, fixture.buyerShop.id);
+  assert.equal(fixture.listing.destinationUserId, null);
+  await assert.rejects(
+    reserveMarketplacePurchase({
+      listingId: fixture.listing.id,
+      buyerUserId: fixture.unauthorizedBuyer.id,
+      buyerShopId: fixture.unauthorizedBuyerShop.id,
+    }),
+    (error) => {
+      assert.equal(error.statusCode, 403);
+      assert.equal(error.code, "LISTING_DESTINATION_FORBIDDEN");
+      return true;
+    },
+  );
+
   const transaction = await reserveMarketplacePurchase({
     listingId: fixture.listing.id,
     buyerUserId: fixture.buyer.id,
@@ -484,6 +517,7 @@ test("CUSTOMER_TO_SHOP listing purchase retains its origin and enters Stripe pay
 
   assert.equal(transaction.type, "CUSTOMER_SELL_TO_SHOP");
   assert.equal(transaction.listingId, fixture.listing.id);
+  assert.equal(transaction.buyerShopId, fixture.listing.destinationShopId);
   assert.equal(transaction.submissionId, null);
   assert.equal(transaction.submissionOfferId, null);
 
@@ -599,8 +633,11 @@ test("database accepts valid origins and rejects mixed, incomplete, or incompati
     buyerShopId: listingFixture.buyerShop.id,
   });
 
+  assert.equal(listingFixture.listing.destinationShopId, listingFixture.buyerShop.id);
+  assert.equal(listingFixture.listing.destinationUserId, null);
   assert.equal(listingTransaction.type, "CUSTOMER_SELL_TO_SHOP");
   assert.equal(listingTransaction.listingId, listingFixture.listing.id);
+  assert.equal(listingTransaction.buyerShopId, listingFixture.listing.destinationShopId);
   assert.equal(listingTransaction.submissionId, null);
   assert.equal(listingTransaction.submissionOfferId, null);
   assert.equal(acceptance.transaction.listingId, null);

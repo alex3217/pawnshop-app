@@ -24,9 +24,12 @@ import {
 import {
   createMarketplaceListing,
   updateMarketplaceListing,
+  type MarketplaceCustomerDestination,
   type MarketplaceListingType,
+  type MarketplaceShopDestination,
 } from "../services/marketplaceListings";
 import ItemImagePicker from "../components/ItemImagePicker";
+import MarketplaceDestinationPicker from "../components/MarketplaceDestinationPicker";
 import AiDescriptionControl from "../components/AiDescriptionControl";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { durableImageUrls, normalizeListingOption, persistConsumerMarketplaceListingPhotos, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
@@ -192,6 +195,10 @@ export default function CreateMarketplaceListingPage() {
         "sellerShopId",
       ),
   );
+
+  const [audience, setAudience] = useState<"PUBLIC_MARKETPLACE" | "SPECIFIC_CUSTOMER">("PUBLIC_MARKETPLACE");
+  const [customerDestination, setCustomerDestination] = useState<MarketplaceCustomerDestination | null>(null);
+  const [shopDestination, setShopDestination] = useState<MarketplaceShopDestination | null>(null);
 
   const [
     itemId,
@@ -414,6 +421,9 @@ export default function CreateMarketplaceListingPage() {
     value: MarketplaceListingType,
   ) {
     setListingType(value);
+    setAudience("PUBLIC_MARKETPLACE");
+    setCustomerDestination(null);
+    setShopDestination(null);
 
     if (
       !isShopListing(value)
@@ -512,6 +522,16 @@ export default function CreateMarketplaceListingPage() {
       return;
     }
 
+    if (listingType === "CUSTOMER_TO_CUSTOMER" && audience === "SPECIFIC_CUSTOMER" && !customerDestination) {
+      setError("Search for and select the customer receiving this listing.");
+      return;
+    }
+
+    if (listingType === "CUSTOMER_TO_SHOP" && !shopDestination) {
+      setError("Search for and select the shop receiving this listing.");
+      return;
+    }
+
     const parsedPrice =
       Number(price);
 
@@ -585,6 +605,10 @@ export default function CreateMarketplaceListingPage() {
           shopListing
             ? sellerShopId
             : null,
+
+        audience: listingType === "CUSTOMER_TO_CUSTOMER" ? audience : undefined,
+        destinationCustomerReference: listingType === "CUSTOMER_TO_CUSTOMER" && audience === "SPECIFIC_CUSTOMER" ? customerDestination?.reference : null,
+        destinationShopId: listingType === "CUSTOMER_TO_SHOP" ? shopDestination?.id : null,
 
         itemId:
           shopListing
@@ -796,6 +820,20 @@ export default function CreateMarketplaceListingPage() {
                   )}
                 </select>
               </label>
+            ) : null}
+
+            {listingType === "CUSTOMER_TO_CUSTOMER" ? (
+              <div className="wide">
+                <fieldset className="destination-audience"><legend>Audience</legend>
+                  <label><input type="radio" name="audience" value="PUBLIC_MARKETPLACE" checked={audience === "PUBLIC_MARKETPLACE"} onChange={() => { setAudience("PUBLIC_MARKETPLACE"); setCustomerDestination(null); }} /> Public Marketplace</label>
+                  <label><input type="radio" name="audience" value="SPECIFIC_CUSTOMER" checked={audience === "SPECIFIC_CUSTOMER"} onChange={() => setAudience("SPECIFIC_CUSTOMER")} /> Specific Customer</label>
+                </fieldset>
+                {audience === "SPECIFIC_CUSTOMER" ? <MarketplaceDestinationPicker mode="customer" selected={customerDestination} onSelect={(destination) => setCustomerDestination(destination as MarketplaceCustomerDestination | null)} /> : null}
+              </div>
+            ) : null}
+
+            {listingType === "CUSTOMER_TO_SHOP" ? (
+              <div className="wide"><MarketplaceDestinationPicker mode="shop" selected={shopDestination} onSelect={(destination) => setShopDestination(destination as MarketplaceShopDestination | null)} /></div>
             ) : null}
 
             {isShopListing(
@@ -1093,7 +1131,9 @@ export default function CreateMarketplaceListingPage() {
             type="submit"
             disabled={
               submitting ||
-              availableTypes.length === 0
+              availableTypes.length === 0 ||
+              (listingType === "CUSTOMER_TO_CUSTOMER" && audience === "SPECIFIC_CUSTOMER" && !customerDestination) ||
+              (listingType === "CUSTOMER_TO_SHOP" && !shopDestination)
             }
           >
             {submitting

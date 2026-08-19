@@ -54,6 +54,7 @@ model User {
   capturedItemIntakes             ItemIntake[]                     @relation("ItemIntakeCapturedBy")
   customerItemIntakes             ItemIntake[]                     @relation("ItemIntakeCustomer")
   marketplaceListings             MarketplaceListing[]             @relation("MarketplaceListingSeller")
+  receivedMarketplaceListings     MarketplaceListing[]             @relation("MarketplaceListingDestinationUser")
   marketplacePurchases            MarketplaceTransaction[]         @relation("MarketplaceTransactionBuyer")
   marketplaceSales                MarketplaceTransaction[]         @relation("MarketplaceTransactionSeller")
   customerSellFulfillments        CustomerSellFulfillment[]        @relation("CustomerSellFulfillmentCustomer")
@@ -422,6 +423,7 @@ model PawnShop {
   sellerPayouts                      SellerPayout[]                   @relation("SellerPayoutShop")
   stripeConnectedAccountPayouts      StripeConnectedAccountPayout[]
   marketplaceListings                MarketplaceListing[]             @relation("MarketplaceListingShop")
+  receivedMarketplaceListings        MarketplaceListing[]             @relation("MarketplaceListingDestinationShop")
   marketplaceBuyerTransactions       MarketplaceTransaction[]         @relation("MarketplaceTransactionBuyerShop")
   marketplaceSellerTransactions      MarketplaceTransaction[]         @relation("MarketplaceTransactionSellerShop")
   customerSellFulfillments           CustomerSellFulfillment[]
@@ -1343,6 +1345,8 @@ model MarketplaceListing {
   itemId            String?
   sellerUserId      String
   sellerShopId      String?
+  destinationUserId String?
+  destinationShopId String?
   listingType       MarketplaceListingType
   status            MarketplaceListingStatus @default(DRAFT)
   title             String
@@ -1366,6 +1370,8 @@ model MarketplaceListing {
   item               Item?                    @relation(fields: [itemId], references: [id], onDelete: SetNull)
   seller             User                     @relation("MarketplaceListingSeller", fields: [sellerUserId], references: [id], onDelete: Cascade)
   sellerShop         PawnShop?                @relation("MarketplaceListingShop", fields: [sellerShopId], references: [id], onDelete: SetNull)
+  destinationUser    User?                    @relation("MarketplaceListingDestinationUser", fields: [destinationUserId], references: [id], onDelete: Restrict)
+  destinationShop    PawnShop?                @relation("MarketplaceListingDestinationShop", fields: [destinationShopId], references: [id], onDelete: Restrict)
   transactions       MarketplaceTransaction[]
   itemIntake         ItemIntake?              @relation("ItemIntakeLinkedMarketplaceListing")
   targetedSubmission BuyerItemSubmission?     @relation("BuyerItemSubmissionMarketplaceListing")
@@ -1374,6 +1380,8 @@ model MarketplaceListing {
 
   @@index([sellerUserId, status, createdAt])
   @@index([sellerShopId, status, createdAt])
+  @@index([destinationUserId, status, createdAt])
+  @@index([destinationShopId, status, createdAt])
   @@index([listingType, status, createdAt])
   @@index([category, status, createdAt])
   @@index([status, publishedAt])

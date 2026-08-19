@@ -598,7 +598,7 @@ async function loadBuyerShop({
   return shop;
 }
 
-function assertListingCanBePurchased({
+export function assertListingCanBePurchased({
   listing,
   buyer,
   buyerShop,
@@ -640,6 +640,14 @@ function assertListingCanBePurchased({
       "You cannot purchase your own marketplace listing",
       409,
     );
+  }
+
+  if (listing.destinationUserId && listing.destinationUserId !== buyer.id) {
+    throw httpError("This listing was sent to another customer", 403, "LISTING_DESTINATION_FORBIDDEN");
+  }
+
+  if (listing.destinationShopId && listing.destinationShopId !== buyerShop?.id) {
+    throw httpError("This listing was sent to another shop", 403, "LISTING_DESTINATION_FORBIDDEN");
   }
 
   if (

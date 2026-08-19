@@ -91,6 +91,7 @@ const OWNER_PRIMARY_NAV: NavItem[] = [
     to: "/marketplace/listings/mine",
     label: "My Listings",
   },
+  { to: "/marketplace/listings/received", label: "Listings Sent to My Shop" },
   { to: "/owner/finance", label: "Finance" },
   { to: "/owner/locations", label: "Shop Profile & Locations" },
   { to: "/owner/staff", label: "Staff" },

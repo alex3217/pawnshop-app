@@ -13,9 +13,12 @@ import {
 import {
   getMyMarketplaceListings,
   updateMarketplaceListing,
+  type MarketplaceCustomerDestination,
   type MarketplaceListing,
+  type MarketplaceShopDestination,
 } from "../services/marketplaceListings";
 import ItemImagePicker from "../components/ItemImagePicker";
+import MarketplaceDestinationPicker from "../components/MarketplaceDestinationPicker";
 import AiDescriptionControl from "../components/AiDescriptionControl";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
 import { durableImageUrls, normalizeListingOption, persistConsumerMarketplaceListingPhotos, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
@@ -94,6 +97,10 @@ export default function EditMarketplaceListingPage() {
     title,
     setTitle,
   ] = useState("");
+
+  const [audience, setAudience] = useState<"PUBLIC_MARKETPLACE" | "SPECIFIC_CUSTOMER">("PUBLIC_MARKETPLACE");
+  const [customerDestination, setCustomerDestination] = useState<MarketplaceCustomerDestination | null>(null);
+  const [shopDestination, setShopDestination] = useState<MarketplaceShopDestination | null>(null);
 
   const [
     description,
@@ -203,6 +210,14 @@ export default function EditMarketplaceListingPage() {
 
         setListing(found);
 
+        setAudience(found.destinationUser ? "SPECIFIC_CUSTOMER" : "PUBLIC_MARKETPLACE");
+        setCustomerDestination(found.destinationUser ? {
+          reference: found.destinationUser.publicMessageIdentifier,
+          displayName: found.destinationUser.publicDisplayName,
+          publicIdentifier: found.destinationUser.publicMessageIdentifier,
+        } : null);
+        setShopDestination(found.destinationShop || null);
+
         setTitle(
           found.title || "",
         );
@@ -299,6 +314,16 @@ export default function EditMarketplaceListingPage() {
       return;
     }
 
+    if (listing.listingType === "CUSTOMER_TO_CUSTOMER" && audience === "SPECIFIC_CUSTOMER" && !customerDestination) {
+      setError("Search for and select the customer receiving this listing.");
+      return;
+    }
+
+    if (listing.listingType === "CUSTOMER_TO_SHOP" && !shopDestination) {
+      setError("Search for and select the shop receiving this listing.");
+      return;
+    }
+
     if (!ITEM_CATEGORY_OPTIONS.includes(category as (typeof ITEM_CATEGORY_OPTIONS)[number])) {
       setError("Select a valid category.");
       return;
@@ -375,6 +400,9 @@ export default function EditMarketplaceListingPage() {
       await updateMarketplaceListing(
         listing.id,
         {
+          audience: listing.listingType === "CUSTOMER_TO_CUSTOMER" ? audience : undefined,
+          destinationCustomerReference: listing.listingType === "CUSTOMER_TO_CUSTOMER" && audience === "SPECIFIC_CUSTOMER" ? customerDestination?.reference : null,
+          destinationShopId: listing.listingType === "CUSTOMER_TO_SHOP" ? shopDestination?.id : null,
           title,
 
           description:
@@ -524,6 +552,20 @@ export default function EditMarketplaceListingPage() {
         className="create-listing-form"
         onSubmit={handleSubmit}
       >
+        {listing.listingType === "CUSTOMER_TO_CUSTOMER" || listing.listingType === "CUSTOMER_TO_SHOP" ? (
+          <section className="create-listing-panel">
+            <h2>Listing destination</h2>
+            {listing.listingType === "CUSTOMER_TO_CUSTOMER" ? (
+              <>
+                <fieldset className="destination-audience"><legend>Audience</legend>
+                  <label><input type="radio" name="audience" value="PUBLIC_MARKETPLACE" checked={audience === "PUBLIC_MARKETPLACE"} onChange={() => { setAudience("PUBLIC_MARKETPLACE"); setCustomerDestination(null); }} /> Public Marketplace</label>
+                  <label><input type="radio" name="audience" value="SPECIFIC_CUSTOMER" checked={audience === "SPECIFIC_CUSTOMER"} onChange={() => setAudience("SPECIFIC_CUSTOMER")} /> Specific Customer</label>
+                </fieldset>
+                {audience === "SPECIFIC_CUSTOMER" ? <MarketplaceDestinationPicker mode="customer" selected={customerDestination} onSelect={(destination) => setCustomerDestination(destination as MarketplaceCustomerDestination | null)} /> : null}
+              </>
+            ) : <MarketplaceDestinationPicker mode="shop" selected={shopDestination} onSelect={(destination) => setShopDestination(destination as MarketplaceShopDestination | null)} />}
+          </section>
+        ) : null}
         <section className="create-listing-panel">
           <h2>
             Listing details
@@ -763,7 +805,7 @@ export default function EditMarketplaceListingPage() {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || (listing.listingType === "CUSTOMER_TO_CUSTOMER" && audience === "SPECIFIC_CUSTOMER" && !customerDestination) || (listing.listingType === "CUSTOMER_TO_SHOP" && !shopDestination)}
           >
             {submitting
               ? "Saving changes..."

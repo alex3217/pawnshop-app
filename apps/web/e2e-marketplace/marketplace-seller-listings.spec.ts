@@ -369,6 +369,20 @@ async function installMocks(
 
       if (
         method === "GET" &&
+        pathname === "/api/marketplace-listings/destinations/customers"
+      ) {
+        await route.fulfill({ status: 200, contentType: "application/json", body: jsonBody({ success: true, rows: [{ reference: "destination_buyer", displayName: "Destination Buyer", publicIdentifier: "destination_buyer" }] }) });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/api/marketplace-listings/destinations/shops") {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        await route.fulfill({ status: 200, contentType: "application/json", body: jsonBody({ success: true, rows: [{ id: "destination-shop", name: "Destination Pawn", city: "Austin", state: "TX" }] }) });
+        return;
+      }
+
+      if (
+        method === "GET" &&
         pathname ===
           "/api/marketplace-listings/mine"
       ) {
@@ -745,8 +759,24 @@ async function installMocks(
   );
 }
 
+test("consumer creates a public customer marketplace draft by default", async ({ page }) => {
+  const state: MockState = { listings: [], createRequests: 0, updateRequests: 0, actions: [], lastCreate: null, lastUpdate: null };
+  await installAuth(page, "CONSUMER");
+  await installMocks(page, state, "CONSUMER");
+  await page.goto("/marketplace/listings/new");
+  await expect(page.getByRole("radio", { name: "Public Marketplace" })).toBeChecked();
+  await expect(page.getByRole("button", { name: "Save draft" })).toBeEnabled();
+  await page.getByLabel("Listing title").fill("Public customer listing");
+  await page.getByLabel("Price").fill("50");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page).toHaveURL(/\/marketplace\/listings\/mine$/);
+  expect(state.lastCreate?.audience).toBe("PUBLIC_MARKETPLACE");
+  expect(state.lastCreate?.destinationCustomerReference).toBeNull();
+  expect(state.lastCreate?.destinationShopId).toBeNull();
+});
+
 test(
-  "consumer creates a customer marketplace draft",
+  "consumer creates a specific-customer marketplace draft",
   async ({
     page,
   }) => {
@@ -802,6 +832,12 @@ test(
     ).toHaveValue(
       "CUSTOMER_TO_CUSTOMER",
     );
+
+    await expect(page.getByRole("radio", { name: "Public Marketplace" })).toBeChecked();
+    await page.getByRole("radio", { name: "Specific Customer" }).check();
+    await page.getByRole("combobox", { name: "Find receiving customer" }).fill("destination");
+    await expect(page.getByRole("option", { name: "Destination Buyer (@destination_buyer)" })).toBeVisible();
+    await page.getByRole("option", { name: "Destination Buyer (@destination_buyer)" }).click();
 
     await page
       .getByLabel(
@@ -859,11 +895,81 @@ test(
       state.lastCreate?.sellerShopId,
     ).toBeNull();
 
+    expect(state.lastCreate?.destinationCustomerReference).toBe("destination_buyer");
+    expect(state.lastCreate?.destinationShopId).toBeNull();
+
     expect(
       state.lastCreate?.itemId,
     ).toBeNull();
   },
 );
+
+test("consumer searches and selects a customer-to-shop destination", async ({ page }) => {
+  const state: MockState = { listings: [], createRequests: 0, updateRequests: 0, actions: [], lastCreate: null, lastUpdate: null };
+  await installAuth(page, "CONSUMER");
+  await installMocks(page, state, "CONSUMER");
+  await page.goto("/marketplace/listings/new");
+  await page.getByLabel("Listing type").selectOption("CUSTOMER_TO_SHOP");
+  await expect(page.getByRole("button", { name: "Save draft" })).toBeDisabled();
+  const combobox = page.getByRole("combobox", { name: "Find receiving shop" });
+  await combobox.fill("d");
+  await expect(page.getByText("Enter 2 or more characters.")).toBeVisible();
+  await combobox.fill("destination");
+  await page.getByRole("option", { name: "Destination Pawn — Austin, TX" }).click();
+  await expect(page.getByRole("group", { name: "Selected shop destination" })).toContainText("Destination Pawn");
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect(page.getByRole("button", { name: "Save draft" })).toBeDisabled();
+});
+
+test("destination combobox debounces, cancels stale work, reports failures, and supports keyboard/mobile use", async ({ page }) => {
+  const state: MockState = { listings: [], createRequests: 0, updateRequests: 0, actions: [], lastCreate: null, lastUpdate: null };
+  await installAuth(page, "CONSUMER");
+  await installMocks(page, state, "CONSUMER");
+  const requested: string[] = [];
+  await page.route("**/api/marketplace-listings/destinations/customers?**", async (route) => {
+    const query = new URL(route.request().url()).searchParams.get("search") || "";
+    requested.push(query);
+    if (query === "failure") return route.fulfill({ status: 500, contentType: "application/json", body: jsonBody({ error: "Search unavailable" }) });
+    if (query === "zz-no-results") return route.fulfill({ status: 200, contentType: "application/json", body: jsonBody({ rows: [] }) });
+    if (query === "older") await new Promise((resolve) => setTimeout(resolve, 500));
+    return route.fulfill({ status: 200, contentType: "application/json", body: jsonBody({ rows: [{ reference: query, displayName: query === "newer" ? "New Result" : "Old Result", publicIdentifier: query }] }) });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/marketplace/listings/new");
+  await page.getByRole("radio", { name: "Specific Customer" }).check();
+  const input = page.getByRole("combobox", { name: "Find receiving customer" });
+  await input.fill("o");
+  await page.waitForTimeout(350);
+  expect(requested).toEqual([]);
+  await input.fill("older");
+  await page.waitForTimeout(350);
+  await expect(page.locator(".destination-search-status")).toContainText("Searching destinations…");
+  await input.fill("newer");
+  await expect(page.getByRole("option", { name: "New Result (@newer)" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "Old Result (@older)" })).toHaveCount(0);
+  await input.press("ArrowDown");
+  await input.press("Enter");
+  await expect(page.getByRole("group", { name: "Selected customer destination" })).toContainText("New Result");
+  await page.getByRole("button", { name: "Change" }).click();
+  await input.fill("failure");
+  await expect(page.locator(".destination-search-status")).toContainText("Search failed: Search unavailable");
+  await input.fill("zz-no-results");
+  await expect(page.locator(".destination-search-status")).toContainText("No destinations found.");
+  const box = await input.boundingBox();
+  expect(box?.width || 0).toBeLessThanOrEqual(390);
+});
+
+test("editing a directed draft restores its audience and selected destination", async ({ page }) => {
+  const state: MockState = { listings: [listingRecord({ itemId: null, sellerUserId: CONSUMER_ID, sellerShopId: null, listingType: "CUSTOMER_TO_CUSTOMER", destinationUserId: "internal-destination-id", destinationUser: { publicDisplayName: "Restored Buyer", publicMessageIdentifier: "restored_buyer" } })], createRequests: 0, updateRequests: 0, actions: [], lastCreate: null, lastUpdate: null };
+  await installAuth(page, "CONSUMER");
+  await installMocks(page, state, "CONSUMER");
+  await page.goto(`/marketplace/listings/${LISTING_ID}/edit`);
+  await expect(page.getByRole("radio", { name: "Specific Customer" })).toBeChecked();
+  await expect(page.getByRole("group", { name: "Selected customer destination" })).toContainText("Restored Buyer (@restored_buyer)");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  expect(state.lastUpdate?.destinationCustomerReference).toBe("restored_buyer");
+  expect(state.lastUpdate?.audience).toBe("SPECIFIC_CUSTOMER");
+});
 
 test(
   "owner creates a shop listing linked to inventory",
