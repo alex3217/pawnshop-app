@@ -775,7 +775,7 @@ export async function createSuperAdminShop(req, res) {
       shop: shopRow,
     });
   } catch (err) {
-    return handleSuperAdminError(res, err, "Failed to create shop.");
+    return sendError(res, err, "Failed to create shop.");
   }
 }
 
@@ -888,7 +888,7 @@ export async function reassignSuperAdminShopOwner(req, res) {
       shop: shopRow,
     });
   } catch (err) {
-    return handleSuperAdminError(res, err, "Failed to reassign shop owner.");
+    return sendError(res, err, "Failed to reassign shop owner.");
   }
 }
 
@@ -1077,7 +1077,7 @@ export async function listSuperAdminIntegrations(req, res) {
       limit,
     });
   } catch (err) {
-    return handleSuperAdminError(res, err, "Failed to load integrations.");
+    return sendError(res, err, "Failed to load integrations.");
   }
 }
 
@@ -1126,7 +1126,7 @@ export async function archiveSuperAdminIntegration(req, res) {
       integration: scrubIntegrationForSuperAdmin(updated),
     });
   } catch (err) {
-    return handleSuperAdminError(res, err, "Failed to archive integration.");
+    return sendError(res, err, "Failed to archive integration.");
   }
 }
 
@@ -1178,7 +1178,7 @@ export async function restoreSuperAdminIntegration(req, res) {
       integration: scrubIntegrationForSuperAdmin(updated),
     });
   } catch (err) {
-    return handleSuperAdminError(res, err, "Failed to restore integration.");
+    return sendError(res, err, "Failed to restore integration.");
   }
 }
 
@@ -1375,7 +1375,7 @@ export async function getSuperAdminSystemHealth(req, res) {
       generatedAt: now.toISOString(),
     });
   } catch (err) {
-    return handleSuperAdminError(res, err, "Failed to load system health.");
+    return sendError(res, err, "Failed to load system health.");
   }
 }
 
