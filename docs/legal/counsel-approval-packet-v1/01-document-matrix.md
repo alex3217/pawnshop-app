@@ -36,6 +36,9 @@ For every row, counsel must identify the approved version, jurisdictions, enable
 | LEG-028 | Marketing communications consent and opt-out policy | If marketing enabled | Marketing/Privacy | Counsel | PENDING COUNSEL REVIEW | PENDING | Campaign enrollment and preferences | PENDING |
 | LEG-029 | Beta participation, caps, suspension, offboarding, and confidentiality terms | Yes | Business/Operations | Counsel, Support | PENDING COUNSEL REVIEW | PENDING | Beta shop onboarding | PENDING |
 | LEG-030 | Insurance, limitation of liability, warranty disclaimer, indemnity, dispute resolution, governing law, and venue decision | Yes | Executive/Legal | Counsel, Insurer | PENDING COUNSEL REVIEW | PENDING | Terms and commercial agreements | PENDING |
+| LEG-031 | Firearm controlled-test merchandise policy | Before any firearm capability | Legal/Trust & Safety | Counsel, Compliance, Privacy, Security, Operations | OWNER PROPOSAL RECORDED; PENDING COUNSEL REVIEW | `09-firearm-controlled-test-policy.md` at exact candidate SHA | Listing review, reservation, shop contact, FFL transfer attestation, incident/suspension | PENDING |
+| LEG-032 | Firearm FFL verification and transfer procedure | Before any firearm capability | Compliance/Operations | Counsel, Trust & Safety, Security | PENDING COUNSEL AND OPERATING APPROVAL | `04-operating-procedures.md` at exact candidate SHA | Shop eligibility, listing approval, transfer completion, reverification | PENDING |
+| LEG-033 | Written Stripe firearm approval and configuration decision | Before any firearm payment | Finance/Payments | Stripe, Counsel, Finance, Security | BLOCKED — FIREARM PAYMENTS DISABLED | PENDING WRITTEN STRIPE APPROVAL | PawnLoop account, Connect architecture, participating shops, platform fees, firearm payments | PENDING |
 
 ## Version-control requirements
 
@@ -64,4 +67,3 @@ Before launch, QA must verify against the exact candidate:
 - re-consent occurs when the approved policy requires it;
 - archived versions remain retrievable by authorized personnel; and
 - screen-reader, keyboard, zoom, contrast and mobile behavior are acceptable.
-

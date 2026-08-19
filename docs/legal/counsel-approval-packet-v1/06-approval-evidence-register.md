@@ -31,6 +31,11 @@ Use immutable links or controlled evidence-system references. Do not store secre
 | ACC-E002 | Manual assistive-technology evidence | PENDING | PENDING | PENDING | PENDING | BLOCKED | PENDING | PENDING | PENDING |
 | PRV-E001 | Privacy request rehearsal | PENDING | PENDING | PENDING | PENDING | BLOCKED | PENDING | PENDING | PENDING |
 | TNS-E001 | Trust/safety and prohibited-item rehearsal | PENDING | PENDING | PENDING | PENDING | BLOCKED | PENDING | PENDING | PENDING |
+| FFL-E001 | Type 01/02 FFL verification procedure and cohort records | Texas firearm controlled test | Compliance/Onboarding | Counsel, Operations | PENDING | BLOCKED | RESTRICTED REFERENCE PENDING | PENDING | No raw license documents or unnecessary personal data in repository |
+| FFL-E002 | Firearm listing/review negative-path rehearsal | Browsing, reservation and shop contact only | Trust & Safety/Product | Counsel, Operations, QA | PENDING | BLOCKED | PENDING | PENDING | Must prove deferred categories, DTC shipping, C2C and payment paths fail closed |
+| FFL-E003 | Transfer-completion attestation rehearsal | Minimum attestation data only | Compliance/Privacy | Counsel, Privacy, Security | PENDING | BLOCKED | PENDING | PENDING | No Form 4473, NICS, ID image, denial reason or A&D record retained |
+| FFL-E004 | Firearm incident/suspension rehearsal | FFL/listing/transfer/payment/data-boundary incidents | Trust & Safety | Counsel, Security, Operations | PENDING | BLOCKED | PENDING | PENDING | Include reactivation and minimized preservation decision |
+| PAY-E001 | Written Stripe firearm approval | PawnLoop, Connect architecture, participating shops, platform fees and firearm transactions | Finance/Payments | Stripe, Counsel, Finance | PENDING | BLOCKED — FIREARM PAYMENTS DISABLED | RESTRICTED REFERENCE PENDING | Provider review expiration | Separate from general Stripe configuration approval |
 | PRO-E001 | Redacted provider configuration evidence | PENDING | PENDING | PENDING | PENDING | BLOCKED | PENDING | PENDING | PENDING |
 | GO-E001 | Final decision record | PENDING | PENDING | PENDING | PENDING | BLOCKED | PENDING | PENDING | PENDING |
 
@@ -56,4 +61,3 @@ Screenshots without identity/context, draft documents, local tests without targe
 | EX-001 | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING | BLOCKED |
 
 Legal, privacy, security, financial-integrity and data-recovery requirements may not be waived merely to meet a launch date.
-

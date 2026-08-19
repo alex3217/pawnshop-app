@@ -27,6 +27,8 @@ Counsel cannot approve an undefined product. Complete this record before request
 | Shop licensing requirements | Verified Texas/local licensing and authority before entry | PENDING COUNSEL REVIEW | Verified license and authority record | Onboarding/Legal |
 | Minimum customer age | 18 proposed | PENDING COUNSEL REVIEW | Age policy and enforcement test | Product/Legal |
 | Cross-border/interstate behavior | International transactions and unapproved interstate regulated flows deferred | PENDING COUNSEL REVIEW | Approved boundaries | Product/Legal |
+| Firearm buyer minimum age | 21 for every firearm controlled-test interaction requiring buyer eligibility | PENDING COUNSEL REVIEW | Age policy, attestation design and enforcement tests | Product/Legal |
+| Firearm shop eligibility | Verified Type 01 or Type 02 FFL pawnshops only | PENDING COUNSEL REVIEW | Current FFL and authority verification record | Onboarding/Legal |
 
 ## 3. Product and transaction scope
 
@@ -51,13 +53,21 @@ Set each row to `ENABLED`, `READ-ONLY`, `CONTROLLED TEST ONLY`, or `DEFERRED`.
 | Shop-to-shop/dealer transactions | DEFERRED UNLESS APPROVED | Yes | Commercial/dealer laws | Separate dealer terms | PENDING | PENDING |
 | Layaway | DEFERRED UNLESS APPROVED | Yes | Installment/consumer law | Separate approved terms | PENDING | PENDING |
 | Live video auctions | DEFERRED UNLESS APPROVED | Yes | Auction/content laws | Updated auction/content terms | PENDING | PENDING |
+| Firearm public browsing | CONTROLLED TEST ONLY | No | Regulated merchandise and disclosure accuracy | Firearm controlled-test policy | Product/Legal | PENDING |
+| Firearm reservation and shop contact | CONTROLLED TEST ONLY | No | Age, geography, FFL transfer, nonbinding reservation | Firearm controlled-test policy | Product/Legal | PENDING |
+| Firearm payment through Stripe/Connect | DEFERRED — WRITTEN STRIPE AND COUNSEL APPROVAL REQUIRED | Yes | Processor policy, Connect, platform fees, regulated merchandise | Written Stripe approval and payment terms | Finance/Legal | PENDING |
+| Firearm physical transfer | FFL-ONLY; OUTSIDE PAWNLOOP | Outside PawnLoop | Identification, Form 4473, NICS, A&D records, reporting | Firearm controlled-test policy and shop agreement | Participating FFL | PENDING |
 
 ## 4. Merchandise scope
 
 - Generally allowed categories: `Jewelry, precious metals, tools, consumer electronics, musical instruments, collectibles, non-weapon sporting goods and ordinary household merchandise — OWNER APPROVED; COUNSEL REVIEW PENDING`
 - Prohibited categories: `Recalled or hazardous goods, stolen or suspected counterfeit goods, controlled substances, government IDs and goods exposing personal data — COUNSEL REVIEW PENDING`
 - Restricted categories requiring special review: `High-value jewelry/luxury goods, serial-numbered electronics and vehicles — manual review proposed; COUNSEL REVIEW PENDING`
-- Firearms/weapons/ammunition: `DEFERRED UNTIL EXPRESS COUNSEL, PROCESSOR AND OPERATING APPROVAL`
+- Firearms: `CONTROLLED TEST ONLY — Texas, verified Type 01/02 FFL pawnshops, buyers age 21+, public browsing/reservation/shop contact only as approved, physical transfer through the selling or receiving FFL; COUNSEL AND OPERATING APPROVAL PENDING; NOT ACTIVE`
+- Firearm payments: `DISABLED until written Stripe approval expressly covers PawnLoop, Stripe Connect, participating shops, platform fees and firearm transactions, followed by counsel and Finance approval`
+- Firearm records: `PawnLoop must not store Form 4473 or NICS records; retain only minimum counsel/privacy-approved compliance attestations`
+- Ammunition, suppressors, NFA firearms, destructive devices and other specially regulated items: `DEFERRED`
+- Direct-to-consumer firearm shipping and customer-to-customer firearm transactions: `PROHIBITED`
 - Alcohol/tobacco/controlled substances: `DEFERRED UNTIL EXPRESS COUNSEL, PROCESSOR AND OPERATING APPROVAL`
 - Hazardous/recalled goods: `DEFERRED UNLESS EXPRESSLY APPROVED`
 - Government IDs, gift cards, financial instruments and personal data: `DEFERRED UNTIL EXPRESS COUNSEL, PROCESSOR AND OPERATING APPROVAL`
@@ -114,7 +124,7 @@ Owner-accepted proposal for counsel and processor review:
 
 Record every unavailable feature in public documentation, configuration, UI, API capability responses, support scripts, and test scope. Deferred features must fail closed and must not be marketed as available.
 
-The accepted initial deferral list includes international transactions, unapproved interstate regulated flows, customer pawn transactions pending Texas counsel approval, shop-to-shop transactions, layaway, live-video auctions, firearms/weapons/ammunition, alcohol/tobacco, gift cards/financial instruments and other categories identified above.
+The accepted initial deferral list includes international transactions, unapproved interstate regulated flows, customer pawn transactions pending Texas counsel approval, shop-to-shop transactions, layaway, live-video auctions, firearm payments, ammunition, suppressors, NFA firearms, destructive devices and other specially regulated items, alcohol/tobacco, gift cards/financial instruments and other categories identified above. Firearms themselves are controlled-test only under `09-firearm-controlled-test-policy.md`, not permanently prohibited; no firearm capability is active before counsel and operating approval.
 
 ## 8. Required approvals
 

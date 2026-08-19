@@ -164,6 +164,54 @@ Secrets, full payment credentials, raw MFA values, government IDs, unredacted le
 6. Preserve historical versions and assent records.
 7. Roll back an incorrect publication without deleting evidence; notify affected users if required.
 
+## SOP-14: FFL verification and reverification
+
+**Trigger:** A pawnshop requests firearm controlled-test participation, a license approaches expiration, or ownership/location/license facts materially change.
+
+1. Restrict eligibility to a pawnshop holding a Type 01 or Type 02 FFL and the counsel-approved Texas/local authority.
+2. Verify the FFL through the approved authoritative source; record only license number or approved minimized identifier, type, premises state, expiration, verifier, source, UTC time and result.
+3. Confirm the licensed premises and participating PawnLoop shop identity match under the counsel-approved rule; escalate rather than infer a match.
+4. Confirm business authority, current shop agreement, firearm-policy acknowledgement, required training, support contact and suspension/offboarding contact.
+5. Assign the firearm-controlled-test capability only after second-person Compliance/Operations approval and all counsel-required evidence IDs resolve.
+6. Reverify before expiration and on ownership, premises, license, disciplinary, incident, provider-policy or material legal change.
+7. Remove the capability immediately when verification expires, fails, becomes inconsistent or cannot be reproduced.
+
+**Never:** approve an FFL type other than 01 or 02, accept a customer as the firearm seller, store unnecessary license-holder personal data, or treat a PawnLoop shop account as proof of licensure.
+
+## SOP-15: Firearm listing and reservation review
+
+1. Confirm the shop has a current approved FFL verification and remains in the Texas controlled-test cohort.
+2. Confirm the item is an ordinary firearm within the counsel-approved test scope; reject ammunition, suppressors, NFA firearms, destructive devices, and any other specially regulated or deferred item.
+3. Review title, description, images, serial-number handling, condition, location, fulfillment language and required public disclosures under the approved policy. Do not expose a full serial number if counsel/security require minimization.
+4. Confirm the listing offers only approved public browsing, reservation and shop-contact behavior; no PawnLoop firearm checkout, Stripe payment, direct-to-consumer shipping or customer-to-customer path may be available.
+5. Confirm the buyer-facing path requires the approved 21+ attestation and Texas transaction boundary without representing either as the FFL's final eligibility decision.
+6. Require second-person review before publication and record reviewer, policy version, listing ID, shop/FFL evidence ID, UTC time and result.
+7. Re-review after any material listing edit, shop/FFL status change, complaint, legal change or provider-policy change.
+
+**Stop/escalate:** unverified/expired FFL, non-Texas transaction, buyer under 21, prohibited/deferred subtype, ambiguous transfer method, payment capability, direct shipment, customer seller, misleading eligibility claim, missing disclosure or suspected unlawful/stolen item.
+
+## SOP-16: Firearm transfer-completion attestation
+
+1. Identify the listing/reservation, buyer account, participating shop and selling or receiving FFL using approved minimized references.
+2. Require the FFL's authorized actor to attest that identification and every required Form 4473, NICS, acquisition/disposition and reporting step were handled by the FFL before physical release.
+3. Record only the approved minimum: FFL verification reference, buyer 21+ attestation, transfer completed/not completed status, transfer-through-FFL attestation, actor role, UTC time, policy version and exception/suspension status.
+4. Do not collect or retain Form 4473, NICS records or transaction numbers, government-ID images, background-check answers, denial reasons, or FFL acquisition/disposition records.
+5. If transfer does not occur, use only the counsel-approved neutral status; do not record a protected or sensitive reason.
+6. Apply second-person exception review and retention/deletion rules approved by Counsel and Privacy.
+7. Close the reservation only after audit completeness; reconcile no PawnLoop firearm payment because that capability remains disabled.
+
+## SOP-17: Firearm incident, suspension, and reactivation
+
+1. Immediately quarantine affected listings and suspend firearm reservations/contact capability when an FFL expires or cannot be verified, a prohibited subtype or transfer/shipping bypass appears, a customer seller is detected, payment is attempted through PawnLoop, records exceed the approved data boundary, or a legal/safety/provider concern arises.
+2. Preserve minimized listing, reservation, shop, actor, policy, audit and approval references without copying Form 4473, NICS, identification, denial, or other FFL-controlled records.
+3. Assign Trust & Safety and Compliance; engage Counsel, Security, Privacy, Finance, the incident commander, or law enforcement only under their approved authority and procedure.
+4. Block publication, reservation, payment, platform fees, transfer claims, and reactivation as applicable. Do not interfere with the FFL's independent legal recordkeeping or reporting duties.
+5. Record affected scope, decision owner, UTC times, notices, appeal/review, required reverification and corrective actions.
+6. Reconcile and delete any improperly collected data only under approved preservation, incident and legal-hold direction.
+7. Reactivate only after current FFL reverification, root-cause remediation, counsel/operations approval, security/privacy clearance where applicable, and repeat listing review.
+
+**Immediate beta stop:** evidence of direct-to-consumer shipping, customer-to-customer transfer, firearm payment through unapproved Stripe/PawnLoop paths, systematic age/geography bypass, unlawful transfer facilitation, material prohibited-category exposure, or collection of Form 4473/NICS records.
+
 ## Rehearsal record required for every SOP
 
 - Procedure and version:
@@ -179,4 +227,3 @@ Secrets, full payment credentials, raw MFA values, government IDs, unredacted le
 - Deviations and remediation owner:
 - Approvers:
 - Final result: `PASS`, `FAIL`, or `BLOCKED`
-

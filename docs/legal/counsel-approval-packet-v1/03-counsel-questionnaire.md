@@ -21,6 +21,11 @@ For every answer record: `Question ID`, `jurisdictions`, `enabled flows`, `concl
 3. Which categories must be prohibited, restricted, geofenced, or manually reviewed?
 4. What are the required procedures for suspected stolen, counterfeit, recalled, hazardous, age-restricted, or regulated goods?
 5. What obligations apply to identity, age, business authority, beneficial owners, KYC/AML, OFAC/sanctions, suspicious activity, and law-enforcement cooperation?
+6. For a Texas-only firearm controlled test, are Type 01 and Type 02 FFL pawnshops the correct eligible seller classes, and what federal, Texas, and local verification/reverification evidence is required?
+7. Are nationwide public browsing plus Texas-only reservation/shop-contact features permissible with a 21+ buyer rule, and what geolocation, age, advertising, reservation, availability, and nonbinding-transfer disclosures are required?
+8. What terms and controls must require physical transfer through the selling or receiving FFL and prohibit direct-to-consumer shipping and customer-to-customer transactions?
+9. What minimum compliance attestations may PawnLoop retain without collecting Form 4473, NICS, identification, denial-reason, or acquisition/disposition records, and what retention/deletion/legal-hold rules apply?
+10. Confirm that ammunition, suppressors, NFA firearms, destructive devices, and other specially regulated items remain deferred, and identify any additional categories that must be excluded.
 
 ## C. Contract formation and commerce
 
@@ -37,6 +42,7 @@ For every answer record: `Question ID`, `jurisdictions`, `enabled flows`, `concl
 3. What refund, return, cancellation, chargeback, payout hold, correction and loss-allocation rules are required?
 4. What auto-renewal, trial, price, renewal cadence, reminder, confirmation, cancellation and post-cancellation disclosures apply by jurisdiction?
 5. What sales/use tax, marketplace-facilitator, information-reporting and withholding obligations apply?
+6. What written processor approval is required before any firearm payment, Connect transaction, platform fee, refund, transfer, or payout, and how must PawnLoop document that Stripe approved PawnLoop, the Connect architecture, participating shops, platform fees, and firearm transactions?
 
 ## E. Privacy, data, tracking, and communications
 
@@ -72,4 +78,4 @@ For every answer record: `Question ID`, `jurisdictions`, `enabled flows`, `concl
 3. What shop eligibility, licensing, training, disclosure, monitoring, suspension and offboarding conditions are mandatory?
 4. What events require immediate beta suspension or renewed counsel review?
 5. What evidence must exist before expansion beyond the initial beta?
-
+6. What firearm-specific event requires immediate listing removal, reservation suspension, shop suspension, preservation, counsel review, FFL reverification, or renewed Stripe approval?

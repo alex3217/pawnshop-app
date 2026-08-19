@@ -10,10 +10,10 @@ This record must reference exact versions and evidence. A typed name without ver
 - Legal document bundle/version: `PENDING`
 - Launch-scope record version: `V1 OWNER PROPOSAL — FINAL APPROVAL PENDING`
 - Approved geography: `PROPOSED: Texas transactions; nationwide read-only browsing — COUNSEL APPROVAL PENDING`
-- Approved user/shop eligibility: `PROPOSED: age 18+, Texas transactions, Houston-area licensed shops — COUNSEL APPROVAL PENDING`
+- Approved user/shop eligibility: `PROPOSED: general age 18+; firearm buyers 21+; Texas firearm transactions through verified Type 01/02 FFL pawnshops — COUNSEL APPROVAL PENDING`
 - Approved categories: `PROPOSED IN 02-launch-scope-decision-record.md — COUNSEL APPROVAL PENDING`
 - Approved features and money flows: `PROPOSED CONTROLLED-TEST SCOPE — COUNSEL/FINANCE APPROVAL PENDING`
-- Explicitly disabled/deferred features: `PROPOSED DEFERRAL LIST RECORDED — COUNSEL APPROVAL PENDING`
+- Explicitly disabled/deferred features: `PROPOSED DEFERRAL LIST RECORDED; FIREARM PAYMENTS, DTC/C2C FIREARM TRANSFERS, AMMUNITION, SUPPRESSORS, NFA FIREARMS, DESTRUCTIVE DEVICES AND OTHER SPECIALLY REGULATED ITEMS DISABLED/DEFERRED — COUNSEL APPROVAL PENDING`
 - Beta caps and stop criteria: `PROPOSED: 5 shops, 250 invited users, 25 transactions/day, $2,500/transaction, $10,000/day, 60 days — FINAL APPROVAL PENDING`
 - Effective date: `PENDING`
 - Required next review triggers/date: `PENDING`
@@ -55,6 +55,8 @@ Counsel approval does not certify engineering, security, provider configuration,
 - Conditions/limits: `PENDING`
 - UTC/signature: `PENDING`
 
+Firearm payment condition: `BLOCKED`. Written Stripe approval must expressly cover PawnLoop, Stripe Connect, participating shop categories, platform fees and firearm transactions. Counsel and Finance must approve the written scope and exact architecture before any firearm payment capability or test is enabled.
+
 ## 5. Privacy/security approval
 
 - Decision: `PENDING`
@@ -74,6 +76,8 @@ Counsel approval does not certify engineering, security, provider configuration,
 - Coverage, escalation, procedures and tabletop evidence IDs: `PENDING`
 - Conditions: `PENDING`
 - UTC/signatures: `PENDING`
+
+Firearm operating approval must reference Type 01/02 FFL verification, listing review, minimum transfer attestation, incident/suspension rehearsals, owners/alternates, and evidence IDs `FFL-E001` through `FFL-E004`.
 
 ## 7. Recovery/release approval
 

@@ -27,6 +27,15 @@ The owner did not authorize publication of the personal name, street/mailing add
 - Critical incident acknowledgment within 15 minutes and containment/pause decision within 60 minutes
 - RTO 4 hours and RPO 15 minutes, subject to successful provider evidence and restore drill
 - Signed counsel approval retained in restricted storage with only an evidence reference in GitHub
+- Firearms classified as `CONTROLLED TEST ONLY`, not permanently prohibited
+- Firearm participation limited to verified Type 01 or Type 02 FFL pawnshops
+- Initial firearm transactions limited to Texas and firearm buyers required to be 21+
+- Public firearm browsing, reservation and shop contact may be considered; physical transfer must occur through the selling or receiving FFL
+- The FFL retains responsibility for identification, Form 4473, NICS, acquisition/disposition records and applicable reporting
+- PawnLoop must not store Form 4473 or NICS records and may retain only minimum approved compliance attestations
+- No direct-to-consumer firearm shipping and no customer-to-customer firearm transactions
+- Ammunition, suppressors, NFA firearms, destructive devices and other specially regulated items deferred
+- PawnLoop/Stripe firearm payments disabled until written Stripe approval covers PawnLoop, Connect, participating shops, platform fees and firearm transactions; counsel and Finance approval still required
 
 The exact enabled, controlled-test, and deferred feature/category lists are recorded in `02-launch-scope-decision-record.md`.
 
@@ -42,6 +51,8 @@ The exact enabled, controlled-test, and deferred feature/category lists are reco
 8. Exact Stripe Connect charge architecture, negative-balance responsibility, dispute allocation, payout controls, and reserve capability
 9. Approved legal documents and exact publication/assent versions
 10. Staging, recovery, reconciliation, accessibility, security, and operating rehearsal evidence
+11. Written firearm-scope counsel approval, FFL verification/listing/transfer/incident rehearsal evidence, and approved minimum-attestation retention rules
+12. Written Stripe firearm approval; until accepted, firearm payments remain disabled even if non-payment browsing or reservation is later approved
 
 ## Start-date rule
 

@@ -17,6 +17,7 @@ No person is inferred from repository history. Record a primary owner, alternate
 | Database/recovery | DESIGNATED — RESTRICTED ROSTER | PENDING | RTO 4 hours; RPO 15 minutes, subject to drill | Recovery-point and restore actions | PITR/restore evidence | BLOCKED PENDING ALTERNATE/DRILL |
 | Payments/finance | DESIGNATED — RESTRICTED ROSTER | PENDING | Daily + incident coverage | Refund/payout/reconciliation exceptions | Daily reconciliation | BLOCKED PENDING ALTERNATE/REHEARSAL |
 | Trust & Safety | DESIGNATED — RESTRICTED ROSTER | PENDING | Critical acknowledgment 15 minutes | Prohibited item/moderation action | Case evidence | BLOCKED PENDING ALTERNATE/REHEARSAL |
+| Firearm compliance operations | PENDING | PENDING | Before every FFL activation/listing; immediate suspension on a stop event | FFL verification, listing approval, transfer attestation and suspension | FFL/listing/transfer rehearsal evidence | BLOCKED — COUNSEL/OPERATING APPROVAL REQUIRED |
 | Customer support | DESIGNATED — RESTRICTED ROSTER | PENDING | 8:00 a.m.–7:00 p.m. Central, Monday–Sunday; 1 business-hour response during coverage | Case ownership and escalation | Support rehearsal | BLOCKED PENDING ALTERNATE/REHEARSAL |
 | Shop onboarding/success | DESIGNATED — RESTRICTED ROSTER | PENDING | Before every shop activation | Beta shop entry/training | Shop eligibility record | BLOCKED — NO SHOPS CONFIRMED |
 | Incident commander | DESIGNATED — RESTRICTED ROSTER | PENDING SEPARATE PERSON | 15-minute acknowledgment; 60-minute containment/pause decision | Incident coordination and containment | Tabletop/drill | BLOCKED — ALTERNATE REQUIRED |
@@ -36,6 +37,7 @@ Owner decisions accepted for counsel and operating review:
 - Maximum 25 completed transactions per day, $2,500 per transaction and $10,000 daily platform volume
 - Nationwide read-only browsing; international and unapproved interstate regulated transactions deferred
 - Initial Houston-area licensed-shop cohort; no participating shop is currently confirmed
+- Firearms are controlled-test only, not permanently prohibited: verified Type 01/02 FFL pawnshops, Texas-only initial transactions, buyers 21+, FFL physical transfer, and no PawnLoop firearm payments pending written Stripe and counsel approval
 - Support coverage 8:00 a.m.–7:00 p.m. Central, Monday–Sunday
 - Critical incident acknowledgment within 15 minutes and containment/pause decision within 60 minutes
 - RTO 4 hours and RPO 15 minutes, subject to provider capability and successful drill
@@ -71,6 +73,8 @@ For each shop record:
 - successful bounded staging/onboarding validation;
 - entry approvals and UTC; and
 - next eligibility review/expiration.
+
+For firearm participation also record the minimized Type 01/02 FFL verification evidence ID and expiration, Texas premises/transaction eligibility, firearm-policy training, approved listing reviewer, transfer-attestation authority, and firearm-specific suspension contact. Do not commit Form 4473, NICS, government-ID, denial-reason, or acquisition/disposition records.
 
 Never commit raw government IDs, financial account details, credentials, or unredacted license documents to the repository.
 

@@ -12,6 +12,7 @@ This packet organizes the decisions, documents, operating procedures, evidence, 
 - Public identity: `PawnLoop, operated by Bealtair LLC — OWNER APPROVED; PENDING COUNSEL CONFIRMATION`
 - Proposed launch geography: `Texas transactional beta; nationwide read-only browsing; international and unapproved interstate regulated transactions deferred`
 - Proposed beta scope: `Five-shop, 250-invited-user, 60-day controlled beta under the approved scope record`
+- Firearm scope: `OWNER-APPROVED CONTROLLED-TEST PROPOSAL; TEXAS TYPE 01/02 FFL SHOPS AND AGE 21+ BUYERS ONLY; COUNSEL/STRIPE/OPERATING APPROVALS PENDING; NOT ACTIVE`
 - Counsel reviewer and firm: `NOT YET SELECTED — BLOCKED`
 - Business approval owner: `DESIGNATED OWNER — IDENTITY HELD IN RESTRICTED APPROVAL RECORD`
 - Review opened UTC: `PENDING`
@@ -27,6 +28,7 @@ This packet organizes the decisions, documents, operating procedures, evidence, 
 6. [Approval evidence register](06-approval-evidence-register.md) — evidence IDs and acceptance criteria.
 7. [Counsel and business sign-off record](07-signoff-record.md) — exact-version approval, conditions, exceptions, and final disposition.
 8. [Owner decisions and unresolved approval inputs](08-owner-decisions.md) — repository-safe owner proposals, accepted controls, and remaining blockers.
+9. [Firearm controlled-test merchandise policy](09-firearm-controlled-test-policy.md) — proposed FFL, age, transfer, data-minimization, payment, incident, and approval boundary.
 
 ## Existing repository source records
 
