@@ -10,7 +10,7 @@ PR #352 replaced and integrated PR #330, PR #355 replaced and integrated PR #315
 
 | Intake or event | First owner | Escalation | Required record |
 |---|---|---|---|
-| General customer/shop support | OWNER: TBD; SUPPORT EMAIL: TBD | Support lead: OWNER: TBD | Case ID, timestamps, account/transaction references, redacted facts, disposition |
+| General customer/shop support | OWNER: TBD; TEMPORARY PUBLIC SUPPORT EMAIL: `bealtair1@icloud.com` | Support lead: OWNER: TBD | Case ID, timestamps, account/transaction references, redacted facts, disposition |
 | Account access or suspected takeover | OWNER: TBD | Security lead: OWNER: TBD | Security case; preserve authentication/audit evidence |
 | Abuse, harassment, user report/block request | OWNER: TBD | Trust/safety and legal: OWNER: TBD / PENDING COUNSEL REVIEW | Moderation case, evidence, action, appeal |
 | Prohibited or stolen property | OWNER: TBD | Trust/safety, legal, and law enforcement as approved | Restricted case; preservation/reporting rules PENDING COUNSEL REVIEW |
@@ -23,6 +23,8 @@ PR #352 replaced and integrated PR #330, PR #355 replaced and integrated PR #315
 | Data breach or secret exposure | Security: OWNER: TBD | Incident commander and counsel | Security incident; notification duties PENDING COUNSEL REVIEW |
 
 Support contact, published hours, after-hours coverage, queue/case system, case owner, escalation targets, acknowledgment/response expectations, and handoff procedure: **PENDING OWNER ASSIGNMENT** and **TBD WITH APPROVAL**. Real pawn shops must validate intake, escalation, usability, and operating-hours assumptions before transactional-beta entry.
+
+The owner confirmed successful send, receive, and reply testing for the temporary public support email on August 18, 2026. This operational confirmation does not establish a privacy-request address, legal-notice address, service level, support hours, or long-term mailbox ownership.
 
 Do not promise response times, refunds, outcomes, or legal disclosures until approved. Customer identity verification, access limits, evidence retention, appeal rules, and emergency routing remain TBD.
 
