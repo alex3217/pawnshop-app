@@ -76,7 +76,7 @@ An empty field is not approval. Verbal discussion, a draft document, an automate
 ## Evidence handling
 
 - Link evidence rather than embedding credentials, tokens, database URLs, government IDs, customer records, privileged communications, or payment data.
-- Keep personal names, private email addresses, the non-public mailing address, signatures, and privileged communications in restricted storage. The repository may identify a role and evidence ID without publishing the underlying private record.
+- Except for an owner-authorized public role contact recorded in the launch-scope decision, keep personal names, private email addresses, the non-public mailing address, signatures, and privileged communications in restricted storage. The repository may identify a role and evidence ID without publishing the underlying private record.
 - Redact secrets and personal data while preserving reviewer, system, date, scope, outcome, and immutable identity.
 - Record exact document versions, commit SHAs, provider deployment IDs, and UTC timestamps.
 - Retain superseded legal documents and assent records according to the counsel-approved retention policy.
