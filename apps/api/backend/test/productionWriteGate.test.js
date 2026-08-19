@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import express from "express";
 import request from "supertest";
+import { createApp } from "../src/app.js";
+import { MemoryRateLimitStore, RedisAuthRateLimitStore } from "../src/middleware/authRateLimit.js";
 import {
   PUBLIC_PREVIEW_ERROR_CODE,
   PRODUCTION_AUTH_MUTATION_ALLOWLIST,
@@ -159,4 +161,78 @@ test("provider webhook allowlist documents only cryptographically verified mount
     "POST /webhooks/stripe/connect",
     "POST /api/webhooks/stripe/connect",
   ]);
+});
+
+test("mounted production app enforces the route matrix before body parsing", async () => {
+  const redisUrl = process.env.T32W_TEST_REDIS_URL;
+  const app = createApp({
+    env: {
+      APP_ENV: "production",
+      NODE_ENV: "test",
+      JWT_SECRET: "production-write-gate-route-matrix-test-secret",
+      AUTH_RATE_LIMIT_ENABLED: "true",
+      AUCTION_SCHEDULER_ENABLED: "false",
+      ...(redisUrl ? { REDIS_URL: redisUrl } : {}),
+    },
+    ...(!redisUrl ? { authRateLimitStore: new MemoryRateLimitStore() } : {}),
+    uploadStorage: { check: async () => ({ enabled: true }) },
+    imageRuntimeCheck: async () => true,
+    readinessCheck: async () => true,
+  });
+
+  try {
+    if (redisUrl) {
+      assert.ok(app.locals.authRateLimiters.store instanceof RedisAuthRateLimitStore);
+      await app.locals.authRateLimiters.check();
+    }
+
+    for (const path of ["/capabilities", "/api/capabilities"]) {
+      const response = await request(app).get(path);
+      assert.equal(response.status, 200, path);
+      assert.equal(response.body.publicPreview.readOnly, true, path);
+      assert.equal(response.body.publicPreview.productionWritesEnabled, false, path);
+      assert.equal(response.headers["cache-control"], "no-store", path);
+    }
+
+    for (const route of PRODUCTION_AUTH_MUTATION_ALLOWLIST) {
+      const path = route.slice("POST ".length);
+      const response = await request(app).post(path).send({});
+      assert.notEqual(response.status, 503, path);
+      assert.notEqual(response.body.code, PUBLIC_PREVIEW_ERROR_CODE, path);
+    }
+
+    for (const route of PRODUCTION_WEBHOOK_ALLOWLIST) {
+      const path = route.slice("POST ".length);
+      const response = await request(app)
+        .post(path)
+        .set("Content-Type", "application/json")
+        .send("{}");
+      assert.equal(response.status, 400, path);
+      assert.equal(response.body.message, "Missing Stripe signature header.", path);
+    }
+
+    for (const [method, path] of [
+      ["post", "/api/auth/register"],
+      ["put", "/api/items/example"],
+      ["patch", "/api/marketplace-listings/example"],
+      ["delete", "/api/auctions/example"],
+    ]) {
+      const response = await request(app)[method](path).send({});
+      assert.equal(response.status, 503, `${method} ${path}`);
+      assert.equal(response.body.code, PUBLIC_PREVIEW_ERROR_CODE, `${method} ${path}`);
+      assert.equal(response.headers["retry-after"], "300", `${method} ${path}`);
+      assert.equal(response.headers["cache-control"], "no-store", `${method} ${path}`);
+    }
+
+    const malformed = await request(app)
+      .post("/api/items")
+      .set("Content-Type", "application/json")
+      .send('{"broken":');
+    assert.equal(malformed.status, 503);
+    assert.equal(malformed.body.code, PUBLIC_PREVIEW_ERROR_CODE);
+    assert.equal(malformed.headers["retry-after"], "300");
+    assert.equal(malformed.headers["cache-control"], "no-store");
+  } finally {
+    await app.locals.authRateLimiters.close();
+  }
 });
