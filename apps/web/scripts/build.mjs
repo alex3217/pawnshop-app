@@ -1,18 +1,19 @@
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { resolveEnvironmentContract } from "../src/environmentContract.mjs";
+import { validateDeploymentTarget } from "./deploymentTargets.mjs";
 
 export function resolveBuildEnvironment(env = process.env) {
   const resolved = { ...env };
 
-  resolveEnvironmentContract({
+  validateDeploymentTarget(resolveEnvironmentContract({
     deployEnv: resolved.VITE_DEPLOY_ENV,
     apiOrigin: resolved.VITE_API_ORIGIN,
     apiPath: resolved.VITE_API_BASE,
     apiPathAlias: resolved.VITE_API_BASE_URL,
     socketUrl: resolved.VITE_SOCKET_URL,
     socketPath: resolved.VITE_SOCKET_PATH,
-  });
+  }));
 
   return resolved;
 }

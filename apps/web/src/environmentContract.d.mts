@@ -18,8 +18,6 @@ export type EnvironmentContract = {
   showEnvironmentIndicator: boolean;
 };
 
-export const PRODUCTION_API_ORIGIN: "https://api.pawnloop.com";
-export const STAGING_API_ORIGIN: "https://pawnshop-staging-api.onrender.com";
 export function resolveEnvironmentContract(
   input: EnvironmentContractInput,
   options?: { isDev?: boolean; browserOrigin?: string },

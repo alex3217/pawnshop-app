@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolveEnvironmentContract } from "./src/environmentContract.mjs";
+import { validateDeploymentTarget } from "./scripts/deploymentTargets.mjs";
 
 const SHA = /^[0-9a-f]{40}$/;
 
@@ -22,7 +23,7 @@ export function createReleaseArtifact(env: Record<string, string>, generatedAt =
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  resolveEnvironmentContract({
+  validateDeploymentTarget(resolveEnvironmentContract({
     deployEnv: env.VITE_DEPLOY_ENV,
     apiOrigin: env.VITE_API_ORIGIN,
     apiPath: env.VITE_API_BASE,
@@ -31,7 +32,7 @@ export default defineConfig(({ command, mode }) => {
     socketPath: env.VITE_SOCKET_PATH,
   }, {
     isDev: command === "serve" && mode !== "production",
-  });
+  }));
   const apiTarget = env.VITE_API_TARGET || "http://127.0.0.1:6002";
   const releaseArtifact = command === "build" ? createReleaseArtifact(env) : null;
   const releasePlugin: Plugin | null = releaseArtifact ? {

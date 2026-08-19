@@ -1,6 +1,3 @@
-export const PRODUCTION_API_ORIGIN = "https://api.pawnloop.com";
-export const STAGING_API_ORIGIN = "https://pawnshop-staging-api.onrender.com";
-
 const DEPLOYED_ENVIRONMENTS = new Set(["preview", "staging", "production"]);
 
 function normalizeOrigin(name, value) {
@@ -95,13 +92,8 @@ export function resolveEnvironmentContract(input, options = {}) {
 
   const apiOrigin = normalizeOrigin("apiOrigin", input.apiOrigin);
   const socketUrl = normalizeOrigin("socketUrl", input.socketUrl);
-  const expectedOrigin = deployEnv === "production" ? PRODUCTION_API_ORIGIN : STAGING_API_ORIGIN;
-
-  if (apiOrigin !== expectedOrigin) {
-    throw new Error(`${deployEnv} builds must use ${expectedOrigin} as apiOrigin.`);
-  }
-  if (socketUrl !== expectedOrigin) {
-    throw new Error(`${deployEnv} builds must use ${expectedOrigin} as socketUrl.`);
+  if (apiOrigin !== socketUrl) {
+    throw new Error("apiOrigin and socketUrl must use the same deployed origin.");
   }
 
   const apiPath = resolveApiPath(input);
