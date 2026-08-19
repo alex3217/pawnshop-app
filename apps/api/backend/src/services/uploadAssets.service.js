@@ -6,7 +6,7 @@ const PUBLIC_LISTING_IMAGE_KINDS = new Set(["ITEM_IMAGE"]);
 export const MANAGED_PUBLIC_MEDIA_ERROR = Object.freeze({
   statusCode: 422,
   code: "MANAGED_PUBLIC_MEDIA_REQUIRED",
-  message: "Publish this listing with attached, shop-owned inventory photos uploaded through PawnLoop.",
+  message: "Publish this listing with attached managed photos uploaded through PawnLoop.",
 });
 
 function managedPublicMediaError() {
@@ -32,8 +32,9 @@ export async function recordUploadedAsset({ id, target, uploaderId, key, url, ki
       deliveryUrl: url,
       kind,
       uploaderId,
-      shopId: target.shopId,
+      shopId: target.shopId || null,
       itemId: target.itemId || null,
+      marketplaceListingId: target.marketplaceListingId || null,
       deleteAfter: new Date(Date.now() + TEMPORARY_TTL_MS),
     },
   });
@@ -44,10 +45,13 @@ export async function assertManagedPublicListingImages({
   images = listing?.images,
   prismaClient = prisma,
 }) {
-  if (listing?.listingType !== "SHOP_TO_CUSTOMER") return;
+  const isShopPublicListing = listing?.listingType === "SHOP_TO_CUSTOMER";
+  const isCustomerListing = ["CUSTOMER_TO_CUSTOMER", "CUSTOMER_TO_SHOP"].includes(listing?.listingType);
+  if (!isShopPublicListing && !isCustomerListing) return;
 
   const urls = [...new Set((Array.isArray(images) ? images : []).filter(Boolean))];
-  if (!listing?.sellerShopId || !listing?.itemId || urls.length === 0) {
+  if (isCustomerListing && urls.length === 0) return;
+  if (isShopPublicListing && (!listing?.sellerShopId || !listing?.itemId || urls.length === 0)) {
     throw managedPublicMediaError();
   }
 
@@ -59,6 +63,8 @@ export async function assertManagedPublicListingImages({
       status: true,
       shopId: true,
       itemId: true,
+      uploaderId: true,
+      marketplaceListingId: true,
       attachedAt: true,
       deleteAfter: true,
       deletedAt: true,
@@ -70,9 +76,9 @@ export async function assertManagedPublicListingImages({
     const asset = byUrl.get(url);
     return Boolean(
       asset
-      && asset.shopId === listing.sellerShopId
-      && asset.itemId === listing.itemId
-      && PUBLIC_LISTING_IMAGE_KINDS.has(asset.kind)
+      && (isShopPublicListing
+        ? asset.shopId === listing.sellerShopId && asset.itemId === listing.itemId && PUBLIC_LISTING_IMAGE_KINDS.has(asset.kind)
+        : asset.uploaderId === listing.sellerUserId && asset.marketplaceListingId === listing.id && asset.kind === "MARKETPLACE_LISTING_IMAGE")
       && asset.status === "ATTACHED"
       && asset.attachedAt
       && asset.deleteAfter === null
@@ -82,6 +88,16 @@ export async function assertManagedPublicListingImages({
   });
 
   if (!valid) throw managedPublicMediaError();
+}
+
+export async function lockMarketplaceListingForPhotoUpdate(tx, listingId) {
+  const rows = await tx.$queryRaw`
+    SELECT "id", "sellerUserId", "sellerShopId", "listingType", "status", "images"
+    FROM "MarketplaceListing"
+    WHERE "id" = ${listingId}
+    FOR UPDATE
+  `;
+  return rows?.[0] || null;
 }
 
 export async function lockShopBrandingForUpdate(tx, shopId) {
@@ -106,12 +122,63 @@ export async function lockItemImagesForUpdate(tx, itemId) {
 
 async function lockUploadAssetByUrl(tx, deliveryUrl) {
   const rows = await tx.$queryRaw`
-    SELECT "id", "objectKey", "deliveryUrl", "uploaderId", "shopId", "itemId", "status"
+    SELECT "id", "objectKey", "deliveryUrl", "uploaderId", "shopId", "itemId", "marketplaceListingId", "status"
     FROM "UploadAsset"
     WHERE "deliveryUrl" = ${deliveryUrl}
     FOR UPDATE
   `;
   return rows?.[0] || null;
+}
+
+export async function reconcileMarketplaceListingAssetUrls({ tx, listing, actorId, previousUrls = [], nextUrls = [] }) {
+  const previous = new Set((previousUrls || []).filter(Boolean));
+  const next = new Set((nextUrls || []).filter(Boolean));
+  if (!["DRAFT", "PAUSED"].includes(listing.status)) {
+    const error = new Error("Only draft or paused listings may change photos");
+    error.statusCode = 409;
+    throw error;
+  }
+  if (listing.sellerUserId !== actorId || listing.sellerShopId || !["CUSTOMER_TO_CUSTOMER", "CUSTOMER_TO_SHOP"].includes(listing.listingType)) {
+    const error = new Error("Forbidden");
+    error.statusCode = 403;
+    throw error;
+  }
+  const added = [...next].filter((url) => !previous.has(url));
+  const removed = [...previous].filter((url) => !next.has(url));
+  if (added.length) {
+    const assets = await lockUploadAssetsByUrl(tx, added);
+    const byUrl = new Map(assets.map((asset) => [asset.deliveryUrl, asset]));
+    for (const url of added) {
+      const asset = byUrl.get(url);
+      if (!asset) {
+        const error = new Error("Listing photos must reference managed upload assets");
+        error.statusCode = 400;
+        throw error;
+      }
+      if (asset.uploaderId !== actorId || asset.marketplaceListingId !== listing.id || asset.kind !== "MARKETPLACE_LISTING_IMAGE" || !["TEMPORARY", "ATTACHED"].includes(asset.status)) {
+        const error = new Error("Uploaded image does not belong to this listing");
+        error.statusCode = 403;
+        throw error;
+      }
+    }
+    const attached = await tx.uploadAsset.updateMany({
+      where: { deliveryUrl: { in: added }, uploaderId: actorId, marketplaceListingId: listing.id, kind: "MARKETPLACE_LISTING_IMAGE", status: { in: ["TEMPORARY", "ATTACHED"] } },
+      data: { status: "ATTACHED", attachedAt: new Date(), deleteAfter: null, lastError: null },
+    });
+    if (attached.count !== assets.length) {
+      const error = new Error("Uploaded image state changed before attachment");
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+  if (!removed.length) return [];
+  const owned = (await lockUploadAssetsByUrl(tx, removed))
+    .filter((asset) => asset?.uploaderId === actorId && asset.marketplaceListingId === listing.id && ["TEMPORARY", "ATTACHED"].includes(asset.status))
+    .map(({ id, objectKey }) => ({ id, objectKey }));
+  if (owned.length) {
+    await tx.uploadAsset.updateMany({ where: { id: { in: owned.map(({ id }) => id) } }, data: { status: "DELETE_PENDING", deleteAfter: new Date(), lastError: null } });
+  }
+  return owned;
 }
 
 async function lockUploadAssetsByUrl(tx, urls) {
@@ -199,14 +266,14 @@ export async function deleteTrackedAssets({ assets, storage, prismaClient = pris
     try {
       const current = await prismaClient.uploadAsset.findUnique({
         where: { id: asset.id },
-        select: { id: true, objectKey: true, deliveryUrl: true, shopId: true, itemId: true, status: true },
+        select: { id: true, objectKey: true, deliveryUrl: true, shopId: true, itemId: true, marketplaceListingId: true, status: true },
       });
       if (!current || current.status !== "DELETE_PENDING") {
         results.push({ id: asset.id, deleted: false, skipped: true });
         continue;
       }
 
-      const [brandingReference, itemReference] = await Promise.all([
+      const [brandingReference, itemReference, listingReference] = await Promise.all([
         prismaClient.pawnShop.findFirst({
           where: {
             id: current.shopId,
@@ -221,8 +288,14 @@ export async function deleteTrackedAssets({ assets, storage, prismaClient = pris
               select: { id: true },
             })
           : null,
+        current.marketplaceListingId
+          ? prismaClient.marketplaceListing.findFirst({
+              where: { id: current.marketplaceListingId, images: { has: current.deliveryUrl } },
+              select: { id: true },
+            })
+          : null,
       ]);
-      if (brandingReference || itemReference) {
+      if (brandingReference || itemReference || listingReference) {
         await prismaClient.uploadAsset.updateMany({
           where: { id: current.id, status: "DELETE_PENDING" },
           data: { status: "ATTACHED", deleteAfter: null, lastError: null },

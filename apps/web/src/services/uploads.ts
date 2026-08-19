@@ -204,6 +204,21 @@ export async function uploadItemImages(
   });
 }
 
+export async function uploadMarketplaceListingImages(
+  marketplaceListingId: string,
+  files: File[],
+): Promise<UploadedFile[]> {
+  const normalizedId = String(marketplaceListingId || "").trim();
+  if (!normalizedId) throw new Error("Marketplace listing ID is required for photo uploads.");
+  const formData = new FormData();
+  for (const file of files) formData.append("images", file);
+  const data = await api.upload<unknown>(
+    `/uploads/marketplace-listings/${encodeURIComponent(normalizedId)}`,
+    formData,
+  );
+  return normalizeUploadedFiles(data);
+}
+
 export async function uploadShopLogo(
   shopId: string,
   file: File,

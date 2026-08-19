@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import { authRequired } from "../middleware/auth.js";
+import { authRequired, requireRole } from "../middleware/auth.js";
 import { requireOwnerAdminOrStaffPermission } from "../middleware/staffAccess.middleware.js";
 import { loadUploadLimits } from "../config/uploads.js";
 import { uploadImages } from "../services/uploads.service.js";
@@ -33,6 +33,23 @@ export function createUploadsRouter({ storage, limits = loadUploadLimits(), prot
   const uploadProtection = protection || createUploadProtection({ limits });
   const exposeLimits = (req, _res, next) => { req.uploadLimits = limits; next(); };
   const protectedUpload = [...authorize, uploadProtection.rateLimit, uploadProtection.concurrency, exposeLimits, rejectOversizedMultipart];
+  const consumerUpload = [authRequired, requireRole("CONSUMER"), uploadProtection.rateLimit, uploadProtection.concurrency, exposeLimits, rejectOversizedMultipart];
+
+  router.post("/marketplace-listings/:listingId", ...consumerUpload, multipart.any(), uploadError, async (req, res, next) => {
+    try {
+      const files = await uploadImages({
+        req,
+        files: req.files,
+        input: { kind: "MARKETPLACE_LISTING_IMAGE", marketplaceListingId: String(req.params.listingId || "") },
+        storage,
+        limits,
+        logger,
+      });
+      return res.status(201).json({ files });
+    } catch (error) {
+      return next(error);
+    }
+  });
 
   router.post("/", ...protectedUpload, multipart.any(), uploadError, async (req, res, next) => {
     try {

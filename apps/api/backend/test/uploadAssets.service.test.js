@@ -7,12 +7,40 @@ import {
   lockItemImagesForUpdate,
   lockShopBrandingForUpdate,
   reconcileAssetUrls,
+  reconcileMarketplaceListingAssetUrls,
   rollbackTemporaryAssets,
 } from "../src/services/uploadAssets.service.js";
 
 function asset(overrides = {}) {
   return { id: "asset-1", objectKey: "uploads/random.png", deliveryUrl: "https://assets.invalid/uploads/random.png", uploaderId: "user-1", shopId: "shop-1", itemId: "item-1", status: "TEMPORARY", deleteAfter: new Date(0), ...overrides };
 }
+
+function listingAsset(overrides = {}) {
+  return asset({
+    shopId: null,
+    itemId: null,
+    marketplaceListingId: "listing-1",
+    kind: "MARKETPLACE_LISTING_IMAGE",
+    ...overrides,
+  });
+}
+
+test("consumer listing reconciliation enforces owner, listing, managed URL, and editable state", async () => {
+  let row = listingAsset();
+  const tx = {
+    $queryRaw: async () => [row],
+    uploadAsset: { updateMany: async ({ data }) => { row = { ...row, ...data }; return { count: 1 }; } },
+  };
+  const listing = { id: "listing-1", sellerUserId: "user-1", sellerShopId: null, listingType: "CUSTOMER_TO_CUSTOMER", status: "DRAFT", images: [] };
+  await reconcileMarketplaceListingAssetUrls({ tx, listing, actorId: "user-1", nextUrls: [row.deliveryUrl] });
+  assert.equal(row.status, "ATTACHED");
+
+  row = listingAsset({ uploaderId: "user-2" });
+  await assert.rejects(reconcileMarketplaceListingAssetUrls({ tx, listing, actorId: "user-1", nextUrls: [row.deliveryUrl] }), (error) => error.statusCode === 403);
+  await assert.rejects(reconcileMarketplaceListingAssetUrls({ tx: { $queryRaw: async () => [] }, listing, actorId: "user-1", nextUrls: ["https://external.invalid/photo.jpg"] }), (error) => error.statusCode === 400);
+  await assert.rejects(reconcileMarketplaceListingAssetUrls({ tx, listing: { ...listing, status: "ACTIVE" }, actorId: "user-1", nextUrls: [row.deliveryUrl] }), (error) => error.statusCode === 409);
+  await assert.rejects(reconcileMarketplaceListingAssetUrls({ tx, listing, actorId: "user-2", nextUrls: [row.deliveryUrl] }), (error) => error.statusCode === 403);
+});
 
 test("reconciliation attaches owned assets and denies cross-shop attachment", async () => {
   let row = asset();

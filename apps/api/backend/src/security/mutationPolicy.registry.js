@@ -36,7 +36,12 @@ export const MUTATION_POLICY_EXCEPTIONS = Object.freeze({
     ...route("shopConversations.routes.js", ["POST /shop-compose", "POST /", "POST /:id/messages", "PATCH /:id/read", "PATCH /:id/close", "PATCH /:id/reopen", "PATCH /:id/block", "POST /:id/report"]),
     ...route("shops.routes.js", ["PUT /:id/onboarding/complete"]),
     ...route("superAdmin.routes.js", ["POST /plans/seller/:code/impact", "POST /plans/seller/:code/validate-stripe", "POST /growth/leads", "PATCH /growth/leads/:leadId", "DELETE /growth/leads/:leadId", "POST /growth/leads/:leadId/contacts", "PATCH /growth/leads/:leadId/contacts/:contactId", "POST /growth/leads/:leadId/activities", "POST /growth/leads/:leadId/suppress", "POST /growth/leads/:leadId/convert"]),
-    ...route("uploads.routes.js", ["POST /", "POST /bulk", "DELETE /:id"]),
+      ...route("uploads.routes.js", [
+        "POST /",
+        "POST /bulk",
+        "POST /marketplace-listings/:listingId",
+        "DELETE /:id",
+      ]),
   ],
 });
 

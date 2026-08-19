@@ -18,7 +18,7 @@ import {
 import ItemImagePicker from "../components/ItemImagePicker";
 import AiDescriptionControl from "../components/AiDescriptionControl";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
-import { durableImageUrls, normalizeListingOption, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
+import { durableImageUrls, normalizeListingOption, persistConsumerMarketplaceListingPhotos, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
 
 import "../styles/create-marketplace-listing.css";
 
@@ -369,7 +369,9 @@ export default function EditMarketplaceListingPage() {
     setSubmitting(true);
 
     try {
-      const images = await persistMarketplaceListingPhotos(listing.itemId || "", existingImages, photoFiles);
+      const images = listing.itemId
+        ? await persistMarketplaceListingPhotos(listing.itemId, existingImages, photoFiles)
+        : await persistConsumerMarketplaceListingPhotos(listing.id, existingImages, photoFiles);
       await updateMarketplaceListing(
         listing.id,
         {
@@ -688,8 +690,8 @@ export default function EditMarketplaceListingPage() {
             onChange={setPhotoFiles}
             existingImages={existingImages}
             onRemoveExisting={(url) => setExistingImages((current) => current.filter((image) => image !== url))}
-            disabled={submitting || !listing.itemId}
-            disabledReason={!listing.itemId ? "This listing is not linked to inventory. Link it before adding new durable photos." : ""}
+            disabled={submitting || (listing.listingType.startsWith("SHOP_") && !listing.itemId)}
+            disabledReason={listing.listingType.startsWith("SHOP_") && !listing.itemId ? "This shop listing is not linked to inventory. Link it before adding new durable photos." : ""}
             cameraLabel="Take Photo"
             galleryLabel="Choose Files"
           />

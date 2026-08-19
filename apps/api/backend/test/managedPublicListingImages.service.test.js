@@ -86,3 +86,12 @@ test("draft and non-customer-visible listing types remain usable without managed
   // The service is intentionally called only at publish or active-photo mutation boundaries.
   assert.equal(listing.images[0], url);
 });
+
+test("customer listings accept only attached assets owned by the seller and listing", async () => {
+  const customerListing = { id: "customer-listing", listingType: "CUSTOMER_TO_CUSTOMER", sellerUserId: "buyer-1", sellerShopId: null, itemId: null, images: [url] };
+  const customerAsset = { ...attached, uploaderId: "buyer-1", marketplaceListingId: "customer-listing", shopId: null, itemId: null, kind: "MARKETPLACE_LISTING_IMAGE" };
+  await assert.doesNotReject(assertManagedPublicListingImages({ listing: customerListing, prismaClient: client([customerAsset]) }));
+  await assert.rejects(assertManagedPublicListingImages({ listing: customerListing, prismaClient: client([{ ...customerAsset, uploaderId: "buyer-2" }]) }), (error) => error.publicCode === MANAGED_PUBLIC_MEDIA_ERROR.code);
+  await assert.rejects(assertManagedPublicListingImages({ listing: customerListing, prismaClient: client([{ ...customerAsset, marketplaceListingId: "other-listing" }]) }), (error) => error.publicCode === MANAGED_PUBLIC_MEDIA_ERROR.code);
+  await assert.rejects(assertManagedPublicListingImages({ listing: { ...customerListing, images: ["https://external.invalid/photo.jpg"] }, prismaClient: client([]) }), (error) => error.publicCode === MANAGED_PUBLIC_MEDIA_ERROR.code);
+});
