@@ -67,13 +67,18 @@ export type MarketplaceListing = {
   updatedAt: string;
   seller: MarketplaceListingUser;
   sellerShop?: MarketplaceListingShop | null;
-  destinationUser?: MarketplaceCustomerDestination | null;
+  destinationUser?: MarketplaceListingDestinationUser | null;
   destinationShop?: MarketplaceShopDestination | null;
   item?: MarketplaceListingItem | null;
 };
 
 export type MarketplaceCustomerDestination = {
-  id: string;
+  reference: string;
+  displayName: string;
+  publicIdentifier: string;
+};
+
+export type MarketplaceListingDestinationUser = {
   publicDisplayName: string;
   publicMessageIdentifier: string;
 };
@@ -316,7 +321,8 @@ export type CreateMarketplaceListingInput = {
   intakeId?: string | null;
   listingType: MarketplaceListingType;
   sellerShopId?: string | null;
-  destinationUserId?: string | null;
+  audience?: "PUBLIC_MARKETPLACE" | "SPECIFIC_CUSTOMER";
+  destinationCustomerReference?: string | null;
   destinationShopId?: string | null;
   itemId?: string | null;
   title: string;
@@ -335,6 +341,9 @@ export type CreateMarketplaceListingInput = {
 };
 
 export type UpdateMarketplaceListingInput = {
+  audience?: "PUBLIC_MARKETPLACE" | "SPECIFIC_CUSTOMER";
+  destinationCustomerReference?: string | null;
+  destinationShopId?: string | null;
   title?: string;
   description?: string | null;
   category?: string | null;
@@ -441,7 +450,7 @@ function normalizeCreateListingInput(
         input.sellerShopId || "",
       ).trim() || null,
 
-    destinationUserId: String(input.destinationUserId || "").trim() || null,
+    destinationCustomerReference: String(input.destinationCustomerReference || "").trim() || null,
     destinationShopId: String(input.destinationShopId || "").trim() || null,
 
     itemId:
@@ -574,14 +583,14 @@ function unwrapRows<T>(data: unknown): T[] {
   return isObject(data.data) && Array.isArray(data.data.rows) ? data.data.rows as T[] : [];
 }
 
-export async function searchMarketplaceCustomerDestinations(search: string): Promise<MarketplaceCustomerDestination[]> {
+export async function searchMarketplaceCustomerDestinations(search: string, signal?: AbortSignal): Promise<MarketplaceCustomerDestination[]> {
   const query = new URLSearchParams({ search: search.trim() });
-  return unwrapRows<MarketplaceCustomerDestination>(await api.get(`/marketplace-listings/destinations/customers?${query}`));
+  return unwrapRows<MarketplaceCustomerDestination>(await api.get(`/marketplace-listings/destinations/customers?${query}`, { signal }));
 }
 
-export async function searchMarketplaceShopDestinations(search: string): Promise<MarketplaceShopDestination[]> {
+export async function searchMarketplaceShopDestinations(search: string, signal?: AbortSignal): Promise<MarketplaceShopDestination[]> {
   const query = new URLSearchParams({ search: search.trim() });
-  return unwrapRows<MarketplaceShopDestination>(await api.get(`/marketplace-listings/destinations/shops?${query}`));
+  return unwrapRows<MarketplaceShopDestination>(await api.get(`/marketplace-listings/destinations/shops?${query}`, { signal }));
 }
 
 export async function getReceivedMarketplaceListings(): Promise<MarketplaceListing[]> {

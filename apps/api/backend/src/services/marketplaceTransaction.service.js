@@ -598,7 +598,7 @@ async function loadBuyerShop({
   return shop;
 }
 
-function assertListingCanBePurchased({
+export function assertListingCanBePurchased({
   listing,
   buyer,
   buyerShop,

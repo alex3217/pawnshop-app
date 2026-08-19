@@ -298,3 +298,29 @@
     flex-direction: column-reverse;
   }
 }
+.destination-audience {
+  display: flex;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+
+.destination-audience legend { margin-bottom: 0.5rem; font-weight: 700; }
+.destination-audience label { display: inline-flex; align-items: center; gap: 0.4rem; }
+.destination-combobox { position: relative; display: grid; gap: 0.45rem; }
+.destination-combobox > label { font-weight: 700; }
+.destination-search-status { min-height: 1.4rem; color: var(--text-muted); }
+.destination-results { position: absolute; z-index: 20; top: 100%; width: 100%; max-height: 15rem; overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--shadow-soft); }
+.destination-results [role="option"] { padding: 0.75rem; cursor: pointer; }
+.destination-results [role="option"].active,
+.destination-results [role="option"]:hover { background: var(--surface-strong); outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.destination-selected-card { display: grid; gap: 0.5rem; padding: 1rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-strong); }
+.destination-selected-card > span { color: var(--text-muted); }
+.destination-selected-card > div { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+@media (max-width: 640px) {
+  .destination-audience { flex-direction: column; }
+  .destination-selected-card > div button { flex: 1 1 8rem; min-height: 44px; }
+  .destination-results { position: static; max-height: 12rem; }
+}

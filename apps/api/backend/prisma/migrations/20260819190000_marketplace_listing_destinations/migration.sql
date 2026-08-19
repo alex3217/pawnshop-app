@@ -18,7 +18,7 @@ ON "MarketplaceListing"("destinationShopId", "status", "createdAt");
 
 ALTER TABLE "MarketplaceListing"
 ADD CONSTRAINT "MarketplaceListing_destination_type_check" CHECK (
-  ("destinationUserId" IS NULL OR "listingType" = 'CUSTOMER_TO_CUSTOMER')
-  AND ("destinationShopId" IS NULL OR "listingType" = 'CUSTOMER_TO_SHOP')
-  AND NOT ("destinationUserId" IS NOT NULL AND "destinationShopId" IS NOT NULL)
-);
+  ("listingType" = 'CUSTOMER_TO_CUSTOMER' AND "destinationShopId" IS NULL)
+  OR ("listingType" = 'CUSTOMER_TO_SHOP' AND "destinationUserId" IS NULL AND "destinationShopId" IS NOT NULL)
+  OR ("listingType" IN ('SHOP_TO_CUSTOMER', 'SHOP_TO_SHOP') AND "destinationUserId" IS NULL AND "destinationShopId" IS NULL)
+) NOT VALID;

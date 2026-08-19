@@ -19,6 +19,7 @@ import {
   optionalAuth,
   requireRole,
 } from "../middleware/auth.js";
+import { marketplaceDestinationSearchRateLimit } from "../middleware/marketplaceDestinationSearchRateLimit.js";
 
 const router = express.Router();
 
@@ -31,9 +32,9 @@ const MARKETPLACE_SELLER_ROLES = [
 
 router.get("/", listMarketplaceListings);
 
-router.get("/destinations/customers", authRequired, requireRole("CONSUMER", "ADMIN", "SUPER_ADMIN"), searchMarketplaceCustomerDestinations);
-router.get("/destinations/shops", authRequired, requireRole("CONSUMER", "ADMIN", "SUPER_ADMIN"), searchMarketplaceShopDestinations);
-router.get("/received", authRequired, requireRole(...MARKETPLACE_SELLER_ROLES), listReceivedMarketplaceListings);
+router.get("/destinations/customers", authRequired, requireRole("CONSUMER", "ADMIN", "SUPER_ADMIN"), marketplaceDestinationSearchRateLimit, searchMarketplaceCustomerDestinations);
+router.get("/destinations/shops", authRequired, requireRole("CONSUMER", "ADMIN", "SUPER_ADMIN"), marketplaceDestinationSearchRateLimit, searchMarketplaceShopDestinations);
+router.get("/received", authRequired, listReceivedMarketplaceListings);
 
 router.get(
   "/mine",

@@ -26,6 +26,8 @@ test("directed listing routes require authentication and precede the id route", 
 test("listing controller validates targets and excludes directed listings from public discovery", async () => {
   const controller = await read("src/controllers/marketplaceListings.controller.js");
   assert.match(controller, /role: "CONSUMER", isActive: true, messageDiscoverable: true/);
+  assert.match(controller, /reference: row\.publicMessageIdentifier/);
+  assert.doesNotMatch(controller, /rows: rows\.map\(\(row\) => \(\{ id:/);
   assert.match(controller, /isDeleted: false, isActive: true, isPublic: true/);
   assert.match(controller, /destinationUserId: null,\s+destinationShopId: null/);
   assert.match(controller, /canAccessDirectedListing/);
