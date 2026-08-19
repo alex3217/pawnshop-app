@@ -36,11 +36,16 @@ function encryptionKey(value, { required }) {
 }
 
 export function loadMfaConfig(env = process.env) {
-  const rolloutMode = String(env.MFA_MODE || "disabled")
+  const rawRolloutMode = String(env.MFA_MODE || "disabled");
+  const rolloutMode = rawRolloutMode
     .trim()
     .toLowerCase();
   if (!ROLLOUT_MODES.has(rolloutMode)) {
     throw new Error("MFA_MODE must be disabled, optional, or required");
+  }
+  const runtime = String(env.APP_ENV || env.NODE_ENV || "development").trim().toLowerCase();
+  if (runtime === "production" && rawRolloutMode !== "required") {
+    throw new Error("MFA_MODE must equal required in production");
   }
 
   return Object.freeze({
@@ -60,6 +65,18 @@ export function loadMfaConfig(env = process.env) {
       env.MFA_CHALLENGE_ATTEMPTS,
       5,
       5,
+    ),
+    artifactRetentionSeconds: positiveInteger(
+      "MFA_ARTIFACT_RETENTION_SECONDS",
+      env.MFA_ARTIFACT_RETENTION_SECONDS,
+      604800,
+      2592000,
+    ),
+    cleanupBatchSize: positiveInteger(
+      "MFA_CLEANUP_BATCH_SIZE",
+      env.MFA_CLEANUP_BATCH_SIZE,
+      100,
+      500,
     ),
     enrollmentTtlSeconds: positiveInteger(
       "MFA_ENROLLMENT_TTL_SECONDS",

@@ -47,15 +47,9 @@ fail_if_output "Web .env.example documents all consumed env vars" "$WEB_MISSING"
 
 printf '\nChecking destructive DB command guard...\n'
 DESTRUCTIVE_DB="$(
-  git grep -n -E 'force: true|sync\(|deleteMany|drop table|truncate table|DELETE FROM|delete from' -- \
-    apps/api/backend/src \
-    apps/api/backend/prisma \
-    scripts \
-    ':(exclude)scripts/check-prod-readiness.sh' \
-    ':(exclude)scripts/check-static-safety.sh' \
-    ':(exclude)**/node_modules/**' || true
+  node scripts/check-destructive-db-commands.mjs || true
 )"
-fail_if_output "No destructive DB commands found in source/scripts" "$DESTRUCTIVE_DB"
+fail_if_output "No unapproved destructive DB commands found in source/scripts" "$DESTRUCTIVE_DB"
 
 printf '\nChecking secret logging guard...\n'
 SECRET_LOGGING="$(

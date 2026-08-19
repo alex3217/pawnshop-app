@@ -10,6 +10,7 @@ import {
   createSettlementPaymentIntent,
 } from "../controllers/stripe.controller.js";
 import { createBillingPortalSession, createPaymentMethodSetupSession, listPaymentMethods, removePaymentMethod, setDefaultPaymentMethod } from "../controllers/paymentMethods.controller.js";
+import { requireMfaStepUp, requireMfaStepUpForRoles } from "../middleware/mfaStepUp.js";
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.post(
   "/refunds",
   authRequired,
   requireRole("ADMIN", "SUPER_ADMIN"),
+  requireMfaStepUp("refund.create"),
   createStripeRefund,
 );
 
@@ -217,6 +219,7 @@ router.post(
   "/checkout/subscription",
   authRequired,
   requireRole("OWNER", "ADMIN"),
+  requireMfaStepUpForRoles("configuration.seller-subscription.checkout", "ADMIN"),
   validateObjectBody,
   normalizeSubscriptionCheckoutBody,
   asyncRoute(createSubscriptionCheckoutSession)
@@ -226,6 +229,7 @@ router.post(
   "/checkout/buyer-subscription",
   authRequired,
   requireRole("CONSUMER", "ADMIN"),
+  requireMfaStepUpForRoles("configuration.buyer-subscription.checkout", "ADMIN"),
   validateObjectBody,
   asyncRoute(createBuyerSubscriptionCheckoutSession),
 );
@@ -242,6 +246,7 @@ router.post(
   "/payment-intents/settlements/:id",
   authRequired,
   requireRole("CONSUMER", "ADMIN", "SUPER_ADMIN"),
+  requireMfaStepUpForRoles("financial.settlement.payment-intent", "ADMIN", "SUPER_ADMIN"),
   validateIdParam("id"),
   validateObjectBody,
   normalizeSettlementPaymentIntentBody,

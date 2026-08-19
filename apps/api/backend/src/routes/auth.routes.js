@@ -21,6 +21,8 @@ import {
   getMfaEnrollmentStatus,
   requireMfaEnrollmentEligible,
 } from "../controllers/mfaEnrollment.controller.js";
+import { beginMfaStepUp, verifyMfaStepUp } from "../controllers/mfaStepUp.controller.js";
+import { requireMfaStepUp } from "../middleware/mfaStepUp.js";
 
 const router = Router();
 
@@ -102,6 +104,18 @@ router.post(
   enrollmentLimiter("mfaEnrollmentConfirm"),
   asyncRoute(confirmEnrollment),
 );
+router.post(
+  "/mfa/step-up",
+  authRequired,
+  enrollmentLimiter("mfaStepUpCreate"),
+  asyncRoute(beginMfaStepUp),
+);
+router.post(
+  "/mfa/step-up/verify",
+  authRequired,
+  enrollmentLimiter("mfaStepUpVerify"),
+  asyncRoute(verifyMfaStepUp),
+);
 
 /**
  * Super Admin only
@@ -111,6 +125,7 @@ router.post(
   "/super-admin/users",
   authRequired,
   requireRole("SUPER_ADMIN"),
+  requireMfaStepUp("privilege.super-admin-user.create"),
   asyncRoute(createSuperAdminUser)
 );
 
@@ -129,6 +144,8 @@ export const AUTH_ROUTE_MAP = Object.freeze({
   mfaStatus: "GET /api/auth/mfa/status",
   mfaEnrollmentStart: "POST /api/auth/mfa/enrollment",
   mfaEnrollmentConfirm: "POST /api/auth/mfa/enrollment/confirm",
+  mfaStepUpCreate: "POST /api/auth/mfa/step-up",
+  mfaStepUpVerify: "POST /api/auth/mfa/step-up/verify",
 });
 
 export default router;

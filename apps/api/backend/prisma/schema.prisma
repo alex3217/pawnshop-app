@@ -67,6 +67,7 @@ model User {
   accountActionTokens             AccountActionToken[]
   mfaCredential                   UserMfaCredential?
   mfaChallenges                   MfaChallenge[]
+  mfaStepUpProofs                 MfaStepUpProof[]
   legalConsents                   LegalConsent[]
   ownerApplication                OwnerApplication?                @relation("OwnerApplicationOwner")
   reviewedOwnerApplications       OwnerApplication[]               @relation("OwnerApplicationReviewer")
@@ -276,10 +277,30 @@ model MfaChallenge {
   attemptsRemaining Int
   consumedAt        DateTime?
   authVersion       Int
+  sessionDigest     String?
+  operationScope    String?
   createdAt         DateTime            @default(now())
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stepUpProof        MfaStepUpProof?
 
-  @@index([userId, purpose, consumedAt, expiresAt])
+  @@index([userId, purpose, sessionDigest, operationScope, consumedAt, expiresAt])
+  @@index([expiresAt])
+}
+
+model MfaStepUpProof {
+  id               String       @id @default(cuid())
+  challengeId      String       @unique
+  userId           String
+  sessionDigest    String
+  operationScope   String
+  credentialDigest String       @unique
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  createdAt        DateTime     @default(now())
+  challenge        MfaChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sessionDigest, operationScope, consumedAt, expiresAt])
   @@index([expiresAt])
 }
 

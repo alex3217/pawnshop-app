@@ -2,6 +2,7 @@
 
 import { API_BASE } from "../../config";
 import { getAuthHeaders, handleAuthenticationFailure } from "../../services/auth";
+import { getMfaRequiredScope, requestMfaStepUpProof } from "../../services/mfaStepUp";
 
 type Primitive = string | number | boolean | null | undefined;
 type JsonRecord = Record<string, unknown>;
@@ -915,20 +916,28 @@ async function adminRequest<T>(
   const { query, headers, signal, ...rest } = options;
   const url = joinUrl(API_BASE, appendQuery(path, query));
 
-  const res = await fetch(url, {
-    ...rest,
-    signal,
-    headers: {
+  const requestHeaders: Record<string, string> = {
       ...getAuthHeaders(),
       ...(rest.body && !(rest.body instanceof FormData)
         ? { "Content-Type": "application/json" }
         : {}),
-      ...(headers || {}),
-    },
+      ...Object.fromEntries(new Headers(headers).entries()),
+  };
+  const execute = (nextHeaders: Record<string, string>) => fetch(url, {
+    ...rest,
+    signal,
+    headers: nextHeaders,
     cache: "no-store",
   });
 
-  const parsed = await parseJsonSafe<unknown>(res);
+  let res = await execute(requestHeaders);
+  let parsed = await parseJsonSafe<unknown>(res);
+  const scope = res.status === 403 ? getMfaRequiredScope(parsed) : null;
+  if (scope) {
+    const proof = await requestMfaStepUpProof(scope);
+    res = await execute({ ...requestHeaders, "x-mfa-step-up-proof": proof });
+    parsed = await parseJsonSafe<unknown>(res);
+  }
 
   if (res.status === 401) handleAuthenticationFailure();
 

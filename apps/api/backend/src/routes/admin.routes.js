@@ -24,8 +24,16 @@ import {
   getOwnerApplicationReviewHistory,
   updateOwnerApplicationStatus,
 } from "../controllers/admin.controller.js";
+import { requireMfaStepUp, requireMfaStepUpWhenRequired } from "../middleware/mfaStepUp.js";
 
 const router = Router();
+const requireOwnerAccessProof = requireMfaStepUpWhenRequired("privilege.owner-access.review");
+
+function requireOwnerAccessTransitionStepUp(req, res, next) {
+  return new Set(["APPROVED", "SUSPENDED"]).has(String(req.body?.status || "").trim().toUpperCase())
+    ? requireOwnerAccessProof(req, res, next)
+    : next();
+}
 
 function asyncRoute(handler) {
   return function wrappedRoute(req, res, next) {
@@ -63,20 +71,23 @@ function validateIdParam(paramName, label) {
 router.use(authRequired, requireRole("ADMIN", "SUPER_ADMIN"));
 
 router.get("/users", asyncRoute(listUsers));
-router.post("/users", asyncRoute(createAdminUser));
+router.post("/users", requireMfaStepUp("privilege.admin-user.create"), asyncRoute(createAdminUser));
 router.patch(
   "/users/:id",
   validateIdParam("id", "User id"),
+  requireMfaStepUp("privilege.admin-user.update"),
   asyncRoute(updateAdminUser),
 );
 router.delete(
   "/users/:id",
   validateIdParam("id", "User id"),
+  requireMfaStepUp("privilege.admin-user.block"),
   asyncRoute(blockUser),
 );
 router.patch(
   "/users/:id/unblock",
   validateIdParam("id", "User id"),
+  requireMfaStepUp("privilege.admin-user.unblock"),
   asyncRoute(unblockUser),
 );
 
@@ -98,42 +109,49 @@ router.get(
 router.patch(
   "/owner-applications/:id/status",
   validateIdParam("id", "Owner application id"),
+  requireOwnerAccessTransitionStepUp,
   asyncRoute(updateOwnerApplicationStatus),
 );
 
 router.get("/items", asyncRoute(adminListItems));
-router.post("/items", asyncRoute(createAdminItem));
+router.post("/items", requireMfaStepUpWhenRequired("privilege.admin-item.create"), asyncRoute(createAdminItem));
 router.patch(
   "/items/:id",
   validateIdParam("id", "Item id"),
+  requireMfaStepUpWhenRequired("privilege.admin-item.update"),
   asyncRoute(updateAdminItem),
 );
 router.delete(
   "/items/:id",
   validateIdParam("id", "Item id"),
+  requireMfaStepUpWhenRequired("privilege.admin-item.delete"),
   asyncRoute(softDeleteItem),
 );
 router.patch(
   "/items/:id/restore",
   validateIdParam("id", "Item id"),
+  requireMfaStepUpWhenRequired("privilege.admin-item.restore"),
   asyncRoute(restoreItem),
 );
 
 router.get("/shops", asyncRoute(adminListShops));
-router.post("/shops", asyncRoute(createAdminShop));
+router.post("/shops", requireMfaStepUpWhenRequired("privilege.admin-shop.create"), asyncRoute(createAdminShop));
 router.patch(
   "/shops/:id",
   validateIdParam("id", "Shop id"),
+  requireMfaStepUpWhenRequired("privilege.admin-shop.update"),
   asyncRoute(updateAdminShop),
 );
 router.delete(
   "/shops/:id",
   validateIdParam("id", "Shop id"),
+  requireMfaStepUpWhenRequired("privilege.admin-shop.delete"),
   asyncRoute(softDeleteShop),
 );
 router.patch(
   "/shops/:id/restore",
   validateIdParam("id", "Shop id"),
+  requireMfaStepUpWhenRequired("privilege.admin-shop.restore"),
   asyncRoute(restoreShop),
 );
 

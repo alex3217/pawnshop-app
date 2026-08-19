@@ -7,6 +7,8 @@ import { createMfaAuditEvent } from "../services/mfaAudit.service.js";
 const MFA_ENROLLMENT_LIMITS = Object.freeze({
   start: 3,
   confirm: 5,
+  stepUpCreate: 5,
+  stepUpVerify: 10,
 });
 
 const PUBLIC_AUTH_PATHS = new Map([
@@ -253,6 +255,8 @@ export function createAuthRateLimiters({
       afterBody: pass,
       mfaEnrollmentStart: unavailable,
       mfaEnrollmentConfirm: unavailable,
+      mfaStepUpCreate: unavailable,
+      mfaStepUpVerify: unavailable,
       store: effectiveStore,
       check: () => typeof effectiveStore.check === "function" ? effectiveStore.check() : true,
       close: () => typeof effectiveStore.close === "function" ? effectiveStore.close() : undefined,
@@ -376,6 +380,16 @@ export function createAuthRateLimiters({
       policy: "mfa-enrollment-confirm",
       limit: MFA_ENROLLMENT_LIMITS.confirm,
       purpose: "ENROLLMENT_CONFIRMATION",
+    }),
+    mfaStepUpCreate: enrollmentLimiter({
+      policy: "mfa-step-up-create",
+      limit: MFA_ENROLLMENT_LIMITS.stepUpCreate,
+      purpose: "STEP_UP",
+    }),
+    mfaStepUpVerify: enrollmentLimiter({
+      policy: "mfa-step-up-verify",
+      limit: MFA_ENROLLMENT_LIMITS.stepUpVerify,
+      purpose: "STEP_UP",
     }),
     store: effectiveStore,
     check: () => typeof effectiveStore.check === "function" ? effectiveStore.check() : true,

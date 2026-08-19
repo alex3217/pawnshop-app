@@ -2,6 +2,7 @@
 
 import { Router } from "express";
 import { authRequired, requireRole } from "../middleware/auth.js";
+import { requireMfaStepUpForRoles } from "../middleware/mfaStepUp.js";
 import {
   adminSetShopPlan,
   getShopEntitlements,
@@ -192,6 +193,7 @@ router.patch(
   "/shops/:id/subscription",
   authRequired,
   requireRole("OWNER", "ADMIN"),
+  requireMfaStepUpForRoles("configuration.seller-subscription.update", "ADMIN"),
   validateShopIdParam,
   normalizeSellerPlanPatchBody,
   asyncRoute(adminSetShopPlan)

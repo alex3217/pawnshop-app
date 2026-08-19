@@ -2,6 +2,7 @@
 
 import { Router } from "express";
 import { authRequired, requireRole } from "../middleware/auth.js";
+import { requireMfaStepUpForRoles, requireMfaStepUpWhenRequired } from "../middleware/mfaStepUp.js";
 import {
   listShops,
   myShops,
@@ -103,6 +104,7 @@ router.post(
   "/",
   authRequired,
   requireRole(...LOCATION_ROLES),
+  requireMfaStepUpForRoles("privilege.location.create", "ADMIN", "SUPER_ADMIN"),
   asyncRoute(createShop),
 );
 
@@ -111,12 +113,15 @@ router.post(
   "/backfill-coordinates",
   authRequired,
   requireRole("ADMIN", "SUPER_ADMIN"),
+  requireMfaStepUpWhenRequired("configuration.location.coordinates-backfill"),
   asyncRoute(backfillShopLocations),
 );
 
 router.post(
   "/:id/verify-location",
   authRequired,
+  requireRole(...LOCATION_ROLES),
+  requireMfaStepUpForRoles("configuration.location.verify", "ADMIN", "SUPER_ADMIN"),
   validateLocationIdParam,
   asyncRoute(verifyShopLocation),
 );
@@ -131,6 +136,7 @@ router.post(
 router.put(
   "/:id",
   authRequired,
+  requireMfaStepUpForRoles("privilege.location.update", "ADMIN", "SUPER_ADMIN"),
   validateLocationIdParam,
   asyncRoute(updateShop),
 );
@@ -145,6 +151,7 @@ router.put(
 router.patch(
   "/:id",
   authRequired,
+  requireMfaStepUpForRoles("privilege.location.update", "ADMIN", "SUPER_ADMIN"),
   validateLocationIdParam,
   asyncRoute(updateShop),
 );

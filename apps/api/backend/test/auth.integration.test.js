@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import test, { after, before, beforeEach } from "node:test";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { issueMfaStepUpProof, resetMfaTestMode } from "./helpers/mfaStepUp.fixture.js";
 
 const TEST_JWT_SECRET = "pawnloop-db-tests-only-secret-2026";
 const TEST_DOMAIN = "@integration.pawnloop.test";
@@ -123,6 +125,7 @@ before(async () => {
 });
 
 beforeEach(async () => {
+  resetMfaTestMode();
   assert.equal(
     databaseVerified,
     true,
@@ -664,12 +667,14 @@ test("database role, not stale JWT role, controls authorization", async () => {
     data: { role: "SUPER_ADMIN" },
   });
   const staleLowRole = jwt.sign(
-    { sub: user.id, role: "CONSUMER", authVersion: user.authVersion },
+    { sub: user.id, role: "CONSUMER", authVersion: user.authVersion, jti: crypto.randomUUID() },
     TEST_JWT_SECRET,
   );
+  const { proof } = await issueMfaStepUpProof({ app, token: staleLowRole, userId: user.id, scope: "privilege.super-admin-user.create" });
   const allowed = await request(app)
     .post("/api/auth/super-admin/users")
     .set("Authorization", `Bearer ${staleLowRole}`)
+    .set("x-mfa-step-up-proof", proof)
     .send({
       name: "Allowed",
       email: email("allowed-role"),
@@ -691,7 +696,7 @@ test("admin and super-admin creation use the centralized password policy", async
     },
   });
   const token = jwt.sign(
-    { sub: admin.id, role: admin.role, authVersion: admin.authVersion },
+    { sub: admin.id, role: admin.role, authVersion: admin.authVersion, jti: crypto.randomUUID() },
     TEST_JWT_SECRET,
   );
   const input = {
@@ -700,15 +705,19 @@ test("admin and super-admin creation use the centralized password policy", async
     password: "short",
     role: "CONSUMER",
   };
+  const { proof: adminProof } = await issueMfaStepUpProof({ app, token, userId: admin.id, scope: "privilege.admin-user.create" });
   const adminResponse = await request(app)
     .post("/api/admin/users")
     .set("Authorization", `Bearer ${token}`)
+    .set("x-mfa-step-up-proof", adminProof)
     .send(input);
   assert.equal(adminResponse.status, 400);
   assert.equal(adminResponse.body.code, "PASSWORD_TOO_SHORT");
+  const { proof: superProof } = await issueMfaStepUpProof({ app, token, userId: admin.id, scope: "privilege.super-admin-user.create" });
   const superResponse = await request(app)
     .post("/api/auth/super-admin/users")
     .set("Authorization", `Bearer ${token}`)
+    .set("x-mfa-step-up-proof", superProof)
     .send(input);
   assert.equal(superResponse.status, 400);
   assert.equal(superResponse.body.code, "PASSWORD_TOO_SHORT");
@@ -750,12 +759,15 @@ test("admin deactivation increments authVersion and invalidates an issued token"
       sub: superAdmin.id,
       role: superAdmin.role,
       authVersion: superAdmin.authVersion,
+      jti: crypto.randomUUID(),
     },
     TEST_JWT_SECRET,
   );
+  const { proof } = await issueMfaStepUpProof({ app, token: actorToken, userId: superAdmin.id, scope: "privilege.admin-user.block" });
   const deactivated = await request(app)
     .delete(`/api/admin/users/${target.id}`)
-    .set("Authorization", `Bearer ${actorToken}`);
+    .set("Authorization", `Bearer ${actorToken}`)
+    .set("x-mfa-step-up-proof", proof);
   assert.equal(deactivated.status, 200);
   const stored = await prisma.user.findUnique({ where: { id: target.id } });
   assert.equal(stored.isActive, false);
@@ -792,12 +804,15 @@ test("super-admin role changes increment authVersion", async () => {
       sub: superAdmin.id,
       role: superAdmin.role,
       authVersion: superAdmin.authVersion,
+      jti: crypto.randomUUID(),
     },
     TEST_JWT_SECRET,
   );
+  const { proof } = await issueMfaStepUpProof({ app, token: actorToken, userId: superAdmin.id, scope: "privilege.super-admin-user.update" });
   const response = await request(app)
     .patch(`/api/super-admin/users/${target.id}`)
     .set("Authorization", `Bearer ${actorToken}`)
+    .set("x-mfa-step-up-proof", proof)
     .send({
       role: "OWNER",
       reason: "Promote the verified account owner for governance coverage.",
@@ -857,9 +872,11 @@ test("verified super admins can create privileged users", async () => {
     password: superAdminPassword,
   });
   assert.equal(login.status, 200);
+  const { proof } = await issueMfaStepUpProof({ app, token: login.body.token, userId: superAdmin.id, scope: "privilege.super-admin-user.create" });
   const response = await request(app)
     .post("/api/auth/super-admin/users")
     .set("Authorization", `Bearer ${login.body.token}`)
+    .set("x-mfa-step-up-proof", proof)
     .send({
       name: "Created Integration Admin",
       email: email("created-admin"),

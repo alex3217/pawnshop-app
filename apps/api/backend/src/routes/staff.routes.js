@@ -15,6 +15,7 @@ import {
   updateStaffMember,
   removeStaffMember,
 } from "../controllers/staff.controller.js";
+import { requireMfaStepUp } from "../middleware/mfaStepUp.js";
 
 const router = Router();
 
@@ -152,6 +153,7 @@ router.post(
   "/invite",
   authRequired,
   requireRole(...STAFF_ROLES),
+  requireMfaStepUp("privilege.staff.invite"),
   normalizeStaffBody,
   requireShopPermission("staff:write", {
     resolveShopId: shopIdFromBody("shopId"),
@@ -169,6 +171,7 @@ router.post(
   "/",
   authRequired,
   requireRole(...STAFF_ROLES),
+  requireMfaStepUp("privilege.staff.create"),
   normalizeStaffBody,
   requireShopPermission("staff:write", {
     resolveShopId: shopIdFromBody("shopId"),
@@ -186,6 +189,7 @@ router.put(
   "/:id",
   authRequired,
   requireRole(...STAFF_ROLES),
+  requireMfaStepUp("privilege.staff.update"),
   validateStaffIdParam,
   normalizeStaffBody,
   requireShopPermission("staff:write", {
@@ -204,6 +208,7 @@ router.patch(
   "/:id",
   authRequired,
   requireRole(...STAFF_ROLES),
+  requireMfaStepUp("privilege.staff.update"),
   validateStaffIdParam,
   normalizeStaffBody,
   requireShopPermission("staff:write", {
@@ -222,6 +227,7 @@ router.delete(
   "/:id",
   authRequired,
   requireRole(...STAFF_ROLES),
+  requireMfaStepUp("privilege.staff.remove"),
   validateStaffIdParam,
   requireShopPermission("staff:write", {
     resolveShopId: shopIdFromStaffParam("id"),

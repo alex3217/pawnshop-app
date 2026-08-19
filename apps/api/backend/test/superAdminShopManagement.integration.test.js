@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import test, { after, before, beforeEach } from "node:test";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { issueMfaStepUpProof, resetMfaTestMode } from "./helpers/mfaStepUp.fixture.js";
 
 const SECRET = "shop-management-integration-secret";
 const DOMAIN = "@shop-management.integration.pawnloop.test";
 let app, prisma, actor, admin, owner, alternateOwner, inactiveOwner, nonOwner, shop;
-const auth = (user) => `Bearer ${jwt.sign({ sub: user.id, role: user.role, authVersion: user.authVersion }, SECRET)}`;
+const tokenFor = (user) => jwt.sign({ sub: user.id, role: user.role, authVersion: user.authVersion, jti: crypto.randomUUID() }, SECRET);
+const auth = (user) => `Bearer ${tokenFor(user)}`;
 const api = (method, path, user = actor) => request(app)[method](path).set("Authorization", auth(user));
 
 async function cleanup() {
@@ -33,6 +36,7 @@ before(async () => {
   ({ createApp: app } = await import("../src/app.js")); app = app();
 });
 beforeEach(async () => {
+  resetMfaTestMode();
   await cleanup();
   [actor, admin, owner, alternateOwner, inactiveOwner, nonOwner] = await Promise.all([
     user("super", "SUPER_ADMIN"), user("admin", "ADMIN"), user("owner", "OWNER"),
@@ -77,9 +81,15 @@ test("profile, billing, disable, restore, and reassignment are atomic and audite
   const billing = await api("patch", `/api/super-admin/shops/${shop.id}`).send({ subscriptionPlan: "ULTRA", cancelAtPeriodEnd: true, reason: "Approved retention exception" });
   assert.equal(billing.status, 200);
   for (const isDeleted of [true, false]) assert.equal((await api("patch", `/api/super-admin/shops/${shop.id}`).send({ isDeleted })).status, 200);
-  assert.equal((await api("patch", `/api/super-admin/shops/${shop.id}/owner`).send({ ownerId: nonOwner.id })).status, 400);
-  assert.equal((await api("patch", `/api/super-admin/shops/${shop.id}/owner`).send({ ownerId: inactiveOwner.id })).status, 400);
-  assert.equal((await api("patch", `/api/super-admin/shops/${shop.id}/owner`).send({ ownerId: alternateOwner.id })).status, 200);
+  const reassign = async (ownerId) => {
+    const token = tokenFor(actor);
+    const { proof } = await issueMfaStepUpProof({ app, token, userId: actor.id, scope: "privilege.shop-owner.reassign" });
+    return request(app).patch(`/api/super-admin/shops/${shop.id}/owner`)
+      .set("Authorization", `Bearer ${token}`).set("x-mfa-step-up-proof", proof).send({ ownerId });
+  };
+  assert.equal((await reassign(nonOwner.id)).status, 400);
+  assert.equal((await reassign(inactiveOwner.id)).status, 400);
+  assert.equal((await reassign(alternateOwner.id)).status, 200);
   const audits = await prisma.superAdminAuditLog.findMany({ where: { targetId: shop.id, success: true }, orderBy: { createdAt: "asc" } });
   assert.equal(audits.length, 5); assert.deepEqual(audits.map(({ action }) => action), ["UPDATE_SHOP_GOVERNANCE", "UPDATE_SHOP_GOVERNANCE", "UPDATE_SHOP_GOVERNANCE", "UPDATE_SHOP_GOVERNANCE", "REASSIGN_SHOP_OWNER"]);
   const billingAudit = audits.find((entry) => entry.metadata?.changeType === "BILLING_OVERRIDE");

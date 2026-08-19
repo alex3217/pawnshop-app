@@ -46,3 +46,13 @@ test("MFA configuration rejects malformed keys and rollout modes", () => {
     /must not exceed 5/,
   );
 });
+
+test("production accepts only the canonical required MFA mode", () => {
+  for (const rolloutMode of ["optional", "disabled", "REQUIRED", " required "]) {
+    assert.throws(
+      () => loadMfaConfig({ APP_ENV: "production", MFA_MODE: rolloutMode, MFA_ENCRYPTION_KEY: key }),
+      /must equal required in production/,
+    );
+  }
+  assert.equal(loadMfaConfig({ APP_ENV: "production", MFA_MODE: "required", MFA_ENCRYPTION_KEY: key }).rolloutMode, "required");
+});

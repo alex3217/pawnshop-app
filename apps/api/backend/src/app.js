@@ -125,6 +125,7 @@ function createCorsOptions(allowedOrigins, env = process.env) {
       "X-Requested-With",
       "X-Request-Id",
       "Idempotency-Key",
+      "X-Mfa-Step-Up-Proof",
       "Stripe-Signature",
     ],
   };

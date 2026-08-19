@@ -1,0 +1,15 @@
+# MFA step-up security contract
+
+Every login and refresh token has a cryptographically random JWT `jti`. A challenge and its proof are bound to the authenticated user, that exact session identifier, and one server-declared operation scope. TOTP counters and recovery codes are consumed transactionally. Proofs expire within two minutes and are consumed atomically once.
+
+Protected-route middleware consumes the proof before invoking the downstream handler. This is intentionally fail-safe: a downstream failure cannot leave reusable authorization behind. The original operation may not have completed, so clients never replay it automatically after an ambiguous downstream failure. A deliberate user retry receives a new `MFA_STEP_UP_REQUIRED` response, performs a fresh challenge, and uses the new proof once.
+
+Expired and consumed challenges and proofs are retained for the configured bounded retention interval, then removed in idempotent batches. Audit events remain in the audit log and are not removed by artifact cleanup.
+
+## Staging release ordering
+
+The MFA migration is additive: its challenge columns are nullable and its proof table is new, so the prior application release can continue running against the migrated schema. Rolling application code back does not remove or reverse this database migration. An improvised database rollback could discard MFA proof and challenge/session/scope binding information; do not attempt one. Use the reviewed database recovery process and preserve authentication audit evidence.
+
+The staging database workflow emits a 30-day migration receipt only after `migrate deploy` and a clean post-migration status. Its artifact name binds the run ID and exact SHA. The staging release-receipt workflow checks out the exact requested main SHA, authenticates the producing repository, trusted workflow identity/path, `workflow_dispatch` event, `main` branch, head SHA, completed-success conclusion, and unique run artifact through GitHub's API, verifies the downloaded archive against GitHub's artifact digest before extraction, and then recomputes the complete migration-registry digest. Missing, stale, failed, cancelled, duplicated, tampered, wrong-run, wrong-workflow, wrong-event, wrong-ref, wrong-repository, SHA-mismatched, or registry-mismatched evidence fails closed. Because only the trusted workflow's `apply_migrations` path can reach receipt creation, artifact existence also proves the exact confirmation check, migrate deploy, and clean post-status completed in order.
+
+The receipt workflow deliberately does not deploy or contact Render. Render deployment remains a separately authorized manual provider operation. The operator must deploy the exact SHA printed by the successful receipt run and retain the Render deployment identifier, source SHA, status, and URL as provider-side external evidence. No repository receipt by itself proves that a provider deployment occurred, and application deployment must never be authorized before the matching migration receipt succeeds.

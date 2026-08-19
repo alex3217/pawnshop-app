@@ -293,7 +293,7 @@ test("challenges are purpose/authVersion bound, attempt limited, expiring, and s
   });
   await assert.rejects(
     completeMfaChallenge({
-      credential: first.credential, purpose: "STEP_UP", encryptionKey, now,
+      credential: first.credential, purpose: "DISABLE", encryptionKey, now,
     }),
     (error) => error.code === "MFA_CHALLENGE_PURPOSE",
   );
@@ -383,9 +383,10 @@ test("challenge failure recording rejects expired and authVersion-invalid challe
   await prisma.user.update({ where: { id: user.id }, data: { authVersion: { decrement: 1 } } });
 });
 
-test("concurrent challenge completion runs the protected mutation once", async () => {
+test("STEP_UP challenge identifiers cannot invoke protected mutations", async () => {
   const issued = await createMfaChallenge({
     userId: user.id, purpose: "STEP_UP", encryptionKey,
+    sessionDigest: "integration-session", operationScope: "refund.create",
   });
   let mutations = 0;
   const complete = () => completeMfaChallenge({
@@ -395,8 +396,8 @@ test("concurrent challenge completion runs the protected mutation once", async (
     onSuccess: async () => { mutations += 1; },
   });
   const results = await Promise.allSettled([complete(), complete()]);
-  assert.equal(results.filter(({ status }) => status === "fulfilled").length, 1);
-  assert.equal(mutations, 1);
+  assert.equal(results.filter(({ status }) => status === "fulfilled").length, 0);
+  assert.equal(mutations, 0);
 });
 
 test("audit persistence failure rolls back a successful challenge mutation", async () => {

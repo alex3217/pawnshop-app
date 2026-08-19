@@ -133,6 +133,7 @@ const invalidCases = [
   ["invalid rate limit", "AUTH_RATE_LIMIT_WINDOW_MS", "zero"],
   ["missing MFA policy", "MFA_MODE", undefined],
   ["invalid MFA policy", "MFA_MODE", "sometimes"],
+  ["non-canonical MFA policy", "MFA_MODE", "REQUIRED"],
   ["missing scheduler setting", "AUCTION_SCHEDULER_ENABLED", undefined],
   ["ambiguous scheduler boolean", "AUCTION_SCHEDULER_ENABLED", "yes"],
   ["missing application revision", "APP_VERSION", undefined],

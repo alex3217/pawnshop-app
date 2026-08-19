@@ -1,5 +1,6 @@
 import { API_BASE, ENVIRONMENT } from "../config";
 import { getAuthHeaders, handleAuthenticationFailure } from "./auth";
+import { getMfaRequiredScope, requestMfaStepUpProof } from "./mfaStepUp";
 
 export class ApiError extends Error {
   status: number;
@@ -80,20 +81,27 @@ async function request<T>(method: string, path: string, options: ApiOptions = {}
     ...(options.headers ?? {}),
   };
 
-  const res = await fetch(joinUrl(API_BASE, path), {
+  const body = options.body === undefined
+    ? undefined
+    : useJson
+      ? JSON.stringify(options.body)
+      : (options.body as BodyInit);
+  const execute = (requestHeaders: Record<string, string>) => fetch(joinUrl(API_BASE, path), {
     ...options,
     method,
-    headers,
+    headers: requestHeaders,
     credentials: options.credentials ?? "include",
-    body:
-      options.body === undefined
-        ? undefined
-        : useJson
-          ? JSON.stringify(options.body)
-          : (options.body as BodyInit),
+    body,
   });
 
-  const payload = await parseResponse(res);
+  let res = await execute(headers);
+  let payload = await parseResponse(res);
+  const scope = res.status !== 403 ? null : getMfaRequiredScope(payload);
+  if (scope && useAuth) {
+    const proof = await requestMfaStepUpProof(scope);
+    res = await execute({ ...headers, "x-mfa-step-up-proof": proof });
+    payload = await parseResponse(res);
+  }
 
   if (res.status === 401) {
     handleAuthenticationFailure();

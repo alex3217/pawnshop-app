@@ -25,6 +25,7 @@ import {
   createShopFinanceConnectOnboardingLink,
   getShopFinanceConnectStatus,
 } from "../controllers/shopFinanceConnect.controller.js";
+import { requireMfaStepUp, requireMfaStepUpForRoles, requireMfaStepUpWhenRequired } from "../middleware/mfaStepUp.js";
 
 const router = Router();
 const FINANCE_ROLES = ["OWNER", "ADMIN", "SUPER_ADMIN"];
@@ -47,6 +48,7 @@ router.post(
   "/:id/finance/payouts",
   authRequired,
   requireRole(...FINANCE_ROLES),
+  requireMfaStepUp("payout.request"),
   requestShopFinancePayout,
 );
 
@@ -54,6 +56,7 @@ router.post(
   "/:id/finance/payouts/:payoutId/cancel",
   authRequired,
   requireRole(...FINANCE_ROLES),
+  requireMfaStepUp("payout.cancel"),
   cancelShopFinancePayout,
 );
 
@@ -61,6 +64,7 @@ router.post(
   "/:id/finance/payouts/:payoutId/process",
   authRequired,
   requireRole("ADMIN", "SUPER_ADMIN"),
+  requireMfaStepUp("payout.process"),
   processShopFinancePayout,
 );
 
@@ -89,6 +93,7 @@ router.post(
   "/:id/finance/connect/account",
   authRequired,
   requireRole(...FINANCE_ROLES),
+  requireMfaStepUpWhenRequired("payout.connect-account.create"),
   createShopFinanceConnectAccount,
 );
 
@@ -96,6 +101,7 @@ router.post(
   "/:id/finance/connect/onboarding-link",
   authRequired,
   requireRole(...FINANCE_ROLES),
+  requireMfaStepUpWhenRequired("payout.connect-onboarding.create"),
   createShopFinanceConnectOnboardingLink,
 );
 
@@ -117,7 +123,7 @@ router.get("/:id/items", getShopItems);
 router.get("/:id", getShopById);
 
 // Owner/Admin
-router.post("/", authRequired, requireRole("OWNER", "ADMIN"), createShop);
-router.put("/:id", authRequired, requireRole("OWNER", "ADMIN"), updateShop);
+router.post("/", authRequired, requireRole("OWNER", "ADMIN"), requireMfaStepUpForRoles("privilege.shop.create", "ADMIN"), createShop);
+router.put("/:id", authRequired, requireRole("OWNER", "ADMIN"), requireMfaStepUpForRoles("privilege.shop.update", "ADMIN"), updateShop);
 
 export default router;

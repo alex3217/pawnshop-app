@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 import { digestInviteToken } from "../src/services/betaInvite.service.js";
 import { digestAccountActionToken } from "../src/services/accountActionToken.service.js";
+import { issueMfaStepUpProof, resetMfaTestMode } from "./helpers/mfaStepUp.fixture.js";
 
 const SECRET = "beta-invite-integration-test-secret";
 const DOMAIN = "@beta-invite.integration.pawnloop.test";
@@ -22,12 +23,17 @@ let superAdmin;
 let admin;
 let databaseVerified = false;
 
-function auth(user) {
-  return `Bearer ${jwt.sign({
+function tokenFor(user) {
+  return jwt.sign({
     sub: user.id,
     role: user.role,
     authVersion: user.authVersion,
-  }, SECRET)}`;
+    jti: crypto.randomUUID(),
+  }, SECRET);
+}
+
+function auth(user) {
+  return `Bearer ${tokenFor(user)}`;
 }
 
 async function createUser(prefix, role) {
@@ -57,15 +63,25 @@ function registration(email, token, role = "CONSUMER", overrides = {}) {
 }
 
 async function issue(overrides = {}, actor = superAdmin) {
+  const token = tokenFor(actor);
+  const { proof } = await issueMfaStepUpProof({ app, token, userId: actor.id, scope: "privilege.beta-invite.create" });
   return request(app)
     .post("/api/super-admin/beta-invites")
-    .set("Authorization", auth(actor))
+    .set("Authorization", `Bearer ${token}`)
+    .set("x-mfa-step-up-proof", proof)
     .send({
       cohort: "founding-beta",
       expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
       maxUses: 1,
       ...overrides,
     });
+}
+
+async function revoke(inviteId) {
+  const token = tokenFor(superAdmin);
+  const { proof } = await issueMfaStepUpProof({ app, token, userId: superAdmin.id, scope: "privilege.beta-invite.revoke" });
+  return request(app).post(`/api/super-admin/beta-invites/${inviteId}/revoke`)
+    .set("Authorization", `Bearer ${token}`).set("x-mfa-step-up-proof", proof).send({});
 }
 
 async function cleanup() {
@@ -110,6 +126,8 @@ before(async () => {
 });
 
 beforeEach(async () => {
+  resetMfaTestMode();
+  app.locals.authRateLimiters.store.resetAll();
   assert.equal(databaseVerified, true);
   await cleanup();
   superAdmin = await createUser("super-admin", "SUPER_ADMIN");
@@ -120,6 +138,7 @@ beforeEach(async () => {
 after(async () => {
   if (!prisma) return;
   if (databaseVerified) await cleanup();
+  resetMfaTestMode();
   await prisma.$disconnect();
 });
 
@@ -184,7 +203,7 @@ test("missing, invalid, expired, revoked, exhausted, email-mismatched, and role-
   cases.push([`expired${DOMAIN}`, expired.body.token, "CONSUMER", "INVITE_EXPIRED"]);
 
   const revoked = await issue();
-  const revokedResponse = await request(app).post(`/api/super-admin/beta-invites/${revoked.body.invite.id}/revoke`).set("Authorization", auth(superAdmin)).send({});
+  const revokedResponse = await revoke(revoked.body.invite.id);
   assert.equal(revokedResponse.status, 200);
   assert.ok(revokedResponse.body.invite.revokedAt);
   assert.equal(await prisma.superAdminAuditLog.count({
@@ -199,6 +218,11 @@ test("missing, invalid, expired, revoked, exhausted, email-mismatched, and role-
   const emailRestricted = await issue({ email: `allowed${DOMAIN}` });
   cases.push([`wrong${DOMAIN}`, emailRestricted.body.token, "CONSUMER", "INVITE_EMAIL_MISMATCH"]);
 
+  // This table deliberately crosses more independent invite-policy scenarios than
+  // the step-up creation limiter permits in one window. Reset only the in-memory
+  // test limiter between batches; production rate-limit behavior is covered by
+  // the dedicated MFA protocol tests.
+  app.locals.authRateLimiters.store.resetAll();
   const roleRestricted = await issue({ intendedRole: "OWNER" });
   cases.push([`role${DOMAIN}`, roleRestricted.body.token, "CONSUMER", "INVITE_ROLE_MISMATCH"]);
 
@@ -300,10 +324,7 @@ test("issuance, revocation, and redemption audit metadata never contain the raw 
   const redeemed = await issue();
   assert.equal((await registration(`audit-redeem${DOMAIN}`, redeemed.body.token)).status, 201);
   const revoked = await issue();
-  assert.equal((await request(app)
-    .post(`/api/super-admin/beta-invites/${revoked.body.invite.id}/revoke`)
-    .set("Authorization", auth(superAdmin))
-    .send({})).status, 200);
+  assert.equal((await revoke(revoked.body.invite.id)).status, 200);
 
   const audits = await prisma.superAdminAuditLog.findMany({
     where: {
