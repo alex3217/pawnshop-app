@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { after, before, beforeEach } from "node:test";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { validateIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const SECRET = "pawnloop-managed-public-media-gate-test-only-2026";
 const DOMAIN = "@managed-public-media.integration.pawnloop.test";
@@ -64,7 +65,7 @@ async function publish(row, actor = owner) {
 
 before(async () => {
   Object.assign(process.env, { NODE_ENV: "test", APP_ENV: "test", JWT_SECRET: SECRET, AUCTION_SCHEDULER_ENABLED: "false" });
-  assert.equal(new URL(process.env.DATABASE_URL).pathname, "/pawnshop_test");
+  validateIntegrationTestDatabase();
   const appModule = await import("../src/app.js");
   app = appModule.createApp();
   ({ prisma } = await import("../src/lib/prisma.js"));

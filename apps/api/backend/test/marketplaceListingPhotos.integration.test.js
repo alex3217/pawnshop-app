@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { after, before, beforeEach } from "node:test";
 import bcrypt from "bcryptjs";
+import { validateIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const TEST_DOMAIN = "@marketplace-listing-photos.integration.pawnloop.test";
 
@@ -81,9 +82,7 @@ before(async () => {
     APP_ENV: "test",
     JWT_SECRET: "marketplace-listing-photos-integration-secret-2026",
   });
-  const databaseUrl = String(process.env.DATABASE_URL || "");
-  assert.ok(databaseUrl, "DATABASE_URL is required");
-  assert.equal(decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\/+/, "")), "pawnshop_test");
+  validateIntegrationTestDatabase();
   ({ prisma } = await import("../src/lib/prisma.js"));
   ({ lockMarketplaceListingForPhotoUpdate, reconcileMarketplaceListingAssetUrls } = await import("../src/services/uploadAssets.service.js"));
   password = await bcrypt.hash("MarketplaceListingPhotos123!", 4);

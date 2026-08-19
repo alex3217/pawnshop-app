@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { issueMfaStepUpProof, resetMfaTestMode } from "./helpers/mfaStepUp.fixture.js";
+import { validateIntegrationTestDatabase, verifyConnectedIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const SECRET = "shop-management-integration-secret";
 const DOMAIN = "@shop-management.integration.pawnloop.test";
@@ -29,10 +30,9 @@ async function user(prefix, role, isActive = true) {
 
 before(async () => {
   Object.assign(process.env, { NODE_ENV: "test", APP_ENV: "test", JWT_SECRET: SECRET, AUCTION_SCHEDULER_ENABLED: "false" });
-  assert.equal(new URL(process.env.DATABASE_URL).pathname.replace(/^\//, ""), "pawnshop_test");
+  const databaseTarget = validateIntegrationTestDatabase();
   ({ prisma } = await import("../src/lib/prisma.js"));
-  const rows = await prisma.$queryRaw`SELECT current_database() AS name`;
-  assert.equal(rows[0]?.name, "pawnshop_test");
+  await verifyConnectedIntegrationTestDatabase(prisma, databaseTarget);
   ({ createApp: app } = await import("../src/app.js")); app = app();
 });
 beforeEach(async () => {

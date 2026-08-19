@@ -8,6 +8,7 @@ import {
   Prisma,
 } from "@prisma/client";
 import request from "supertest";
+import { validateIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const TEST_DOMAIN = "@customer-sell-handoff.integration.pawnloop.test";
 const TEST_JWT_SECRET = "pawnloop-customer-sell-handoff-integration-2026";
@@ -218,13 +219,7 @@ before(async () => {
   assert.equal(process.env.NODE_ENV, "test");
   assert.equal(process.env.APP_ENV, "test");
 
-  const rawDatabaseUrl = String(process.env.DATABASE_URL || "");
-  assert.ok(rawDatabaseUrl, "DATABASE_URL is required");
-  const databaseName = decodeURIComponent(new URL(rawDatabaseUrl).pathname.replace(/^\/+/, ""));
-  assert.ok(
-    ["pawnloop_test", "pawnshop_test"].includes(databaseName),
-    "Integration tests may only use pawnloop_test or pawnshop_test",
-  );
+  validateIntegrationTestDatabase();
 
   const appModule = await import("../src/app.js");
   const prismaModule = await import("../src/lib/prisma.js");

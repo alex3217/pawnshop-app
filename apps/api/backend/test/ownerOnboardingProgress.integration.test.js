@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { after, before } from "node:test";
 import request from "supertest";
 import { issueMfaStepUpProof } from "./helpers/mfaStepUp.fixture.js";
+import { validateIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const DOMAIN = "@owner-onboarding-progress.integration.test";
 const JWT_SECRET = "owner-onboarding-progress-test-secret-only";
@@ -25,9 +26,7 @@ async function progress(shopId) {
 
 before(async () => {
   Object.assign(process.env, { NODE_ENV: "test", APP_ENV: "test", JWT_SECRET, AUCTION_SCHEDULER_ENABLED: "false" });
-  const databaseUrl = String(process.env.DATABASE_URL || "");
-  assert.ok(databaseUrl, "DATABASE_URL is required");
-  assert.equal(decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\/+/, "")), "pawnshop_test");
+  validateIntegrationTestDatabase();
   ({ createApp: app } = await import("../src/app.js"));
   app = app();
   app.locals.shopGeocoder = {
