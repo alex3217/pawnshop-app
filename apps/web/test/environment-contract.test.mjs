@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PRODUCTION_API_ORIGIN, STAGING_API_ORIGIN, resolveEnvironmentContract } from "../src/environmentContract.mjs";
+import { resolveEnvironmentContract } from "../src/environmentContract.mjs";
+import {
+  PRODUCTION_API_ORIGIN,
+  STAGING_API_ORIGIN,
+  validateDeploymentTarget,
+} from "../scripts/deploymentTargets.mjs";
 
 const deployed = (deployEnv, origin) => ({
   deployEnv,
@@ -11,36 +16,36 @@ const deployed = (deployEnv, origin) => ({
 });
 
 test("preview uses staging for both API and Socket.IO", () => {
-  const contract = resolveEnvironmentContract(deployed("preview", STAGING_API_ORIGIN));
+  const contract = validateDeploymentTarget(resolveEnvironmentContract(deployed("preview", STAGING_API_ORIGIN)));
   assert.equal(contract.apiBase, `${STAGING_API_ORIGIN}/api`);
   assert.equal(contract.socketUrl, STAGING_API_ORIGIN);
   assert.equal(contract.showEnvironmentIndicator, true);
 });
 
 test("preview rejects the production API", () => {
-  assert.throws(() => resolveEnvironmentContract(deployed("preview", PRODUCTION_API_ORIGIN)), /preview builds must use .*staging/i);
+  assert.throws(() => validateDeploymentTarget(resolveEnvironmentContract(deployed("preview", PRODUCTION_API_ORIGIN))), /preview builds must use .*staging/i);
 });
 
 test("production uses production for both API and Socket.IO", () => {
-  const contract = resolveEnvironmentContract(deployed("production", PRODUCTION_API_ORIGIN));
+  const contract = validateDeploymentTarget(resolveEnvironmentContract(deployed("production", PRODUCTION_API_ORIGIN)));
   assert.equal(contract.apiBase, `${PRODUCTION_API_ORIGIN}/api`);
   assert.equal(contract.socketUrl, PRODUCTION_API_ORIGIN);
   assert.equal(contract.showEnvironmentIndicator, false);
 });
 
 test("production rejects the staging API", () => {
-  assert.throws(() => resolveEnvironmentContract(deployed("production", STAGING_API_ORIGIN)), /production builds must use .*api\.pawnloop/i);
+  assert.throws(() => validateDeploymentTarget(resolveEnvironmentContract(deployed("production", STAGING_API_ORIGIN))), /production builds must use .*api\.pawnloop/i);
 });
 
 test("staging uses staging for both API and Socket.IO", () => {
-  const contract = resolveEnvironmentContract(deployed("staging", STAGING_API_ORIGIN));
+  const contract = validateDeploymentTarget(resolveEnvironmentContract(deployed("staging", STAGING_API_ORIGIN)));
   assert.equal(contract.apiBase, `${STAGING_API_ORIGIN}/api`);
   assert.equal(contract.socketUrl, STAGING_API_ORIGIN);
   assert.equal(contract.showEnvironmentIndicator, true);
 });
 
 test("staging rejects production and missing origins", () => {
-  assert.throws(() => resolveEnvironmentContract(deployed("staging", PRODUCTION_API_ORIGIN)), /staging builds must use/);
+  assert.throws(() => validateDeploymentTarget(resolveEnvironmentContract(deployed("staging", PRODUCTION_API_ORIGIN))), /staging builds must use/);
   assert.throws(() => resolveEnvironmentContract({ deployEnv: "staging" }), /required/);
 });
 

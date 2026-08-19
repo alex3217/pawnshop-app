@@ -3,11 +3,8 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import EnvironmentIndicator from "../src/components/EnvironmentIndicator.mjs";
-import {
-  PRODUCTION_API_ORIGIN,
-  STAGING_API_ORIGIN,
-  resolveEnvironmentContract,
-} from "../src/environmentContract.mjs";
+import { resolveEnvironmentContract } from "../src/environmentContract.mjs";
+import { PRODUCTION_API_ORIGIN, STAGING_API_ORIGIN } from "../scripts/deploymentTargets.mjs";
 
 const deployed = (deployEnv, origin) => resolveEnvironmentContract({
   deployEnv,
