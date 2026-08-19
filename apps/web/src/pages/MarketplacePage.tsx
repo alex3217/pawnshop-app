@@ -165,6 +165,9 @@ function ItemCard({
           <Link to={itemHref(item)} className="mp2-primary-small">
             View item
           </Link>
+          <Link to={`/shops/${encodeURIComponent(item.shop?.id || item.pawnShopId)}/message?itemId=${encodeURIComponent(item.id)}`} className="mp2-secondary-small">
+            Message Shop
+          </Link>
           <Link to="/offers" className="mp2-secondary-small">
             Make offer
           </Link>

@@ -1400,6 +1400,8 @@ export default function MarketplaceTransactionDetailPage() {
           Back
         </button>
 
+        <Link to={`/messages?compose=1&contextType=ORDER_TRANSACTION&contextId=${encodeURIComponent(transaction.id)}`} style={buttonStyle}>Contact Seller</Link>
+
         <button
           type="button"
           onClick={() => void load(true)}

@@ -17,7 +17,7 @@
 .recipient-results button{display:grid;gap:.15rem;text-align:left;padding:.7rem;background:transparent;color:inherit;border:0;border-bottom:1px solid #cbd5e1}
 .recipient-results button:last-child{border-bottom:0}
 .recipient-results button:hover,.recipient-results button[aria-selected="true"]{background:#eef2ff}
-.messaging-actions .secondary{background:#64748b}
+.compose-dialog .messaging-actions .secondary{background:#475569;color:#fff!important;-webkit-text-fill-color:#fff}
 .messaging-actions button:disabled{opacity:.55;cursor:not-allowed}
 .compose-dialog .messaging-actions{position:sticky;bottom:0;z-index:2;margin:0;padding:1rem 0 0;background:#fff}
 .compose-meta{align-items:flex-start;font-size:.85rem}

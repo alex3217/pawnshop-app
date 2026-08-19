@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createShopConversation, type ContactReason } from "../services/shopMessaging";
 import { getMyBuyerItemSubmissions, type BuyerItemSubmission } from "../services/buyerItemSubmissions";
 import "../styles/shop-messaging.css";
@@ -7,12 +7,14 @@ import "../styles/shop-messaging.css";
 const reasons: Array<[ContactReason, string]> = [["SELL_ITEM", "Sell an item"], ["PAWN_ITEM", "Pawn an item"], ["INVENTORY", "Ask about inventory"], ["OFFER", "Ask about an offer"], ["VISIT", "Schedule or discuss a visit"], ["OTHER", "Other"]];
 export default function MessageShopPage() {
   const { id = "" } = useParams(); const navigate = useNavigate();
+  const [searchParams] = useSearchParams(); const contextType = searchParams.get("contextType") || "GENERAL_INQUIRY"; const contextReferenceId = searchParams.get("contextId") || undefined;
+  const itemId = searchParams.get("itemId") || undefined; const offerId = searchParams.get("offerId") || undefined;
   const [reason, setReason] = useState<ContactReason>("SELL_ITEM"); const [subject, setSubject] = useState(""); const [message, setMessage] = useState("");
   const [submissions, setSubmissions] = useState<BuyerItemSubmission[]>([]); const [submissionId, setSubmissionId] = useState("");
   const [error, setError] = useState<string | null>(null); const [sending, setSending] = useState(false);
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setSending(true); setError(null);
-    try { const result = await createShopConversation({ shopId: id, subject, contactReason: reason, message, ...(submissionId ? { buyerItemSubmissionId: submissionId } : {}) }); navigate(`/messages/${result.conversation.id}`); }
+    try { const result = await createShopConversation({ shopId: id, subject, contactReason: reason, message, contextType, contextReferenceId, itemId, offerId, ...(submissionId ? { buyerItemSubmissionId: submissionId } : {}) }); navigate(`/messages/${result.conversation.id}`); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not start conversation."); }
     finally { setSending(false); }
   }
