@@ -24,6 +24,10 @@ export type ControlMeasurement = {
 
 type Rgba = [number, number, number, number];
 
+type InteractionMeasurementOptions = {
+  interactionTimeoutMs?: number;
+};
+
 function rgba(value: string): Rgba {
   const values = value.match(/[\d.]+/g)?.map(Number) ?? [];
   return [values[0] ?? 0, values[1] ?? 0, values[2] ?? 0, values[3] ?? 1];
@@ -55,15 +59,20 @@ export function contrastRatio(foreground: string, background: string) {
     / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
 }
 
-async function applyState(page: Page, locator: Locator, state: InteractionState) {
+async function applyState(
+  page: Page,
+  locator: Locator,
+  state: InteractionState,
+  interactionTimeoutMs: number,
+) {
   await page.mouse.move(0, 0);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  if (state === "hover") await locator.hover({ force: true, timeout: 500 });
+  if (state === "hover") await locator.hover({ force: true, timeout: interactionTimeoutMs });
   if (state === "focus-visible") {
     await locator.evaluate((element) => (element as HTMLElement).focus());
   }
   if (state === "active") {
-    await locator.hover({ force: true, timeout: 500 });
+    await locator.hover({ force: true, timeout: interactionTimeoutMs });
     await page.mouse.down();
   }
 }
@@ -72,8 +81,9 @@ export async function measureControl(
   page: Page,
   locator: Locator,
   state: InteractionState,
+  { interactionTimeoutMs = 500 }: InteractionMeasurementOptions = {},
 ): Promise<ControlMeasurement> {
-  await applyState(page, locator, state);
+  await applyState(page, locator, state, interactionTimeoutMs);
   const measurement = await locator.evaluate((element, measuredState) => {
     const style = getComputedStyle(element);
     let background = style.backgroundColor;

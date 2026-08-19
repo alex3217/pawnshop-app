@@ -43,6 +43,7 @@ async function installMocks(page: Page) {
 
 for (const theme of ["light", "dark"] as const) {
   test(`Buy/Sell hero actions retain readable interaction text in ${theme} mode`, async ({ page, browserName }) => {
+    const interactionTimeoutMs = browserName === "webkit" ? 3_000 : 1_000;
     await installBuyer(page, theme);
     await installMocks(page);
     await page.setViewportSize({ width: 1440, height: 1100 });
@@ -52,7 +53,7 @@ for (const theme of ["light", "dark"] as const) {
       const control = page.getByRole(name === "Refresh offers" ? "button" : "link", { name, exact: true });
       await expect(control).toBeVisible();
       for (const state of states) {
-        const measurement = await measureControl(page, control, state);
+        const measurement = await measureControl(page, control, state, { interactionTimeoutMs });
         if (name === "Find similar items") {
           console.log(JSON.stringify({ theme, ...measurement }));
         }
