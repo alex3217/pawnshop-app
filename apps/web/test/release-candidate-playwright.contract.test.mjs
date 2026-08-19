@@ -5,6 +5,14 @@ import test from "node:test";
 const workflow = await readFile(new URL("../../../.github/workflows/release-candidate-qa.yml", import.meta.url), "utf8");
 const config = await readFile(new URL("../playwright.release-candidate.config.ts", import.meta.url), "utf8");
 const viteConfig = await readFile(new URL("../vite.release-candidate.config.ts", import.meta.url), "utf8");
+const interactiveReadabilityHelper = await readFile(
+  new URL("../e2e-marketplace/helpers/interactiveReadability.ts", import.meta.url),
+  "utf8",
+);
+const focusedInteractiveReadabilitySpec = await readFile(
+  new URL("../e2e-marketplace/buyer-sell-item-interactive-readability.spec.ts", import.meta.url),
+  "utf8",
+);
 const packageLock = JSON.parse(
   await readFile(new URL("../package-lock.json", import.meta.url), "utf8"),
 );
@@ -114,4 +122,11 @@ test("release-candidate web server disables env files and uses the hermetic laun
   assert.match(config, /node scripts\/start-release-candidate-server\.mjs/);
   assert.match(viteConfig, /envFile: false/);
   assert.doesNotMatch(config, /npm run dev/);
+});
+
+test("focused WebKit interaction measurement has bounded CI headroom without slowing the exhaustive audit", () => {
+  assert.match(interactiveReadabilityHelper, /interactionTimeoutMs = 500/);
+  assert.match(interactiveReadabilityHelper, /locator\.hover\(\{ force: true, timeout: interactionTimeoutMs \}\)/);
+  assert.match(focusedInteractiveReadabilitySpec, /browserName === "webkit" \? 3_000 : 1_000/);
+  assert.match(focusedInteractiveReadabilitySpec, /measureControl\(page, control, state, \{ interactionTimeoutMs \}\)/);
 });
