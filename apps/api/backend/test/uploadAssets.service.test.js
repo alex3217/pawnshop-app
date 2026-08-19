@@ -28,7 +28,10 @@ function listingAsset(overrides = {}) {
 test("consumer listing reconciliation enforces owner, listing, managed URL, and editable state", async () => {
   let row = listingAsset();
   const tx = {
-    $queryRaw: async () => [row],
+    $queryRaw: async (strings) => {
+      assert.match(strings.join(""), /SELECT[\s\S]*"kind"[\s\S]*FROM "UploadAsset"/);
+      return [row];
+    },
     uploadAsset: { updateMany: async ({ data }) => { row = { ...row, ...data }; return { count: 1 }; } },
   };
   const listing = { id: "listing-1", sellerUserId: "user-1", sellerShopId: null, listingType: "CUSTOMER_TO_CUSTOMER", status: "DRAFT", images: [] };
@@ -40,6 +43,57 @@ test("consumer listing reconciliation enforces owner, listing, managed URL, and 
   await assert.rejects(reconcileMarketplaceListingAssetUrls({ tx: { $queryRaw: async () => [] }, listing, actorId: "user-1", nextUrls: ["https://external.invalid/photo.jpg"] }), (error) => error.statusCode === 400);
   await assert.rejects(reconcileMarketplaceListingAssetUrls({ tx, listing: { ...listing, status: "ACTIVE" }, actorId: "user-1", nextUrls: [row.deliveryUrl] }), (error) => error.statusCode === 409);
   await assert.rejects(reconcileMarketplaceListingAssetUrls({ tx, listing, actorId: "user-2", nextUrls: [row.deliveryUrl] }), (error) => error.statusCode === 403);
+});
+
+test("consumer listing reconciliation preserves selected order and is idempotent for safe retries", async () => {
+  const first = listingAsset({ id: "asset-1", deliveryUrl: "https://assets.invalid/first.png" });
+  const second = listingAsset({ id: "asset-2", deliveryUrl: "https://assets.invalid/second.png" });
+  const rows = new Map([[first.deliveryUrl, first], [second.deliveryUrl, second]]);
+  let updateCalls = 0;
+  const tx = {
+    $queryRaw: async (_strings, url) => [rows.get(url)],
+    uploadAsset: {
+      updateMany: async ({ where, data }) => {
+        updateCalls += 1;
+        for (const url of where.deliveryUrl.in) rows.set(url, { ...rows.get(url), ...data });
+        return { count: where.deliveryUrl.in.length };
+      },
+    },
+  };
+  const listing = { id: "listing-1", sellerUserId: "user-1", sellerShopId: null, listingType: "CUSTOMER_TO_CUSTOMER", status: "DRAFT", images: [] };
+  const selectedOrder = [second.deliveryUrl, first.deliveryUrl];
+
+  await reconcileMarketplaceListingAssetUrls({ tx, listing, actorId: "user-1", previousUrls: [], nextUrls: selectedOrder });
+  assert.equal(rows.get(first.deliveryUrl).status, "ATTACHED");
+  assert.equal(rows.get(second.deliveryUrl).status, "ATTACHED");
+  assert.deepEqual(selectedOrder, [second.deliveryUrl, first.deliveryUrl]);
+
+  await reconcileMarketplaceListingAssetUrls({ tx, listing: { ...listing, images: selectedOrder }, actorId: "user-1", previousUrls: selectedOrder, nextUrls: selectedOrder });
+  assert.equal(updateCalls, 1);
+});
+
+test("consumer listing assets cannot be claimed across users or listings or reassigned after attachment", async () => {
+  const listing = { id: "listing-1", sellerUserId: "user-1", sellerShopId: null, listingType: "CUSTOMER_TO_CUSTOMER", status: "DRAFT", images: [] };
+  let row = listingAsset({ status: "ATTACHED", attachedAt: new Date(), deleteAfter: null });
+  const tx = {
+    $queryRaw: async () => [row],
+    uploadAsset: { updateMany: async () => ({ count: 1 }) },
+  };
+
+  await assert.rejects(
+    reconcileMarketplaceListingAssetUrls({ tx, listing, actorId: "user-2", nextUrls: [row.deliveryUrl] }),
+    (error) => error.statusCode === 403,
+  );
+  row = listingAsset({ marketplaceListingId: "listing-2" });
+  await assert.rejects(
+    reconcileMarketplaceListingAssetUrls({ tx, listing, actorId: "user-1", nextUrls: [row.deliveryUrl] }),
+    (error) => error.statusCode === 403,
+  );
+  row = listingAsset({ marketplaceListingId: "listing-1", status: "ATTACHED", attachedAt: new Date(), deleteAfter: null });
+  await assert.rejects(
+    reconcileMarketplaceListingAssetUrls({ tx, listing: { ...listing, id: "listing-2" }, actorId: "user-1", nextUrls: [row.deliveryUrl] }),
+    (error) => error.statusCode === 403,
+  );
 });
 
 test("reconciliation attaches owned assets and denies cross-shop attachment", async () => {

@@ -122,7 +122,7 @@ export async function lockItemImagesForUpdate(tx, itemId) {
 
 async function lockUploadAssetByUrl(tx, deliveryUrl) {
   const rows = await tx.$queryRaw`
-    SELECT "id", "objectKey", "deliveryUrl", "uploaderId", "shopId", "itemId", "marketplaceListingId", "status"
+    SELECT "id", "objectKey", "deliveryUrl", "kind", "uploaderId", "shopId", "itemId", "marketplaceListingId", "status"
     FROM "UploadAsset"
     WHERE "deliveryUrl" = ${deliveryUrl}
     FOR UPDATE

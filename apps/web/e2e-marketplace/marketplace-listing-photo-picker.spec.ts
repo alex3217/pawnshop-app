@@ -129,6 +129,8 @@ test("consumer photo workflow uses the listing-scoped durable upload and pages k
   expect(createSource).toContain("isShopListing(listingType) && !itemId");
   expect(editSource).toContain('listing.listingType.startsWith("SHOP_") && !listing.itemId');
   expect(createSource).toContain("Draft ${draft.id} was saved, but selected photos were not attached");
+  expect(createSource.indexOf("const draft = await createMarketplaceListing")).toBeLessThan(createSource.indexOf("persistConsumerMarketplaceListingPhotos(draft.id"));
+  expect(createSource.indexOf("persistConsumerMarketplaceListingPhotos(draft.id")).toBeLessThan(createSource.indexOf("updateMarketplaceListing(draft.id"));
   expect(uploadSource).toContain("/uploads/marketplace-listings/${encodeURIComponent(normalizedId)}");
   expect(pickerSource).toContain("Selected image previews");
   expect(pickerSource).toContain("URL.createObjectURL(file)");
