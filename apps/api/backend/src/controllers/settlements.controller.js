@@ -7,17 +7,10 @@ import {
   settlementActorFromRequest,
   SettlementTransitionError,
 } from "../services/settlementStateMachine.service.js";
+import { sendControllerError } from "../lib/controllerErrorResponse.js";
 
 function sendError(res, error, fallbackMessage = "Internal server error") {
-  const status =
-    Number.isInteger(error?.statusCode) && error.statusCode >= 400
-      ? error.statusCode
-      : 500;
-
-  return res.status(status).json({
-    success: false,
-    error: error?.message || fallbackMessage,
-  });
+  return sendControllerError(res, error, { fallback: fallbackMessage });
 }
 
 function badRequest(message, details = undefined) {

@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { assertShopPermission, getAccessibleShopScope } from "../services/shopAccess.service.js";
 import { resolveEffectiveMessagingPermission } from "./superAdminGovernance.controller.js";
+import { sendControllerError } from "../lib/controllerErrorResponse.js";
 
 const REASONS = new Set(["SELL_ITEM", "PAWN_ITEM", "INVENTORY", "OFFER", "VISIT", "OTHER"]);
 const OUTBOUND_CONTEXTS = new Set(["GENERAL_INQUIRY", "MARKETPLACE_LISTING", "TARGETED_OFFER", "EXISTING_OFFER", "ORDER_TRANSACTION", "AUCTION", "SELL_PAWN_SUBMISSION"]);
@@ -34,7 +35,7 @@ function cleanText(value, name, max) {
 }
 function cleanId(value) { const id = String(value || "").trim(); return id || null; }
 function isPlatformAdmin(req) { return ["ADMIN", "SUPER_ADMIN"].includes(role(req)); }
-function sendError(res, error) { return res.status(error?.statusCode || 500).json({ success: false, error: error?.message || "Internal server error", ...(error?.code ? { code: error.code } : {}) }); }
+function sendError(res, error) { return sendControllerError(res, error); }
 async function assertEffectivePermission({ userId: targetUserId, userConsent, blocked = false, contextAuthorized, shopInitiated = false }) {
   const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { isActive: true, governanceRestriction: true } });
   const administrativeRestriction = Boolean(target?.governanceRestriction?.messagingRestricted || (shopInitiated && target?.governanceRestriction?.shopInitiatedContactDisabled));

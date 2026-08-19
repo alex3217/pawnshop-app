@@ -1,6 +1,7 @@
 // File: apps/api/backend/src/controllers/bids.controller.js
 
 import { prisma } from "../lib/prisma.js";
+import { sendControllerError } from "../lib/controllerErrorResponse.js";
 import {
   getEffectiveAuctionEnd,
   getEffectiveAuctionStatus,
@@ -185,21 +186,10 @@ function toSerializableDate(value) {
 }
 
 function sendError(res, error, fallback = "Internal Server Error") {
-  const statusCode =
-    Number.isInteger(error?.statusCode) && error.statusCode >= 400
-      ? error.statusCode
-      : 500;
-
-  const payload = {
-    success: false,
-    error: error?.message || fallback,
-  };
-
-  if (Number.isFinite(error?.minRequired)) {
-    payload.minRequired = error.minRequired;
-  }
-
-  return res.status(statusCode).json(payload);
+  return sendControllerError(res, error, {
+    fallback,
+    extraFields: Number.isFinite(error?.minRequired) ? ["minRequired"] : [],
+  });
 }
 
 function makeAuctionNotLiveError() {
