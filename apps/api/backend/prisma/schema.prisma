@@ -603,8 +603,9 @@ model UploadAsset {
   kind        String
   status      UploadAssetStatus @default(TEMPORARY)
   uploaderId  String
-  shopId      String
+  shopId      String?
   itemId      String?
+  marketplaceListingId String?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   attachedAt  DateTime?
@@ -613,12 +614,14 @@ model UploadAsset {
   lastError   String?
 
   uploader User     @relation("UploadAssetUploader", fields: [uploaderId], references: [id], onDelete: Restrict)
-  shop     PawnShop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  shop     PawnShop? @relation(fields: [shopId], references: [id], onDelete: Restrict)
   item     Item?    @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  marketplaceListing MarketplaceListing? @relation(fields: [marketplaceListingId], references: [id], onDelete: Restrict)
 
   @@index([shopId, status, createdAt])
   @@index([uploaderId, status, createdAt])
   @@index([itemId, status])
+  @@index([marketplaceListingId, status])
   @@index([status, deleteAfter])
 }
 
@@ -1367,6 +1370,7 @@ model MarketplaceListing {
   itemIntake         ItemIntake?              @relation("ItemIntakeLinkedMarketplaceListing")
   targetedSubmission BuyerItemSubmission?     @relation("BuyerItemSubmissionMarketplaceListing")
   shopConversations  ShopConversation[]
+  uploadAssets       UploadAsset[]
 
   @@index([sellerUserId, status, createdAt])
   @@index([sellerShopId, status, createdAt])

@@ -1,5 +1,25 @@
 import { expect, test } from "@playwright/test";
 
+test("consumer can take or choose files without inventory and selected files render previews", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("auth_token", "consumer-token");
+    localStorage.setItem("auth_role", "CONSUMER");
+    localStorage.setItem("auth_user", JSON.stringify({ id: "buyer-1", name: "Buyer", email: "buyer@example.test", role: "CONSUMER" }));
+  });
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/auth/me")) return route.fulfill({ contentType: "application/json", body: JSON.stringify({ user: { id: "buyer-1", role: "CONSUMER" } }) });
+    if (path.endsWith("/notifications")) return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notifications: [] }) });
+    if (path.endsWith("/shops/mine") || path.endsWith("/items/mine")) return route.fulfill({ contentType: "application/json", body: JSON.stringify({ rows: [] }) });
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ success: true, rows: [] }) });
+  });
+  await page.goto("/marketplace/listings/new");
+  await expect(page.getByRole("button", { name: "Take Photo" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Choose Files" })).toBeEnabled();
+  await page.getByLabel("Choose Files").setInputFiles({ name: "customer-photo.png", mimeType: "image/png", buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]) });
+  await expect(page.getByRole("img", { name: "Selected item photo 1" })).toBeVisible();
+});
+
 test("create and edit listings use standard selects and the shared photo picker", async ({ page }) => {
   await page.goto("/");
   const [createSource, editSource, options] = await Promise.all([
@@ -83,6 +103,35 @@ test("listing photo workflow uploads before create/update payloads and rejects s
   expect(result.calls.map((call) => call[0])).toEqual(["upload", "update"]);
   expect(result.failure).toContain("Photos were not saved: storage unavailable");
   expect(result.urls.every((url) => !url.startsWith("blob:"))).toBe(true);
+});
+
+test("consumer photo workflow uses the listing-scoped durable upload and pages keep the picker enabled without itemId", async ({ page }) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const photos = await import("/src/services/marketplaceListingPhotos.ts");
+    const calls: unknown[][] = [];
+    const workflow = photos.createConsumerMarketplaceListingPhotoWorkflow(async (listingId: string, files: File[]) => {
+      calls.push([listingId, files.length]);
+      return [{ url: "https://assets.invalid/customer.jpg" }];
+    });
+    const images = await workflow("listing-1", [], [new File(["x"], "photo.jpg", { type: "image/jpeg" })]);
+    return { calls, images };
+  });
+  expect(result.calls).toEqual([["listing-1", 1]]);
+  expect(result.images).toEqual(["https://assets.invalid/customer.jpg"]);
+
+  const [createSource, editSource, uploadSource, pickerSource] = await Promise.all([
+    page.request.get("/src/pages/CreateMarketplaceListingPage.tsx").then((response) => response.text()),
+    page.request.get("/src/pages/EditMarketplaceListingPage.tsx").then((response) => response.text()),
+    page.request.get("/src/services/uploads.ts").then((response) => response.text()),
+    page.request.get("/src/components/ItemImagePicker.tsx").then((response) => response.text()),
+  ]);
+  expect(createSource).toContain("isShopListing(listingType) && !itemId");
+  expect(editSource).toContain('listing.listingType.startsWith("SHOP_") && !listing.itemId');
+  expect(createSource).toContain("Draft ${draft.id} was saved, but selected photos were not attached");
+  expect(uploadSource).toContain("/uploads/marketplace-listings/${encodeURIComponent(normalizedId)}");
+  expect(pickerSource).toContain("Selected image previews");
+  expect(pickerSource).toContain("URL.createObjectURL(file)");
 });
 
 test("shop-to-customer publication has client and server photo guards", async ({ page }) => {

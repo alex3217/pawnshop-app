@@ -9,7 +9,7 @@ const SUPPORTED = Object.freeze({
   png: { mimeType: "image/png", extension: "png" },
   webp: { mimeType: "image/webp", extension: "webp" },
 });
-const ALLOWED_KINDS = new Set(["ITEM_IMAGE", "SHOP_LOGO", "SHOP_BANNER"]);
+const ALLOWED_KINDS = new Set(["ITEM_IMAGE", "SHOP_LOGO", "SHOP_BANNER", "MARKETPLACE_LISTING_IMAGE"]);
 
 function httpError(message, statusCode, code) {
   const error = new Error(message);
@@ -29,6 +29,24 @@ function userId(req) {
 async function resolveTarget(req, input) {
   const kind = String(input.kind || "").trim().toUpperCase();
   if (!ALLOWED_KINDS.has(kind)) throw httpError("Unsupported upload kind", 400, "UPLOAD_KIND_UNSUPPORTED");
+
+  if (kind === "MARKETPLACE_LISTING_IMAGE") {
+    const marketplaceListingId = String(input.marketplaceListingId || "").trim();
+    if (!marketplaceListingId) throw httpError("marketplaceListingId is required", 400, "UPLOAD_LISTING_REQUIRED");
+    if (role(req) !== "CONSUMER") throw httpError("Forbidden", 403, "UPLOAD_FORBIDDEN");
+    const listing = await prisma.marketplaceListing.findUnique({
+      where: { id: marketplaceListingId },
+      select: { id: true, sellerUserId: true, sellerShopId: true, listingType: true, status: true },
+    });
+    if (!listing) throw httpError("Upload target was not found", 404, "UPLOAD_TARGET_NOT_FOUND");
+    if (listing.sellerUserId !== userId(req) || listing.sellerShopId || !["CUSTOMER_TO_CUSTOMER", "CUSTOMER_TO_SHOP"].includes(listing.listingType)) {
+      throw httpError("Forbidden", 403, "UPLOAD_FORBIDDEN");
+    }
+    if (!["DRAFT", "PAUSED"].includes(listing.status)) {
+      throw httpError("Only draft or paused listings may receive photos", 409, "UPLOAD_LISTING_STATE_INVALID");
+    }
+    return { kind, itemId: null, shopId: null, marketplaceListingId: listing.id, ownerId: listing.sellerUserId };
+  }
 
   let shop;
   let itemId = null;

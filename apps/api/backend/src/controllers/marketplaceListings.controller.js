@@ -3,7 +3,11 @@ import {
   claimCustomerItemIntakeLink,
   loadCustomerItemIntakeForLinkage,
 } from "../services/itemIntake.service.js";
-import { assertManagedPublicListingImages } from "../services/uploadAssets.service.js";
+import {
+  assertManagedPublicListingImages,
+  lockMarketplaceListingForPhotoUpdate,
+  reconcileMarketplaceListingAssetUrls,
+} from "../services/uploadAssets.service.js";
 
 const LISTING_TYPES = new Set([
   "CUSTOMER_TO_CUSTOMER",
@@ -154,10 +158,16 @@ function normalizePrice(value) {
 function normalizeImages(value) {
   if (!Array.isArray(value)) return [];
 
+  if (value.length > 10) {
+    const error = new Error("Marketplace listings support up to 10 photos");
+    error.statusCode = 400;
+    throw error;
+  }
+
   return value
     .map(normalizeString)
     .filter(Boolean)
-    .slice(0, 20);
+    .slice(0, 10);
 }
 
 function normalizePagination(query = {}) {
@@ -566,6 +576,17 @@ export async function createMarketplaceListing(req, res) {
         req.body,
       );
 
+    if (CUSTOMER_LISTING_TYPES.has(listingType) && data.images?.length) {
+      if (intakeId) {
+        data.images = [];
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: "Create the draft before attaching managed marketplace listing photos",
+        });
+      }
+    }
+
     assertRequiredListingData(
       data,
     );
@@ -917,13 +938,28 @@ export async function updateMarketplaceListing(req, res) {
     const data = buildListingWriteData(req.body, existing);
     assertRequiredListingData(data, existing);
 
-    const listing = await prisma.marketplaceListing.update({
-      where: {
-        id: listingId,
-      },
-      data,
-      include: LISTING_INCLUDE,
-    });
+    const listing = CUSTOMER_LISTING_TYPES.has(existing.listingType) && data.images !== undefined
+      ? await prisma.$transaction(async (tx) => {
+          const locked = await lockMarketplaceListingForPhotoUpdate(tx, listingId);
+          if (!locked) {
+            const error = new Error("Marketplace listing not found");
+            error.statusCode = 404;
+            throw error;
+          }
+          await reconcileMarketplaceListingAssetUrls({
+            tx,
+            listing: locked,
+            actorId: userId,
+            previousUrls: locked.images,
+            nextUrls: data.images,
+          });
+          return tx.marketplaceListing.update({ where: { id: listingId }, data, include: LISTING_INCLUDE });
+        }, { isolationLevel: "Serializable" })
+      : await prisma.marketplaceListing.update({
+          where: { id: listingId },
+          data,
+          include: LISTING_INCLUDE,
+        });
 
     return res.json({
       success: true,

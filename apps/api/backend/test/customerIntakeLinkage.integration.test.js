@@ -651,8 +651,16 @@ test(
           select: {
             metadata:
               true,
+            images:
+              true,
           },
         });
+
+    assert.deepEqual(
+      storedListing
+        ?.images,
+      [],
+    );
 
     assert.equal(
       storedListing

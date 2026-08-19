@@ -23,12 +23,13 @@ import {
 
 import {
   createMarketplaceListing,
+  updateMarketplaceListing,
   type MarketplaceListingType,
 } from "../services/marketplaceListings";
 import ItemImagePicker from "../components/ItemImagePicker";
 import AiDescriptionControl from "../components/AiDescriptionControl";
 import { ITEM_CATEGORY_OPTIONS, ITEM_CONDITION_OPTIONS } from "../constants/itemOptions";
-import { durableImageUrls, normalizeListingOption, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
+import { durableImageUrls, normalizeListingOption, persistConsumerMarketplaceListingPhotos, persistMarketplaceListingPhotos } from "../services/marketplaceListingPhotos";
 
 import {
   getMyShops,
@@ -573,21 +574,20 @@ export default function CreateMarketplaceListingPage() {
     setSubmitting(true);
 
     try {
-      const images = await persistMarketplaceListingPhotos(itemId, existingImages, photoFiles);
-      await createMarketplaceListing({
+      const shopListing = isShopListing(listingType);
+      const images = shopListing
+        ? await persistMarketplaceListingPhotos(itemId, existingImages, photoFiles)
+        : [];
+      const draft = await createMarketplaceListing({
         listingType,
 
         sellerShopId:
-          isShopListing(
-            listingType,
-          )
+          shopListing
             ? sellerShopId
             : null,
 
         itemId:
-          isShopListing(
-            listingType,
-          )
+          shopListing
             ? itemId || null
             : null,
 
@@ -619,6 +619,17 @@ export default function CreateMarketplaceListingPage() {
         expiresAt:
           normalizedExpiresAt,
       });
+
+      if (!shopListing && photoFiles.length) {
+        try {
+          const durablePhotos = await persistConsumerMarketplaceListingPhotos(draft.id, existingImages, photoFiles);
+          await updateMarketplaceListing(draft.id, { images: durablePhotos });
+        } catch (photoError) {
+          throw new Error(
+            `Draft ${draft.id} was saved, but selected photos were not attached. ${photoError instanceof Error ? photoError.message : "Please retry from the draft editor."}`,
+          );
+        }
+      }
 
       navigate(
         "/marketplace/listings/mine",
@@ -1007,8 +1018,8 @@ export default function CreateMarketplaceListingPage() {
             onChange={setPhotoFiles}
             existingImages={existingImages}
             onRemoveExisting={(url) => setExistingImages((current) => current.filter((image) => image !== url))}
-            disabled={submitting || !itemId}
-            disabledReason={!itemId ? "Select a linked inventory item to take or choose durable listing photos." : ""}
+            disabled={submitting || (isShopListing(listingType) && !itemId)}
+            disabledReason={isShopListing(listingType) && !itemId ? "Select a linked inventory item to take or choose durable listing photos." : ""}
             cameraLabel="Take Photo"
             galleryLabel="Choose Files"
           />

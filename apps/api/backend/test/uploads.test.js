@@ -16,6 +16,7 @@ const limits = Object.freeze({ maxFileBytes: 2048, maxFiles: 3, maxAggregateByte
 const users = new Map([
   ["owner", { id: "owner", email: "owner@upload.test", role: "OWNER", isActive: true, authVersion: 0 }],
   ["buyer", { id: "buyer", email: "buyer@upload.test", role: "CONSUMER", isActive: true, authVersion: 0 }],
+  ["otherBuyer", { id: "otherBuyer", email: "other-buyer@upload.test", role: "CONSUMER", isActive: true, authVersion: 0 }],
   ["other", { id: "other", email: "other@upload.test", role: "OWNER", isActive: true, authVersion: 0 }],
   ["admin", { id: "admin", email: "admin@upload.test", role: "ADMIN", isActive: true, authVersion: 0 }],
   ["staff", { id: "staff", email: "staff@upload.test", role: "CONSUMER", isActive: true, authVersion: 0 }],
@@ -32,6 +33,7 @@ let png;
 let jpeg;
 let webp;
 let assetRows;
+let marketplaceListingStatus;
 
 function token(id) {
   return jwt.sign({ sub: id, role: users.get(id).role, authVersion: 0 }, SECRET);
@@ -55,6 +57,10 @@ before(async () => {
   }] : [];
   prisma.item.findUnique = async ({ where }) => where.id === "item" ? { id: "item", isDeleted: false, shop: { id: "shop", ownerId: "owner", isDeleted: false } } : null;
   prisma.pawnShop.findUnique = async ({ where }) => where.id === "shop" ? { id: "shop", ownerId: "owner", isDeleted: false } : null;
+  prisma.marketplaceListing.findUnique = async ({ where }) => where.id === "buyer-draft" ? {
+    id: "buyer-draft", sellerUserId: "buyer", sellerShopId: null,
+    listingType: "CUSTOMER_TO_CUSTOMER", status: marketplaceListingStatus,
+  } : null;
   prisma.uploadAsset.create = async ({ data }) => { assetRows.set(data.id, { ...data, status: "TEMPORARY" }); return assetRows.get(data.id); };
   prisma.uploadAsset.updateMany = async ({ where, data }) => {
     let count = 0;
@@ -92,6 +98,7 @@ beforeEach(() => {
   deleteFailure = false;
   warnings = [];
   assetRows = new Map();
+  marketplaceListingStatus = "DRAFT";
 });
 
 test("upload router is mounted once at the frontend API path", async () => {
@@ -110,6 +117,40 @@ test("buyers and unapproved owners cannot upload", async () => {
   prisma.ownerApplication.findUnique = async () => ({ status: "PENDING" });
   await upload("/api/uploads", "owner").field("kind", "SHOP_LOGO").field("shopId", "shop").attach("logo", png, { filename: "x.png", contentType: "image/png" }).expect(403);
   prisma.ownerApplication.findUnique = prior;
+});
+
+test("consumer owners can upload durable photos only to their own editable marketplace listing", async () => {
+  const response = await upload("/api/uploads/marketplace-listings/buyer-draft", "buyer")
+    .attach("images", png, { filename: "customer.png", contentType: "image/png" })
+    .expect(201);
+  const asset = assetRows.get(response.body.files[0].id);
+  assert.equal(asset.marketplaceListingId, "buyer-draft");
+  assert.equal(asset.uploaderId, "buyer");
+  assert.equal(asset.shopId, null);
+  assert.equal(asset.itemId, null);
+
+  await upload("/api/uploads/marketplace-listings/buyer-draft", "otherBuyer")
+    .attach("images", png, { filename: "cross-user.png", contentType: "image/png" })
+    .expect(403);
+  marketplaceListingStatus = "ACTIVE";
+  await upload("/api/uploads/marketplace-listings/buyer-draft", "buyer")
+    .attach("images", png, { filename: "active.png", contentType: "image/png" })
+    .expect(409);
+});
+
+test("marketplace listing uploads retain MIME, signature, file-size, and count protections", async () => {
+  await upload("/api/uploads/marketplace-listings/buyer-draft", "buyer")
+    .attach("images", Buffer.from("<svg/>"), { filename: "x.svg", contentType: "image/svg+xml" })
+    .expect(415);
+  await upload("/api/uploads/marketplace-listings/buyer-draft", "buyer")
+    .attach("images", png, { filename: "wrong.jpg", contentType: "image/jpeg" })
+    .expect(415);
+  await upload("/api/uploads/marketplace-listings/buyer-draft", "buyer")
+    .attach("images", Buffer.alloc(3000), { filename: "large.png", contentType: "image/png" })
+    .expect(413);
+  const tooMany = upload("/api/uploads/marketplace-listings/buyer-draft", "buyer");
+  for (let index = 0; index < 4; index += 1) tooMany.attach("images", png, { filename: `${index}.png`, contentType: "image/png" });
+  await tooMany.expect(413);
 });
 
 test("an approved owner cannot upload for an unrelated shop", async () => {
