@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { calculateSettlementRevenueContext } from "../services/revenue/settlementRevenueAdapter.service.js";
 import { persistSettlementOperationAudit } from "../services/settlementStateMachine.service.js";
 import { resolveEffectiveSellerPlan } from "../services/sellerPlan.service.js";
+import { sendControllerError } from "../lib/controllerErrorResponse.js";
 
 const SAFE_SHOP_SELECT = {
   id: true,
@@ -21,15 +22,7 @@ const SAFE_SHOP_SELECT = {
 };
 
 function sendError(res, error, fallback = "Internal server error") {
-  const status =
-    Number.isInteger(error?.statusCode) && error.statusCode >= 400
-      ? error.statusCode
-      : 500;
-
-  return res.status(status).json({
-    success: false,
-    error: error?.message || fallback,
-  });
+  return sendControllerError(res, error, { fallback });
 }
 
 function normalizeString(value) {

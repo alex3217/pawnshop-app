@@ -1,11 +1,12 @@
 import { prisma } from "../lib/prisma.js";
+import { sendControllerError } from "../lib/controllerErrorResponse.js";
 
 const DISPLAY_MAX = 60;
 const IDENTIFIER = /^[a-z0-9][a-z0-9_-]{2,31}$/;
 const HTML = /<[^>]*>/;
 const id = (req) => String(req.user?.sub || "").trim();
 const fail = (statusCode, message, code) => Object.assign(new Error(message), { statusCode, code });
-const sendError = (res, error) => res.status(error.statusCode || 500).json({ success: false, error: error.message || "Internal server error", ...(error.code ? { code: error.code } : {}) });
+const sendError = (res, error) => sendControllerError(res, error);
 
 const selectProfile = {
   publicDisplayName: true, publicMessageIdentifier: true, email: true,

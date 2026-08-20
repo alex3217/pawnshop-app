@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { sendControllerError } from "../lib/controllerErrorResponse.js";
 import {
   claimCustomerItemIntakeLink,
   loadCustomerItemIntakeForLinkage,
@@ -89,40 +90,13 @@ function sendError(res, error, fallback = "Internal server error") {
     error?.code === "P2002" ||
     error?.code === "P2034";
 
-  const status =
-    Number.isInteger(error?.statusCode) &&
-    error.statusCode >= 400
-      ? error.statusCode
-      : prismaConflict
-        ? 409
-        : 500;
-
-  return res.status(status).json({
-    success: false,
-
-    error:
-      status >= 500
-        ? fallback
-        : error?.message ||
-          fallback,
-
-    ...(
-      error?.linkageCode
-        ? {
-            code:
-              error.linkageCode,
-          }
-        : error?.publicCode
-          ? {
-              code: error.publicCode,
-            }
-        : prismaConflict
-          ? {
-              code:
-                "CUSTOMER_INTAKE_LINK_CONFLICT",
-            }
-          : {}
-    ),
+  return sendControllerError(res, error, {
+    fallback,
+    statusByCode: prismaConflict ? { [error.code]: 409 } : {},
+    codeByErrorCode: prismaConflict
+      ? { [error.code]: "CUSTOMER_INTAKE_LINK_CONFLICT" }
+      : {},
+    codeProperties: ["linkageCode", "publicCode"],
   });
 }
 
