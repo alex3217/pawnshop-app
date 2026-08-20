@@ -126,6 +126,9 @@ jobs:
       - name: Staging deployment contract tests
         run: npm run test:staging-readiness
 
+      - name: Render pre-deploy contract tests
+        run: npm run test:render-predeploy-contract
+
       - name: Frontend route audit
         run: npm run check:frontend-routes
 

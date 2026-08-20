@@ -145,6 +145,27 @@ required GitHub checks, provider settings, rollback evidence, and last-known-goo
 SHA requirements. Production must never automatically deploy every `main`
 commit. Repository work alone does not change Render or Cloudflare settings.
 
+### Render pre-deploy migration command
+
+The repository-owned Render pre-deploy command is:
+
+    npm run render:predeploy
+
+It delegates to the backend's exact production migration command, `prisma
+migrate deploy`. The command applies already-reviewed migration files and does
+not create migrations, reset a database, seed data, or use `prisma migrate dev`.
+The contract is enforced by:
+
+    npm run test:render-predeploy-contract
+
+Adding this command and its tests does not configure Render and does not
+authorize or perform a migration. Setting or changing a Render Pre-Deploy
+Command is a provider change requiring separate authorization. Any execution
+with a production `DATABASE_URL` is database access and a production mutation;
+it must follow the containment, approval, exact-SHA, evidence, and reconciliation
+requirements in `docs/production-release-control-v1.md`. Do not run the command
+locally merely to verify this repository contract; run the contract test above.
+
 Do not deploy production until production env, a fresh manifest-validated database backup, Stripe webhook, and rollback are verified. Follow `docs/production-backup-recovery-runbook-v1.md`; backup and restore commands require explicit environment, approved hostname, and database selections.
 
 Production process startup and `check:prod-preflight` use the same backend
