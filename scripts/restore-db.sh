@@ -38,6 +38,6 @@ unset DATABASE_URL
 PG_RESTORE_ARGS=(--clean --if-exists --no-owner --no-privileges --file=-)
 if [ -n "$PG_SCHEMA" ]; then PG_RESTORE_ARGS+=(--schema="$PG_SCHEMA"); fi
 PG_RESTORE_ARGS+=("$DUMP_FILE")
-echo "Restoring verified $SOURCE_ENV backup into explicitly approved $DEST_ENV target $APPROVED_HOST/$DATABASE_NAME."
+echo "Restoring verified $SOURCE_ENV backup into the explicitly approved $DEST_ENV target."
 pg_restore "${PG_RESTORE_ARGS[@]}" | sed '/^SET transaction_timeout = 0;$/d' | psql "$PG_RESTORE_URL" -v ON_ERROR_STOP=1
 echo "Restore completed. Run the post-restore validation checklist in docs/production-backup-recovery-runbook-v1.md."

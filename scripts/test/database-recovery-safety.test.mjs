@@ -5,10 +5,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { assertSchemaCompatibility, buildManifest, isLoopback, sha256File, validateBackup, validateDatabaseTarget } from "../lib/database-recovery-safety.mjs";
+import { assertSchemaCompatibility, buildManifest, isLoopback, sha256File, validateBackup, validateBackupTarget, validateDatabaseTarget } from "../lib/database-recovery-safety.mjs";
 
 const productionUrl = "postgresql://synthetic_user:synthetic_password@prod-db.invalid/pawnloop_production?sslmode=require";
 const target = (overrides = {}) => ({ databaseUrl: productionUrl, environment: "production", approvedHostname: "prod-db.invalid", expectedDatabase: "pawnloop_production", ...overrides });
+const neutralBackupTarget = (overrides = {}) => ({
+  databaseUrl: "postgresql://synthetic_user:synthetic_password@primary-db.invalid/providerdb?sslmode=require",
+  environment: "production",
+  approvedHostname: "primary-db.invalid",
+  expectedDatabase: "providerdb",
+  productionHostname: "primary-db.invalid",
+  confirmation: "BACKUP PRODUCTION",
+  ...overrides,
+});
 const developmentTarget = (host = "localhost", databaseName = "pawnshop", overrides = {}) => ({
   databaseUrl: `postgresql://synthetic_dev_user:synthetic_dev_password@${host}/${databaseName}`,
   environment: "development",
@@ -21,6 +30,60 @@ test("valid synthetic production backup configuration", () => {
   const result = validateDatabaseTarget(target());
   assert.deepEqual([result.environment, result.hostname, result.databaseName], ["production", "prod-db.invalid", "pawnloop_production"]);
   assert.doesNotMatch(JSON.stringify(result), /synthetic_password/);
+});
+
+test("Production backup accepts a provider-neutral database only with every exact approval", () => {
+  const result = validateBackupTarget(neutralBackupTarget());
+  assert.deepEqual([result.environment, result.hostname, result.databaseName], ["production", "primary-db.invalid", "providerdb"]);
+});
+
+test("Production backup rejects missing or incorrect explicit confirmation", () => {
+  for (const confirmation of [undefined, "", "BACKUP production", "BACKUP PRODUCTION ", "RESTORE PRODUCTION"]) {
+    assert.throws(() => validateBackupTarget(neutralBackupTarget({ confirmation })), /confirmation/i);
+  }
+});
+
+test("Production backup requires exact selected host, database, and Production host confirmation", () => {
+  assert.throws(() => validateBackupTarget(neutralBackupTarget({ approvedHostname: "other.invalid" })), /approved hostname/i);
+  assert.throws(() => validateBackupTarget(neutralBackupTarget({ expectedDatabase: "otherdb" })), /explicitly selected/i);
+  assert.throws(() => validateBackupTarget(neutralBackupTarget({ productionHostname: undefined })), /host confirmation is required/i);
+  assert.throws(() => validateBackupTarget(neutralBackupTarget({ productionHostname: "other.invalid" })), /host confirmation does not match/i);
+});
+
+test("Production backup rejects loopback, non-PostgreSQL, and non-Production markers", () => {
+  assert.throws(() => validateBackupTarget(neutralBackupTarget({
+    databaseUrl: "postgresql://user:secret@localhost/providerdb", approvedHostname: "localhost", productionHostname: "localhost",
+  })), /localhost|loopback/i);
+  assert.throws(() => validateBackupTarget(neutralBackupTarget({ databaseUrl: "mysql://user:secret@primary-db.invalid/providerdb" })), /PostgreSQL/);
+  for (const value of ["local", "localhost", "dev", "development", "test", "testing", "stage", "staging"]) {
+    const host = `primary-${value}.invalid`;
+    assert.throws(() => validateBackupTarget(neutralBackupTarget({
+      databaseUrl: `postgresql://user:secret@${host}/providerdb`, approvedHostname: host, productionHostname: host,
+    })), /environment marker/i);
+    const database = `provider_${value}`;
+    assert.throws(() => validateBackupTarget(neutralBackupTarget({
+      databaseUrl: `postgresql://user:secret@primary-db.invalid/${database}`, expectedDatabase: database,
+    })), /environment marker/i);
+  }
+});
+
+test("neutral-name backup allowance does not weaken Production or isolated restore targets", () => {
+  assert.throws(() => validateDatabaseTarget(neutralBackupTarget()), /unambiguously/i);
+  assert.throws(() => validateDatabaseTarget({
+    databaseUrl: "postgresql://user:secret@remote.invalid/pawnloop_restore_drill",
+    environment: "isolated", approvedHostname: "remote.invalid", expectedDatabase: "pawnloop_restore_drill", destination: true,
+  }), /loopback/i);
+  assert.throws(() => validateDatabaseTarget({
+    databaseUrl: "postgresql://user:secret@localhost/providerdb",
+    environment: "isolated", approvedHostname: "localhost", expectedDatabase: "providerdb", destination: true,
+  }), /unambiguously/i);
+});
+
+test("Production backup target failures never expose connection values", () => {
+  const rawUrl = "postgresql://private_user:private_password@primary-db.invalid/providerdb";
+  let output = "";
+  try { validateBackupTarget(neutralBackupTarget({ databaseUrl: rawUrl, confirmation: "wrong" })); } catch (error) { output = error.message; }
+  assert.doesNotMatch(output, /private_user|private_password|postgresql:\/\/|primary-db\.invalid|providerdb/);
 });
 
 test("malformed and non-PostgreSQL URLs fail closed", () => {

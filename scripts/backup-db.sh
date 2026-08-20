@@ -20,10 +20,11 @@ if [ -z "$ENVIRONMENT" ] || [ -z "$ENV_FILE" ] || [ -z "$APPROVED_HOST" ] || [ -
 if [ ! -f "$ENV_FILE" ]; then echo "Environment file is missing." >&2; exit 1; fi
 
 DATABASE_URL="$(node --env-file="$ENV_FILE" -e 'process.stdout.write(process.env.DATABASE_URL || "")')"
-TARGET="$(env -i PATH="$PATH" DATABASE_URL="$DATABASE_URL" node "$ROOT/scripts/lib/database-recovery-safety.mjs" target --environment "$ENVIRONMENT" --approved-host "$APPROVED_HOST" --database "$DATABASE_NAME" --destination false)"
+PRODUCTION_DATABASE_HOST="$(node --env-file="$ENV_FILE" -e 'process.stdout.write(process.env.PRODUCTION_DATABASE_HOST || "")')"
+TARGET="$(env -i PATH="$PATH" DATABASE_URL="$DATABASE_URL" PRODUCTION_DATABASE_HOST="$PRODUCTION_DATABASE_HOST" CONFIRM_PRODUCTION_BACKUP="${CONFIRM_PRODUCTION_BACKUP:-}" node "$ROOT/scripts/lib/database-recovery-safety.mjs" target --operation backup --environment "$ENVIRONMENT" --approved-host "$APPROVED_HOST" --database "$DATABASE_NAME" --destination false)"
 PG_DUMP_URL="$(DATABASE_URL="$DATABASE_URL" node -e 'const u=new URL(process.env.DATABASE_URL); u.searchParams.delete("schema"); process.stdout.write(u.toString())')"
 PG_SCHEMA="$(TARGET="$TARGET" node -e 'process.stdout.write(JSON.parse(process.env.TARGET).schema)')"
-unset DATABASE_URL
+unset DATABASE_URL PRODUCTION_DATABASE_HOST
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$OUTPUT_DIR"; chmod 700 "$OUTPUT_DIR"
 OUT_FILE="$OUTPUT_DIR/pawnloop-${ENVIRONMENT}-${STAMP}.dump"
@@ -34,7 +35,7 @@ if [ -e "$OUT_FILE" ] || [ -e "$MANIFEST_FILE" ]; then echo "Backup output alrea
 
 PG_DUMP_ARGS=("$PG_DUMP_URL" --format=custom --no-owner --no-privileges --file="$OUT_FILE")
 if [ -n "$PG_SCHEMA" ]; then PG_DUMP_ARGS+=(--schema="$PG_SCHEMA"); fi
-echo "Creating $ENVIRONMENT database backup for approved host $APPROVED_HOST and database $DATABASE_NAME."
+echo "Creating $ENVIRONMENT database backup for the explicitly approved target."
 pg_dump "${PG_DUMP_ARGS[@]}"
 chmod 600 "$OUT_FILE"
 if [ ! -s "$OUT_FILE" ]; then cleanup; echo "Backup is empty." >&2; exit 1; fi
@@ -44,4 +45,4 @@ REVISION="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 node "$ROOT/scripts/lib/database-recovery-safety.mjs" manifest --backup "$OUT_FILE" --environment "$ENVIRONMENT" --host "$APPROVED_HOST" --database "$DATABASE_NAME" --source-schema "$PG_SCHEMA" --revision "$REVISION" --tool-version "$TOOL_VERSION" --archive-metadata "pg_restore list inspection passed" >"$MANIFEST_FILE"
 chmod 600 "$MANIFEST_FILE"
 trap - ERR INT TERM
-echo "Backup and non-secret manifest created: $OUT_FILE"
+echo "Backup and non-secret manifest created."
