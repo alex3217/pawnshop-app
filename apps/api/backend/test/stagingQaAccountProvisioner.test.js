@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { STAGING_QA_CONFIRMATION, provisionStagingQaAccounts, validateStagingQaProvisioningEnvironment } from "../scripts/lib/staging-qa-account-provisioner.mjs";
+import {
+  APPROVED_RENDER_STAGING_DATABASE_TARGET_FINGERPRINT,
+  STAGING_QA_CONFIRMATION,
+  databaseTargetFingerprint,
+  isApprovedRenderStagingTarget,
+  provisionStagingQaAccounts,
+  validateStagingQaProvisioningEnvironment,
+} from "../scripts/lib/staging-qa-account-provisioner.mjs";
 
 function validEnv() {
   return {
@@ -13,6 +20,16 @@ function validEnv() {
     OWNER_EMAIL: "owner-qa@example.test", OWNER_PASSWORD: "Owner-Unique-2026!",
     ADMIN_EMAIL: "admin-qa@example.test", ADMIN_PASSWORD: "Admin-Unique-2026!",
     SUPER_ADMIN_EMAIL: "super-qa@example.test", SUPER_ADMIN_PASSWORD: "Super-Unique-2026!",
+  };
+}
+
+function validRenderIdentity() {
+  return {
+    APP_ENV: "staging",
+    RENDER: "true",
+    RENDER_SERVICE_ID: "srv-d9l3l9daeets73af05gg",
+    RENDER_SERVICE_NAME: "pawnshop-staging-api",
+    RENDER_GIT_REPO_SLUG: "alex3217/pawnshop-app",
   };
 }
 
@@ -29,6 +46,39 @@ test("guard accepts valid remote private and internal staging targets", () => {
     const result = validateStagingQaProvisioningEnvironment({ ...validEnv(), DATABASE_URL: url, T48_STAGING_DATABASE_URL_CONFIRMATION: url });
     assert.ok(result.databaseHost);
   }
+});
+
+test("unlabeled provider targets require the exact Render staging identity and pinned fingerprint", () => {
+  assert.equal(isApprovedRenderStagingTarget(validRenderIdentity(), APPROVED_RENDER_STAGING_DATABASE_TARGET_FINGERPRINT), true);
+
+  const mismatches = [
+    ["APP_ENV", undefined], ["APP_ENV", "STAGING"],
+    ["RENDER", undefined], ["RENDER", "false"],
+    ["RENDER_SERVICE_ID", undefined], ["RENDER_SERVICE_ID", "srv-other"],
+    ["RENDER_SERVICE_NAME", undefined], ["RENDER_SERVICE_NAME", "pawnshop-api"],
+    ["RENDER_GIT_REPO_SLUG", undefined], ["RENDER_GIT_REPO_SLUG", "other/pawnshop-app"],
+  ];
+  for (const [name, value] of mismatches) {
+    const env = { ...validRenderIdentity() };
+    if (value === undefined) delete env[name];
+    else env[name] = value;
+    assert.equal(isApprovedRenderStagingTarget(env, APPROVED_RENDER_STAGING_DATABASE_TARGET_FINGERPRINT), false, `${name}=${value}`);
+  }
+  assert.equal(isApprovedRenderStagingTarget(validRenderIdentity(), "0".repeat(64)), false);
+});
+
+test("database target fingerprint excludes credentials and query parameters", () => {
+  const first = new URL("postgres://first-user:first-password@provider-db.internal/pawnloop?sslmode=require");
+  const second = new URL("postgresql://second-user:second-password@PROVIDER-DB.INTERNAL:5432/pawnloop?application_name=other");
+  assert.equal(databaseTargetFingerprint(first), databaseTargetFingerprint(second));
+});
+
+test("unlabeled remote targets fail closed when their computed fingerprint is not approved", () => {
+  const url = "postgresql://qa:secret@provider-db.internal/pawnloop";
+  assert.throws(
+    () => validateStagingQaProvisioningEnvironment({ ...validEnv(), ...validRenderIdentity(), DATABASE_URL: url, T48_STAGING_DATABASE_URL_CONFIRMATION: url }),
+    /must identify a staging-labeled database target/,
+  );
 });
 
 test("guard rejects localhost and the entire IPv4 loopback range", () => {
@@ -67,6 +117,18 @@ test("guard errors do not disclose credential values", () => {
   env.OWNER_EMAIL = env.BUYER_EMAIL;
   assert.throws(() => validateStagingQaProvisioningEnvironment(env), (error) => {
     for (const key of ["BUYER_EMAIL", "BUYER_PASSWORD", "OWNER_EMAIL", "OWNER_PASSWORD", "ADMIN_EMAIL", "ADMIN_PASSWORD", "SUPER_ADMIN_EMAIL", "SUPER_ADMIN_PASSWORD"]) assert.doesNotMatch(error.message, new RegExp(env[key].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    return true;
+  });
+});
+
+test("guard errors do not disclose database URL components", () => {
+  const env = validEnv();
+  env.DATABASE_URL = "postgresql://sensitive-user:sensitive-password@unlabeled-provider.internal/private-database?sslmode=require";
+  env.T48_STAGING_DATABASE_URL_CONFIRMATION = env.DATABASE_URL;
+  assert.throws(() => validateStagingQaProvisioningEnvironment(env), (error) => {
+    for (const secret of [env.DATABASE_URL, "sensitive-user", "sensitive-password", "unlabeled-provider.internal", "private-database", "sslmode=require"]) {
+      assert.doesNotMatch(error.message, new RegExp(secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
     return true;
   });
 });
