@@ -47,6 +47,17 @@ test("controller contains seller, shop-scope, context, blocked, closed, notifica
   for (const contract of ["sellerUserId === userId(req)", "assertShopPermission", "getAccessibleShopScope", "Invalid submission target reference", "cannot message your own shop", "status === \"BLOCKED\"", "status === \"CLOSED\"", "notification.createMany", "shopConversationAuditEvent.create"]) assert.ok(controller.includes(contract), contract);
 });
 
+test("conversation detail authorizes first and retrieves a bounded deterministic message page", async () => {
+  const controller = await source("src/controllers/shopConversations.controller.js");
+  const detail = controller.slice(controller.indexOf("export async function getConversation"), controller.indexOf("export async function postMessage"));
+  assert.match(detail, /loadAuthorized\(req\)/);
+  assert.match(detail, /MESSAGE_PAGE_MAX/);
+  assert.match(detail, /take: messageLimit/);
+  assert.match(detail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+  assert.match(detail, /messagePagination/);
+  assert.match(controller.slice(0, controller.indexOf("function userId")), /messages:\s*\{ take: 1/);
+});
+
 test("outbound compose enforces privacy, authorization, account state, atomicity, reuse, and idempotency", async () => {
   const controller = await source("src/controllers/shopConversations.controller.js");
   for (const contract of ["messages:write", "publicMessageIdentifier", "isActive: true", "isDeleted: false", "relationshipWhere(shopId)", "Administrators cannot impersonate a shop", "prisma.$transaction", "findFirst", "senderUserId_idempotencyKey", "SHOP_COMPOSED", "createNotifications"]) assert.ok(controller.includes(contract), contract);

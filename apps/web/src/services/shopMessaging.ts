@@ -18,11 +18,12 @@ export type ShopConversation = {
   updatedAt: string;
 };
 export type MessageRecipient = { identifier: string; displayName: string; detail?: string; type: "CUSTOMER" | "PAWNSHOP" | "SHOP" | "SELLER" };
+export type MessagePagination = { page: number; limit: number; total: number; pages: number };
 type ListResponse = { conversations: ShopConversation[] };
 const key = () => crypto.randomUUID();
 export const listSellerConversations = (status = "ALL", signal?: AbortSignal) => api.get<ListResponse>(`/shop-conversations/seller?${new URLSearchParams({ status })}`, { signal });
 export const listShopConversations = (shopId?: string, status = "ALL", signal?: AbortSignal) => api.get<ListResponse>(`/shop-conversations/shops?${new URLSearchParams({ ...(shopId ? { shopId } : {}), status })}`, { signal });
-export const getShopConversation = (id: string, signal?: AbortSignal) => api.get<{ conversation: ShopConversation; side: "SELLER" | "SHOP" | "RECIPIENT"; viewerShopId?: string | null }>(`/shop-conversations/${id}`, { signal });
+export const getShopConversation = (id: string, messagePage = 1, signal?: AbortSignal) => api.get<{ conversation: ShopConversation; side: "SELLER" | "SHOP" | "RECIPIENT"; viewerShopId?: string | null; messagePagination: MessagePagination }>(`/shop-conversations/${id}?${new URLSearchParams({ messagePage: String(messagePage) })}`, { signal });
 export const createShopConversation = (input: { shopId: string; subject: string; contactReason: ContactReason; message: string; buyerItemSubmissionId?: string; itemId?: string; offerId?: string; contextType?: string; contextReferenceId?: string }) => api.post<{ conversation: ShopConversation }>("/shop-conversations", input, { headers: { "Idempotency-Key": key() } });
 export const sendShopMessage = (id: string, message: string) => api.post(`/shop-conversations/${id}/messages`, { message }, { headers: { "Idempotency-Key": key() } });
 export const markShopConversationRead = (id: string) => api.patch(`/shop-conversations/${id}/read`);
