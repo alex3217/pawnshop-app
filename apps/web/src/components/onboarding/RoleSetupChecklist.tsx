@@ -173,14 +173,21 @@ export default function RoleSetupChecklist({
   useEffect(() => {
     if (activeRole !== "OWNER") return;
     const controller = new AbortController();
+    let refreshVersion = 0;
     const refresh = async (preferredShopId = "") => {
+      const version = ++refreshVersion;
       try {
         const shops = await getMyShops(controller.signal);
+        if (controller.signal.aborted || version !== refreshVersion) return;
         const shopId = selectActiveOwnerShopId(shops, preferredShopId);
         setOwnerShopId(shopId);
-        setOwnerProgress(shopId ? await getShopOnboardingProgress(shopId, controller.signal) : emptyOwnerReadiness());
+        const progress = shopId
+          ? await getShopOnboardingProgress(shopId, controller.signal)
+          : emptyOwnerReadiness();
+        if (controller.signal.aborted || version !== refreshVersion) return;
+        setOwnerProgress(progress);
       } catch (error) {
-        if (!controller.signal.aborted) console.warn("[owner-setup] Unable to refresh progress", error);
+        if (!controller.signal.aborted && version === refreshVersion) console.warn("[owner-setup] Unable to refresh progress", error);
       }
     };
     const onRefresh = () => void refresh();
@@ -188,6 +195,7 @@ export default function RoleSetupChecklist({
     void refresh();
     window.addEventListener("pawnloop:owner-setup-updated", onRefresh);
     return () => {
+      refreshVersion += 1;
       controller.abort();
       window.removeEventListener("pawnloop:owner-setup-updated", onRefresh);
       unsubscribe();
