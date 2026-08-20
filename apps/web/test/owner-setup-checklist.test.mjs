@@ -26,6 +26,9 @@ test("owner setup surfaces use canonical API progress and action copy", async ()
     readFile(new URL("../src/services/apiClient.ts", import.meta.url), "utf8"),
   ]);
   assert.match(floating, /getShopOnboardingProgress/);
+  assert.match(floating, /const version = \+\+refreshVersion/);
+  assert.match(floating, /version !== refreshVersion/);
+  assert.match(floating, /refreshVersion \+= 1;\s*controller\.abort\(\)/);
   assert.match(wizard, /item\.complete \? "Edit" : "Complete setup"/);
   assert.match(client, /res\.status === 401/);
   assert.match(client, /handleAuthenticationFailure/);

@@ -99,9 +99,10 @@ test("all nine actions render correct route, anchor, and completion copy", async
   for (const complete of [false, true]) {
     const expectedShop = complete ? "shop-b" : "shop-a";
     if (complete) {
-      await page.evaluate(() => {
-        localStorage.setItem("pawnloop-owner-active-shop-owner-1", "shop-b");
-      });
+      await page.goto("/owner");
+      const shopSelector = page.locator("section").filter({ hasText: "Selected shop" }).locator("select").first();
+      await shopSelector.selectOption("shop-b");
+      await expectActiveShop(page, "shop-b", true);
     }
     for (const [id, path, anchor, editPath, editAnchor] of definitions) {
       await page.goto("/owner");
@@ -139,6 +140,23 @@ test("active shop synchronizes dashboard and floating progress across switching 
   await expectActiveShop(page, "shop-a", false);
   await openChecklist(page, false);
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
+});
+
+test("rapid shop switching keeps onboarding actions bound to the user's latest selection", async ({ page }) => {
+  await session(page, "shop-a");
+  await mockOwnerApi(page);
+  await page.goto("/owner");
+  const shopSelector = page.locator("section").filter({ hasText: "Selected shop" }).locator("select").first();
+  await shopSelector.selectOption("shop-b");
+  await openChecklist(page, true);
+  const action = page.locator(".role-checklist-item").filter({ hasText: "Setup shop-name" }).getByRole("link", { name: "Edit" });
+  await action.click();
+  await expect(page).toHaveURL(/\/owner\/locations\?shopId=shop-b#shop-name$/);
+  expect(new URL(page.url()).searchParams.get("shopId")).toBe("shop-b");
+  await page.goto("/owner");
+  await expectActiveShop(page, "shop-b", true);
+  await page.reload();
+  await expectActiveShop(page, "shop-b", true);
 });
 
 for (const viewport of [
