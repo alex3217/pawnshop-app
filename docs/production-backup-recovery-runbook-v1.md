@@ -20,15 +20,21 @@ Point-in-time recovery (PITR) must be enabled and independently verified at the 
 
 ## Backup procedure
 
-The operator must explicitly provide environment, env file, approved hostname, and database name. Example placeholders only:
+The operator must explicitly provide environment, env file, approved hostname, and database name. Managed database providers can assign a neutral database name that does not contain `prod` or `production`; renaming that provider-managed database is not required. For a Production backup, the env file must also contain `PRODUCTION_DATABASE_HOST`, and it must exactly match both the parsed PostgreSQL hostname and `--approved-host`. The parsed database name must exactly match `--database`. Production rejects loopback targets and any hostname or database name marked local, development, test, or staging. These exact identity checks are independent of credentials and do not relax restore controls.
+
+Production backup execution additionally requires the exact fail-closed confirmation `CONFIRM_PRODUCTION_BACKUP='BACKUP PRODUCTION'`. The value is required only for Production backup and must never be logged. Example placeholders only:
 
 ```sh
-npm run db:backup -- --environment production --env-file PATH_TO_ENV_FILE --approved-host APPROVED_HOSTNAME --database APPROVED_PRODUCTION_DATABASE
+CONFIRM_PRODUCTION_BACKUP='BACKUP PRODUCTION' npm run db:backup -- \
+  --environment production \
+  --env-file PATH_TO_ENV_FILE \
+  --approved-host APPROVED_HOSTNAME \
+  --database APPROVED_PRODUCTION_DATABASE
 ```
 
 The script creates a restrictive `0600` custom-format archive and adjacent `0600` JSON manifest in a `0700` directory. It validates the URL target before `pg_dump`, inspects the archive with `pg_restore --list`, and records timestamp, non-secret target identity, exact source schema scope, application revision, filename, size, SHA-256 checksum, archive evidence, and tool version. An empty `sourceSchema` means `pg_dump` captured the full database; it never means an implicit `public` schema. Never attach env files, URLs, credentials, or command traces to an incident record.
 
-V1 does not support schema remapping. The manifest source schema and destination `?schema=` scope must match exactly: schema-scoped backups restore only to the same explicit schema, and full-database backups restore only with no schema scope. Operators must not add, remove, or change `?schema=` merely to force a restore. Any incompatibility is a hard stop requiring a separately reviewed recovery plan.
+V1 does not support schema remapping. The manifest source schema and destination `?schema=` scope must match exactly: schema-scoped backups restore only to the same explicit schema, and full-database backups restore only with no schema scope. Operators must not add, remove, or change `?schema=` merely to force a restore. Any incompatibility is a hard stop requiring a separately reviewed recovery plan. A neutral-name allowance applies only to the read-only Production backup target after every stronger confirmation above passes. It does not make that name eligible as a Production restore destination.
 
 OWNER/TBD must securely transfer backups off host, enforce the approved retention policy, and monitor scheduled completion. A missing, empty, stale, invalid, or manifest-less backup is a backup failure. Escalate immediately to OWNER/TBD, record the failure and last known-good recovery point, preserve non-secret diagnostics, and do not claim RPO compliance until a valid replacement exists.
 
@@ -55,7 +61,7 @@ CONFIRM_RESTORE='RESTORE isolated APPROVED_ISOLATED_DATABASE' npm run db:restore
   --manifest PATH_TO_MANIFEST
 ```
 
-The script permits a valid backup from any source environment into an explicitly named loopback isolated target. It never defaults to production. It rejects missing confirmation, non-loopback isolated targets, ambiguous database names, stale backups, mismatched manifests, checksum changes, and invalid archives. Confirm firewall/network isolation separately. Do not configure the restored application with source-environment credentials or outbound integrations.
+The script permits a valid backup from any source environment into an explicitly named loopback isolated target whose database name is unambiguously marked `isolated`, `restore`, `recovery`, or `drill`. It never defaults to production. It rejects missing confirmation, non-loopback isolated targets, ambiguous database names, stale backups, mismatched manifests, checksum changes, and invalid archives. Confirm firewall/network isolation separately. Do not configure the restored application with source-environment credentials or outbound integrations.
 
 ## Production restore approvals
 

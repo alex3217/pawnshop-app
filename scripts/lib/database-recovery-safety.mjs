@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, realpathSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { isIP } from "node:net";
 import { basename } from "node:path";
@@ -19,6 +19,8 @@ const ENV_MARKERS = {
   development: /(^|[_-])(dev|development|local)([_-]|$)/i,
   isolated: /(^|[_-])(isolated|restore|recovery|drill)([_-]|$)/i,
 };
+const FORBIDDEN_PRODUCTION_TARGET_MARKER = /(^|[._-])(local|localhost|dev|development|test|testing|stage|staging)([._-]|$)/i;
+export const PRODUCTION_BACKUP_CONFIRMATION = "BACKUP PRODUCTION";
 
 export class SafetyError extends Error {}
 
@@ -107,7 +109,7 @@ function assertDatabaseEnvironment(databaseName, environment, local) {
   }
 }
 
-export function validateDatabaseTarget({ databaseUrl, environment, approvedHostname, expectedDatabase, destination = false }) {
+function validateTargetIdentity({ databaseUrl, environment, approvedHostname, expectedDatabase, destination = false }) {
   const normalizedEnvironment = normalizeEnvironment(environment, { destination });
   const approvedHost = normalizeHostname(approvedHostname, { approved: true });
   let parsed;
@@ -122,15 +124,32 @@ export function validateDatabaseTarget({ databaseUrl, environment, approvedHostn
   if (parsed.searchParams.getAll("schema").length > 1) fail("DATABASE_URL schema scope is ambiguous.");
   const schema = normalizeSchemaScope(parsed.searchParams.get("schema") ?? "");
   const local = isLoopback(actualHost);
+  return { environment: normalizedEnvironment, hostname: actualHost, databaseName, schema, local };
+}
+
+export function validateDatabaseTarget(options) {
+  const target = validateTargetIdentity(options);
+  const { environment: normalizedEnvironment, hostname: actualHost, databaseName, local } = target;
   assertDatabaseEnvironment(databaseName, normalizedEnvironment, local);
   if (["production", "staging"].includes(normalizedEnvironment) && local) fail(`${normalizedEnvironment} targets must not use localhost or loopback.`);
   if (["test", "development", "isolated"].includes(normalizedEnvironment) && !local) fail(`${normalizedEnvironment} targets must use an approved loopback hostname.`);
-  return {
-    environment: normalizedEnvironment,
-    hostname: actualHost,
-    databaseName,
-    schema,
-  };
+  const { local: _local, ...result } = target;
+  return result;
+}
+
+export function validateBackupTarget({ productionHostname, confirmation, ...options }) {
+  const target = validateTargetIdentity({ ...options, destination: false });
+  if (target.environment !== "production") return validateDatabaseTarget({ ...options, destination: false });
+  if (!text(productionHostname)) fail("Production database host confirmation is required for a Production backup.");
+  const confirmedHost = normalizeHostname(productionHostname, { approved: true });
+  if (confirmedHost !== target.hostname) fail("Production database host confirmation does not match the selected target.");
+  if (confirmation !== PRODUCTION_BACKUP_CONFIRMATION) fail("Production backup confirmation is missing or incorrect.");
+  if (target.local) fail("Production targets must not use localhost or loopback.");
+  if (FORBIDDEN_PRODUCTION_TARGET_MARKER.test(target.hostname) || FORBIDDEN_PRODUCTION_TARGET_MARKER.test(target.databaseName)) {
+    fail("Production backup target contains a non-Production environment marker.");
+  }
+  const { local: _local, ...result } = target;
+  return result;
 }
 
 export function assertEnvironmentCompatibility(source, destination) {
@@ -229,7 +248,10 @@ async function main() {
   const [command, ...rest] = process.argv.slice(2);
   const args = parseArgs(rest);
   if (command === "target") {
-    const result = validateDatabaseTarget({ databaseUrl: process.env.DATABASE_URL, environment: args.environment, approvedHostname: args["approved-host"], expectedDatabase: args.database, destination: args.destination === "true" });
+    const options = { databaseUrl: process.env.DATABASE_URL, environment: args.environment, approvedHostname: args["approved-host"], expectedDatabase: args.database, destination: args.destination === "true" };
+    const result = args.operation === "backup"
+      ? validateBackupTarget({ ...options, productionHostname: process.env.PRODUCTION_DATABASE_HOST, confirmation: process.env.CONFIRM_PRODUCTION_BACKUP })
+      : validateDatabaseTarget(options);
     process.stdout.write(JSON.stringify(result));
   } else if (command === "manifest") {
     const manifest = await buildManifest({ backupFile: args.backup, environment: args.environment, hostname: args.host, databaseName: args.database, sourceSchema: args["source-schema"], applicationRevision: args.revision, createdAt: args["created-at"], toolVersion: args["tool-version"], archiveMetadata: args["archive-metadata"] });
@@ -244,6 +266,6 @@ async function main() {
   } else fail("Unknown database recovery safety command.");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   main().catch((error) => { console.error(error instanceof SafetyError ? error.message : "Database recovery safety validation failed."); process.exitCode = 1; });
 }

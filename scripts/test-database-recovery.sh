@@ -38,6 +38,38 @@ while IFS= read -r line; do :; done
 FAKE
 chmod 755 "$FAKE_BIN/pg_dump" "$FAKE_BIN/pg_restore" "$FAKE_BIN/psql"
 
+PROD_ENV_FILE="$TMP_DIR/production-neutral.env"
+PROD_OUTPUT_DIR="$TMP_DIR/production-backups"
+printf 'DATABASE_URL=postgresql://neutral_user:neutral-secret@primary-db.invalid/providerdb\nPRODUCTION_DATABASE_HOST=primary-db.invalid\n' >"$PROD_ENV_FILE"
+run_production_backup() {
+  PATH="$FAKE_BIN:$PATH" "$ROOT/scripts/backup-db.sh" --environment production \
+    --env-file "$PROD_ENV_FILE" --approved-host primary-db.invalid --database providerdb \
+    --output-dir "$PROD_OUTPUT_DIR"
+}
+for confirmation in "" "BACKUP production" "RESTORE PRODUCTION"; do
+  if CONFIRM_PRODUCTION_BACKUP="$confirmation" run_production_backup >/dev/null 2>&1; then
+    echo "FAIL: neutral Production backup passed without the exact confirmation" >&2; exit 1
+  fi
+done
+PROD_OUTPUT="$(CONFIRM_PRODUCTION_BACKUP='BACKUP PRODUCTION' run_production_backup 2>&1)"
+case "$PROD_OUTPUT" in *neutral-secret*|*neutral_user*|*postgresql://*|*primary-db.invalid*|*providerdb*) echo "FAIL: Production target or credentials appeared in backup output" >&2; exit 1;; esac
+PROD_BACKUP="$(find "$PROD_OUTPUT_DIR" -type f -name 'pawnloop-production-*.dump' -print)"
+test -s "$PROD_BACKUP" && test -s "$PROD_BACKUP.manifest.json" || { echo "FAIL: confirmed neutral Production backup was not created" >&2; exit 1; }
+
+for env_contents in \
+  'DATABASE_URL=postgresql://neutral_user:neutral-secret@primary-db.invalid/providerdb' \
+  'DATABASE_URL=postgresql://neutral_user:neutral-secret@other.invalid/providerdb
+PRODUCTION_DATABASE_HOST=other.invalid' \
+  'DATABASE_URL=postgresql://neutral_user:neutral-secret@primary-db.invalid/otherdb
+PRODUCTION_DATABASE_HOST=primary-db.invalid'; do
+  printf '%b\n' "$env_contents" >"$TMP_DIR/rejected-production.env"
+  if CONFIRM_PRODUCTION_BACKUP='BACKUP PRODUCTION' PATH="$FAKE_BIN:$PATH" "$ROOT/scripts/backup-db.sh" \
+    --environment production --env-file "$TMP_DIR/rejected-production.env" --approved-host primary-db.invalid \
+    --database providerdb --output-dir "$TMP_DIR/rejected-output" >/dev/null 2>&1; then
+    echo "FAIL: mismatched or missing Production approval passed" >&2; exit 1
+  fi
+done
+
 DEV_ENV_FILE="$TMP_DIR/development.env"
 DEV_OUTPUT_DIR="$TMP_DIR/development-backups"
 DEV_SECRET="p1-interface-secret-password"
@@ -78,6 +110,16 @@ run_restore() {
 if run_restore >/dev/null 2>&1; then echo "FAIL: restore passed without destructive confirmation" >&2; exit 1; fi
 CONFIRM_RESTORE="RESTORE isolated pawnloop_restore_drill" run_restore >/dev/null
 test -s "$TRACE" || { echo "FAIL: isolated restore did not reach synthetic psql" >&2; exit 1; }
+
+PROD_RESTORE_ENV="$TMP_DIR/production-restore.env"
+printf 'DATABASE_URL=postgresql://restore_user:restore-secret@prod-db.invalid/pawnloop_production\n' >"$PROD_RESTORE_ENV"
+: >"$TRACE"
+if PATH="$FAKE_BIN:$PATH" SYNTHETIC_TRACE="$TRACE" CONFIRM_RESTORE='RESTORE production pawnloop_production' \
+  "$ROOT/scripts/restore-db.sh" --destination-environment production --env-file "$PROD_RESTORE_ENV" \
+  --approved-host prod-db.invalid --database pawnloop_production --backup "$BACKUP" --manifest "$MANIFEST" >/dev/null 2>&1; then
+  echo "FAIL: Production restore passed without separate Production confirmation" >&2; exit 1
+fi
+test ! -s "$TRACE" || { echo "FAIL: blocked Production restore reached synthetic psql" >&2; exit 1; }
 
 SCOPED_PUBLIC_ENV="$TMP_DIR/isolated-public.env"
 SCOPED_OTHER_ENV="$TMP_DIR/isolated-other.env"
