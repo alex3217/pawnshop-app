@@ -93,7 +93,7 @@ test("multiple-shop selector is shown and read-only staff cannot compose", async
 
 test("empty owner inbox offers compose", async ({ page }) => {
   await installOwner(page, "light"); await page.route("**/api/shop-conversations/shops?**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ conversations: [] }) })); await page.goto("/owner/messages");
-  await expect(page.getByText("No conversations yet. Start a conversation or wait for a customer to contact your shop.")).toBeVisible(); await expect(page.locator(".messaging-empty").getByRole("button", { name: "Compose message" })).toBeEnabled();
+  const emptyState = page.locator(".messaging-empty"); await expect(emptyState.getByRole("heading", { name: "No conversations in this view" })).toBeVisible(); await expect(emptyState.getByText("Start a conversation or wait for a customer to contact your shop.")).toBeVisible(); await expect(emptyState.getByRole("button", { name: "Compose message" })).toBeEnabled();
 });
 
 for (const theme of ["light", "dark"] as const) test(`seller composer supports ${theme} theme and mobile layout`, async ({ page }) => {
@@ -116,7 +116,7 @@ test("buyer controls public messaging identity and consent without exposing sear
   const profile = { publicDisplayName: "Seller One", publicMessageIdentifier: "seller-one", email: "seller@example.test", messageDiscoverable: true, allowShopFirstContact: false, allowTransactionalMessages: true, blockedMessagingShops: [{ createdAt: new Date().toISOString(), shop: { id: SHOP_ID, name: "Target Pawn", city: "Austin", state: "TX" } }] };
   await page.route("**/api/buyer/messaging-profile", async (route) => { if (route.request().method() === "PATCH") { saved = true; return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ profile: { ...profile, ...route.request().postDataJSON() } }) }); } return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ profile }) }); });
   await page.goto("/buyer/messaging-profile"); await expect(page.getByRole("heading", { name: "Profile & messaging settings" })).toBeVisible();
-  await expect(page.getByText("seller@example.test")).toBeVisible(); await expect(page.getByText("Never public and never searchable by pawnshops.")).toBeVisible();
+  await expect(page.getByText("seller@example.test")).toBeVisible(); await expect(page.getByText("Your email and phone are never public or searchable in messaging.")).toBeVisible();
   await page.getByLabel("Allow pawnshops to message me first").check(); await page.getByRole("button", { name: "Save settings" }).click(); await expect.poll(() => saved).toBe(true);
   await expect(page.getByRole("heading", { name: "Blocked pawnshops" })).toBeVisible();
 });

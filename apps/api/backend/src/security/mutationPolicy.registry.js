@@ -33,7 +33,7 @@ export const MUTATION_POLICY_EXCEPTIONS = Object.freeze({
     ...route("marketplaceListings.routes.js", ["POST /", "PATCH /:id", "POST /:id/publish", "POST /:id/pause", "POST /:id/cancel"]),
     ...route("marketplaceTransactions.routes.js", ["POST /reserve", "POST /:id/customer-sell/acknowledge"]),
     ...route("offers.routes.js", ["POST /", "PATCH /:id/accept", "PATCH /:id/reject", "PATCH /:id/counter", "PATCH /:id/accept-counter", "PATCH /:id/decline-counter", "POST /:id/accept", "POST /:id/reject", "POST /:id/counter", "PATCH /:id/cancel", "POST /:id/cancel", "POST /:id/accept-counter", "POST /:id/decline-counter"]),
-    ...route("shopConversations.routes.js", ["POST /shop-compose", "POST /", "POST /:id/messages", "PATCH /:id/read", "PATCH /:id/close", "PATCH /:id/reopen", "PATCH /:id/block", "POST /:id/report"]),
+    ...route("shopConversations.routes.js", ["POST /consumer-compose", "POST /shop-compose", "POST /", "POST /:id/messages", "PATCH /:id/read", "PATCH /:id/close", "PATCH /:id/reopen", "PATCH /:id/block", "PATCH /:id/mute", "PATCH /:id/unmute", "PATCH /:id/archive", "PATCH /:id/unarchive", "POST /:id/report"]),
     ...route("shops.routes.js", ["PUT /:id/onboarding/complete"]),
     ...route("superAdmin.routes.js", ["POST /plans/seller/:code/impact", "POST /plans/seller/:code/validate-stripe", "POST /growth/leads", "PATCH /growth/leads/:leadId", "DELETE /growth/leads/:leadId", "POST /growth/leads/:leadId/contacts", "PATCH /growth/leads/:leadId/contacts/:contactId", "POST /growth/leads/:leadId/activities", "POST /growth/leads/:leadId/suppress", "POST /growth/leads/:leadId/convert"]),
       ...route("uploads.routes.js", [
