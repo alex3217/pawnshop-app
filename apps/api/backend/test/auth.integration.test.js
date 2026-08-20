@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import request from "supertest";
 import { issueMfaStepUpProof, resetMfaTestMode } from "./helpers/mfaStepUp.fixture.js";
+import { validateIntegrationTestDatabase, verifyConnectedIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const TEST_JWT_SECRET = "pawnloop-db-tests-only-secret-2026";
 const TEST_DOMAIN = "@integration.pawnloop.test";
@@ -95,12 +96,7 @@ before(async () => {
     INVITE_ONLY_REGISTRATION_ENABLED: "false",
     EMAIL_PROVIDER: "resend",
   });
-  const rawDatabaseUrl = String(process.env.DATABASE_URL || "");
-  assert.ok(rawDatabaseUrl, "DATABASE_URL is required");
-  const databaseName = decodeURIComponent(
-    new URL(rawDatabaseUrl).pathname.replace(/^\/+/, ""),
-  );
-  assert.equal(databaseName, "pawnshop_test", "Integration tests may only use pawnshop_test");
+  const databaseTarget = validateIntegrationTestDatabase();
 
   const appModule = await import("../src/app.js");
   const prismaModule = await import("../src/lib/prisma.js");
@@ -117,10 +113,7 @@ before(async () => {
   app = appModule.createApp();
   prisma = prismaModule.prisma;
 
-  const databaseResult = await prisma.$queryRaw`
-    SELECT current_database() AS database_name
-  `;
-  assert.equal(databaseResult[0]?.database_name, "pawnshop_test");
+  await verifyConnectedIntegrationTestDatabase(prisma, databaseTarget);
   databaseVerified = true;
 });
 

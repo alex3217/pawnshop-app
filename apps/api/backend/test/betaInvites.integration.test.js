@@ -7,6 +7,7 @@ import request from "supertest";
 import { digestInviteToken } from "../src/services/betaInvite.service.js";
 import { digestAccountActionToken } from "../src/services/accountActionToken.service.js";
 import { issueMfaStepUpProof, resetMfaTestMode } from "./helpers/mfaStepUp.fixture.js";
+import { validateIntegrationTestDatabase, verifyConnectedIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const SECRET = "beta-invite-integration-test-secret";
 const DOMAIN = "@beta-invite.integration.pawnloop.test";
@@ -111,17 +112,11 @@ before(async () => {
     INVITE_ONLY_REGISTRATION_ENABLED: "true",
     WEB_URL: "http://localhost:5173",
   });
-  const raw = String(process.env.DATABASE_URL || "");
-  assert.ok(raw, "DATABASE_URL is required");
-  assert.equal(
-    decodeURIComponent(new URL(raw).pathname.replace(/^\/+/, "")),
-    "pawnshop_test",
-  );
+  const databaseTarget = validateIntegrationTestDatabase();
   const appModule = await import("../src/app.js");
   ({ prisma } = await import("../src/lib/prisma.js"));
   app = appModule.createApp();
-  const result = await prisma.$queryRaw`SELECT current_database() AS database_name`;
-  assert.equal(result[0]?.database_name, "pawnshop_test");
+  await verifyConnectedIntegrationTestDatabase(prisma, databaseTarget);
   databaseVerified = true;
 });
 

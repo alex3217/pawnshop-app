@@ -7,6 +7,7 @@ import test, {
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { validateIntegrationTestDatabase, verifyConnectedIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const TEST_JWT_SECRET =
   "pawnloop-owner-review-tests-only-secret-2026";
@@ -133,27 +134,7 @@ before(async () => {
     AUCTION_SCHEDULER_ENABLED: "false",
   });
 
-  const rawDatabaseUrl = String(
-    process.env.DATABASE_URL || "",
-  );
-
-  assert.ok(
-    rawDatabaseUrl,
-    "DATABASE_URL is required",
-  );
-
-  const databaseName = decodeURIComponent(
-    new URL(rawDatabaseUrl).pathname.replace(
-      /^\/+/,
-      "",
-    ),
-  );
-
-  assert.equal(
-    databaseName,
-    "pawnshop_test",
-    "Owner review tests may only use pawnshop_test",
-  );
+  const databaseTarget = validateIntegrationTestDatabase();
 
   const appModule =
     await import("../src/app.js");
@@ -163,16 +144,7 @@ before(async () => {
   app = appModule.createApp();
   prisma = prismaModule.prisma;
 
-  const result =
-    await prisma.$queryRawUnsafe(
-      "SELECT current_database() AS database_name",
-    );
-
-  assert.equal(
-    result[0]?.database_name,
-    "pawnshop_test",
-    "Connected PostgreSQL database must be pawnshop_test",
-  );
+  await verifyConnectedIntegrationTestDatabase(prisma, databaseTarget);
 
   databaseVerified = true;
 });

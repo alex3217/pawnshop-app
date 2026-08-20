@@ -3,6 +3,7 @@ import test, { after, before, beforeEach } from "node:test";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { validateIntegrationTestDatabase, verifyConnectedIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const SECRET = "admin-inventory-control-integration-secret";
 const DOMAIN = "@admin-inventory-control.pawnloop.test";
@@ -75,18 +76,12 @@ before(async () => {
     WEB_URL: "http://localhost:5173",
   });
 
-  const raw = String(process.env.DATABASE_URL || "");
-  assert.ok(raw, "DATABASE_URL is required");
-  assert.equal(
-    decodeURIComponent(new URL(raw).pathname.replace(/^\/+/, "")),
-    "pawnshop_test",
-  );
+  const databaseTarget = validateIntegrationTestDatabase();
 
   const appModule = await import("../src/app.js");
   ({ prisma } = await import("../src/lib/prisma.js"));
   app = appModule.createApp();
-  const result = await prisma.$queryRaw`SELECT current_database() AS database_name`;
-  assert.equal(result[0]?.database_name, "pawnshop_test");
+  await verifyConnectedIntegrationTestDatabase(prisma, databaseTarget);
   databaseVerified = true;
 });
 

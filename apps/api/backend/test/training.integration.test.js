@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { after, before } from "node:test";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { validateIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const secret = "training-integration-secret-not-for-production";
 const suffix = "@training.integration.test";
@@ -10,8 +11,7 @@ const auth = (user) => `Bearer ${jwt.sign({ sub: user.id, email: user.email, rol
 
 before(async () => {
   Object.assign(process.env, { NODE_ENV: "test", APP_ENV: "test", JWT_SECRET: secret, AUCTION_SCHEDULER_ENABLED: "false" });
-  const url = new URL(process.env.DATABASE_URL || "");
-  assert.ok(["127.0.0.1", "localhost"].includes(url.hostname)); assert.equal(url.pathname, "/pawnshop_test");
+  validateIntegrationTestDatabase();
   ({ prisma } = await import("../src/lib/prisma.js"));
   ({ runTrainingAuditTransaction } = await import("../src/controllers/training.controller.js"));
   ({ updateTrainingContent } = await import("../src/services/training.service.js"));

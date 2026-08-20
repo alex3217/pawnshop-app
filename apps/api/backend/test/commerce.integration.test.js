@@ -7,6 +7,7 @@ import test, {
 
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { validateIntegrationTestDatabase, verifyConnectedIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const TEST_JWT_SECRET =
   "pawnloop-db-tests-only-secret-2026";
@@ -445,27 +446,7 @@ before(async () => {
     AUCTION_SCHEDULER_ENABLED: "false",
   });
 
-  const rawDatabaseUrl = String(
-    process.env.DATABASE_URL || "",
-  );
-
-  assert.ok(
-    rawDatabaseUrl,
-    "DATABASE_URL is required",
-  );
-
-  const databaseName = decodeURIComponent(
-    new URL(rawDatabaseUrl).pathname.replace(
-      /^\/+/,
-      "",
-    ),
-  );
-
-  assert.equal(
-    databaseName,
-    "pawnshop_test",
-    "Commerce tests may only use pawnshop_test",
-  );
+  const databaseTarget = validateIntegrationTestDatabase();
 
   const appModule = await import("../src/app.js");
   const prismaModule = await import(
@@ -482,14 +463,7 @@ before(async () => {
   };
   prisma = prismaModule.prisma;
 
-  const database = await prisma.$queryRaw`
-    SELECT current_database() AS database_name
-  `;
-
-  assert.equal(
-    database[0]?.database_name,
-    "pawnshop_test",
-  );
+  await verifyConnectedIntegrationTestDatabase(prisma, databaseTarget);
 });
 
 beforeEach(async () => {
