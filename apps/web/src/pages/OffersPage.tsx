@@ -74,6 +74,11 @@ function shopHref(offer: Offer) {
   return shopId ? `/shops/${encodeURIComponent(shopId)}` : "/shops";
 }
 
+function messageOfferHref(offer: Offer) {
+  const shopId = offer.item?.shop?.id;
+  return shopId ? `/shops/${encodeURIComponent(shopId)}/message?offerId=${encodeURIComponent(offer.id)}` : `/messages?compose=1&contextType=EXISTING_OFFER&contextId=${encodeURIComponent(offer.id)}`;
+}
+
 function offerTitle(offer: Offer) {
   return normalizeLabel(offer.item?.title, "Unknown item");
 }
@@ -431,6 +436,7 @@ export default function OffersPage() {
 
     return (
       <article key={offer.id} className="offers2-card">
+        <Link to={messageOfferHref(offer)}>Contact Seller</Link>
         <div className="offers2-card-top">
           <div>
             <Link to={itemHref(offer)} className="offers2-item-title">

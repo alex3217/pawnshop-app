@@ -16,6 +16,8 @@ model User {
   messageDiscoverable             Boolean                          @default(false)
   allowShopFirstContact           Boolean                          @default(false)
   allowTransactionalMessages      Boolean                          @default(true)
+  sellerDiscoverable              Boolean                          @default(false)
+  allowMarketplaceFirstContact    Boolean                          @default(false)
   password                        String
   role                            Role                             @default(CONSUMER)
   isActive                        Boolean                          @default(true)
@@ -93,6 +95,7 @@ model User {
   uploadAssets                    UploadAsset[]                    @relation("UploadAssetUploader")
   submissionAuditEvents           BuyerItemSubmissionAuditEvent[]  @relation("BuyerItemSubmissionAuditActor")
   shopConversations               ShopConversation[]               @relation("ShopConversationSeller")
+  receivedShopConversations       ShopConversation[]               @relation("ShopConversationRecipientUser")
   sentShopMessages                ShopMessage[]                    @relation("ShopMessageSender")
   shopConversationAuditEvents     ShopConversationAuditEvent[]     @relation("ShopConversationAuditActor")
   governanceRestriction           UserGovernanceRestriction?       @relation("GovernedUser")
@@ -1930,7 +1933,7 @@ enum ShopContactReason {
 
 model ShopConversation {
   id                          String                 @id @default(cuid())
-  shopId                      String
+  shopId                      String?
   sellerUserId                String
   subject                     String
   contactReason               ShopContactReason
@@ -1940,6 +1943,7 @@ model ShopConversation {
   itemId                      String?
   offerId                     String?
   recipientShopId             String?
+  recipientUserId             String?
   initiatedByShopId           String?
   contextType                 String?
   contextReferenceId          String?
@@ -1948,15 +1952,20 @@ model ShopConversation {
   shopLastReadAt              DateTime?
   blockedByUserId             String?
   blockedAt                   DateTime?
+  sellerMutedAt               DateTime?
+  recipientMutedAt            DateTime?
+  sellerArchivedAt            DateTime?
+  recipientArchivedAt         DateTime?
   moderationState             String                 @default("NONE")
   moderationReason            String?
   moderatedAt                 DateTime?
   createdAt                   DateTime               @default(now())
   updatedAt                   DateTime               @updatedAt
 
-  shop                      PawnShop                     @relation("ShopConversationPrimaryShop", fields: [shopId], references: [id], onDelete: Restrict)
+  shop                      PawnShop?                    @relation("ShopConversationPrimaryShop", fields: [shopId], references: [id], onDelete: Restrict)
   recipientShop             PawnShop?                    @relation("ShopConversationRecipientShop", fields: [recipientShopId], references: [id], onDelete: Restrict)
   seller                    User                         @relation("ShopConversationSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  recipientUser              User?                        @relation("ShopConversationRecipientUser", fields: [recipientUserId], references: [id], onDelete: Restrict)
   buyerItemSubmission       BuyerItemSubmission?         @relation(fields: [buyerItemSubmissionId], references: [id], onDelete: SetNull)
   buyerItemSubmissionTarget BuyerItemSubmissionTarget?   @relation(fields: [buyerItemSubmissionTargetId], references: [id], onDelete: SetNull)
   marketplaceListing        MarketplaceListing?          @relation(fields: [marketplaceListingId], references: [id], onDelete: SetNull)
@@ -1970,6 +1979,8 @@ model ShopConversation {
   @@index([shopId, status, updatedAt])
   @@index([shopId, sellerUserId, updatedAt])
   @@index([recipientShopId, status, updatedAt])
+  @@index([recipientUserId, status, updatedAt])
+  @@index([sellerUserId, recipientUserId, contextType, contextReferenceId])
   @@index([shopId, sellerUserId, contextType, contextReferenceId])
 }
 

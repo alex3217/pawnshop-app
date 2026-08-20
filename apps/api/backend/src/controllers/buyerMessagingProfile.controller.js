@@ -11,6 +11,7 @@ const sendError = (res, error) => sendControllerError(res, error);
 const selectProfile = {
   publicDisplayName: true, publicMessageIdentifier: true, email: true,
   messageDiscoverable: true, allowShopFirstContact: true, allowTransactionalMessages: true,
+  sellerDiscoverable: true, allowMarketplaceFirstContact: true,
   blockedMessagingShops: { orderBy: { createdAt: "desc" }, select: { createdAt: true, shop: { select: { id: true, name: true, logoUrl: true, city: true, state: true } } } },
 };
 
@@ -33,11 +34,14 @@ export async function updateBuyerMessagingProfile(req, res) {
       messageDiscoverable: req.body.messageDiscoverable === true,
       allowShopFirstContact: req.body.allowShopFirstContact === true,
       allowTransactionalMessages: req.body.allowTransactionalMessages === true,
+      sellerDiscoverable: req.body.sellerDiscoverable === true,
+      allowMarketplaceFirstContact: req.body.allowMarketplaceFirstContact === true,
     };
     if (!data.messageDiscoverable) data.allowShopFirstContact = false;
+    if (!data.sellerDiscoverable) data.allowMarketplaceFirstContact = false;
     const profile = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({ where: { id: id(req), isActive: true }, data, select: selectProfile });
-      await tx.buyerMessagingProfileAudit.create({ data: { userId: id(req), action: "PROFILE_UPDATED", metadata: { messageDiscoverable: data.messageDiscoverable, allowShopFirstContact: data.allowShopFirstContact, allowTransactionalMessages: data.allowTransactionalMessages } } });
+      await tx.buyerMessagingProfileAudit.create({ data: { userId: id(req), action: "PROFILE_UPDATED", metadata: { messageDiscoverable: data.messageDiscoverable, allowShopFirstContact: data.allowShopFirstContact, allowTransactionalMessages: data.allowTransactionalMessages, sellerDiscoverable: data.sellerDiscoverable, allowMarketplaceFirstContact: data.allowMarketplaceFirstContact } } });
       return updated;
     });
     return res.json({ success: true, profile });

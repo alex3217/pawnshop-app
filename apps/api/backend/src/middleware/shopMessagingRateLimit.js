@@ -15,11 +15,11 @@ class MemoryStore {
 
 // REDIS_URL is the distributed source of truth. Local/test environments use a
 // bounded-process fallback; production fails closed if Redis is unavailable.
-export function createShopMessagingRateLimit({ env = process.env, store } = {}) {
-  const windowMs = Number(env.SHOP_MESSAGE_RATE_LIMIT_WINDOW_MS) || 60_000;
-  const max = Number(env.SHOP_MESSAGE_RATE_LIMIT_MAX) || 30;
+export function createShopMessagingRateLimit({ env = process.env, store, windowMs: configuredWindowMs, max: configuredMax, namespace = "shop-message:rate" } = {}) {
+  const windowMs = configuredWindowMs || Number(env.SHOP_MESSAGE_RATE_LIMIT_WINDOW_MS) || 60_000;
+  const max = configuredMax || Number(env.SHOP_MESSAGE_RATE_LIMIT_MAX) || 30;
   const limiterStore = store || (env.REDIS_URL
-    ? new RedisRateLimitStore({ url: env.REDIS_URL, namespace: "shop-message:rate" })
+    ? new RedisRateLimitStore({ url: env.REDIS_URL, namespace })
     : env.NODE_ENV === "production" ? null : new MemoryStore());
 
   return async (req, res, next) => {
@@ -42,3 +42,8 @@ export function createShopMessagingRateLimit({ env = process.env, store } = {}) 
 }
 
 export const shopMessagingRateLimit = createShopMessagingRateLimit();
+export const firstContactRateLimit = createShopMessagingRateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  namespace: "pawnloop-first-contact:rate",
+});

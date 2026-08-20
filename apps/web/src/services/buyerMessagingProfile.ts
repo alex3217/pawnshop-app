@@ -7,6 +7,8 @@ export type BuyerMessagingProfile = {
   messageDiscoverable: boolean;
   allowShopFirstContact: boolean;
   allowTransactionalMessages: boolean;
+  sellerDiscoverable: boolean;
+  allowMarketplaceFirstContact: boolean;
   blockedMessagingShops: Array<{ createdAt: string; shop: { id: string; name: string; logoUrl?: string | null; city?: string | null; state?: string | null } }>;
 };
 export const getBuyerMessagingProfile = (signal?: AbortSignal) => api.get<{ profile: BuyerMessagingProfile }>("/buyer/messaging-profile", { signal });

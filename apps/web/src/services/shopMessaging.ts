@@ -5,9 +5,11 @@ export type ConversationStatus = "OPEN" | "CLOSED" | "BLOCKED";
 export type ShopConversation = {
   id: string; subject: string; contactReason: ContactReason; status: ConversationStatus;
   sellerUserId: string; sellerLastReadAt?: string | null; shopLastReadAt?: string | null;
-  shop: { id: string; name: string; city?: string | null; state?: string | null };
+  shop?: { id: string; name: string; city?: string | null; state?: string | null } | null;
   seller: { id: string; name: string; publicDisplayName?: string | null; publicMessageIdentifier?: string };
   recipientShop?: { id: string; name: string } | null;
+  recipientUser?: { id: string; publicDisplayName?: string | null; publicMessageIdentifier: string } | null;
+  sellerMutedAt?: string | null; recipientMutedAt?: string | null; sellerArchivedAt?: string | null; recipientArchivedAt?: string | null;
   messages: Array<{ id: string; senderUserId: string; body: string; readAt?: string | null; createdAt: string; systemMetadata?: { sentByShopId?: string } | null }>;
   buyerItemSubmission?: { id: string; title: string } | null;
   marketplaceListing?: { id: string; title: string } | null;
@@ -15,13 +17,13 @@ export type ShopConversation = {
   offer?: { id: string; status: string } | null;
   updatedAt: string;
 };
-export type MessageRecipient = { identifier: string; displayName: string; detail?: string; type: "CUSTOMER" | "PAWNSHOP" };
+export type MessageRecipient = { identifier: string; displayName: string; detail?: string; type: "CUSTOMER" | "PAWNSHOP" | "SHOP" | "SELLER" };
 type ListResponse = { conversations: ShopConversation[] };
 const key = () => crypto.randomUUID();
 export const listSellerConversations = (status = "ALL", signal?: AbortSignal) => api.get<ListResponse>(`/shop-conversations/seller?${new URLSearchParams({ status })}`, { signal });
 export const listShopConversations = (shopId?: string, status = "ALL", signal?: AbortSignal) => api.get<ListResponse>(`/shop-conversations/shops?${new URLSearchParams({ ...(shopId ? { shopId } : {}), status })}`, { signal });
-export const getShopConversation = (id: string, signal?: AbortSignal) => api.get<{ conversation: ShopConversation; side: "SELLER" | "SHOP"; viewerShopId?: string | null }>(`/shop-conversations/${id}`, { signal });
-export const createShopConversation = (input: { shopId: string; subject: string; contactReason: ContactReason; message: string; buyerItemSubmissionId?: string }) => api.post<{ conversation: ShopConversation }>("/shop-conversations", input, { headers: { "Idempotency-Key": key() } });
+export const getShopConversation = (id: string, signal?: AbortSignal) => api.get<{ conversation: ShopConversation; side: "SELLER" | "SHOP" | "RECIPIENT"; viewerShopId?: string | null }>(`/shop-conversations/${id}`, { signal });
+export const createShopConversation = (input: { shopId: string; subject: string; contactReason: ContactReason; message: string; buyerItemSubmissionId?: string; itemId?: string; offerId?: string; contextType?: string; contextReferenceId?: string }) => api.post<{ conversation: ShopConversation }>("/shop-conversations", input, { headers: { "Idempotency-Key": key() } });
 export const sendShopMessage = (id: string, message: string) => api.post(`/shop-conversations/${id}/messages`, { message }, { headers: { "Idempotency-Key": key() } });
 export const markShopConversationRead = (id: string) => api.patch(`/shop-conversations/${id}/read`);
 export const changeShopConversationStatus = (id: string, action: "close" | "reopen" | "block") => api.patch(`/shop-conversations/${id}/${action}`);
@@ -29,3 +31,7 @@ export const reportShopConversation = (id: string, reason: string) => api.post(`
 export const getShopMessageUnreadCounts = () => api.get<{ seller: number; shop: number; total: number }>("/shop-conversations/unread-counts");
 export const searchShopMessageRecipients = (shopId: string, type: "CUSTOMER" | "PAWNSHOP", q: string, signal?: AbortSignal) => api.get<{ recipients: MessageRecipient[] }>(`/shop-conversations/shop-recipients?${new URLSearchParams({ shopId, type, q })}`, { signal });
 export const createShopOutboundConversation = (input: { shopId: string; recipientType: "CUSTOMER" | "PAWNSHOP"; recipientIdentifier: string; subject: string; contextType: string; contextReferenceId?: string; message: string }, idempotencyKey: string) => api.post<{ conversation: ShopConversation }>("/shop-conversations/shop-compose", input, { headers: { "Idempotency-Key": idempotencyKey } });
+export type ConsumerRecipientMode = "SHOP" | "SELLER" | "CONTACT";
+export const searchConsumerMessageRecipients = (mode: ConsumerRecipientMode, q: string, signal?: AbortSignal) => api.get<{ recipients: MessageRecipient[] }>(`/shop-conversations/consumer-recipients?${new URLSearchParams({ mode, q })}`, { signal });
+export const createConsumerSellerConversation = (input: { recipientIdentifier: string; subject: string; contextType: string; contextReferenceId?: string; message: string }, idempotencyKey: string) => api.post<{ conversation: ShopConversation }>("/shop-conversations/consumer-compose", input, { headers: { "Idempotency-Key": idempotencyKey } });
+export const changeParticipantConversationState = (id: string, action: "mute" | "unmute" | "archive" | "unarchive") => api.patch(`/shop-conversations/${id}/${action}`);

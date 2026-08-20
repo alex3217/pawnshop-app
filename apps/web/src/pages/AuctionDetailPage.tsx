@@ -536,7 +536,7 @@ export default function AuctionDetailPage() {
           <div className="auction2-quick-links">
             <Link to="/auctions">← Back to auctions</Link>
             {itemId ? <Link to={`/items/${encodeURIComponent(itemId)}`}>View item</Link> : null}
-            {shopId ? <Link to={`/shops/${encodeURIComponent(shopId)}`}>View shop</Link> : null}
+            {shopId ? <><Link to={`/shops/${encodeURIComponent(shopId)}`}>View shop</Link><Link to={`/shops/${encodeURIComponent(shopId)}/message?contextType=AUCTION&contextId=${encodeURIComponent(auction.id)}`}>Message Shop</Link></> : null}
             <Link to="/my-bids">My bids</Link>
           </div>
         </div>
