@@ -9,6 +9,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import Stripe from "stripe";
 import request from "supertest";
+import { validateIntegrationTestDatabase } from "./helpers/databaseSafety.fixture.js";
 
 const TEST_DOMAIN =
   "@marketplace-stripe-webhook.integration.pawnloop.test";
@@ -345,32 +346,7 @@ before(async () => {
   assert.equal(process.env.NODE_ENV, "test");
   assert.equal(process.env.APP_ENV, "test");
 
-  const rawDatabaseUrl =
-    String(
-      process.env.DATABASE_URL || "",
-    );
-
-  assert.ok(
-    rawDatabaseUrl,
-    "DATABASE_URL is required",
-  );
-
-  const databaseName =
-    decodeURIComponent(
-      new URL(
-        rawDatabaseUrl,
-      ).pathname.replace(
-        /^\/+/,
-        "",
-      ),
-    );
-
-  assert.ok(
-    ["pawnloop_test", "pawnshop_test"].includes(
-      databaseName,
-    ),
-    "Integration tests may only use pawnloop_test or pawnshop_test",
-  );
+  validateIntegrationTestDatabase();
 
   const appModule =
     await import("../src/app.js");

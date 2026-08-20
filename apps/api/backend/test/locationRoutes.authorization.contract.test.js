@@ -16,15 +16,15 @@ const affectedRoutes = [
   },
   {
     name: "POST /api/locations/:id/verify-location",
-    pattern: /router\.post\(\s*"\/:id\/verify-location",\s*authRequired,\s*validateLocationIdParam,\s*asyncRoute\(verifyShopLocation\),?\s*\)/,
+    pattern: /router\.post\(\s*"\/:id\/verify-location",\s*authRequired,\s*requireRole\(\.\.\.LOCATION_ROLES\),\s*requireMfaStepUpForRoles\("configuration\.location\.verify", "ADMIN", "SUPER_ADMIN"\),\s*validateLocationIdParam,\s*asyncRoute\(verifyShopLocation\),?\s*\)/,
   },
   {
     name: "PUT /api/locations/:id",
-    pattern: /router\.put\(\s*"\/:id",\s*authRequired,\s*validateLocationIdParam,\s*asyncRoute\(updateShop\),?\s*\)/,
+    pattern: /router\.put\(\s*"\/:id",\s*authRequired,\s*requireMfaStepUpForRoles\("privilege\.location\.update", "ADMIN", "SUPER_ADMIN"\),\s*validateLocationIdParam,\s*asyncRoute\(updateShop\),?\s*\)/,
   },
   {
     name: "PATCH /api/locations/:id",
-    pattern: /router\.patch\(\s*"\/:id",\s*authRequired,\s*validateLocationIdParam,\s*asyncRoute\(updateShop\),?\s*\)/,
+    pattern: /router\.patch\(\s*"\/:id",\s*authRequired,\s*requireMfaStepUpForRoles\("privilege\.location\.update", "ADMIN", "SUPER_ADMIN"\),\s*validateLocationIdParam,\s*asyncRoute\(updateShop\),?\s*\)/,
   },
 ];
 

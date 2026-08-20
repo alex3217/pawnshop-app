@@ -20,27 +20,14 @@ import {
 import {
   completeCustomerSellWithOfflinePayment,
 } from "../services/customerSellPayment.service.js";
+import { sendControllerError } from "../lib/controllerErrorResponse.js";
 
 function sendError(
   res,
   error,
   fallbackMessage = "Internal server error",
 ) {
-  const statusCode =
-    Number.isInteger(error?.statusCode) &&
-    error.statusCode >= 400
-      ? error.statusCode
-      : 500;
-
-  return res.status(statusCode).json({
-    success: false,
-    error: error?.message || fallbackMessage,
-    ...(error?.code
-      ? {
-          code: error.code,
-        }
-      : {}),
-  });
+  return sendControllerError(res, error, { fallback: fallbackMessage });
 }
 
 function getActor(req) {

@@ -1,7 +1,7 @@
 import { pathToFileURL } from "node:url";
 
 export const APPROVED_TEST_DATABASE = "pawnshop_test";
-const APPROVED_LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const APPROVED_LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
 export function validateTestDatabaseEnvironment(env = process.env) {
   const errors = [];
