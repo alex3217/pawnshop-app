@@ -7,6 +7,8 @@ const REASONS = new Set(["SELL_ITEM", "PAWN_ITEM", "INVENTORY", "OFFER", "VISIT"
 const OUTBOUND_CONTEXTS = new Set(["GENERAL_INQUIRY", "MARKETPLACE_LISTING", "TARGETED_OFFER", "EXISTING_OFFER", "ORDER_TRANSACTION", "AUCTION", "SELL_PAWN_SUBMISSION"]);
 const SUBJECT_MAX = 120;
 const MESSAGE_MAX = 4000;
+const MESSAGE_PAGE_DEFAULT = 50;
+const MESSAGE_PAGE_MAX = 100;
 const URL_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
 const HTML_PATTERN = /<\/?[a-z][^>]*>/i;
 
@@ -20,8 +22,9 @@ const conversationInclude = {
   marketplaceListing: { select: { id: true, title: true, status: true } },
   item: { select: { id: true, title: true, pawnShopId: true } },
   offer: { select: { id: true, itemId: true, status: true } },
-  messages: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, senderUserId: true, body: true, readAt: true, systemMetadata: true, createdAt: true } },
+  messages: { take: 1, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { id: true, senderUserId: true, body: true, readAt: true, systemMetadata: true, createdAt: true } },
 };
+const messageSelect = { id: true, senderUserId: true, body: true, readAt: true, systemMetadata: true, createdAt: true };
 
 function userId(req) { return String(req.user?.sub || "").trim(); }
 function role(req) { return String(req.user?.role || "").toUpperCase(); }
@@ -297,7 +300,16 @@ export async function createShopOutboundConversation(req, res) {
 }
 
 export async function getConversation(req, res) {
-  try { const { conversation, side, viewerShopId } = await loadAuthorized(req); return res.json({ success: true, side, viewerShopId, conversation }); }
+  try {
+    const { conversation, side, viewerShopId } = await loadAuthorized(req);
+    const messagePage = Math.max(1, Number.parseInt(String(req.query.messagePage || "1"), 10) || 1);
+    const messageLimit = Math.min(MESSAGE_PAGE_MAX, Math.max(1, Number.parseInt(String(req.query.messageLimit || MESSAGE_PAGE_DEFAULT), 10) || MESSAGE_PAGE_DEFAULT));
+    const [descendingMessages, messageTotal] = await prisma.$transaction([
+      prisma.shopMessage.findMany({ where: { conversationId: conversation.id }, skip: (messagePage - 1) * messageLimit, take: messageLimit, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: messageSelect }),
+      prisma.shopMessage.count({ where: { conversationId: conversation.id } }),
+    ]);
+    return res.json({ success: true, side, viewerShopId, conversation: { ...conversation, messages: descendingMessages.reverse() }, messagePagination: { page: messagePage, limit: messageLimit, total: messageTotal, pages: Math.ceil(messageTotal / messageLimit) } });
+  }
   catch (error) { return sendError(res, error); }
 }
 
