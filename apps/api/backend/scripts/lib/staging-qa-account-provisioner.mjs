@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { isIP } from "node:net";
 import { validatePassword } from "../../src/services/passwordPolicy.service.js";
 
 export const STAGING_QA_CONFIRMATION = "T48-STAGING-QA-ACCOUNTS";
@@ -14,6 +15,26 @@ function required(env, name) {
   const value = String(env[name] || "");
   if (!value.trim()) throw new Error(`Staging QA account provisioning requires ${name}.`);
   return value;
+}
+
+function normalizedHostname(url) {
+  const hostname = new URL(`http://${url.hostname}`).hostname.toLowerCase();
+  return hostname.startsWith("[") && hostname.endsWith("]")
+    ? hostname.slice(1, -1)
+    : hostname;
+}
+
+function isForbiddenLocalHostname(hostname) {
+  if (hostname === "localhost") return true;
+
+  const version = isIP(hostname);
+  if (version === 4) {
+    return hostname === "0.0.0.0" || hostname.split(".")[0] === "127";
+  }
+  if (version === 6) {
+    return hostname === "::" || hostname === "::1";
+  }
+  return false;
 }
 
 export function validateStagingQaProvisioningEnvironment(env = {}) {
@@ -35,8 +56,9 @@ export function validateStagingQaProvisioningEnvironment(env = {}) {
   if (!new Set(["postgres:", "postgresql:"]).has(database.protocol)) {
     throw new Error("DATABASE_URL must use PostgreSQL.");
   }
-  const targetLabel = `${database.hostname}/${database.pathname}`.toLowerCase();
-  if (/localhost|127\.0\.0\.1|(?:^|[._/-])prod(?:uction)?(?:$|[._/-])/.test(targetLabel)) {
+  const hostname = normalizedHostname(database);
+  const targetLabel = `${hostname}/${database.pathname}`.toLowerCase();
+  if (isForbiddenLocalHostname(hostname) || /(?:^|[._/-])prod(?:uction)?(?:$|[._/-])/.test(targetLabel)) {
     throw new Error("DATABASE_URL is not an allowed remote staging target.");
   }
   if (!/(?:^|[._/-])stag(?:e|ing)(?:$|[._/-])/.test(targetLabel)) {
@@ -56,7 +78,7 @@ export function validateStagingQaProvisioningEnvironment(env = {}) {
   if (new Set(accounts.map(({ password }) => password)).size !== accounts.length) {
     throw new Error("Each staging QA role requires a distinct password.");
   }
-  return { accounts, databaseHost: database.hostname };
+  return { accounts, databaseHost: hostname };
 }
 
 export async function provisionStagingQaAccounts({ prisma, accounts, hashPassword = (value) => bcrypt.hash(value, 12), now = new Date() }) {

@@ -21,7 +21,38 @@ test("guard accepts only an explicitly confirmed staging target and eight distin
   assert.deepEqual(result.accounts.map(({ role }) => role), ["CONSUMER", "OWNER", "ADMIN", "SUPER_ADMIN"]);
 });
 
-test("guard fails closed for production, missing confirmation, mismatched database, and missing credentials", () => {
+test("guard accepts valid remote private and internal staging targets", () => {
+  for (const url of [
+    "postgresql://qa:secret@10.24.8.12/pawnloop_staging",
+    "postgresql://qa:secret@staging-db.internal/pawnloop",
+  ]) {
+    const result = validateStagingQaProvisioningEnvironment({ ...validEnv(), DATABASE_URL: url, T48_STAGING_DATABASE_URL_CONFIRMATION: url });
+    assert.ok(result.databaseHost);
+  }
+});
+
+test("guard rejects localhost and the entire IPv4 loopback range", () => {
+  for (const hostname of ["localhost", "127.0.0.1", "127.0.0.2", "127.255.255.255", "127.1", "0177.0.0.1"]) {
+    const url = `postgresql://qa:secret@${hostname}/pawnloop_staging`;
+    assert.throws(() => validateStagingQaProvisioningEnvironment({ ...validEnv(), DATABASE_URL: url, T48_STAGING_DATABASE_URL_CONFIRMATION: url }), /not an allowed remote staging target/);
+  }
+});
+
+test("guard rejects normalized IPv6 loopback forms", () => {
+  for (const hostname of ["[::1]", "[0:0:0:0:0:0:0:1]"]) {
+    const url = `postgresql://qa:secret@${hostname}/pawnloop_staging`;
+    assert.throws(() => validateStagingQaProvisioningEnvironment({ ...validEnv(), DATABASE_URL: url, T48_STAGING_DATABASE_URL_CONFIRMATION: url }), /not an allowed remote staging target/);
+  }
+});
+
+test("guard rejects unspecified IPv4 and IPv6 addresses", () => {
+  for (const hostname of ["0.0.0.0", "[::]"]) {
+    const url = `postgresql://qa:secret@${hostname}/pawnloop_staging`;
+    assert.throws(() => validateStagingQaProvisioningEnvironment({ ...validEnv(), DATABASE_URL: url, T48_STAGING_DATABASE_URL_CONFIRMATION: url }), /not an allowed remote staging target/);
+  }
+});
+
+test("guard fails closed for Production labels, missing confirmation, mismatched database, and missing credentials", () => {
   for (const patch of [
     { APP_ENV: "production" },
     { T48_PROVISION_STAGING_QA_ACCOUNTS: "" },

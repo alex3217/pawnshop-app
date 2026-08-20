@@ -10,7 +10,7 @@ The command fails before Prisma is imported unless all of these conditions hold:
 
 - `APP_ENV` is exactly `staging`.
 - `T48_PROVISION_STAGING_QA_ACCOUNTS` is exactly `T48-STAGING-QA-ACCOUNTS`.
-- `DATABASE_URL` is a remote PostgreSQL URL, identifies a staging-labeled host or database name, and does not identify a local or Production-labeled target.
+- `DATABASE_URL` is a PostgreSQL URL with a staging-labeled host or database name. Its parsed hostname must not be `localhost`, an address in `127.0.0.0/8`, normalized IPv6 loopback `::1`, an unspecified address (`0.0.0.0` or `::`), or a Production-labeled target. Remote private/internal staging hosts remain supported.
 - `T48_STAGING_DATABASE_URL_CONFIRMATION` is independently supplied and exactly matches `DATABASE_URL`.
 - `BUYER_EMAIL`, `BUYER_PASSWORD`, `OWNER_EMAIL`, `OWNER_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SUPER_ADMIN_EMAIL`, and `SUPER_ADMIN_PASSWORD` are all nonempty.
 - Each email and password is distinct, and every password passes the application password policy.
