@@ -11,6 +11,7 @@ The command fails before Prisma is imported unless all of these conditions hold:
 - `APP_ENV` is exactly `staging`.
 - `T48_PROVISION_STAGING_QA_ACCOUNTS` is exactly `T48-STAGING-QA-ACCOUNTS`.
 - `DATABASE_URL` is a PostgreSQL URL with a staging-labeled host or database name. Its parsed hostname must not be `localhost`, an address in `127.0.0.0/8`, normalized IPv6 loopback `::1`, an unspecified address (`0.0.0.0` or `::`), or a Production-labeled target. Remote private/internal staging hosts remain supported.
+- An unlabeled provider-generated database target is accepted only from the exact Render runtime for service `srv-d9l3l9daeets73af05gg` (`pawnshop-staging-api`) in repository `alex3217/pawnshop-app`, when Render supplies `RENDER=true`, `RENDER_SERVICE_ID`, `RENDER_SERVICE_NAME`, and `RENDER_GIT_REPO_SLUG` with those exact values and the normalized database-target fingerprint matches the pinned staging fingerprint. Never copy these identity variables into a local shell to bypass the runtime check.
 - `T48_STAGING_DATABASE_URL_CONFIRMATION` is independently supplied and exactly matches `DATABASE_URL`.
 - `BUYER_EMAIL`, `BUYER_PASSWORD`, `OWNER_EMAIL`, `OWNER_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SUPER_ADMIN_EMAIL`, and `SUPER_ADMIN_PASSWORD` are all nonempty.
 - Each email and password is distinct, and every password passes the application password policy.
@@ -19,7 +20,7 @@ Do not put credential values in a shell history, issue, PR, report, log, or comm
 
 ## Behavior
 
-Run from `apps/api/backend` with the safeguards and credentials already injected:
+Run from `apps/api/backend` with the safeguards and credentials already injected. If the provider-generated database target is not explicitly staging-labeled, the command must be executed inside the exact `pawnshop-staging-api` Render service runtime; local execution is intentionally rejected:
 
 ```sh
 npm run provision:staging-qa-accounts

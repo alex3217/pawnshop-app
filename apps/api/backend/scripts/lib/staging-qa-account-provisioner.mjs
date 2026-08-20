@@ -1,8 +1,17 @@
 import bcrypt from "bcryptjs";
+import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 import { validatePassword } from "../../src/services/passwordPolicy.service.js";
 
 export const STAGING_QA_CONFIRMATION = "T48-STAGING-QA-ACCOUNTS";
+export const APPROVED_RENDER_STAGING_DATABASE_TARGET_FINGERPRINT = "0e5b70c8b942174c813120c8a058e709a0ce10a714ad7881ab49a769bbc240eb";
+
+const APPROVED_RENDER_STAGING_IDENTITY = Object.freeze({
+  RENDER: "true",
+  RENDER_SERVICE_ID: "srv-d9l3l9daeets73af05gg",
+  RENDER_SERVICE_NAME: "pawnshop-staging-api",
+  RENDER_GIT_REPO_SLUG: "alex3217/pawnshop-app",
+});
 
 export const STAGING_QA_ACCOUNTS = Object.freeze([
   Object.freeze({ key: "buyer", role: "CONSUMER", emailEnv: "BUYER_EMAIL", passwordEnv: "BUYER_PASSWORD", name: "Staging QA Buyer" }),
@@ -22,6 +31,23 @@ function normalizedHostname(url) {
   return hostname.startsWith("[") && hostname.endsWith("]")
     ? hostname.slice(1, -1)
     : hostname;
+}
+
+export function databaseTargetFingerprint(url) {
+  const hostname = normalizedHostname(url);
+  const identity = JSON.stringify([
+    "postgresql",
+    hostname,
+    url.port || "5432",
+    url.pathname.normalize("NFC"),
+  ]);
+  return createHash("sha256").update(identity).digest("hex");
+}
+
+export function isApprovedRenderStagingTarget(env, fingerprint) {
+  return env.APP_ENV === "staging"
+    && Object.entries(APPROVED_RENDER_STAGING_IDENTITY).every(([name, value]) => env[name] === value)
+    && fingerprint === APPROVED_RENDER_STAGING_DATABASE_TARGET_FINGERPRINT;
 }
 
 function isForbiddenLocalHostname(hostname) {
@@ -61,7 +87,9 @@ export function validateStagingQaProvisioningEnvironment(env = {}) {
   if (isForbiddenLocalHostname(hostname) || /(?:^|[._/-])prod(?:uction)?(?:$|[._/-])/.test(targetLabel)) {
     throw new Error("DATABASE_URL is not an allowed remote staging target.");
   }
-  if (!/(?:^|[._/-])stag(?:e|ing)(?:$|[._/-])/.test(targetLabel)) {
+  const hasExplicitStagingLabel = /(?:^|[._/-])stag(?:e|ing)(?:$|[._/-])/.test(targetLabel);
+  const approvedRenderTarget = isApprovedRenderStagingTarget(env, databaseTargetFingerprint(database));
+  if (!hasExplicitStagingLabel && !approvedRenderTarget) {
     throw new Error("DATABASE_URL must identify a staging-labeled database target.");
   }
 
