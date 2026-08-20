@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "test:seed-safety": "node --test test/seedEnvironmentGuard.test.js test/seedDemoUsers.test.js",
     "test:deployed-env": "node --test --test-concurrency=1 test/deployedEnvironment.test.js test/app.contract.test.js",
     "test:uploads": "prisma generate && node --test --test-concurrency=1 test/inventoryCsv.service.test.js test/uploadAssets.service.test.js test/uploads.test.js",
