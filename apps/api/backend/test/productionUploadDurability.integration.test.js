@@ -12,7 +12,7 @@ const execFileAsync = promisify(execFile);
 const helper = fileURLToPath(new URL("./helpers/productionUploadColdRestart.fixture.js", import.meta.url));
 const SAFE_CHILD_ENVIRONMENT_NAMES = [
   "PATH", "Path", "HOME", "SystemRoot", "ComSpec", "PATHEXT",
-  "TEMP", "TMP", "TMPDIR", "DATABASE_URL",
+  "TEMP", "TMP", "TMPDIR", "DATABASE_URL", "TEST_DATABASE_NAME",
 ];
 
 function isolatedChildEnvironment(storageDirectory, marker) {
@@ -44,13 +44,13 @@ async function runProcess(mode, storageDirectory, marker) {
 }
 
 test("uploaded image survives a complete process exit and fresh public read process", async () => {
-  validateTestDatabaseEnvironment(process.env);
+  const databaseTarget = validateTestDatabaseEnvironment(process.env);
   const storageDirectory = await mkdtemp(path.join(tmpdir(), "pawnloop-cold-restart-"));
   const marker = `production-upload-cold-restart-${process.pid}-${Date.now()}`;
 
   try {
     const written = await runProcess("write", storageDirectory, marker);
-    assert.equal(written.database, "pawnshop_test");
+    assert.equal(written.database, databaseTarget.database);
     assert.equal(written.persisted.uploadAsset, true);
     assert.equal(written.persisted.item, true);
     assert.equal(written.persisted.auction, true);
@@ -59,7 +59,7 @@ test("uploaded image survives a complete process exit and fresh public read proc
     // discovers application identifiers and image references from PostgreSQL rather
     // than receiving process-local application state from the writer.
     const read = await runProcess("read", storageDirectory, marker);
-    assert.equal(read.database, "pawnshop_test");
+    assert.equal(read.database, databaseTarget.database);
     assert.notEqual(read.pid, written.pid);
     assert.equal(read.objectExists, true);
     assert.deepEqual(read.referenceCleanup, {
