@@ -20,17 +20,28 @@ Point-in-time recovery (PITR) must be enabled and independently verified at the 
 
 ## Backup procedure
 
-The operator must explicitly provide environment, env file, approved hostname, and database name. Managed database providers can assign a neutral database name that does not contain `prod` or `production`; renaming that provider-managed database is not required. For a Production backup, the env file must also contain `PRODUCTION_DATABASE_HOST`, and it must exactly match both the parsed PostgreSQL hostname and `--approved-host`. The parsed database name must exactly match `--database`. Production rejects loopback targets and any hostname or database name marked local, development, test, or staging. These exact identity checks are independent of credentials and do not relax restore controls.
+The operator must explicitly provide the environment and env file. For a Production backup, place the approved hostname and database name in a dedicated JSON approval file whose parent directory is operator-owned mode `0700` and whose file is operator-owned mode `0600`. The file must be a regular file, not a symlink, and may contain only `hostname` and `databaseName`. Managed database providers can assign a neutral database name that does not contain `prod` or `production`; renaming that provider-managed database is not required. The env file must also contain `PRODUCTION_DATABASE_HOST`, which must exactly match both the parsed PostgreSQL hostname and the protected approval. The parsed database name must exactly match the protected approval. Production rejects loopback targets and any hostname or database name marked local, development, test, or staging. These exact identity checks are independent of credentials and do not relax restore controls.
 
-Production backup execution additionally requires the exact fail-closed confirmation `CONFIRM_PRODUCTION_BACKUP='BACKUP PRODUCTION'`. The value is required only for Production backup and must never be logged. Example placeholders only:
+Production backup execution additionally requires the exact fail-closed confirmation `CONFIRM_PRODUCTION_BACKUP='BACKUP PRODUCTION'`. The value is required only for Production backup and must never be logged. Create the approval file without command-line target values; the placeholders below represent values written by an approved secure process:
+
+```json
+{
+  "hostname": "APPROVED_PRODUCTION_HOST_PLACEHOLDER",
+  "databaseName": "APPROVED_PRODUCTION_DATABASE_PLACEHOLDER"
+}
+```
+
+After confirming the directory and file modes, run the placeholder-only interface:
 
 ```sh
 CONFIRM_PRODUCTION_BACKUP='BACKUP PRODUCTION' npm run db:backup -- \
   --environment production \
   --env-file PATH_TO_ENV_FILE \
-  --approved-host APPROVED_HOSTNAME \
-  --database APPROVED_PRODUCTION_DATABASE
+  --approval-file PATH_TO_MODE_600_APPROVAL_FILE \
+  --output-dir PATH_TO_MODE_700_BACKUP_DIRECTORY
 ```
+
+Never pass the Production hostname or database name through `--approved-host` or `--database`. Shell tracing, command wrappers, process inspection, CI runners, and task transcripts can capture raw arguments before the backup script can redact them. Production rejects those raw target arguments. Internally, the script validates protected files and gives `pg_dump` a fixed libpq service name backed by a short-lived mode-`0600` service file in a mode-`0700` runtime directory; target metadata and the connection URL do not appear in the `pg_dump` argument list. The script removes only runtime files it creates and never deletes the operator's approval or env file.
 
 The script creates a restrictive `0600` custom-format archive and adjacent `0600` JSON manifest in a `0700` directory. It validates the URL target before `pg_dump`, inspects the archive with `pg_restore --list`, and records timestamp, non-secret target identity, exact source schema scope, application revision, filename, size, SHA-256 checksum, archive evidence, and tool version. An empty `sourceSchema` means `pg_dump` captured the full database; it never means an implicit `public` schema. Never attach env files, URLs, credentials, or command traces to an incident record.
 

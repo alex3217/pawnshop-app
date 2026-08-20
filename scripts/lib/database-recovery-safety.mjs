@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 import { createHash } from "node:crypto";
-import { createReadStream, realpathSync } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { constants, createReadStream, realpathSync } from "node:fs";
+import { lstat, readFile, stat, writeFile } from "node:fs/promises";
 import { isIP } from "node:net";
-import { basename } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { parseEnv } from "node:util";
 
 export const MANIFEST_VERSION = 1;
 export const DEFAULT_MAX_AGE_HOURS = 36;
@@ -26,6 +27,66 @@ export class SafetyError extends Error {}
 
 function fail(message) { throw new SafetyError(message); }
 function text(value) { return String(value ?? "").trim(); }
+
+async function protectedRegularFile(file, label, { expectedUid = process.getuid?.() } = {}) {
+  let info;
+  try { info = await lstat(file); } catch { fail(`${label} is missing.`); }
+  if (info.isSymbolicLink() || !info.isFile()) fail(`${label} must be a regular file and must not be a symlink.`);
+  if (expectedUid !== undefined && info.uid !== expectedUid) fail(`${label} must be owned by the current operator.`);
+  if ((info.mode & 0o077) !== 0) fail(`${label} permissions must be 0600 or more restrictive.`);
+  let parent;
+  try { parent = await lstat(dirname(file)); } catch { fail(`${label} parent directory is unavailable.`); }
+  if (parent.isSymbolicLink() || !parent.isDirectory()) fail(`${label} parent must be a real directory.`);
+  if (expectedUid !== undefined && parent.uid !== expectedUid) fail(`${label} parent must be owned by the current operator.`);
+  if ((parent.mode & 0o777) !== 0o700) fail(`${label} parent directory permissions must be 0700.`);
+}
+
+export async function readProductionBackupApproval(file, options = {}) {
+  await protectedRegularFile(file, "Production backup approval file", options);
+  let value;
+  try { value = JSON.parse(await readFile(file, "utf8")); } catch { fail("Production backup approval file is malformed."); }
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join(",") !== "databaseName,hostname") {
+    fail("Production backup approval file must contain only hostname and databaseName.");
+  }
+  return { hostname: normalizeHostname(value.hostname, { approved: true }), databaseName: safeDatabaseName(`/${value.databaseName}`) };
+}
+
+function serviceValue(value) {
+  const raw = String(value ?? "");
+  if (/\r|\n|\0/.test(raw)) fail("DATABASE_URL contains an unsupported connection value.");
+  return raw.replaceAll("\\", "\\\\").replace(/^#/, "\\#");
+}
+
+const LIBPQ_URL_OPTIONS = new Set([
+  "application_name", "channel_binding", "connect_timeout", "gssencmode", "keepalives", "keepalives_count",
+  "keepalives_idle", "keepalives_interval", "options", "sslcert", "sslcrl", "sslcrldir", "sslkey", "sslmode",
+  "sslpassword", "sslrootcert", "target_session_attrs", "tcp_user_timeout",
+]);
+
+export async function prepareProductionBackup({ envFile, approvalFile, stateDirectory, confirmation, expectedUid = process.getuid?.() }) {
+  const approval = await readProductionBackupApproval(approvalFile, { expectedUid });
+  await protectedRegularFile(envFile, "Environment file", { expectedUid });
+  let env;
+  try { env = parseEnv(await readFile(envFile, "utf8")); } catch { fail("Environment file is malformed."); }
+  const target = validateBackupTarget({ databaseUrl: env.DATABASE_URL, environment: "production", approvedHostname: approval.hostname, expectedDatabase: approval.databaseName, productionHostname: env.PRODUCTION_DATABASE_HOST, confirmation });
+  let parsed;
+  try { parsed = new URL(text(env.DATABASE_URL)); } catch { fail("DATABASE_URL is malformed."); }
+  const unsupported = [...parsed.searchParams.keys()].filter((key) => key !== "schema" && !LIBPQ_URL_OPTIONS.has(key));
+  if (unsupported.length) fail("DATABASE_URL contains unsupported connection options.");
+  let state;
+  try { state = await lstat(stateDirectory); } catch { fail("Backup runtime directory is unavailable."); }
+  if (state.isSymbolicLink() || !state.isDirectory() || state.uid !== expectedUid || (state.mode & 0o777) !== 0o700) fail("Backup runtime directory must be operator-owned mode 0700.");
+  const serviceLines = ["[pawnloop-production-backup]", `host=${serviceValue(parsed.hostname)}`];
+  if (parsed.port) serviceLines.push(`port=${serviceValue(parsed.port)}`);
+  serviceLines.push(`dbname=${serviceValue(target.databaseName)}`, `user=${serviceValue(decodeURIComponent(parsed.username))}`);
+  if (parsed.password) serviceLines.push(`password=${serviceValue(decodeURIComponent(parsed.password))}`);
+  for (const [key, value] of parsed.searchParams) if (key !== "schema") serviceLines.push(`${key}=${serviceValue(value)}`);
+  const serviceFile = join(stateDirectory, "pg_service.conf");
+  const targetFile = join(stateDirectory, "validated-target.json");
+  await writeFile(serviceFile, `${serviceLines.join("\n")}\n`, { mode: 0o600, flag: constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY });
+  await writeFile(targetFile, JSON.stringify(target), { mode: 0o600, flag: constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY });
+  return { serviceFile, targetFile };
+}
 
 export function normalizeEnvironment(value, { destination = false } = {}) {
   const environment = text(value).toLowerCase();
@@ -253,8 +314,16 @@ async function main() {
       ? validateBackupTarget({ ...options, productionHostname: process.env.PRODUCTION_DATABASE_HOST, confirmation: process.env.CONFIRM_PRODUCTION_BACKUP })
       : validateDatabaseTarget(options);
     process.stdout.write(JSON.stringify(result));
+  } else if (command === "prepare-production-backup") {
+    await prepareProductionBackup({ envFile: args["env-file"], approvalFile: args["approval-file"], stateDirectory: args["state-directory"], confirmation: process.env.CONFIRM_PRODUCTION_BACKUP });
   } else if (command === "manifest") {
-    const manifest = await buildManifest({ backupFile: args.backup, environment: args.environment, hostname: args.host, databaseName: args.database, sourceSchema: args["source-schema"], applicationRevision: args.revision, createdAt: args["created-at"], toolVersion: args["tool-version"], archiveMetadata: args["archive-metadata"] });
+    let hostname = args.host; let databaseName = args.database;
+    if (args["target-file"]) {
+      let target;
+      try { target = JSON.parse(await readFile(args["target-file"], "utf8")); } catch { fail("Validated backup target state is malformed."); }
+      hostname = target.hostname; databaseName = target.databaseName;
+    }
+    const manifest = await buildManifest({ backupFile: args.backup, environment: args.environment, hostname, databaseName, sourceSchema: args["source-schema"], applicationRevision: args.revision, createdAt: args["created-at"], toolVersion: args["tool-version"], archiveMetadata: args["archive-metadata"] });
     process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
   } else if (command === "validate") {
     const manifest = await validateBackup({ backupFile: args.backup, manifestFile: args.manifest, expectedEnvironment: args.environment, maxAgeHours: args["max-age-hours"] || DEFAULT_MAX_AGE_HOURS });

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { assertSchemaCompatibility, buildManifest, isLoopback, sha256File, validateBackup, validateBackupTarget, validateDatabaseTarget } from "../lib/database-recovery-safety.mjs";
+import { assertSchemaCompatibility, buildManifest, isLoopback, readProductionBackupApproval, sha256File, validateBackup, validateBackupTarget, validateDatabaseTarget } from "../lib/database-recovery-safety.mjs";
 
 const productionUrl = "postgresql://synthetic_user:synthetic_password@prod-db.invalid/pawnloop_production?sslmode=require";
 const target = (overrides = {}) => ({ databaseUrl: productionUrl, environment: "production", approvedHostname: "prod-db.invalid", expectedDatabase: "pawnloop_production", ...overrides });
@@ -35,6 +35,16 @@ test("valid synthetic production backup configuration", () => {
 test("Production backup accepts a provider-neutral database only with every exact approval", () => {
   const result = validateBackupTarget(neutralBackupTarget());
   assert.deepEqual([result.environment, result.hostname, result.databaseName], ["production", "primary-db.invalid", "providerdb"]);
+});
+
+test("Production approval file requires current operator ownership", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "pawnloop-approval-owner-"));
+  await chmod(directory, 0o700);
+  const approval = join(directory, "approval.json");
+  await writeFile(approval, JSON.stringify({ hostname: "ownership-canary.invalid", databaseName: "ownership_canary" }), { mode: 0o600 });
+  const uid = process.getuid?.();
+  if (uid === undefined) return;
+  await assert.rejects(readProductionBackupApproval(approval, { expectedUid: uid + 1 }), /owned by the current operator/i);
 });
 
 test("Production backup rejects missing or incorrect explicit confirmation", () => {
