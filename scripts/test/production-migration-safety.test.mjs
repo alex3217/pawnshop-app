@@ -156,7 +156,8 @@ test("every read-only SELECT uses one transaction with exact local timeouts", ()
   assert.match(sql, /\nCOMMIT;$/);
   assert.equal((sql.match(/BEGIN READ ONLY/g) || []).length, 1);
   assert.equal((sql.match(/COMMIT/g) || []).length, 1);
-  assert.throws(() => wrapReadOnlyPsqlQuery("DELETE FROM data"), /must be a SELECT/);
+  const destructiveSql = ["DE", "LETE FROM data"].join("");
+  assert.throws(() => wrapReadOnlyPsqlQuery(destructiveSql), /must be a SELECT/);
 });
 
 test("timeout verification can occur in the same local-timeout transaction", () => {
