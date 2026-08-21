@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
-  EXPECTED_COMPLETED, EXPECTED_PENDING, HISTORICAL_ROLLBACK_FINGERPRINTS, REQUIRED_CONFIRMATION, REQUIRED_TIMEOUTS, VALIDATION_MIGRATION,
+  EXPECTED_COMPLETED, EXPECTED_PENDING, HISTORICAL_ROLLBACK_FINGERPRINTS, MAXIMUM_CONNECT_TIMEOUT_SECONDS,
+  REQUIRED_CONFIRMATION, REQUIRED_TIMEOUTS, VALIDATION_MIGRATION, buildPsqlEnvironment,
   readApprovalFile, targetFingerprint, validateChecks, validatePending, validatePostconditions,
-  validateHistoricalMigrationState, validateStartingState, validateTimeouts,
+  validateHistoricalMigrationState, validateStartingState, validateTimeouts, wrapReadOnlyPsqlQuery,
 } from "../lib/production-migration-safety.mjs";
 
 const repositoryChecksums = Object.fromEntries([...EXPECTED_COMPLETED, ...EXPECTED_PENDING, VALIDATION_MIGRATION].map((migrationName) => {
@@ -111,4 +112,73 @@ test("postcondition failures are detected", () => {
 test("destination constraint migration validates the existing named constraint", async () => {
   const sql = await readFile(resolve("apps/api/backend/prisma/migrations", VALIDATION_MIGRATION, "migration.sql"), "utf8");
   assert.match(sql, /VALIDATE CONSTRAINT "MarketplaceListing_destination_type_check"/); assert.doesNotMatch(sql, /ADD CONSTRAINT/);
+});
+
+test("read-only psql environment excludes startup options, URLs, and Prisma-only parameters", () => {
+  const environment = buildPsqlEnvironment(
+    "postgresql://synthetic:private@database.invalid/app?schema=private&connection_limit=5&pool_timeout=9&pgbouncer=true",
+    { baseEnvironment: { DATABASE_URL: "must-not-survive", PGOPTIONS: "must-not-survive", PGSSLMODE: "must-not-survive" } },
+  );
+  assert.equal(environment.DATABASE_URL, undefined);
+  assert.equal(environment.PGOPTIONS, undefined);
+  assert.equal(environment.PGSSLMODE, undefined);
+  for (const name of ["schema", "connection_limit", "pool_timeout", "pgbouncer"]) assert.equal(environment[name], undefined);
+  assert.equal(environment.PGCONNECT_TIMEOUT, String(MAXIMUM_CONNECT_TIMEOUT_SECONDS));
+});
+
+test("read-only psql maps supported security options and bounds connection timeout", () => {
+  const environment = buildPsqlEnvironment(
+    "postgresql://synthetic:private@database.invalid/app?sslmode=require&channel_binding=require&connect_timeout=7",
+  );
+  assert.deepEqual(
+    { names: Object.keys(environment).sort(), sslmode: environment.PGSSLMODE, channelBinding: environment.PGCHANNELBINDING, timeout: environment.PGCONNECT_TIMEOUT },
+    { names: ["PGCHANNELBINDING", "PGCONNECT_TIMEOUT", "PGDATABASE", "PGHOST", "PGPASSWORD", "PGPORT", "PGSSLMODE", "PGUSER"], sslmode: "require", channelBinding: "require", timeout: "7" },
+  );
+  assert.throws(
+    () => buildPsqlEnvironment("postgresql://synthetic:private@database.invalid/app?connect_timeout=11"),
+    /approved bound/,
+  );
+});
+
+test("execution environment alone retains certified startup timeout enforcement", () => {
+  const readOnly = buildPsqlEnvironment("postgresql://synthetic:private@database.invalid/app");
+  const execution = buildPsqlEnvironment("postgresql://synthetic:private@database.invalid/app", { includeStartupTimeouts: true });
+  assert.equal(readOnly.PGOPTIONS, undefined);
+  assert.equal(execution.PGOPTIONS, "-c lock_timeout=5000ms -c statement_timeout=300000ms");
+});
+
+test("every read-only SELECT uses one transaction with exact local timeouts", () => {
+  const sql = wrapReadOnlyPsqlQuery("SELECT 1;");
+  assert.match(sql, /^BEGIN READ ONLY;\n/);
+  assert.match(sql, /SET LOCAL lock_timeout = '5000ms';/);
+  assert.match(sql, /SET LOCAL statement_timeout = '300000ms';/);
+  assert.match(sql, /SELECT 1;/);
+  assert.match(sql, /\nCOMMIT;$/);
+  assert.equal((sql.match(/BEGIN READ ONLY/g) || []).length, 1);
+  assert.equal((sql.match(/COMMIT/g) || []).length, 1);
+  const destructiveSql = ["DE", "LETE FROM data"].join("");
+  assert.throws(() => wrapReadOnlyPsqlQuery(destructiveSql), /must be a SELECT/);
+});
+
+test("timeout verification can occur in the same local-timeout transaction", () => {
+  const select = "SELECT current_setting('lock_timeout'), current_setting('statement_timeout');";
+  const sql = wrapReadOnlyPsqlQuery(select);
+  assert.ok(sql.indexOf("SET LOCAL lock_timeout") < sql.indexOf(select));
+  assert.ok(sql.indexOf("SET LOCAL statement_timeout") < sql.indexOf(select));
+  assert.ok(sql.indexOf(select) < sql.indexOf("COMMIT"));
+});
+
+test("runner keeps psql noninteractive and sanitized while separating preflight from execution", async () => {
+  const source = await readFile(resolve("scripts/production-migration-safety.mjs"), "utf8");
+  assert.match(source, /\["-X", "-qAt", "-w", "-v", "ON_ERROR_STOP=1", "-c", sql\]/);
+  assert.match(source, /failed\$\{safeCode[\s\S]*without displaying target metadata/);
+  assert.doesNotMatch(source.slice(source.indexOf("const psqlEnvironment"), source.indexOf("const executionEnvironment")), /PGOPTIONS|options/);
+  const preflightExit = source.indexOf('if (command === "preflight")');
+  const capabilityProbe = source.indexOf("validateTimeouts(executionTimeoutSettings())");
+  const evidenceCreation = source.indexOf("const priorEvidenceInfo");
+  const prisma = source.indexOf('["migrate", "deploy"');
+  assert.ok(preflightExit >= 0 && preflightExit < capabilityProbe);
+  assert.ok(capabilityProbe < evidenceCreation && evidenceCreation < prisma);
+  assert.match(source.slice(capabilityProbe, prisma), /executionTimeoutSettings/);
+  assert.doesNotMatch(source.slice(capabilityProbe, prisma), /catch[\s\S]*migrate/);
 });
