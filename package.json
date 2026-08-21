@@ -18,6 +18,7 @@
     "db:backup": "bash scripts/backup-db.sh",
     "db:restore": "bash scripts/restore-db.sh",
     "test:database-recovery": "node --test scripts/test/database-recovery-safety.test.mjs && bash scripts/test-database-recovery.sh",
+    "test:backup-encryption": "node --test scripts/test/backup-encryption.test.mjs scripts/test/cloudflare-containment.test.mjs",
     "check:staging-readiness": "bash scripts/check-staging-readiness.sh",
     "test:staging-readiness": "bash scripts/test-staging-readiness.sh",
     "check:staging-smoke": "bash scripts/check-staging-smoke.sh",
