@@ -34,6 +34,7 @@ export const EXPECTED_PENDING = Object.freeze([
 export const VALIDATION_MIGRATION = "20260820190000_validate_marketplace_listing_destination_constraint";
 export const REQUIRED_CONFIRMATION = "AUTHORIZE T60R2C-B PRODUCTION MIGRATION";
 export const REQUIRED_TIMEOUTS = Object.freeze({ lockTimeoutMs: 5000, statementTimeoutMs: 300000 });
+export const MAXIMUM_CONNECT_TIMEOUT_SECONDS = 10;
 export const MAXIMUMS = Object.freeze({ affectedRows: 100000, tableRows: 100000, tableBytes: 536870912 });
 export const HISTORICAL_ROLLBACK_FINGERPRINTS = Object.freeze([
   Object.freeze({
@@ -53,6 +54,54 @@ export const HISTORICAL_ROLLBACK_FINGERPRINTS = Object.freeze([
 const fail = (message) => { throw new Error(`Production migration blocked: ${message}`); };
 const sorted = (values) => [...values].sort();
 const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
+
+const LIBPQ_PARAMETER_ENV = Object.freeze({
+  sslmode: "PGSSLMODE",
+  sslrootcert: "PGSSLROOTCERT",
+  sslcert: "PGSSLCERT",
+  sslkey: "PGSSLKEY",
+  channel_binding: "PGCHANNELBINDING",
+  application_name: "PGAPPNAME",
+});
+
+export function buildPsqlEnvironment(databaseUrl, { baseEnvironment = {}, includeStartupTimeouts = false } = {}) {
+  let url;
+  try { url = new URL(databaseUrl); } catch { fail("approval target is malformed"); }
+  if (!["postgres:", "postgresql:"].includes(url.protocol) || !url.hostname || !url.pathname.slice(1)) fail("approval target is invalid");
+  const environment = {
+    ...baseEnvironment,
+    PGHOST: url.hostname,
+    PGPORT: url.port || "5432",
+    PGUSER: decodeURIComponent(url.username),
+    PGPASSWORD: decodeURIComponent(url.password),
+    PGDATABASE: decodeURIComponent(url.pathname.slice(1)),
+    PGCONNECT_TIMEOUT: String(MAXIMUM_CONNECT_TIMEOUT_SECONDS),
+  };
+  delete environment.DATABASE_URL;
+  delete environment.PGOPTIONS;
+  for (const variable of [...Object.values(LIBPQ_PARAMETER_ENV), "PGCONNECT_TIMEOUT"]) delete environment[variable];
+  environment.PGCONNECT_TIMEOUT = String(MAXIMUM_CONNECT_TIMEOUT_SECONDS);
+  for (const [parameter, variable] of Object.entries(LIBPQ_PARAMETER_ENV)) {
+    if (url.searchParams.has(parameter)) environment[variable] = url.searchParams.get(parameter);
+  }
+  if (url.searchParams.has("connect_timeout")) {
+    const value = Number(url.searchParams.get("connect_timeout"));
+    if (!Number.isInteger(value) || value < 1 || value > MAXIMUM_CONNECT_TIMEOUT_SECONDS) fail("connection timeout is outside the approved bound");
+    environment.PGCONNECT_TIMEOUT = String(value);
+  }
+  if (includeStartupTimeouts) {
+    environment.PGOPTIONS = `-c lock_timeout=${REQUIRED_TIMEOUTS.lockTimeoutMs}ms -c statement_timeout=${REQUIRED_TIMEOUTS.statementTimeoutMs}ms`;
+  }
+  return Object.freeze(environment);
+}
+
+export function wrapReadOnlyPsqlQuery(sql, { applyLocalTimeouts = true } = {}) {
+  if (typeof sql !== "string" || !/^\s*SELECT\b/i.test(sql)) fail("read-only psql query must be a SELECT");
+  const settings = applyLocalTimeouts
+    ? `SET LOCAL lock_timeout = '${REQUIRED_TIMEOUTS.lockTimeoutMs}ms';\nSET LOCAL statement_timeout = '${REQUIRED_TIMEOUTS.statementTimeoutMs}ms';\n`
+    : "";
+  return `BEGIN READ ONLY;\n${settings}${sql}\nCOMMIT;`;
+}
 
 export function targetFingerprint(databaseUrl) {
   let url;

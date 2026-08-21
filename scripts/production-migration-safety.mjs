@@ -4,8 +4,9 @@ import { createHash } from "node:crypto";
 import { basename, dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
-  EXPECTED_COMPLETED, EXPECTED_PENDING, MAXIMUMS, REQUIRED_TIMEOUTS, readApprovalFile, validateChecks,
-  validatePending, validatePostconditions, validateStartingState, validateTimeouts,
+  EXPECTED_COMPLETED, EXPECTED_PENDING, MAXIMUMS, REQUIRED_TIMEOUTS, buildPsqlEnvironment,
+  readApprovalFile, validateChecks, validatePending, validatePostconditions, validateStartingState,
+  validateTimeouts, wrapReadOnlyPsqlQuery,
 } from "./lib/production-migration-safety.mjs";
 
 const root = resolve(dirname(new URL(import.meta.url).pathname), "..");
@@ -21,23 +22,26 @@ if (!["preflight", "run"].includes(command) || !approvalPath || (command === "ru
 
 const approval = await readApprovalFile(approvalPath);
 const pgOptions = `-c lock_timeout=${REQUIRED_TIMEOUTS.lockTimeoutMs}ms -c statement_timeout=${REQUIRED_TIMEOUTS.statementTimeoutMs}ms`;
-const executionUrl = new URL(approval.databaseUrl); executionUrl.searchParams.set("options", pgOptions);
-const connectionEnvironment = {
-  PGHOST: executionUrl.hostname, PGPORT: executionUrl.port || "5432",
-  PGUSER: decodeURIComponent(executionUrl.username), PGPASSWORD: decodeURIComponent(executionUrl.password),
-  PGDATABASE: decodeURIComponent(executionUrl.pathname.slice(1)), PGOPTIONS: pgOptions,
-};
-const invoke = (program, args, { input, json = false } = {}) => {
-  const result = spawnSync(program, args, { cwd: root, input, encoding: "utf8", env: { ...process.env, DATABASE_URL: executionUrl.toString(), ...connectionEnvironment }, maxBuffer: 32 * 1024 * 1024 });
+const psqlEnvironment = buildPsqlEnvironment(approval.databaseUrl, { baseEnvironment: process.env });
+const executionEnvironment = buildPsqlEnvironment(approval.databaseUrl, { baseEnvironment: process.env, includeStartupTimeouts: true });
+const executionUrl = new URL(approval.databaseUrl);
+executionUrl.searchParams.set("options", pgOptions);
+const invoke = (program, args, { input, json = false, environment = psqlEnvironment } = {}) => {
+  const result = spawnSync(program, args, { cwd: root, input, encoding: "utf8", env: environment, maxBuffer: 32 * 1024 * 1024 });
   if (result.status !== 0) {
     const safeCode = `${result.stdout || ""}\n${result.stderr || ""}`.match(/\bP\d{4}\b/)?.[0];
     throw new Error(`Production migration blocked: ${program} failed${safeCode ? ` (${safeCode})` : ""} without displaying target metadata`);
   }
   return json ? JSON.parse(result.stdout || "null") : result.stdout;
 };
-const query = (sql) => invoke("psql", ["-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-c", `SELECT COALESCE(json_agg(x),'[]'::json) FROM (${sql}) x`], { json: true });
+const psqlArgs = (sql) => ["-X", "-qAt", "-w", "-v", "ON_ERROR_STOP=1", "-c", sql];
+const jsonSelect = (sql) => `SELECT COALESCE(json_agg(x),'[]'::json) FROM (${sql}) x;`;
+const query = (sql) => invoke("psql", psqlArgs(wrapReadOnlyPsqlQuery(jsonSelect(sql))), { json: true });
 const scalar = (sql) => Number(query(`SELECT (${sql})::bigint AS value`)[0].value);
 const records = () => query('SELECT migration_name, checksum, started_at, finished_at, rolled_back_at, applied_steps_count FROM "_prisma_migrations" ORDER BY started_at');
+const executionTimeoutSettings = () => invoke("psql", psqlArgs(wrapReadOnlyPsqlQuery(jsonSelect(
+  "SELECT (extract(epoch FROM current_setting('lock_timeout')::interval)*1000)::bigint AS lock_timeout_ms, (extract(epoch FROM current_setting('statement_timeout')::interval)*1000)::bigint AS statement_timeout_ms",
+), { applyLocalTimeouts: false })), { json: true, environment: executionEnvironment })[0];
 
 const localNames = (await readdir(migrationsDir, { withFileTypes: true })).filter((x) => x.isDirectory()).map((x) => x.name);
 const repositoryChecksums = Object.fromEntries(await Promise.all(localNames.map(async (name) => [name, createHash("sha256").update(await readFile(join(migrationsDir, name, "migration.sql"))).digest("hex")])));
@@ -97,6 +101,7 @@ if (command === "preflight") {
   process.exit(0);
 }
 
+validateTimeouts(executionTimeoutSettings());
 const priorEvidenceInfo = await lstat(evidenceDir).catch(() => null);
 if (priorEvidenceInfo?.isSymbolicLink()) throw new Error("Production migration blocked: evidence directory must be a mode-700 non-symlink directory");
 await mkdir(evidenceDir, { recursive: true, mode: 0o700 });
@@ -112,7 +117,9 @@ const evidence = query(`
 const handle = await open(evidencePath, "wx", 0o600);
 try { await handle.writeFile(`${JSON.stringify(evidence)}\n`); await handle.chmod(0o600); } finally { await handle.close(); }
 
-invoke(join(root, "apps/api/backend/node_modules/.bin/prisma"), ["migrate", "deploy", "--schema", join(root, "apps/api/backend/prisma/schema.prisma")]);
+invoke(join(root, "apps/api/backend/node_modules/.bin/prisma"), ["migrate", "deploy", "--schema", join(root, "apps/api/backend/prisma/schema.prisma")], {
+  environment: { ...executionEnvironment, DATABASE_URL: executionUrl.toString() },
+});
 validateTimeouts(timeoutSettings());
 const postChecks = query(`SELECT * FROM (VALUES
  ('pricing postcondition', (SELECT count(*) FROM "PlatformPricingRule" WHERE "key"='seller_plan_free_limits' AND "metadata"->'maxActiveListings'='20'::jsonb), ${affectedBefore.pricing}),
