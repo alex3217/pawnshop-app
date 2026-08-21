@@ -4,6 +4,7 @@ umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENVIRONMENT=""; ENV_FILE=""; APPROVAL_FILE=""; APPROVED_HOST=""; DATABASE_NAME=""; OUTPUT_DIR="${BACKUP_DIR:-$ROOT/backups/db}"
+unset DATABASE_URL PGDATABASE PGHOST PGPASSWORD PGPORT PGSERVICE PGSERVICEFILE PGSSLMODE PGUSER
 
 usage() { echo "Usage: $0 --environment <production|staging|test|development> --env-file <file> [--approval-file <mode-600-file> | --approved-host <hostname> --database <name>] [--output-dir <directory>]" >&2; }
 while [ "$#" -gt 0 ]; do
@@ -20,8 +21,9 @@ done
 if [ -z "$ENVIRONMENT" ] || [ -z "$ENV_FILE" ]; then usage; exit 1; fi
 if [ ! -f "$ENV_FILE" ]; then echo "Environment file is missing." >&2; exit 1; fi
 
-RUNTIME_DIR=""
-cleanup_runtime() { if [ -n "$RUNTIME_DIR" ]; then rm -f "$RUNTIME_DIR/pg_service.conf" "$RUNTIME_DIR/validated-target.json" "$RUNTIME_DIR/pg_dump.stderr"; rmdir "$RUNTIME_DIR" 2>/dev/null || true; fi; }
+RUNTIME_DIR=""; SERVICE_FILE=""; CLIENT_DIAGNOSTIC=""
+cleanup_client_files() { if [ -n "$SERVICE_FILE" ]; then rm -f -- "$SERVICE_FILE"; SERVICE_FILE=""; fi; if [ -n "$CLIENT_DIAGNOSTIC" ]; then rm -f -- "$CLIENT_DIAGNOSTIC"; CLIENT_DIAGNOSTIC=""; fi; }
+cleanup_runtime() { cleanup_client_files; if [ -n "$RUNTIME_DIR" ]; then rm -f -- "$RUNTIME_DIR/pg_service.conf" "$RUNTIME_DIR/validated-target.json" "$RUNTIME_DIR/pg_dump.stderr"; rmdir "$RUNTIME_DIR" 2>/dev/null || true; fi; }
 trap cleanup_runtime EXIT
 if [ "$ENVIRONMENT" = "production" ]; then
   if [ -n "$APPROVED_HOST" ] || [ -n "$DATABASE_NAME" ]; then echo "Production backup rejects raw target metadata arguments; use --approval-file." >&2; exit 1; fi
@@ -31,14 +33,10 @@ if [ "$ENVIRONMENT" = "production" ]; then
     --env-file "$ENV_FILE" --approval-file "$APPROVAL_FILE" --state-directory "$RUNTIME_DIR"
   TARGET_FILE="$RUNTIME_DIR/validated-target.json"
   PG_SCHEMA="$(TARGET_FILE="$TARGET_FILE" node -e 'const fs=require("fs");process.stdout.write(JSON.parse(fs.readFileSync(process.env.TARGET_FILE)).schema)')"
-  PG_DUMP_CONNECTION="service=pawnloop-production-backup"
 else
   if [ -n "$APPROVAL_FILE" ] || [ -z "$APPROVED_HOST" ] || [ -z "$DATABASE_NAME" ]; then usage; exit 1; fi
-  DATABASE_URL="$(node --env-file="$ENV_FILE" -e 'process.stdout.write(process.env.DATABASE_URL || "")')"
-  TARGET="$(env -i PATH="$PATH" DATABASE_URL="$DATABASE_URL" node "$ROOT/scripts/lib/database-recovery-safety.mjs" target --operation backup --environment "$ENVIRONMENT" --approved-host "$APPROVED_HOST" --database "$DATABASE_NAME" --destination false)"
-  PG_DUMP_CONNECTION="service=pawnloop-backup"
-  PG_SCHEMA="$(TARGET="$TARGET" node -e 'process.stdout.write(JSON.parse(process.env.TARGET).schema)')"
-  unset DATABASE_URL
+  TARGET="$({ printf '%s\0' backup "$ENVIRONMENT" "$APPROVED_HOST" "$DATABASE_NAME" false; env -i PATH="$PATH" node "$ROOT/scripts/lib/database-recovery-safety.mjs" database-url --env-file "$ENV_FILE"; } | env -i PATH="$PATH" node "$ROOT/scripts/lib/database-recovery-safety.mjs" target-stdin)"
+  PG_SCHEMA="$(printf '%s' "$TARGET" | env -i PATH="$PATH" node -e 'const fs=require("fs");process.stdout.write(JSON.parse(fs.readFileSync(0,"utf8")).schema)')"
 fi
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$OUTPUT_DIR"; chmod 700 "$OUTPUT_DIR"
@@ -48,19 +46,20 @@ cleanup() { rm -f "$OUT_FILE" "$MANIFEST_FILE"; }
 trap cleanup ERR INT TERM
 if [ -e "$OUT_FILE" ] || [ -e "$MANIFEST_FILE" ]; then echo "Backup output already exists; refusing to overwrite it." >&2; exit 1; fi
 
-PG_DUMP_ARGS=("$PG_DUMP_CONNECTION" --format=custom --no-owner --no-privileges --file="$OUT_FILE")
+PG_DUMP_ARGS=(--format=custom --no-owner --no-privileges --file="$OUT_FILE")
 if [ -n "$PG_SCHEMA" ]; then PG_DUMP_ARGS+=(--schema="$PG_SCHEMA"); fi
 echo "Creating $ENVIRONMENT database backup for the explicitly approved target."
 if [ "$ENVIRONMENT" = "production" ]; then
-  if ! PGSERVICEFILE="$RUNTIME_DIR/pg_service.conf" pg_dump "${PG_DUMP_ARGS[@]}" 2>"$RUNTIME_DIR/pg_dump.stderr"; then
+  if ! PGSERVICEFILE="$RUNTIME_DIR/pg_service.conf" PGSERVICE=pawnloop-production-backup env -u DATABASE_URL -u PGDATABASE -u PGHOST -u PGPASSWORD -u PGPORT -u PGSSLMODE -u PGUSER pg_dump "${PG_DUMP_ARGS[@]}" 2>"$RUNTIME_DIR/pg_dump.stderr"; then
     echo "Production database backup failed; protected client diagnostics were not emitted." >&2
     exit 1
   fi
   rm -f "$RUNTIME_DIR/pg_dump.stderr"
 else
-  SERVICE_FILE="$(node "$ROOT/scripts/lib/backup-process-safety.mjs" service "$ENV_FILE" "$OUTPUT_DIR")"
-  if ! PGSERVICEFILE="$SERVICE_FILE" PGSERVICE=pawnloop-backup env -u DATABASE_URL pg_dump "${PG_DUMP_ARGS[@]:1}" 2>"$OUTPUT_DIR/.pg_dump.stderr"; then rm -f "$SERVICE_FILE" "$OUTPUT_DIR/.pg_dump.stderr"; echo "Backup failed: pg_dump error." >&2; exit 1; fi
-  rm -f "$SERVICE_FILE" "$OUTPUT_DIR/.pg_dump.stderr"
+  SERVICE_FILE="$(env -i PATH="$PATH" node "$ROOT/scripts/lib/backup-process-safety.mjs" service "$ENV_FILE" "$OUTPUT_DIR")"
+  CLIENT_DIAGNOSTIC="$(mktemp "$OUTPUT_DIR/.pg_dump.stderr.XXXXXX")"; chmod 600 "$CLIENT_DIAGNOSTIC"
+  if ! PGSERVICEFILE="$SERVICE_FILE" PGSERVICE=pawnloop-backup env -u DATABASE_URL -u PGDATABASE -u PGHOST -u PGPASSWORD -u PGPORT -u PGSSLMODE -u PGUSER pg_dump "${PG_DUMP_ARGS[@]}" 2>"$CLIENT_DIAGNOSTIC"; then echo "Backup failed: pg_dump error." >&2; exit 1; fi
+  cleanup_client_files
 fi
 chmod 600 "$OUT_FILE"
 if [ ! -s "$OUT_FILE" ]; then cleanup; echo "Backup is empty." >&2; exit 1; fi
@@ -68,9 +67,9 @@ if [ ! -s "$OUT_FILE" ]; then cleanup; echo "Backup is empty." >&2; exit 1; fi
 TOOL_VERSION="$(pg_dump --version 2>/dev/null || echo unknown)"
 REVISION="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 if [ "$ENVIRONMENT" = "production" ]; then
-  node "$ROOT/scripts/lib/database-recovery-safety.mjs" manifest --backup "$OUT_FILE" --environment "$ENVIRONMENT" --target-file "$TARGET_FILE" --source-schema "$PG_SCHEMA" --revision "$REVISION" --tool-version "$TOOL_VERSION" --archive-metadata "pg_restore list inspection passed" >"$MANIFEST_FILE"
+  node "$ROOT/scripts/lib/database-recovery-safety.mjs" manifest --backup "$OUT_FILE" --environment "$ENVIRONMENT" --target-file "$TARGET_FILE" --revision "$REVISION" --tool-version "$TOOL_VERSION" --archive-metadata "pg_restore list inspection passed" >"$MANIFEST_FILE"
 else
-  node "$ROOT/scripts/lib/database-recovery-safety.mjs" manifest --backup "$OUT_FILE" --environment "$ENVIRONMENT" --host "$APPROVED_HOST" --database "$DATABASE_NAME" --source-schema "$PG_SCHEMA" --revision "$REVISION" --tool-version "$TOOL_VERSION" --archive-metadata "pg_restore list inspection passed" >"$MANIFEST_FILE"
+  printf '%s' "$TARGET" | env -i PATH="$PATH" node "$ROOT/scripts/lib/database-recovery-safety.mjs" manifest --backup "$OUT_FILE" --environment "$ENVIRONMENT" --target-stdin true --revision "$REVISION" --tool-version "$TOOL_VERSION" --archive-metadata "pg_restore list inspection passed" >"$MANIFEST_FILE"
 fi
 chmod 600 "$MANIFEST_FILE"
 trap - ERR INT TERM

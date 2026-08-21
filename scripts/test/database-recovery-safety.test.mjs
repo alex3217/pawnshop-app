@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { assertSchemaCompatibility, buildManifest, isLoopback, readProductionBackupApproval, sha256File, validateBackup, validateBackupTarget, validateDatabaseTarget } from "../lib/database-recovery-safety.mjs";
+import { assertSchemaCompatibility, buildManifest, isLoopback, readProductionBackupApproval, sha256File, validateBackup, validateBackupTarget, validateDatabaseTarget, validateTargetStdinPayload } from "../lib/database-recovery-safety.mjs";
 
 const productionUrl = "postgresql://synthetic_user:synthetic_password@prod-db.invalid/pawnloop_production?sslmode=require";
 const target = (overrides = {}) => ({ databaseUrl: productionUrl, environment: "production", approvedHostname: "prod-db.invalid", expectedDatabase: "pawnloop_production", ...overrides });
@@ -30,6 +30,22 @@ test("valid synthetic production backup configuration", () => {
   const result = validateDatabaseTarget(target());
   assert.deepEqual([result.environment, result.hostname, result.databaseName], ["production", "prod-db.invalid", "pawnloop_production"]);
   assert.doesNotMatch(JSON.stringify(result), /synthetic_password/);
+});
+
+test("stdin target validation receives the complete URL and returns metadata only", () => {
+  const fields = ["restore", "isolated", "127.42.19.8", "pawnloop_restore_argvaudit", "true"];
+  const fullUrl = "postgresql://argv_user_canary:argv_password_canary@127.42.19.8/pawnloop_restore_argvaudit?schema=private_scope&sslmode=require&channel_binding=require";
+  const result = validateTargetStdinPayload(Buffer.from(`${fields.join("\0")}\0${fullUrl}`));
+  assert.deepEqual(result, { environment: "isolated", hostname: "127.42.19.8", databaseName: "pawnloop_restore_argvaudit", schema: "private_scope" });
+  assert.doesNotMatch(JSON.stringify(result), /argv_user_canary|argv_password_canary|sslmode|channel_binding/);
+  assert.throws(() => validateTargetStdinPayload(Buffer.from(`${fields.join("\0")}\0${fullUrl}&schema=duplicate`)), /ambiguous/i);
+});
+
+test("stdin target validation rejects malformed framing without exposing connection values", () => {
+  const payload = Buffer.from("restore\0isolated\0localhost\0pawnloop_restore_argvaudit\0true\0postgresql://private_user:private_password@localhost/pawnloop_restore_argvaudit\0extra");
+  let message = ""; try { validateTargetStdinPayload(payload); } catch (error) { message = error.message; }
+  assert.match(message, /input is malformed/i); assert.doesNotMatch(message, /private_user|private_password|postgresql:\/\//);
+  assert.throws(() => validateTargetStdinPayload(Buffer.from("inspect\0isolated\0localhost\0pawnloop_restore_argvaudit\0true\0not-displayed")), /input is malformed/i);
 });
 
 test("Production backup accepts a provider-neutral database only with every exact approval", () => {

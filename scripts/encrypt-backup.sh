@@ -4,6 +4,7 @@ umask 077
 
 usage() { echo "Usage: $0 --backup PATH --manifest PATH --output PATH --working-dir PATH" >&2; exit 1; }
 BACKUP=""; MANIFEST=""; OUTPUT=""; WORKING_DIR=""
+ENCRYPTION_SECRET="${BACKUP_ENCRYPTION_SECRET:-}"; unset BACKUP_ENCRYPTION_SECRET
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --backup) BACKUP="${2:-}"; shift 2;;
@@ -30,21 +31,21 @@ ARCHIVE="$TMP_DIR/backup.tar"
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT INT TERM
 
-if [ -z "${BACKUP_ENCRYPTION_SECRET:-}" ]; then
-  BACKUP_ENCRYPTION_SECRET="$(security find-generic-password -s pawnloop-production-backup-encryption -w)" || { echo "Encryption secret unavailable." >&2; exit 1; }
-  export BACKUP_ENCRYPTION_SECRET
+if [ -z "$ENCRYPTION_SECRET" ]; then
+  ENCRYPTION_SECRET="$(security find-generic-password -s pawnloop-production-backup-encryption -w)" || { echo "Encryption secret unavailable." >&2; exit 1; }
 fi
-[ -n "$BACKUP_ENCRYPTION_SECRET" ] || { echo "Encryption secret unavailable." >&2; exit 1; }
+[ -n "$ENCRYPTION_SECRET" ] || { echo "Encryption secret unavailable." >&2; exit 1; }
 
-tar -C "$(dirname "$BACKUP")" -cf "$ARCHIVE" "$(basename "$BACKUP")" "$(basename "$MANIFEST")" >/dev/null 2>&1 || { echo "Backup packaging failed." >&2; exit 1; }
+COPYFILE_DISABLE=1 tar --format=ustar -C "$(dirname "$BACKUP")" -cf "$ARCHIVE" "$(basename "$BACKUP")" "$(basename "$MANIFEST")" >/dev/null 2>&1 || { echo "Backup packaging failed." >&2; exit 1; }
 chmod 600 "$ARCHIVE"
 TMP_OUTPUT="$(mktemp "$TMP_DIR/encrypted.XXXXXX")"; chmod 600 "$TMP_OUTPUT"
 trap cleanup EXIT INT TERM
-openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$ARCHIVE" -out "$TMP_OUTPUT" -pass env:BACKUP_ENCRYPTION_SECRET >/dev/null 2>&1 || { rm -f "$TMP_OUTPUT"; echo "Backup encryption failed." >&2; exit 1; }
+BACKUP_ENCRYPTION_SECRET="$ENCRYPTION_SECRET" openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$ARCHIVE" -out "$TMP_OUTPUT" -pass env:BACKUP_ENCRYPTION_SECRET >/dev/null 2>&1 || { rm -f "$TMP_OUTPUT"; echo "Backup encryption failed." >&2; exit 1; }
 chmod 600 "$TMP_OUTPUT"
 [ -s "$TMP_OUTPUT" ] || { rm -f "$TMP_OUTPUT"; echo "Encrypted backup is empty." >&2; exit 1; }
 VERIFY_ARCHIVE="$TMP_DIR/verify.tar"
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$TMP_OUTPUT" -out "$VERIFY_ARCHIVE" -pass env:BACKUP_ENCRYPTION_SECRET >/dev/null 2>&1 || { rm -f "$TMP_OUTPUT"; echo "Encrypted backup integrity check failed." >&2; exit 1; }
+BACKUP_ENCRYPTION_SECRET="$ENCRYPTION_SECRET" openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$TMP_OUTPUT" -out "$VERIFY_ARCHIVE" -pass env:BACKUP_ENCRYPTION_SECRET >/dev/null 2>&1 || { rm -f "$TMP_OUTPUT"; echo "Encrypted backup integrity check failed." >&2; exit 1; }
+ENCRYPTION_SECRET=""
 tar -tf "$VERIFY_ARCHIVE" >/dev/null 2>&1 || { rm -f "$TMP_OUTPUT"; echo "Encrypted backup integrity check failed." >&2; exit 1; }
 ln "$TMP_OUTPUT" "$OUTPUT" 2>/dev/null || { echo "Encrypted destination exists; refusing to overwrite it." >&2; exit 1; }
 rm -f "$TMP_OUTPUT"; chmod 600 "$OUTPUT"
