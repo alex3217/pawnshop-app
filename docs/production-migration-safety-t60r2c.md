@@ -1,0 +1,26 @@
+# T60R2C production migration safety
+
+This runbook controls the immutable 22-migration chain from `20260803090000_training_knowledge_center_v1` through `20260819190000_marketplace_listing_destinations`, followed by the additive constraint-validation migration. Existing migration SQL is immutable. Never edit it, use `prisma migrate resolve`, or rewrite `_prisma_migrations`.
+
+## Compatibility and risk boundary
+
+The command accepts the target only inside a current-operator-owned, mode-600 regular approval file in a directory inaccessible to group/other users. Symlinks fail closed. No hostname, database name, URL, approval contents, or row data is accepted in arguments or emitted in normal output. The JSON file must contain `databaseUrl`, `targetSha256` (SHA-256 of lower-case URL hostname, newline, decoded database name), exact `confirmation` value `AUTHORIZE T60R2C-B PRODUCTION MIGRATION`, `lockTimeoutMs: 5000`, `statementTimeoutMs: 300000`, and `historicalRollbackFingerprints` exactly equal to the two immutable fingerprints exported by `scripts/lib/production-migration-safety.mjs`. Copying or editing this set manually is prohibited; approval must be independently generated and reviewed.
+
+The gate requires exactly 48 completed migrations and exactly the known 22 pending migrations plus the additive validation migration. It rejects every unresolved record, unknown name, extra/missing rollback, altered checksum, additional checksum variant, reversed attempt ordering, unexpected applied-step count, conflicting success, or current-file checksum mismatch. Its only rollback allowance is the exact two-record provenance set audited in T60R2C-B3; it is not a general rolled-back-row exception. It also checks unique-key candidates, NOT NULL inputs, FK orphans, check violations, object/type/function/trigger collisions, pricing JSON, destination values, affected rows, row counts, and relation sizes. Limits are 100,000 affected rows, 100,000 rows per lock-sensitive table, and 512 MiB per checked relation. These intentionally strict limits cover the immutable non-concurrent indexes and unbounded updates. Exceeding one requires a separately approved manual/concurrent-index and batched-backfill strategy; do not raise a limit during an incident.
+
+The command injects PostgreSQL's `options` startup parameter into the exact URL passed to every connection opened by Prisma 6.19.3 (and also sets `PGOPTIONS` for libpq clients), applying a 5-second lock timeout and 5-minute statement timeout. It verifies those exact server settings through the same URL before and after deployment. A quick local run is evidence of compatibility only; it does not predict Production lock acquisition, concurrency, load, or runtime.
+
+## Operator sequence
+
+1. Create the protected approval directory (`0700`) and file (`0600`) outside the repository. Independently verify its target fingerprint and exact fields. Create a separate empty evidence directory path outside the repository.
+2. Run `npm run production:migration:preflight -- --approval-file /protected/path/approval.json`. Any failure is a stop condition.
+3. Establish the approved application write-control window outside this repository procedure. Confirm monitoring and an operator are present.
+4. Run `npm run production:migration:safe -- --approval-file /protected/path/approval.json --evidence-dir /protected/path/evidence` once. Do not invoke ordinary `prisma migrate deploy` for this chain.
+5. Retain the generated mode-600 rollback evidence under the mode-700 directory. It contains pre-change pricing metadata, staff permissions, identifier inputs, and inventory availability inputs and is never printed.
+6. Confirm the command reports PASS, then independently inspect migration status. Expected final repository state is 71 completed migrations and zero pending.
+
+## Stop conditions and rollback points
+
+Stop before execution for any state mismatch, collision, invalid value, orphan, threshold breach, timeout mismatch, insecure file, or inability to control writes. Stop during execution on the first timeout or migration error; do not mark it resolved. Each Prisma migration commit is a rollback point, so a failure can leave a prefix applied. Preserve the evidence and database backup, identify the last completed record read-only, and obtain a separate recovery decision. Data overwritten by pricing, permission, identifier, and availability backfills must be restored only from the protected evidence under separately reviewed SQL. Schema rollback may be incompatible with application code and must not be improvised.
+
+The destination constraint is created `NOT VALID` by immutable history. The final additive migration validates it only after the preflight proves zero violations; its postcondition requires `convalidated=true`. Compatibility requires PostgreSQL 17 and Prisma 6.19.3. Production and staging access, deployment/provider changes, and maintenance controls are outside this repository command and this authorization.
