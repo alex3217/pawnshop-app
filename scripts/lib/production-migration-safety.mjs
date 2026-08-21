@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { lstat, readFile, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 
@@ -101,6 +102,44 @@ export function wrapReadOnlyPsqlQuery(sql, { applyLocalTimeouts = true } = {}) {
     ? `SET LOCAL lock_timeout = '${REQUIRED_TIMEOUTS.lockTimeoutMs}ms';\nSET LOCAL statement_timeout = '${REQUIRED_TIMEOUTS.statementTimeoutMs}ms';\n`
     : "";
   return `BEGIN READ ONLY;\n${settings}${sql}\nCOMMIT;`;
+}
+
+export function parsePsqlJsonResult(stdout, { expectedShape = "array" } = {}) {
+  if (typeof stdout !== "string" || !stdout.trim()) fail("psql returned empty output");
+  let value;
+  try { value = JSON.parse(stdout); } catch { fail("psql returned invalid JSON"); }
+  if (value === null) fail("psql returned null JSON");
+  const matches = expectedShape === "array" ? Array.isArray(value)
+    : expectedShape === "object" ? typeof value === "object" && !Array.isArray(value)
+      : expectedShape === "scalar" ? typeof value !== "object"
+        : false;
+  if (!matches) fail("psql returned an unexpected JSON result shape");
+  return value;
+}
+
+export function runReadOnlyPsqlQuery(sql, {
+  environment, cwd, applyLocalTimeouts = true, expectedShape = "array", spawn = spawnSync,
+} = {}) {
+  const input = wrapReadOnlyPsqlQuery(sql, { applyLocalTimeouts });
+  const args = ["-X", "-qAt", "-w", "-v", "ON_ERROR_STOP=1"];
+  const result = spawn("psql", args, { cwd, input, encoding: "utf8", env: environment, maxBuffer: 32 * 1024 * 1024 });
+  if (result.error || result.status !== 0) {
+    const safeCode = `${result.stdout || ""}\n${result.stderr || ""}`.match(/\bP\d{4}\b/)?.[0];
+    fail(`psql failed${safeCode ? ` (${safeCode})` : ""} without displaying target metadata`);
+  }
+  return parsePsqlJsonResult(result.stdout, { expectedShape });
+}
+
+export function quotePostgresIdentifier(value) {
+  if (typeof value !== "string" || !value) fail("migration relation schema is invalid");
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+export function selectMigrationRelation(rows) {
+  if (!Array.isArray(rows) || rows.length !== 1 || typeof rows[0]?.schema_name !== "string" || !rows[0].schema_name) {
+    fail("migration relation discovery did not return exactly one relation");
+  }
+  return `${quotePostgresIdentifier(rows[0].schema_name)}.${quotePostgresIdentifier("_prisma_migrations")}`;
 }
 
 export function targetFingerprint(databaseUrl) {

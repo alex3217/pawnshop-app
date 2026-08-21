@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import {
   EXPECTED_COMPLETED, EXPECTED_PENDING, MAXIMUMS, REQUIRED_TIMEOUTS, buildPsqlEnvironment,
   readApprovalFile, validateChecks, validatePending, validatePostconditions, validateStartingState,
-  validateTimeouts, wrapReadOnlyPsqlQuery,
+  runReadOnlyPsqlQuery, selectMigrationRelation, validateTimeouts,
 } from "./lib/production-migration-safety.mjs";
 
 const root = resolve(dirname(new URL(import.meta.url).pathname), "..");
@@ -26,22 +26,27 @@ const psqlEnvironment = buildPsqlEnvironment(approval.databaseUrl, { baseEnviron
 const executionEnvironment = buildPsqlEnvironment(approval.databaseUrl, { baseEnvironment: process.env, includeStartupTimeouts: true });
 const executionUrl = new URL(approval.databaseUrl);
 executionUrl.searchParams.set("options", pgOptions);
-const invoke = (program, args, { input, json = false, environment = psqlEnvironment } = {}) => {
+const invoke = (program, args, { input, environment = psqlEnvironment } = {}) => {
   const result = spawnSync(program, args, { cwd: root, input, encoding: "utf8", env: environment, maxBuffer: 32 * 1024 * 1024 });
   if (result.status !== 0) {
     const safeCode = `${result.stdout || ""}\n${result.stderr || ""}`.match(/\bP\d{4}\b/)?.[0];
     throw new Error(`Production migration blocked: ${program} failed${safeCode ? ` (${safeCode})` : ""} without displaying target metadata`);
   }
-  return json ? JSON.parse(result.stdout || "null") : result.stdout;
+  return result.stdout;
 };
-const psqlArgs = (sql) => ["-X", "-qAt", "-w", "-v", "ON_ERROR_STOP=1", "-c", sql];
 const jsonSelect = (sql) => `SELECT COALESCE(json_agg(x),'[]'::json) FROM (${sql}) x;`;
-const query = (sql) => invoke("psql", psqlArgs(wrapReadOnlyPsqlQuery(jsonSelect(sql))), { json: true });
+const query = (sql, { environment = psqlEnvironment, applyLocalTimeouts = true } = {}) => runReadOnlyPsqlQuery(jsonSelect(sql), {
+  environment, cwd: root, applyLocalTimeouts,
+});
 const scalar = (sql) => Number(query(`SELECT (${sql})::bigint AS value`)[0].value);
-const records = () => query('SELECT migration_name, checksum, started_at, finished_at, rolled_back_at, applied_steps_count FROM "_prisma_migrations" ORDER BY started_at');
-const executionTimeoutSettings = () => invoke("psql", psqlArgs(wrapReadOnlyPsqlQuery(jsonSelect(
+const migrationRelation = selectMigrationRelation(query(
+  "SELECT n.nspname AS schema_name FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid=c.relnamespace WHERE c.relname='_prisma_migrations' AND c.relkind IN ('r','p') ORDER BY n.nspname",
+));
+const records = () => query(`SELECT migration_name, checksum, started_at, finished_at, rolled_back_at, applied_steps_count FROM ${migrationRelation} ORDER BY started_at`);
+const executionTimeoutSettings = () => query(
   "SELECT (extract(epoch FROM current_setting('lock_timeout')::interval)*1000)::bigint AS lock_timeout_ms, (extract(epoch FROM current_setting('statement_timeout')::interval)*1000)::bigint AS statement_timeout_ms",
-), { applyLocalTimeouts: false })), { json: true, environment: executionEnvironment })[0];
+  { applyLocalTimeouts: false, environment: executionEnvironment },
+)[0];
 
 const localNames = (await readdir(migrationsDir, { withFileTypes: true })).filter((x) => x.isDirectory()).map((x) => x.name);
 const repositoryChecksums = Object.fromEntries(await Promise.all(localNames.map(async (name) => [name, createHash("sha256").update(await readFile(join(migrationsDir, name, "migration.sql"))).digest("hex")])));
