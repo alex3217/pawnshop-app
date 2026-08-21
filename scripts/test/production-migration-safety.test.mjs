@@ -6,7 +6,8 @@ import test from "node:test";
 import {
   EXPECTED_COMPLETED, EXPECTED_PENDING, HISTORICAL_ROLLBACK_FINGERPRINTS, MAXIMUM_CONNECT_TIMEOUT_SECONDS,
   REQUIRED_CONFIRMATION, REQUIRED_TIMEOUTS, VALIDATION_MIGRATION, buildPsqlEnvironment,
-  readApprovalFile, targetFingerprint, validateChecks, validatePending, validatePostconditions,
+  parsePsqlJsonResult, quotePostgresIdentifier, readApprovalFile, runReadOnlyPsqlQuery,
+  selectMigrationRelation, targetFingerprint, validateChecks, validatePending, validatePostconditions,
   validateHistoricalMigrationState, validateStartingState, validateTimeouts, wrapReadOnlyPsqlQuery,
 } from "../lib/production-migration-safety.mjs";
 
@@ -170,7 +171,7 @@ test("timeout verification can occur in the same local-timeout transaction", () 
 
 test("runner keeps psql noninteractive and sanitized while separating preflight from execution", async () => {
   const source = await readFile(resolve("scripts/production-migration-safety.mjs"), "utf8");
-  assert.match(source, /\["-X", "-qAt", "-w", "-v", "ON_ERROR_STOP=1", "-c", sql\]/);
+  assert.doesNotMatch(source, /"-c"/);
   assert.match(source, /failed\$\{safeCode[\s\S]*without displaying target metadata/);
   assert.doesNotMatch(source.slice(source.indexOf("const psqlEnvironment"), source.indexOf("const executionEnvironment")), /PGOPTIONS|options/);
   const preflightExit = source.indexOf('if (command === "preflight")');
@@ -181,4 +182,66 @@ test("runner keeps psql noninteractive and sanitized while separating preflight 
   assert.ok(capabilityProbe < evidenceCreation && evidenceCreation < prisma);
   assert.match(source.slice(capabilityProbe, prisma), /executionTimeoutSettings/);
   assert.doesNotMatch(source.slice(capabilityProbe, prisma), /catch[\s\S]*migrate/);
+});
+
+test("read-only psql runner sends wrapped SQL through stdin without multi-statement -c", () => {
+  let observed;
+  const value = runReadOnlyPsqlQuery("SELECT 1 AS value;", {
+    environment: { PGHOST: "synthetic.invalid" }, cwd: "/synthetic",
+    spawn: (program, args, options) => {
+      observed = { program, args, options };
+      return { status: 0, signal: null, stdout: '[{"value":1}]\n', stderr: "" };
+    },
+  });
+  assert.deepEqual(value, [{ value: 1 }]);
+  assert.equal(observed.program, "psql");
+  assert.deepEqual(observed.args, ["-X", "-qAt", "-w", "-v", "ON_ERROR_STOP=1"]);
+  assert.ok(!observed.args.includes("-c"));
+  assert.match(observed.options.input, /^BEGIN READ ONLY;\n/);
+  assert.match(observed.options.input, /SET LOCAL lock_timeout = '5000ms';/);
+  assert.match(observed.options.input, /SET LOCAL statement_timeout = '300000ms';/);
+  assert.match(observed.options.input, /SELECT 1 AS value;/);
+  assert.match(observed.options.input, /\nCOMMIT;$/);
+});
+
+test("strict psql JSON parser accepts certified result shapes", () => {
+  assert.deepEqual(parsePsqlJsonResult('[{"value":1}]'), [{ value: 1 }]);
+  assert.deepEqual(parsePsqlJsonResult("[]"), []);
+  assert.deepEqual(parsePsqlJsonResult("[]"), []); // zero-row json_agg contract
+  assert.deepEqual(parsePsqlJsonResult('[{"migration_name":"synthetic"}]'), [{ migration_name: "synthetic" }]);
+  assert.equal(parsePsqlJsonResult("1", { expectedShape: "scalar" }), 1);
+  assert.deepEqual(parsePsqlJsonResult('{"ok":true}', { expectedShape: "object" }), { ok: true });
+});
+
+test("strict psql JSON parser fails closed without output disclosure", () => {
+  for (const output of ["", "null", "not-json", '{"unexpected":"private-value"}']) {
+    let message = "";
+    try { parsePsqlJsonResult(output); } catch (error) { message = error.message; }
+    assert.match(message, /Production migration blocked:/);
+    assert.doesNotMatch(message, /private-value|not-json/);
+  }
+});
+
+test("successful psql exit with empty or invalid output fails closed", () => {
+  for (const stdout of ["", "null", "not-json", "{}"] ) {
+    assert.throws(() => runReadOnlyPsqlQuery("SELECT 1;", {
+      spawn: () => ({ status: 0, signal: null, stdout, stderr: "sensitive raw output" }),
+    }), (error) => /Production migration blocked:/.test(error.message) && !/sensitive|not-json/.test(error.message));
+  }
+});
+
+test("migration relation discovery requires one row and safely qualifies identifiers", () => {
+  assert.equal(selectMigrationRelation([{ schema_name: "private" }]), '"private"."_prisma_migrations"');
+  assert.equal(selectMigrationRelation([{ schema_name: 'private"schema' }]), '"private""schema"."_prisma_migrations"');
+  assert.equal(quotePostgresIdentifier('a"b'), '"a""b"');
+  for (const rows of [[], [{ schema_name: "one" }, { schema_name: "two" }], [{ schema_name: "" }], null]) {
+    assert.throws(() => selectMigrationRelation(rows), /exactly one relation/);
+  }
+});
+
+test("migration history always uses the discovered qualified relation", async () => {
+  const source = await readFile(resolve("scripts/production-migration-safety.mjs"), "utf8");
+  assert.match(source, /selectMigrationRelation\(query\(/);
+  assert.match(source, /FROM \$\{migrationRelation\} ORDER BY started_at/);
+  assert.doesNotMatch(source, /FROM "_prisma_migrations"/);
 });
