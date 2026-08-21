@@ -41,6 +41,13 @@ async function protectedRegularFile(file, label, { expectedUid = process.getuid?
   if ((parent.mode & 0o777) !== 0o700) fail(`${label} parent directory permissions must be 0700.`);
 }
 
+async function readDatabaseUrlFromEnvFile(file) {
+  let env;
+  try { env = parseEnv(await readFile(file, "utf8")); } catch { fail("Environment file is malformed."); }
+  if (typeof env.DATABASE_URL !== "string" || !env.DATABASE_URL) fail("DATABASE_URL is missing.");
+  return env.DATABASE_URL;
+}
+
 export async function readProductionBackupApproval(file, options = {}) {
   await protectedRegularFile(file, "Production backup approval file", options);
   let value;
@@ -305,25 +312,41 @@ function parseArgs(argv) {
   return args;
 }
 
+async function readStandardInput() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
+
+export function validateTargetStdinPayload(payload) {
+  if (!Buffer.isBuffer(payload)) fail("Target validation input is malformed.");
+  const fields = payload.toString("utf8").split("\0");
+  if (fields.length !== 6) fail("Target validation input is malformed.");
+  const [operation, environment, approvedHostname, expectedDatabase, destination, databaseUrl] = fields;
+  if (!["backup", "restore"].includes(operation) || !environment || !approvedHostname || !expectedDatabase || !databaseUrl || !["true", "false"].includes(destination)) {
+    fail("Target validation input is malformed.");
+  }
+  const options = { databaseUrl, environment, approvedHostname, expectedDatabase, destination: destination === "true" };
+  return operation === "backup" ? validateBackupTarget(options) : validateDatabaseTarget(options);
+}
+
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
   const args = parseArgs(rest);
-  if (command === "target") {
-    const options = { databaseUrl: process.env.DATABASE_URL, environment: args.environment, approvedHostname: args["approved-host"], expectedDatabase: args.database, destination: args.destination === "true" };
-    const result = args.operation === "backup"
-      ? validateBackupTarget({ ...options, productionHostname: process.env.PRODUCTION_DATABASE_HOST, confirmation: process.env.CONFIRM_PRODUCTION_BACKUP })
-      : validateDatabaseTarget(options);
-    process.stdout.write(JSON.stringify(result));
+  if (command === "database-url") {
+    process.stdout.write(await readDatabaseUrlFromEnvFile(args["env-file"]));
+  } else if (command === "target-stdin") {
+    process.stdout.write(JSON.stringify(validateTargetStdinPayload(await readStandardInput())));
   } else if (command === "prepare-production-backup") {
     await prepareProductionBackup({ envFile: args["env-file"], approvalFile: args["approval-file"], stateDirectory: args["state-directory"], confirmation: process.env.CONFIRM_PRODUCTION_BACKUP });
   } else if (command === "manifest") {
-    let hostname = args.host; let databaseName = args.database;
-    if (args["target-file"]) {
+    let hostname = args.host; let databaseName = args.database; let sourceSchema = args["source-schema"];
+    if (args["target-file"] || args["target-stdin"] === "true") {
       let target;
-      try { target = JSON.parse(await readFile(args["target-file"], "utf8")); } catch { fail("Validated backup target state is malformed."); }
-      hostname = target.hostname; databaseName = target.databaseName;
+      try { target = JSON.parse(args["target-file"] ? await readFile(args["target-file"], "utf8") : (await readStandardInput()).toString("utf8")); } catch { fail("Validated backup target state is malformed."); }
+      hostname = target.hostname; databaseName = target.databaseName; sourceSchema = target.schema;
     }
-    const manifest = await buildManifest({ backupFile: args.backup, environment: args.environment, hostname, databaseName, sourceSchema: args["source-schema"], applicationRevision: args.revision, createdAt: args["created-at"], toolVersion: args["tool-version"], archiveMetadata: args["archive-metadata"] });
+    const manifest = await buildManifest({ backupFile: args.backup, environment: args.environment, hostname, databaseName, sourceSchema, applicationRevision: args.revision, createdAt: args["created-at"], toolVersion: args["tool-version"], archiveMetadata: args["archive-metadata"] });
     process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
   } else if (command === "validate") {
     const manifest = await validateBackup({ backupFile: args.backup, manifestFile: args.manifest, expectedEnvironment: args.environment, maxAgeHours: args["max-age-hours"] || DEFAULT_MAX_AGE_HOURS });

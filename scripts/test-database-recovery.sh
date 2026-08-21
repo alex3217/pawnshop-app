@@ -6,6 +6,29 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 FAKE_BIN="$TMP_DIR/bin"; mkdir -p "$FAKE_BIN"
 BACKUP="$TMP_DIR/synthetic.dump"; MANIFEST="$BACKUP.manifest.json"; ENV_FILE="$TMP_DIR/isolated.env"; TRACE="$TMP_DIR/trace"
+CHILD_ARGV_TRACE="$TMP_DIR/child-argv.trace"; PG_CALL_TRACE="$TMP_DIR/pg-call.trace"
+command -v node >"$TMP_DIR/real-node-path"; command -v env >"$TMP_DIR/real-env-path"
+: >"$CHILD_ARGV_TRACE"; : >"$PG_CALL_TRACE"
+cat >"$FAKE_BIN/node" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+TRACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+printf 'node' >>"$TRACE_ROOT/child-argv.trace"
+for argument in "$@"; do printf '\t%s' "$argument" >>"$TRACE_ROOT/child-argv.trace"; done
+printf '\n' >>"$TRACE_ROOT/child-argv.trace"
+IFS= read -r REAL_NODE_BIN <"$TRACE_ROOT/real-node-path"
+exec "$REAL_NODE_BIN" "$@"
+FAKE
+cat >"$FAKE_BIN/env" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+TRACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+printf 'env' >>"$TRACE_ROOT/child-argv.trace"
+for argument in "$@"; do printf '\t%s' "$argument" >>"$TRACE_ROOT/child-argv.trace"; done
+printf '\n' >>"$TRACE_ROOT/child-argv.trace"
+IFS= read -r REAL_ENV_BIN <"$TRACE_ROOT/real-env-path"
+exec "$REAL_ENV_BIN" "$@"
+FAKE
 printf 'synthetic valid archive\n' >"$BACKUP"
 printf 'DATABASE_URL=postgresql://synthetic_user:do-not-print-secret@localhost/pawnloop_restore_drill\n' >"$ENV_FILE"
 node "$ROOT/scripts/lib/database-recovery-safety.mjs" manifest --backup "$BACKUP" --environment production --host prod-db.invalid --database pawnloop_production --source-schema "" --revision synthetic --tool-version synthetic --archive-metadata synthetic >"$MANIFEST"
@@ -13,20 +36,27 @@ node "$ROOT/scripts/lib/database-recovery-safety.mjs" manifest --backup "$BACKUP
 cat >"$FAKE_BIN/pg_restore" <<'FAKE'
 #!/usr/bin/env bash
 set -euo pipefail
+TRACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+printf 'pg_restore' >>"$TRACE_ROOT/child-argv.trace"
+for argument in "$@"; do printf '\t%s' "$argument" >>"$TRACE_ROOT/child-argv.trace"; done
+printf '\n' >>"$TRACE_ROOT/child-argv.trace"; printf 'pg_restore\n' >>"$TRACE_ROOT/pg-call.trace"
 if [ "${1:-}" = "--list" ]; then
   if grep -q invalid "$2"; then exit 1; fi
   echo 'synthetic archive list'; exit 0
 fi
+node -e 'const fs=require("fs"),path=require("path");const f=process.env.PGSERVICEFILE,s=fs.lstatSync(f),d=fs.lstatSync(path.dirname(f));if(process.env.PGSERVICE!=="pawnloop-backup"||s.isSymbolicLink()||!s.isFile()||(s.mode&0o077)!==0||d.isSymbolicLink()||!d.isDirectory()||(d.mode&0o777)!==0o700)process.exit(1)'
 echo 'CREATE TABLE synthetic_restore_check (id integer);'
 FAKE
 cat >"$FAKE_BIN/pg_dump" <<'FAKE'
 #!/usr/bin/env bash
 set -euo pipefail
+TRACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+printf 'pg_dump' >>"$TRACE_ROOT/child-argv.trace"
+for argument in "$@"; do printf '\t%s' "$argument" >>"$TRACE_ROOT/child-argv.trace"; done
+printf '\n' >>"$TRACE_ROOT/child-argv.trace"; printf 'pg_dump\n' >>"$TRACE_ROOT/pg-call.trace"
 if [ "${1:-}" = "--version" ]; then echo 'pg_dump synthetic 1.0'; exit 0; fi
 if [ -n "${PG_DUMP_TRACE:-}" ]; then printf 'invoked %s\n' "$*" >>"$PG_DUMP_TRACE"; fi
-if [ "${1:-}" = "service=pawnloop-production-backup" ]; then
-  node -e 'const fs=require("fs"),path=require("path");const f=process.env.PGSERVICEFILE,s=fs.lstatSync(f),d=fs.lstatSync(path.dirname(f));if(s.isSymbolicLink()||!s.isFile()||(s.mode&0o077)!==0||d.isSymbolicLink()||!d.isDirectory()||(d.mode&0o777)!==0o700)process.exit(1)'
-fi
+node -e 'const fs=require("fs"),path=require("path");const f=process.env.PGSERVICEFILE,s=fs.lstatSync(f),d=fs.lstatSync(path.dirname(f));if(!["pawnloop-backup","pawnloop-production-backup"].includes(process.env.PGSERVICE)||s.isSymbolicLink()||!s.isFile()||(s.mode&0o077)!==0||d.isSymbolicLink()||!d.isDirectory()||(d.mode&0o777)!==0o700)process.exit(1)'
 if [ -n "${SYNTHETIC_PG_DUMP_FAIL:-}" ]; then printf 'connection failed for %s/%s\n' "$SYNTHETIC_CANARY_HOST" "$SYNTHETIC_CANARY_DATABASE" >&2; exit 1; fi
 output=""
 for argument in "$@"; do
@@ -38,10 +68,16 @@ FAKE
 cat >"$FAKE_BIN/psql" <<'FAKE'
 #!/usr/bin/env bash
 set -euo pipefail
+TRACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+printf 'psql' >>"$TRACE_ROOT/child-argv.trace"
+for argument in "$@"; do printf '\t%s' "$argument" >>"$TRACE_ROOT/child-argv.trace"; done
+printf '\n' >>"$TRACE_ROOT/child-argv.trace"; printf 'psql\n' >>"$TRACE_ROOT/pg-call.trace"
+node -e 'const fs=require("fs"),path=require("path");const f=process.env.PGSERVICEFILE,s=fs.lstatSync(f),d=fs.lstatSync(path.dirname(f));if(process.env.PGSERVICE!=="pawnloop-backup"||s.isSymbolicLink()||!s.isFile()||(s.mode&0o077)!==0||d.isSymbolicLink()||!d.isDirectory()||(d.mode&0o777)!==0o700)process.exit(1)'
 printf 'psql invoked\n' >>"$SYNTHETIC_TRACE"
 while IFS= read -r line; do :; done
+if [ -n "${SYNTHETIC_PSQL_FAIL:-}" ]; then printf 'connection failed for %s/%s\n' "$SYNTHETIC_CANARY_HOST" "$SYNTHETIC_CANARY_DATABASE" >&2; exit 1; fi
 FAKE
-chmod 755 "$FAKE_BIN/pg_dump" "$FAKE_BIN/pg_restore" "$FAKE_BIN/psql"
+chmod 755 "$FAKE_BIN/node" "$FAKE_BIN/env" "$FAKE_BIN/pg_dump" "$FAKE_BIN/pg_restore" "$FAKE_BIN/psql"
 
 PROD_SECURE_DIR="$TMP_DIR/production-secure"; mkdir -m 700 "$PROD_SECURE_DIR"
 PROD_ENV_FILE="$PROD_SECURE_DIR/production.env"
@@ -135,12 +171,23 @@ assert_production_rejected "loopback Production target" "$PROD_SECURE_DIR/loopba
 
 DEV_ENV_FILE="$TMP_DIR/development.env"
 DEV_OUTPUT_DIR="$TMP_DIR/development-backups"
-DEV_SECRET="p1-interface-secret-password"
-printf 'DATABASE_URL=postgresql://p1_interface_user:%s@localhost/pawnshop?schema=public\n' "$DEV_SECRET" >"$DEV_ENV_FILE"
-BACKUP_OUTPUT="$(cd "$ROOT" && PATH="$FAKE_BIN:$PATH" npm run db:backup -- \
-  --environment development --env-file "$DEV_ENV_FILE" --approved-host localhost \
-  --database pawnshop --output-dir "$DEV_OUTPUT_DIR" 2>&1)"
-case "$BACKUP_OUTPUT" in *"$DEV_SECRET"*|*p1_interface_user*|*postgresql://*) echo "FAIL: synthetic backup credentials appeared in output" >&2; exit 1;; esac
+DEV_USER="argv_user_canary"; DEV_SECRET="argv_password_canary"; DEV_HOST="127.42.19.8"; DEV_DATABASE="pawnloop_development_argvaudit"; DEV_SSL="argv_ssl_canary"; DEV_QUERY="argv_query_canary"
+printf 'DATABASE_URL=postgresql://%s:%s@%s/%s?sslmode=%s&channel_binding=%s&schema=public\n' "$DEV_USER" "$DEV_SECRET" "$DEV_HOST" "$DEV_DATABASE" "$DEV_SSL" "$DEV_QUERY" >"$DEV_ENV_FILE"
+: >"$PG_CALL_TRACE"
+set +e
+INVALID_OUTPUT="$(cd "$ROOT" && PATH="$FAKE_BIN:$PATH" "$ROOT/scripts/backup-db.sh" \
+  --environment development --env-file "$DEV_ENV_FILE" --approved-host 127.0.0.1 \
+  --database "$DEV_DATABASE" --output-dir "$TMP_DIR/invalid-development-backups" 2>&1)"
+INVALID_STATUS=$?
+set -e
+test "$INVALID_STATUS" -ne 0 && test ! -s "$PG_CALL_TRACE" || { echo "FAIL: failed target validation invoked a PostgreSQL tool" >&2; exit 1; }
+case "$INVALID_OUTPUT" in *"$DEV_USER"*|*"$DEV_SECRET"*|*"$DEV_HOST"*|*"$DEV_DATABASE"*|*"$DEV_SSL"*|*"$DEV_QUERY"*|*postgresql://*) echo "FAIL: failed target validation exposed connection metadata" >&2; exit 1;; esac
+
+: >"$PG_CALL_TRACE"
+BACKUP_OUTPUT="$(cd "$ROOT" && PATH="$FAKE_BIN:$PATH" "$ROOT/scripts/backup-db.sh" \
+  --environment development --env-file "$DEV_ENV_FILE" --approved-host "$DEV_HOST" \
+  --database "$DEV_DATABASE" --output-dir "$DEV_OUTPUT_DIR" 2>&1)"
+case "$BACKUP_OUTPUT" in *"$DEV_USER"*|*"$DEV_SECRET"*|*"$DEV_HOST"*|*"$DEV_DATABASE"*|*"$DEV_SSL"*|*"$DEV_QUERY"*|*postgresql://*) echo "FAIL: synthetic backup connection metadata appeared in output" >&2; exit 1;; esac
 DEV_BACKUP="$(find "$DEV_OUTPUT_DIR" -type f -name 'pawnloop-development-*.dump' -print)"
 if [ -z "$DEV_BACKUP" ] || [ ! -s "$DEV_BACKUP" ]; then echo "FAIL: interface backup was not created" >&2; exit 1; fi
 DEV_MANIFEST="$DEV_BACKUP.manifest.json"
@@ -148,9 +195,20 @@ if [ ! -s "$DEV_MANIFEST" ]; then echo "FAIL: interface backup manifest was not 
 node "$ROOT/scripts/lib/database-recovery-safety.mjs" validate --backup "$DEV_BACKUP" \
   --manifest "$DEV_MANIFEST" --environment development --max-age-hours 1 >/dev/null
 MANIFEST_DATABASE="$(MANIFEST_FILE="$DEV_MANIFEST" node -e 'const m=require(process.env.MANIFEST_FILE); process.stdout.write(m.databaseName)')"
-if [ "$MANIFEST_DATABASE" != "pawnshop" ]; then echo "FAIL: interface manifest database mismatch" >&2; exit 1; fi
+if [ "$MANIFEST_DATABASE" != "$DEV_DATABASE" ]; then echo "FAIL: interface manifest database mismatch" >&2; exit 1; fi
 MANIFEST_SOURCE_SCHEMA="$(MANIFEST_FILE="$DEV_MANIFEST" node -e 'const m=require(process.env.MANIFEST_FILE); process.stdout.write(m.sourceSchema)')"
 if [ "$MANIFEST_SOURCE_SCHEMA" != "public" ]; then echo "FAIL: schema-scoped backup manifest did not record public" >&2; exit 1; fi
+if find "$DEV_OUTPUT_DIR" -maxdepth 1 -type f \( -name '.pg_service_*' -o -name '.pg_dump.stderr.*' \) | grep -q .; then echo "FAIL: backup service or diagnostic file was not cleaned" >&2; exit 1; fi
+
+set +e
+FAILED_BACKUP_OUTPUT="$(cd "$ROOT" && PATH="$FAKE_BIN:$PATH" SYNTHETIC_PG_DUMP_FAIL=1 SYNTHETIC_CANARY_HOST="$DEV_HOST" SYNTHETIC_CANARY_DATABASE="$DEV_DATABASE" "$ROOT/scripts/backup-db.sh" \
+  --environment development --env-file "$DEV_ENV_FILE" --approved-host "$DEV_HOST" \
+  --database "$DEV_DATABASE" --output-dir "$TMP_DIR/failed-development-backups" 2>&1)"
+FAILED_BACKUP_STATUS=$?
+set -e
+test "$FAILED_BACKUP_STATUS" -ne 0 || { echo "FAIL: synthetic backup client failure unexpectedly passed" >&2; exit 1; }
+case "$FAILED_BACKUP_OUTPUT" in *"$DEV_USER"*|*"$DEV_SECRET"*|*"$DEV_HOST"*|*"$DEV_DATABASE"*|*"$DEV_SSL"*|*"$DEV_QUERY"*|*postgresql://*) echo "FAIL: backup client failure exposed connection metadata" >&2; exit 1;; esac
+if find "$TMP_DIR/failed-development-backups" -maxdepth 1 -type f \( -name '.pg_service_*' -o -name '.pg_dump.stderr.*' \) 2>/dev/null | grep -q .; then echo "FAIL: failed backup service or diagnostic file was not cleaned" >&2; exit 1; fi
 
 IPV6_ENV_FILE="$TMP_DIR/development-ipv6.env"
 IPV6_OUTPUT_DIR="$TMP_DIR/development-ipv6-backups"
@@ -170,9 +228,30 @@ run_restore() {
     --database pawnloop_restore_drill --backup "$BACKUP" --manifest "$MANIFEST"
 }
 
+: >"$PG_CALL_TRACE"
+set +e
+INVALID_RESTORE_OUTPUT="$(PATH="$FAKE_BIN:$PATH" SYNTHETIC_TRACE="$TRACE" CONFIRM_RESTORE="RESTORE isolated pawnloop_restore_drill" "$ROOT/scripts/restore-db.sh" \
+  --destination-environment isolated --env-file "$ENV_FILE" --approved-host 127.0.0.1 \
+  --database pawnloop_restore_drill --backup "$BACKUP" --manifest "$MANIFEST" 2>&1)"
+INVALID_RESTORE_STATUS=$?
+set -e
+test "$INVALID_RESTORE_STATUS" -ne 0 && test ! -s "$PG_CALL_TRACE" || { echo "FAIL: failed restore target validation invoked a PostgreSQL tool" >&2; exit 1; }
+case "$INVALID_RESTORE_OUTPUT" in *do-not-print-secret*|*synthetic_user*|*pawnloop_restore_drill*|*postgresql://*) echo "FAIL: failed restore target validation exposed connection metadata" >&2; exit 1;; esac
+
 if run_restore >/dev/null 2>&1; then echo "FAIL: restore passed without destructive confirmation" >&2; exit 1; fi
 CONFIRM_RESTORE="RESTORE isolated pawnloop_restore_drill" run_restore >/dev/null
 test -s "$TRACE" || { echo "FAIL: isolated restore did not reach synthetic psql" >&2; exit 1; }
+if find "$TMP_DIR" -maxdepth 1 -type f \( -name '.pg_service_*' -o -name '.pg_restore.stderr.*' -o -name '.psql.stderr.*' \) | grep -q .; then echo "FAIL: restore service or diagnostic file was not cleaned" >&2; exit 1; fi
+
+set +e
+FAILED_RESTORE_OUTPUT="$(PATH="$FAKE_BIN:$PATH" SYNTHETIC_TRACE="$TRACE" SYNTHETIC_PSQL_FAIL=1 SYNTHETIC_CANARY_HOST=diagnostic-host-canary SYNTHETIC_CANARY_DATABASE=diagnostic-database-canary CONFIRM_RESTORE="RESTORE isolated pawnloop_restore_drill" "$ROOT/scripts/restore-db.sh" \
+  --destination-environment isolated --env-file "$ENV_FILE" --approved-host localhost \
+  --database pawnloop_restore_drill --backup "$BACKUP" --manifest "$MANIFEST" 2>&1)"
+FAILED_RESTORE_STATUS=$?
+set -e
+test "$FAILED_RESTORE_STATUS" -ne 0 || { echo "FAIL: synthetic restore client failure unexpectedly passed" >&2; exit 1; }
+case "$FAILED_RESTORE_OUTPUT" in *do-not-print-secret*|*synthetic_user*|*pawnloop_restore_drill*|*diagnostic-host-canary*|*diagnostic-database-canary*|*postgresql://*) echo "FAIL: restore client failure exposed connection metadata" >&2; exit 1;; esac
+if find "$TMP_DIR" -maxdepth 1 -type f \( -name '.pg_service_*' -o -name '.pg_restore.stderr.*' -o -name '.psql.stderr.*' \) | grep -q .; then echo "FAIL: failed restore service or diagnostic file was not cleaned" >&2; exit 1; fi
 
 PROD_RESTORE_ENV="$TMP_DIR/production-restore.env"
 printf 'DATABASE_URL=postgresql://restore_user:restore-secret@prod-db.invalid/pawnloop_production\n' >"$PROD_RESTORE_ENV"
@@ -225,4 +304,7 @@ if CONFIRM_RESTORE="RESTORE isolated pawnloop_restore_drill" run_restore >/dev/n
 
 OUTPUT="$(CONFIRM_RESTORE=wrong run_restore 2>&1 || true)"
 case "$OUTPUT" in *do-not-print-secret*|*synthetic_user*) echo "FAIL: secret appeared in restore output" >&2; exit 1;; esac
+
+ARGV_AUDIT="$(cat "$CHILD_ARGV_TRACE")"
+case "$ARGV_AUDIT" in *postgresql://*|*"$DEV_USER"*|*"$DEV_SECRET"*|*"$DEV_HOST"*|*"$DEV_DATABASE"*|*"$DEV_SSL"*|*"$DEV_QUERY"*|*synthetic_user*|*do-not-print-secret*|*pawnloop_restore_drill*) echo "FAIL: connection URL or component appeared in a child argv" >&2; exit 1;; esac
 echo "Database recovery shell tests passed; only synthetic files and fake PostgreSQL clients were used."
