@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 077
-usage() { echo "Usage: $0 --input PATH --output-dir PATH" >&2; exit 1; }
-INPUT=""; OUTPUT_DIR=""
+usage() { echo "Usage: $0 --input PATH --output-dir PATH --working-dir PATH" >&2; exit 1; }
+INPUT=""; OUTPUT_DIR=""; WORKING_DIR=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --input) INPUT="${2:-}"; shift 2;;
     --output-dir) OUTPUT_DIR="${2:-}"; shift 2;;
+    --working-dir) WORKING_DIR="${2:-}"; shift 2;;
     *) usage;;
   esac
 done
-[ -f "$INPUT" ] && [ -n "$OUTPUT_DIR" ] || usage
+[ -f "$INPUT" ] && [ -n "$OUTPUT_DIR" ] && [ -n "$WORKING_DIR" ] || usage
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKING_DIR="$(node "$ROOT/scripts/lib/backup-process-safety.mjs" dir "$WORKING_DIR")" || { echo "Backup safety validation failed." >&2; exit 1; }
+INPUT="$(node "$ROOT/scripts/lib/backup-process-safety.mjs" file "$INPUT" "$WORKING_DIR")" || { echo "Backup safety validation failed." >&2; exit 1; }
+OUTPUT_DIR="$(node -e 'const fs=require("fs"),path=require("path"); const p=process.argv[1]; process.stdout.write(path.join(fs.realpathSync(path.dirname(p)),path.basename(p)))' "$OUTPUT_DIR" 2>/dev/null || true)"
+case "$OUTPUT_DIR" in "$WORKING_DIR"/*) ;; *) echo "Backup safety validation failed." >&2; exit 1;; esac
 [ ! -e "$OUTPUT_DIR" ] || { echo "Output directory already exists." >&2; exit 1; }
 mkdir -p "$OUTPUT_DIR"; chmod 700 "$OUTPUT_DIR"
 if [ -z "${BACKUP_ENCRYPTION_SECRET:-}" ]; then

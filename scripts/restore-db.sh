@@ -33,11 +33,11 @@ if [ "${CONFIRM_RESTORE:-}" != "$EXPECTED_CONFIRMATION" ]; then echo "Restore bl
 if [ "$DEST_ENV" = "production" ] && [ "${CONFIRM_PRODUCTION_RESTORE:-}" != "RESTORE PRODUCTION" ]; then echo "Production restore blocked: separate production approval confirmation is required." >&2; exit 1; fi
 
 pg_restore --list "$DUMP_FILE" >/dev/null || { echo "Backup is not a valid PostgreSQL archive." >&2; exit 1; }
-PG_RESTORE_URL="$(DATABASE_URL="$DATABASE_URL" node -e 'const u=new URL(process.env.DATABASE_URL); u.searchParams.delete("schema"); process.stdout.write(u.toString())')"
-unset DATABASE_URL
+SERVICE_FILE="$(node "$ROOT/scripts/lib/backup-process-safety.mjs" service "$ENV_FILE" "$(dirname "$ENV_FILE")")"
 PG_RESTORE_ARGS=(--clean --if-exists --no-owner --no-privileges --file=-)
 if [ -n "$PG_SCHEMA" ]; then PG_RESTORE_ARGS+=(--schema="$PG_SCHEMA"); fi
 PG_RESTORE_ARGS+=("$DUMP_FILE")
 echo "Restoring verified $SOURCE_ENV backup into the explicitly approved $DEST_ENV target."
-pg_restore "${PG_RESTORE_ARGS[@]}" | sed '/^SET transaction_timeout = 0;$/d' | psql "$PG_RESTORE_URL" -v ON_ERROR_STOP=1
+if ! PGSERVICEFILE="$SERVICE_FILE" PGSERVICE=pawnloop-backup env -u DATABASE_URL pg_restore "${PG_RESTORE_ARGS[@]}" 2>"$(dirname "$ENV_FILE")/.pg_restore.stderr" | sed '/^SET transaction_timeout = 0;$/d' | PGSERVICEFILE="$SERVICE_FILE" PGSERVICE=pawnloop-backup env -u DATABASE_URL psql -v ON_ERROR_STOP=1; then rm -f "$SERVICE_FILE" "$(dirname "$ENV_FILE")/.pg_restore.stderr"; echo "Restore failed: database restore error." >&2; exit 1; fi
+rm -f "$SERVICE_FILE" "$(dirname "$ENV_FILE")/.pg_restore.stderr"
 echo "Restore completed. Run the post-restore validation checklist in docs/production-backup-recovery-runbook-v1.md."

@@ -36,7 +36,7 @@ else
   if [ -n "$APPROVAL_FILE" ] || [ -z "$APPROVED_HOST" ] || [ -z "$DATABASE_NAME" ]; then usage; exit 1; fi
   DATABASE_URL="$(node --env-file="$ENV_FILE" -e 'process.stdout.write(process.env.DATABASE_URL || "")')"
   TARGET="$(env -i PATH="$PATH" DATABASE_URL="$DATABASE_URL" node "$ROOT/scripts/lib/database-recovery-safety.mjs" target --operation backup --environment "$ENVIRONMENT" --approved-host "$APPROVED_HOST" --database "$DATABASE_NAME" --destination false)"
-  PG_DUMP_CONNECTION="$(DATABASE_URL="$DATABASE_URL" node -e 'const u=new URL(process.env.DATABASE_URL); u.searchParams.delete("schema"); process.stdout.write(u.toString())')"
+  PG_DUMP_CONNECTION="service=pawnloop-backup"
   PG_SCHEMA="$(TARGET="$TARGET" node -e 'process.stdout.write(JSON.parse(process.env.TARGET).schema)')"
   unset DATABASE_URL
 fi
@@ -58,11 +58,13 @@ if [ "$ENVIRONMENT" = "production" ]; then
   fi
   rm -f "$RUNTIME_DIR/pg_dump.stderr"
 else
-  pg_dump "${PG_DUMP_ARGS[@]}"
+  SERVICE_FILE="$(node "$ROOT/scripts/lib/backup-process-safety.mjs" service "$ENV_FILE" "$OUTPUT_DIR")"
+  if ! PGSERVICEFILE="$SERVICE_FILE" PGSERVICE=pawnloop-backup env -u DATABASE_URL pg_dump "${PG_DUMP_ARGS[@]:1}" 2>"$OUTPUT_DIR/.pg_dump.stderr"; then rm -f "$SERVICE_FILE" "$OUTPUT_DIR/.pg_dump.stderr"; echo "Backup failed: pg_dump error." >&2; exit 1; fi
+  rm -f "$SERVICE_FILE" "$OUTPUT_DIR/.pg_dump.stderr"
 fi
 chmod 600 "$OUT_FILE"
 if [ ! -s "$OUT_FILE" ]; then cleanup; echo "Backup is empty." >&2; exit 1; fi
-pg_restore --list "$OUT_FILE" >/dev/null
+  pg_restore --list "$OUT_FILE" >/dev/null 2>&1
 TOOL_VERSION="$(pg_dump --version 2>/dev/null || echo unknown)"
 REVISION="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 if [ "$ENVIRONMENT" = "production" ]; then
