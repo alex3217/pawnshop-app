@@ -163,6 +163,34 @@ test("deployed environments may explicitly disable uploads without storage crede
   assert.equal(metadata.durableUploadsEnabled, false);
 });
 
+test("EMAIL_REPLY_TO is optional with a support default and rejects unsafe values", () => {
+  const defaulted = validEnvironment("production");
+  delete defaulted.EMAIL_REPLY_TO;
+  assert.doesNotThrow(() =>
+    validateDeployedEnvironment(defaulted, { environment: "production" }),
+  );
+
+  const configured = validEnvironment("production");
+  configured.EMAIL_REPLY_TO = "support@pawnloop.com";
+  assert.doesNotThrow(() =>
+    validateDeployedEnvironment(configured, { environment: "production" }),
+  );
+
+  for (const value of [
+    "support@pawnloop.com\r\nBcc: attacker@example.test",
+    "support@pawnloop.com\n",
+    "support@pawnloop.com,attacker@example.test",
+    "not-an-email",
+  ]) {
+    const invalid = validEnvironment("production");
+    invalid.EMAIL_REPLY_TO = value;
+    assert.throws(
+      () => validateDeployedEnvironment(invalid, { environment: "production" }),
+      /EMAIL_REPLY_TO must be one valid email address/,
+    );
+  }
+});
+
 test("production startup requires durable uploads explicitly enabled", () => {
   for (const value of [undefined, "false", "yes"]) {
     const env = validEnvironment("production");

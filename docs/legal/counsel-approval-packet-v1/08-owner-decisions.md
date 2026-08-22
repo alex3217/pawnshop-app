@@ -10,7 +10,13 @@ This record separates owner-approved proposals from counsel conclusions and veri
 - Public business phone authorized for publication: `713-299-8847`
 - Legal entity, assumed-name usage, and contracting language remain pending counsel confirmation.
 
-The owner did not authorize publication of the personal name, street/mailing address, or other private email addresses. Those values must remain in restricted storage. The owner expressly authorized `bealtair1@icloud.com` for publication and temporary use as the public support address. It must pass delivery, reply, monitoring, and ownership tests before beta operation. Provisioning of `support@pawnloop.com` is deferred, and that address must not be advertised until active. Role-based legal and privacy addresses remain required.
+The owner did not authorize publication of the personal name, street/mailing
+address, or private email addresses. Those values must remain in restricted
+storage. The owner authorized `support@pawnloop.com` for customer support,
+`legal@pawnloop.com` for legal and privacy contact, and
+`security@pawnloop.com` for security reports. The role mailboxes must still pass
+the applicable delivery, reply, monitoring, and ownership tests before beta
+operation; this repository decision does not establish provider readiness.
 
 ## Accepted owner proposals
 
@@ -46,7 +52,7 @@ The exact enabled, controlled-test, and deferred feature/category lists are reco
 3. Tax accountant/adviser and written marketplace-tax responsibility conclusion
 4. Insurance types, carrier, and approved limits, or documented authorized acceptance of operating without coverage
 5. Separate alternates for incident command and critical operating roles
-6. Role-based public legal and privacy email addresses; temporary support address delivery, reply, monitoring, and ownership evidence; future `support@pawnloop.com` provisioning deferred
+6. Delivery, reply where applicable, monitoring, and ownership evidence for the role-based support, legal/privacy, and security addresses
 7. At least one and preferably three to five eligible, licensed Houston-area beta shops
 8. Exact Stripe Connect charge architecture, negative-balance responsibility, dispute allocation, payout controls, and reserve capability
 9. Approved legal documents and exact publication/assent versions
@@ -60,4 +66,9 @@ No calendar start date is approved. The proposed start is the first business day
 
 ## Restricted-information rule
 
-Except for the expressly authorized temporary public support address, do not commit personal names, private email addresses, the non-public address, signatures, credentials, government identifiers, tax account numbers, bank information, customer records, unredacted provider configuration, or privileged legal communications. Reference those records by evidence ID and restricted location.
+Do not commit personal names, private email addresses, the non-public address,
+signatures, credentials, government identifiers, tax account numbers, bank
+information, customer records, unredacted provider configuration, or privileged
+legal communications. Public role-based business contacts are the only email
+addresses authorized for repository publication. Reference restricted records by
+evidence ID and restricted location.

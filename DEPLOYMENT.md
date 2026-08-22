@@ -182,7 +182,9 @@ The contract requires:
 - strong JWT and integration-credential encryption secrets;
 - live-mode platform Stripe keys and platform webhook signing secret, plus the
   separate Connect webhook signing secret whenever `STRIPE_CONNECT_ENABLED=true`;
-- complete explicit Resend or SMTP configuration;
+- complete explicit Resend or SMTP configuration, preserving `EMAIL_FROM` on
+  `notifications.pawnloop.com`; transactional replies use the validated optional
+  `EMAIL_REPLY_TO` value or default to `support@pawnloop.com`;
 - `TRUST_PROXY=1`, explicit invite-only/public registration mode, enabled and
   fully configured authentication rate limiting, and an explicit MFA mode;
 - explicit boolean scheduler flags, interval/batch settings, readiness timeout,
@@ -213,7 +215,7 @@ Production backend variable classification:
 | Production-only | `PRODUCTION_DATABASE_HOST`; live-mode Stripe keys |
 | Staging-only | `STAGING_DATABASE_HOST`; test-mode Stripe keys; existing staging subscription Price-ID integration checks |
 | Conditionally required | `STRIPE_CONNECT_WEBHOOK_SECRET` when Connect is enabled; `RESEND_API_KEY` and timeout for Resend; SMTP host/port/secure/user/password/timeouts for SMTP; `MFA_ENCRYPTION_KEY` when MFA is optional or required |
-| Optional with safe defaults | request body limits, webhook body limit, JWT/token TTLs, email-action TTLs, Stripe currency, payout minimum, AI helper settings, `HOST`, `PAWN_PORT`, frontend static-serving settings; these do not bypass the deployed contract |
+| Optional with safe defaults | `EMAIL_REPLY_TO` (defaults to the single mailbox `support@pawnloop.com`), request body limits, webhook body limit, JWT/token TTLs, email-action TTLs, Stripe currency, payout minimum, AI helper settings, `HOST`, `PAWN_PORT`, frontend static-serving settings; these do not bypass the deployed contract |
 | Prohibited in deployed validation | unsafe validation/database escape hatches and local staging validation mode; production also rejects local/loopback hosts, non-HTTPS origins, non-live Stripe mode, and local/test/staging/development database names |
 
 Secret values include database connection strings, JWT/auth secrets, encryption

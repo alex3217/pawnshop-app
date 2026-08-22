@@ -1,5 +1,6 @@
 import { assertDeployedCorsConfiguration } from "../cors.js";
 import { loadAuthRateLimitConfig, loadTrustProxyConfig } from "./authRateLimit.js";
+import { resolveTransactionalReplyTo } from "./businessContacts.js";
 import { loadMfaConfig } from "./mfa.js";
 
 const DEPLOYED_ENVIRONMENTS = new Set(["staging", "production"]);
@@ -150,6 +151,11 @@ function validateDatabase(env, environment, violations) {
 function validateEmail(env, violations) {
   const provider = requireValue(env, "EMAIL_PROVIDER", violations, { secret: false }).toLowerCase();
   requireValue(env, "EMAIL_FROM", violations, { secret: false });
+  try {
+    resolveTransactionalReplyTo(env.EMAIL_REPLY_TO);
+  } catch {
+    violations.push("EMAIL_REPLY_TO must be one valid email address");
+  }
   if (provider === "resend") {
     requireValue(env, "RESEND_API_KEY", violations);
     positiveInteger(env, "RESEND_API_TIMEOUT_MS", violations, { maximum: 30_000 });

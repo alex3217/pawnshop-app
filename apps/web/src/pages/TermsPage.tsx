@@ -1,4 +1,8 @@
 import { Link } from "react-router-dom";
+import {
+  PUBLIC_LEGAL_EMAIL,
+  PUBLIC_LEGAL_MAILTO,
+} from "../publicBusinessContacts";
 
 const EFFECTIVE_DATE = "July 28, 2026";
 
@@ -343,9 +347,11 @@ export default function TermsPage() {
         <section aria-labelledby="terms-contact">
           <h2 id="terms-contact">22. Contact</h2>
           <p>
-            Questions about these terms may be submitted through the support or
-            contact method displayed on PawnLoop. Formal legal contact details
-            must be added before public launch.
+            Questions about these terms may be sent to PawnLoop Legal:{" "}
+            <a href={PUBLIC_LEGAL_MAILTO}>
+              Email PawnLoop Legal at {PUBLIC_LEGAL_EMAIL}
+            </a>
+            .
           </p>
         </section>
 

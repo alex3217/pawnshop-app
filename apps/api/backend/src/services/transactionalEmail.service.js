@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
+import { resolveTransactionalReplyTo } from "../config/businessContacts.js";
 
 let configuredTransport = null;
 let configuredResendClient = null;
@@ -125,10 +126,7 @@ async function sendWithResend(message) {
   try {
     const result = await Promise.race([
       getResendClient().emails.send(
-        {
-          from: process.env.EMAIL_FROM || "PawnLoop <no-reply@localhost>",
-          ...message,
-        },
+        message,
         { signal: controller.signal },
       ),
       timeoutPromise,
@@ -167,12 +165,14 @@ async function sendWithResend(message) {
 
 async function send(message) {
   const provider = getEmailProvider();
-  if (provider === "resend") return sendWithResend(message);
-
-  const result = await getSmtpTransport().sendMail({
+  const configuredMessage = {
     from: process.env.EMAIL_FROM || "PawnLoop <no-reply@localhost>",
     ...message,
-  });
+    replyTo: resolveTransactionalReplyTo(process.env.EMAIL_REPLY_TO),
+  };
+  if (provider === "resend") return sendWithResend(configuredMessage);
+
+  const result = await getSmtpTransport().sendMail(configuredMessage);
   return result?.messageId;
 }
 

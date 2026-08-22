@@ -19,7 +19,12 @@ import NotificationCenter from "./NotificationCenter";
 import { getShopMessageUnreadCounts } from "../services/shopMessaging";
 import { BUYER_NAVIGATION } from "../navigation/buyerNavigation";
 import { ENVIRONMENT } from "../config";
-import { PUBLIC_SUPPORT_EMAIL, PUBLIC_SUPPORT_MAILTO } from "../supportContact";
+import {
+  PUBLIC_SECURITY_EMAIL,
+  PUBLIC_SECURITY_MAILTO,
+  PUBLIC_SUPPORT_EMAIL,
+  PUBLIC_SUPPORT_MAILTO,
+} from "../publicBusinessContacts";
 import EnvironmentIndicator from "./EnvironmentIndicator.mjs";
 import "../styles/site-layout.css";
 import PublicPreviewBanner from "../publicPreview/PublicPreviewBanner";
@@ -775,7 +780,10 @@ export default function SiteLayout() {
                 {group.label === "Legal & help" ? (
                   <>
                     <a href={PUBLIC_SUPPORT_MAILTO}>
-                      Email support: {PUBLIC_SUPPORT_EMAIL}
+                      Email customer support: {PUBLIC_SUPPORT_EMAIL}
+                    </a>
+                    <a href={PUBLIC_SECURITY_MAILTO}>
+                      Report a security issue: {PUBLIC_SECURITY_EMAIL}
                     </a>
                     <button
                       type="button"
