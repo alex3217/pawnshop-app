@@ -1,4 +1,8 @@
 import { Link } from "react-router-dom";
+import {
+  PUBLIC_LEGAL_EMAIL,
+  PUBLIC_LEGAL_MAILTO,
+} from "../publicBusinessContacts";
 
 const EFFECTIVE_DATE = "July 28, 2026";
 
@@ -501,13 +505,17 @@ export default function PrivacyPage() {
         <section aria-labelledby="privacy-contact">
           <h2 id="privacy-contact">19. Contact and privacy requests</h2>
           <p>
-            Questions, complaints, and privacy requests may be submitted through
-            the support or contact method displayed on PawnLoop.
+            Questions, complaints, and privacy requests may be sent to PawnLoop
+            Legal and Privacy:{" "}
+            <a href={PUBLIC_LEGAL_MAILTO}>
+              Email PawnLoop Legal and Privacy at {PUBLIC_LEGAL_EMAIL}
+            </a>
+            .
           </p>
           <p>
-            PawnLoop’s legal business name, mailing address, privacy email
-            address, telephone number, and request-submission method must be added
-            before public launch.
+            PawnLoop’s legal business name, mailing address, telephone number,
+            and any additional request-submission method must be added before
+            public launch.
           </p>
         </section>
 

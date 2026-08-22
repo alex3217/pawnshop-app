@@ -18,6 +18,7 @@ beforeEach(() => {
   process.env.NODE_ENV = "test";
   process.env.EMAIL_PROVIDER = "resend";
   process.env.EMAIL_FROM = "PawnLoop <no-reply@notifications.pawnloop.com>";
+  delete process.env.EMAIL_REPLY_TO;
   process.env.RESEND_API_KEY = "test-only-key";
   process.env.RESEND_API_TIMEOUT_MS = "10000";
   process.env.WEB_URL = "https://pawnloop.test";
@@ -51,6 +52,7 @@ test("Resend HTTPS delivery requires API acceptance with a message identifier", 
   });
 
   assert.equal(request.message.from, process.env.EMAIL_FROM);
+  assert.equal(request.message.replyTo, "support@pawnloop.com");
   assert.equal(request.message.to, "buyer@example.test");
   assert.match(request.message.text, /https:\/\/pawnloop\.test\/verify-email\?token=/);
   assert.ok(request.options.signal instanceof AbortSignal);
@@ -143,6 +145,56 @@ test("missing and unsupported EMAIL_PROVIDER values fail closed", async () => {
   }
 });
 
+test("a configured single-mailbox Reply-To is used", async () => {
+  process.env.EMAIL_REPLY_TO = "helpdesk@pawnloop.com";
+  let request;
+  setTransactionalEmailResendClientForTests({
+    emails: {
+      async send(message) {
+        request = message;
+        return { data: { id: "configured-reply-to" }, error: null };
+      },
+    },
+  });
+
+  await sendVerificationEmail({
+    to: "buyer@example.test",
+    name: "Buyer",
+    token: "token",
+  });
+  assert.equal(request.replyTo, "helpdesk@pawnloop.com");
+});
+
+test("invalid Reply-To values fail safely before a delivery attempt", async () => {
+  let deliveryAttempts = 0;
+  setTransactionalEmailResendClientForTests({
+    emails: {
+      async send() {
+        deliveryAttempts += 1;
+        return { data: { id: "must-not-send" }, error: null };
+      },
+    },
+  });
+
+  for (const value of [
+    "support@pawnloop.com\r\nBcc: attacker@example.test",
+    "support@pawnloop.com\n",
+    "support@pawnloop.com,attacker@example.test",
+    "PawnLoop Support <support@pawnloop.com>",
+    "not-an-email",
+    "support@localhost",
+    ".support@pawnloop.com",
+    "support..team@pawnloop.com",
+  ]) {
+    process.env.EMAIL_REPLY_TO = value;
+    await assert.rejects(
+      sendVerificationEmail({ to: "buyer@example.test", name: "Buyer", token: "token" }),
+      { name: "EmailConfigurationError", code: "EMAIL_PROVIDER_CONFIGURATION_ERROR" },
+    );
+  }
+  assert.equal(deliveryAttempts, 0);
+});
+
 test("Resend timeout parsing uses safe defaults and a reasonable upper bound", () => {
   for (const value of [undefined, "", "not-a-number", "10000ms", "1.5", "0", "-1"]) {
     assert.equal(parseResendApiTimeout(value), DEFAULT_RESEND_API_TIMEOUT_MS);
@@ -167,6 +219,7 @@ test("SMTP remains available only when explicitly selected", async () => {
     token: "token",
   });
   assert.equal(request.from, process.env.EMAIL_FROM);
+  assert.equal(request.replyTo, "support@pawnloop.com");
   assert.equal(request.to, "buyer@example.test");
 });
 
